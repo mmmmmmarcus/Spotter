@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// First-launch wizard: set the palette shortcut, offer Accessibility + launch-at-login, offer a Raycast import, then drop into the launcher. Re-runnable from Settings. Reuses the app's own controls (`ShortcutRecorder`, `SettingsCard`, `BackupActions`) so it looks and behaves like the rest of Tinycast.
+/// First-launch wizard: set the palette shortcut, offer Accessibility + launch-at-login, offer a Raycast import, then drop into the launcher. Re-runnable from Settings. Reuses the app's own controls (`ShortcutRecorder`, `SettingsCard`, `BackupActions`) so it looks and behaves like the rest of Spotter.
 struct OnboardingView: View {
     @State private var step = 0
     @StateObject private var model = OnboardingModel()
@@ -75,7 +75,7 @@ struct OnboardingView: View {
 
     private var title: String {
         switch step {
-        case 0: "Welcome to Tinycast"
+        case 0: "Welcome to Spotter"
         case 1: "Enable Pasting"
         case 2: "Import from Raycast"
         default: "You're all set"
@@ -85,7 +85,7 @@ struct OnboardingView: View {
     private var subtitle: String {
         switch step {
         case 0: "Set a shortcut to summon the launcher from anywhere."
-        case 1: "Let Tinycast paste items back into the app you were using."
+        case 1: "Let Spotter paste items back into the app you were using."
         case 2: "Bring your shortcuts, favorites, and clipboard history along."
         default: readyMessage
         }
@@ -109,9 +109,9 @@ struct OnboardingView: View {
 
     private var readyMessage: String {
         if let caps = hotKeys.shortcut(for: .togglePalette)?.keycaps {
-            return "Press \(caps.joined()) anytime to start using Tinycast."
+            return "Press \(caps.joined()) anytime to start using Spotter."
         }
-        return "Tinycast is ready. Set a shortcut in Settings to summon it."
+        return "Spotter is ready. Set a shortcut in Settings to summon it."
     }
 
     // MARK: - Step content
@@ -131,7 +131,7 @@ struct OnboardingView: View {
             SettingsCard {
                 SettingsRow(
                     title: "App Launcher",
-                    subtitle: "Press this shortcut to open Tinycast.",
+                    subtitle: "Press this shortcut to open Spotter.",
                     systemImage: "magnifyingglass", tint: .blue
                 ) {
                     ShortcutRecorder(action: .togglePalette)
@@ -139,7 +139,7 @@ struct OnboardingView: View {
                 SettingsDivider()
                 SettingsRow(
                     title: "Launch at login",
-                    subtitle: "Start Tinycast automatically when you log in.",
+                    subtitle: "Start Spotter automatically when you log in.",
                     systemImage: "power", tint: .green
                 ) {
                     Toggle("", isOn: $settings.launchAtLogin)
@@ -156,7 +156,7 @@ struct OnboardingView: View {
                 SettingsRow(
                     title: "Accessibility",
                     subtitle:
-                        "Without it Tinycast can still copy, but it can't paste a clipboard or emoji item back into the app you were using.",
+                        "Without it Spotter can still copy, but it can't paste a clipboard or emoji item back into the app you were using.",
                     systemImage: "accessibility", tint: .blue
                 ) {
                     statusBadge

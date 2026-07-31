@@ -1,7 +1,7 @@
-# Contributing to Tinycast
+# Contributing to Spotter
 
-Check existing [issues](https://github.com/abue-ammar/tinycast/issues) and
-[pull requests](https://github.com/abue-ammar/tinycast/pulls) first.
+Check existing [issues](https://github.com/mmmmmmarcus/Spotter/issues) and
+[pull requests](https://github.com/mmmmmmarcus/Spotter/pulls) first.
 
 > **Don't hurry your code. Make sure it works well and is well designed. Don't worry about timing.**
 
@@ -12,14 +12,15 @@ Check existing [issues](https://github.com/abue-ammar/tinycast/issues) and
   after the palette closes.
 - **Design.** New UI must look like it shipped with the app — spacing, type, radii and motion from the
   existing tokens ([`docs/ui.md`](docs/ui.md)). If you genuinely need a new one, justify it in the PR.
-- **No bloat.** Tinycast stays small on purpose — quality over quantity. A clean patch still gets
+- **No bloat.** Spotter stays small on purpose — quality over quantity. A clean patch still gets
   declined if the feature isn't worth its weight, so open an issue and settle that before you build.
 - **Never break the Critical Invariants** in [`AGENTS.md`](AGENTS.md).
 
 ## Setup
 
 - macOS 26+, Xcode 26. Do the one-time signing setup ([`docs/signing.md`](docs/signing.md) §1).
-- `open Tinycast.xcodeproj` → ⌘R. Debug builds are their own channel (`Tinycast Dev.app`).
+- Run `./Tools/run-local.sh Debug`; both build configurations update the canonical
+  `/Applications/Spotter.app`. Do not run the DerivedData product directly.
 - After editing `project.yml`: `xcodegen generate`, commit the result. No SwiftPM.
 - Details: [`docs/development.md`](docs/development.md). Architecture:
   [`docs/architecture.md`](docs/architecture.md).
@@ -66,7 +67,7 @@ Match the surrounding code.
 
 ## Bugs
 
-macOS version, Tinycast version + channel, steps, expected vs actual. A recording beats a paragraph.
+macOS version, Spotter version + channel, steps, expected vs actual. A recording beats a paragraph.
 
 ## Security
 

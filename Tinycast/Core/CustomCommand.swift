@@ -3,6 +3,19 @@ import Foundation
 
 struct CustomCommand: Codable, Hashable, Identifiable, Sendable {
     static let entryIDPrefix = "custom-command:"
+    static let sleepDisplayPresetID = UUID(uuidString: "58D9AF36-D589-4F8B-B3F4-B97B49120EE5")!
+    static let toggleAppearancePresetID = UUID(
+        uuidString: "9EE041A5-46F3-444B-982B-7824F206AD71")!
+    static let starterCommands = [
+        CustomCommand(
+            id: sleepDisplayPresetID, name: "Sleep Display",
+            command: "/usr/bin/pmset displaysleepnow"),
+        CustomCommand(
+            id: toggleAppearancePresetID, name: "Toggle Dark / Light Mode",
+            command:
+                "/usr/bin/osascript -e 'tell application \"System Events\" to tell "
+                + "appearance preferences to set dark mode to not dark mode'"),
+    ]
 
     let id: UUID
     var name: String
@@ -49,6 +62,8 @@ enum CustomCommandValidationError: LocalizedError {
 @MainActor
 final class CustomCommandStore: ObservableObject {
     private static let defaultsKey = "customCommands"
+    private static let starterVersionKey = "customCommandStarterVersion"
+    private static let currentStarterVersion = 1
 
     private let defaults: UserDefaults
     @Published private(set) var commands: [CustomCommand]
@@ -59,8 +74,14 @@ final class CustomCommandStore: ObservableObject {
         let decoded =
             defaults.data(forKey: Self.defaultsKey)
             .flatMap { try? JSONDecoder().decode([CustomCommand].self, from: $0) } ?? []
-        commands = Self.sanitized(decoded)
-        if commands != decoded { persist() }
+        let sanitized = Self.sanitized(decoded)
+        let needsStarters =
+            defaults.integer(forKey: Self.starterVersionKey) < Self.currentStarterVersion
+        commands = needsStarters ? Self.addingStarterCommands(to: sanitized) : sanitized
+        if needsStarters {
+            defaults.set(Self.currentStarterVersion, forKey: Self.starterVersionKey)
+        }
+        if commands != decoded || needsStarters { persist() }
     }
 
     func command(id: UUID) -> CustomCommand? {
@@ -151,5 +172,22 @@ final class CustomCommandStore: ObservableObject {
             result.append(cleaned)
         }
         return result
+    }
+
+    private static func addingStarterCommands(to values: [CustomCommand]) -> [CustomCommand] {
+        var result = values
+        for starter in CustomCommand.starterCommands {
+            let foldedName = starter.name.folding(options: [.caseInsensitive], locale: .current)
+            guard
+                !result.contains(where: {
+                    $0.id == starter.id
+                        || $0.name.folding(options: [.caseInsensitive], locale: .current)
+                            == foldedName
+                        || $0.command == starter.command
+                })
+            else { continue }
+            result.append(starter)
+        }
+        return sanitized(result)
     }
 }

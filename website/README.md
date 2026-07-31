@@ -1,5 +1,8 @@
 # Tinycast website
 
+> This directory is an upstream Tinycast website snapshot. It is retained for reference and is not
+> the Spotter app's product site or release channel.
+
 Marketing site for [Tinycast](../), built with React + Vite + Tailwind CSS.
 
 ## Develop

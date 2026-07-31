@@ -121,16 +121,16 @@ private struct AboutLink: Identifiable {
 
     static let all: [AboutLink] = [
         AboutLink(
-            id: "website", glyph: .symbol("globe"), title: "Website",
+            id: "website", glyph: .symbol("globe"), title: "Tinycast Website",
             detail: "abue-ammar.github.io/tinycast",
             url: URL(string: "https://abue-ammar.github.io/tinycast/")!),
         AboutLink(
             id: "github", glyph: .brand("BrandGitHub"), title: "GitHub",
-            detail: "github.com/abue-ammar/tinycast",
-            url: URL(string: "https://github.com/abue-ammar/tinycast")!),
+            detail: "github.com/mmmmmmarcus/Spotter",
+            url: URL(string: "https://github.com/mmmmmmarcus/Spotter")!),
         AboutLink(
-            id: "discord", glyph: .brand("BrandDiscord"), title: "Discord",
-            detail: "Join the Tinycast community",
+            id: "discord", glyph: .brand("BrandDiscord"), title: "Tinycast Discord",
+            detail: "Upstream community",
             url: URL(string: "https://discord.gg/v2Eeb4QQy3")!),
         AboutLink(
             id: "x", glyph: .brand("BrandX"), title: "X", detail: "@abue_ammar",

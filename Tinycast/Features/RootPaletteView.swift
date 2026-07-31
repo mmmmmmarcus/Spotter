@@ -148,7 +148,7 @@ struct RootPaletteView: View {
     /// The bottom-left app menu content (About / Settings).
     private var appMenuContent: PopoverMenuContent {
         PopoverMenuContent(items: [
-            PopoverMenuItem(title: "About Tinycast", systemImage: "info.circle") {
+            PopoverMenuItem(title: "About Spotter", systemImage: "info.circle") {
                 core.showAbout()
             },
             PopoverMenuItem(title: "Settings", systemImage: "gearshape", shortcut: "⌘,") {
@@ -191,7 +191,7 @@ struct RootPaletteView: View {
         let showActionGroup = count > 0 && !(calcSelected && !calcActionable)
 
         // The `header` (and its single search field) is always attached in the same position via safeAreaInset so its focus survives the compact↔expanded swap — only the results below it toggle. Collapsed shows the bar alone; expanded floats header + action bar over the list with edge-dissolve (see docs/ui.md).
-        return Group {
+        let insetContent = Group {
             if isCollapsed {
                 Color.clear
             } else {
@@ -207,6 +207,8 @@ struct RootPaletteView: View {
                 bottomBar(pillLabel: pillLabel, showActionGroup: showActionGroup)
             }
         }
+
+        let paletteBody = insetContent
         // Menus are in-window overlays anchored to a bottom corner, so they stay clipped inside the panel — never a system popover spilling outside the window.
         .overlay {
             if showAppMenu || showActions {
@@ -241,106 +243,116 @@ struct RootPaletteView: View {
         .background(Color.black.opacity(Theme.Colors.panelDimming))
         .background(VisualEffectView())
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
-        // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up).
-        .onChange(of: vm.focusToken) {
-            searchFocused = true
-            showActions = false
-            showAppMenu = false
-        }
-        .onChange(of: vm.query) {
-            vm.selection = 0
-            scroll = ScrollIntent(kind: .top)
-        }
-        .onChange(of: vm.mode) {
-            vm.selection = 0
-            showActions = false
-            scroll = ScrollIntent(kind: .top)
-        }
-        // Pop-to-root: `prepare` clears query/selection, but if both were already at their defaults the handlers above never fire — this intent guarantees the scroll itself snaps back to the origin.
-        .onChange(of: vm.resetToken) {
-            scroll = ScrollIntent(kind: .top)
-        }
-        // Opening either menu highlights its first row and closes the other, so exactly one menu is ever open and always has a highlight.
-        .onChange(of: showActions) {
-            if showActions {
-                showAppMenu = false
-                menuSelection = 0
-            }
-            vm.menuOpen = menuOpen
-        }
-        .onChange(of: showAppMenu) {
-            if showAppMenu {
+
+        let observedBody = AnyView(
+            paletteBody
+            // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up).
+            .onChange(of: vm.focusToken) {
+                searchFocused = true
                 showActions = false
-                menuSelection = 0
+                showAppMenu = false
             }
-            vm.menuOpen = menuOpen
-        }
-        // Follow a row the store moved: a fresh capture (or promote-on-paste) lands at the head of its section, and pinning lifts a row into the Pinned section. With a query typed the highlight stays put; `AppCore` has already placed it for pin/paste.
-        .onChange(of: clipFollow) { old, new in
-            // A nil `old.id` is the first load landing, not a row that moved.
-            guard vm.mode == .clipboard, old.id != nil else { return }
-            if isQueryEmpty, old.id != new.id, let id = new.id,
-                let index = clips.firstIndex(where: { $0.id == id })
-            {
-                vm.selection = index
-            }
-            scroll = ScrollIntent(kind: .follow)
-        }
-        .onAppear { searchFocused = true }
-        // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
-        .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
-        // ⌘1–⌘5 launch the compact bar's favorite slots (or expand, for the "…" overflow slot).
-        .onKeyPress(keys: ["1", "2", "3", "4", "5"], phases: .down) { press in
-            guard isCollapsed, settings.showFavoritesInCompactMode,
-                press.modifiers.contains(.command),
-                let digit = press.key.character.wholeNumberValue
-            else { return .ignored }
-            let slots = compactFavoriteSlots
-            let index = digit - 1
-            guard slots.indices.contains(index) else { return .ignored }
-            switch slots[index] {
-            case .app(let app): core.launch(app)
-            case .more: core.expandFromCompact()
-            }
-            return .handled
-        }
-        .onKeyPress(.downArrow) {
-            if isCollapsed {
-                // The compact bar has no visible selection; Down reveals the list at its first row
-                // while the shared search field stays mounted and focused.
+            .onChange(of: vm.query) {
                 vm.selection = 0
-                core.expandFromCompact()
+                scroll = ScrollIntent(kind: .top)
+            }
+            .onChange(of: vm.mode) {
+                vm.selection = 0
+                showActions = false
+                scroll = ScrollIntent(kind: .top)
+            }
+            // Pop-to-root: `prepare` clears query/selection, but if both were already at their defaults the handlers above never fire — this intent guarantees the scroll itself snaps back to the origin.
+            .onChange(of: vm.resetToken) {
+                scroll = ScrollIntent(kind: .top)
+            }
+            // Opening either menu highlights its first row and closes the other, so exactly one menu is ever open and always has a highlight.
+            .onChange(of: showActions) {
+                if showActions {
+                    showAppMenu = false
+                    menuSelection = 0
+                }
+                vm.menuOpen = menuOpen
+            }
+            .onChange(of: showAppMenu) {
+                if showAppMenu {
+                    showActions = false
+                    menuSelection = 0
+                }
+                vm.menuOpen = menuOpen
+            }
+            // Follow a row the store moved: a fresh capture (or promote-on-paste) lands at the head of its section, and pinning lifts a row into the Pinned section. With a query typed the highlight stays put; `AppCore` has already placed it for pin/paste.
+            .onChange(of: clipFollow) { old, new in
+                // A nil `old.id` is the first load landing, not a row that moved.
+                guard vm.mode == .clipboard, old.id != nil else { return }
+                if isQueryEmpty, old.id != new.id, let id = new.id,
+                    let index = clips.firstIndex(where: { $0.id == id })
+                {
+                    vm.selection = index
+                }
+                scroll = ScrollIntent(kind: .follow)
+            }
+            .onAppear { searchFocused = true }
+        )
+
+        let navigationBody = AnyView(
+            observedBody
+            // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
+            .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
+            // ⌘1–⌘5 launch the compact bar's favorite slots (or expand, for the "…" overflow slot).
+            .onKeyPress(keys: ["1", "2", "3", "4", "5"], phases: .down) { press in
+                guard isCollapsed, settings.showFavoritesInCompactMode,
+                    press.modifiers.contains(.command),
+                    let digit = press.key.character.wholeNumberValue
+                else { return .ignored }
+                let slots = compactFavoriteSlots
+                let index = digit - 1
+                guard slots.indices.contains(index) else { return .ignored }
+                switch slots[index] {
+                case .app(let app): core.launch(app)
+                case .more: core.expandFromCompact()
+                }
                 return .handled
             }
-            if menuOpen {
-                moveMenu(1)
+            .onKeyPress(.downArrow) {
+                if isCollapsed {
+                    // The compact bar has no visible selection; Down reveals the list at its first row
+                    // while the shared search field stays mounted and focused.
+                    vm.selection = 0
+                    core.expandFromCompact()
+                    return .handled
+                }
+                if menuOpen {
+                    moveMenu(1)
+                    return .handled
+                }
+                if vm.mode == .emoji { moveEmojiRow(1) } else { move(1) }
                 return .handled
             }
-            if vm.mode == .emoji { moveEmojiRow(1) } else { move(1) }
-            return .handled
-        }
-        .onKeyPress(.upArrow) {
-            if isCollapsed { return .ignored }
-            if menuOpen {
-                moveMenu(-1)
+            .onKeyPress(.upArrow) {
+                if isCollapsed { return .ignored }
+                if menuOpen {
+                    moveMenu(-1)
+                    return .handled
+                }
+                if vm.mode == .emoji { moveEmojiRow(-1) } else { move(-1) }
                 return .handled
             }
-            if vm.mode == .emoji { moveEmojiRow(-1) } else { move(-1) }
-            return .handled
-        }
-        // Horizontal arrows step the emoji grid; everywhere else they stay with the field editor's caret. An open menu swallows them so the list behind never moves.
-        .onKeyPress(.leftArrow) {
-            if menuOpen { return .handled }
-            guard vm.mode == .emoji else { return .ignored }
-            move(-1)
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            if menuOpen { return .handled }
-            guard vm.mode == .emoji else { return .ignored }
-            move(1)
-            return .handled
-        }
+            // Horizontal arrows step the emoji grid; everywhere else they stay with the field editor's caret. An open menu swallows them so the list behind never moves.
+            .onKeyPress(.leftArrow) {
+                if menuOpen { return .handled }
+                guard vm.mode == .emoji else { return .ignored }
+                move(-1)
+                return .handled
+            }
+            .onKeyPress(.rightArrow) {
+                if menuOpen { return .handled }
+                guard vm.mode == .emoji else { return .ignored }
+                move(1)
+                return .handled
+            }
+        )
+
+        return navigationBody
         // With a menu open, plain ↵ activates its highlighted row. A modified ↵ always runs the selection's own action regardless of menu state: ⌘↵ the advertised secondary action, ⌥↵ paste-in-place; plain ↵ (no menu) falls through to the field's onSubmit.
         .onKeyPress(keys: [.return], phases: .down) { press in
             let command = press.modifiers.contains(.command)
@@ -864,7 +876,7 @@ enum CompactFavoriteSlot {
     var id: String {
         switch self {
         case .app(let app): return app.id
-        case .more: return "__tinycast.more__"
+        case .more: return "__spotter.more__"
         }
     }
 }

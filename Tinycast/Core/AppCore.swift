@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import SwiftUI
 
 enum PaletteMode: String, CaseIterable, Identifiable {
@@ -88,6 +89,10 @@ final class PaletteViewModel: ObservableObject {
 @MainActor
 final class AppCore: ObservableObject {
     static let shared = AppCore()
+    private static let canonicalBundleID = "com.spotter.app"
+    private static let legacyDevBundleID = "com.spotter.app.dev"
+    private static let installedBundleURL = URL(
+        fileURLWithPath: "/Applications/Spotter.app", isDirectory: true)
 
     let launcherRanking: LauncherRankingStore
     let appIndex: AppIndex
@@ -108,6 +113,8 @@ final class AppCore: ObservableObject {
 
     private lazy var windowController = PaletteWindowController(core: self)
     private let auxWindows = AuxWindowController()
+    private var instanceLockFD: Int32 = -1
+    private var ownsRuntime = false
     /// Guards only the confirmation modal, not execution — two deliberate runs of an unguarded command still run twice.
     private var isConfirmingCommand = false
 
@@ -119,6 +126,8 @@ final class AppCore: ObservableObject {
     }
 
     func start() {
+        guard enforceCanonicalInstance() else { return }
+        ownsRuntime = true
         // AppKit's default tooltip delay is ~2–3s; shorten it (in ms) so the compact-bar favorite tooltips appear promptly. Registration domain — never overrides a user default.
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 250])
         NSApp.setActivationPolicy(.accessory)
@@ -151,6 +160,120 @@ final class AppCore: ObservableObject {
         if !OnboardingState.hasOnboarded {
             OnboardingState.markShown()
             showOnboarding()
+        }
+    }
+
+    func prepareForTermination() {
+        guard ownsRuntime else { return }
+        hyperKeyTap.prepareForTermination()
+        if instanceLockFD >= 0 {
+            Darwin.close(instanceLockFD)
+            instanceLockFD = -1
+        }
+    }
+
+    private func enforceCanonicalInstance() -> Bool {
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+            return true
+        }
+
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let canonicalPath = Self.installedBundleURL.resolvingSymlinksInPath().path
+        let currentPath = Bundle.main.bundleURL.resolvingSymlinksInPath().path
+        let otherInstances = NSRunningApplication.runningApplications(
+            withBundleIdentifier: Self.canonicalBundleID
+        ).filter { $0.processIdentifier != currentPID }
+
+        if !acquireInstanceLock() {
+            if let installedInstance = otherInstances.first(where: {
+                $0.bundleURL?.resolvingSymlinksInPath().path == canonicalPath
+            }) ?? otherInstances.first {
+                installedInstance.activate(options: [.activateAllWindows])
+            }
+            NSApp.terminate(nil)
+            return false
+        }
+
+        if let installedInstance = otherInstances.first(where: {
+            $0.bundleURL?.resolvingSymlinksInPath().path == canonicalPath
+        }) {
+            installedInstance.activate(options: [.activateAllWindows])
+            NSApp.terminate(nil)
+            return false
+        }
+
+        if currentPath == canonicalPath {
+            for duplicate in otherInstances {
+                duplicate.terminate()
+            }
+        }
+        for legacy in NSRunningApplication.runningApplications(
+            withBundleIdentifier: Self.legacyDevBundleID)
+        {
+            legacy.terminate()
+        }
+
+        guard currentPath == canonicalPath else {
+            for duplicate in otherInstances {
+                duplicate.terminate()
+            }
+            if FileManager.default.fileExists(atPath: canonicalPath) {
+                launchInstalledCopyAfterExit(currentPID: currentPID)
+                NSLog("Spotter: redirected a non-installed launch from \(currentPath)")
+            } else {
+                NSLog("Spotter: refused to run outside \(canonicalPath)")
+            }
+            NSApp.terminate(nil)
+            return false
+        }
+        return true
+    }
+
+    private func acquireInstanceLock() -> Bool {
+        if instanceLockFD >= 0 { return true }
+        let cacheURL = FileManager.default.urls(
+            for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Self.canonicalBundleID, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: cacheURL, withIntermediateDirectories: true)
+        } catch {
+            NSLog("Spotter: could not create instance-lock directory: \(error.localizedDescription)")
+            return false
+        }
+
+        let lockURL = cacheURL.appendingPathComponent("instance.lock")
+        let descriptor = Darwin.open(
+            lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else {
+            NSLog("Spotter: could not open instance lock")
+            return false
+        }
+        var fileLock = Darwin.flock()
+        fileLock.l_type = Int16(F_WRLCK)
+        fileLock.l_whence = Int16(SEEK_SET)
+        guard Darwin.fcntl(descriptor, F_SETLK, &fileLock) == 0 else {
+            Darwin.close(descriptor)
+            return false
+        }
+        instanceLockFD = descriptor
+        return true
+    }
+
+    private func launchInstalledCopyAfterExit(currentPID: pid_t) {
+        let helper = Process()
+        helper.executableURL = URL(fileURLWithPath: "/bin/sh")
+        helper.arguments = [
+            "-c",
+            "while kill -0 \"$1\" 2>/dev/null; do sleep 0.1; done; exec /usr/bin/open \"$2\"",
+            "spotter-relaunch",
+            String(currentPID),
+            Self.installedBundleURL.path,
+        ]
+        do {
+            try helper.run()
+        } catch {
+            NSLog("Spotter: failed to open installed copy: \(error.localizedDescription)")
         }
     }
 
@@ -231,7 +354,7 @@ final class AppCore: ObservableObject {
                 .environmentObject(self.customCommands)
         }
         if !isNew {
-            NotificationCenter.default.post(name: .tinycastSelectSettingsTab, object: tab)
+            NotificationCenter.default.post(name: .spotterSelectSettingsTab, object: tab)
         }
     }
 
@@ -246,7 +369,7 @@ final class AppCore: ObservableObject {
     /// The first-run wizard: palette shortcut, Accessibility, Raycast import. Also re-runnable from Settings.
     func showOnboarding() {
         auxWindows.show(
-            id: "onboarding", title: "Welcome to Tinycast",
+            id: "onboarding", title: "Welcome to Spotter",
             size: OnboardingView.windowSize, seamlessTitleBar: true
         ) {
             OnboardingView()
@@ -404,7 +527,7 @@ final class AppCore: ObservableObject {
         hidePalette(restoreFocus: !quittingPreviousApp)
     }
 
-    /// Quit All: the one action whose blast radius reaches outside Tinycast, so it confirms first. The target list is resolved once and both counted and terminated, so the set the user approves is the set that quits.
+    /// Quit All: the one action whose blast radius reaches outside Spotter, so it confirms first. The target list is resolved once and both counted and terminated, so the set the user approves is the set that quits.
     private func quitAllApps() {
         let targets = AppLauncher.quitAllTargets()
         guard !targets.isEmpty, Self.confirmQuitAll(count: targets.count) else { return }

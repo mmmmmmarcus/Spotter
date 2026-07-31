@@ -183,7 +183,7 @@ final class AppIndex: ObservableObject {
         let entries = commands.map { command in
             AppEntry(
                 id: command.entryID, name: command.name,
-                url: URL(string: "tinycast://custom-command/" + command.id.uuidString)!,
+                url: URL(string: "spotter://custom-command/" + command.id.uuidString)!,
                 bundleID: nil, kind: .command)
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }

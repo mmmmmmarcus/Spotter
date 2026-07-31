@@ -23,7 +23,7 @@ lives — `/Applications/Safari.app` is a symlink flagged hidden, so `.skipsHidd
 Finder ships as an individual bundle scope rather than by adding `/System/Library/CoreServices`, which
 holds ~120 background-agent bundles. There is no reliable way to filter those: `LSUIElement`,
 `LSBackgroundOnly` and "declares no icon" each also exclude legitimately launchable apps — Raycast,
-Stats, Tinycast itself, Mission Control, Siri, Time Machine, Screenshot, System Information, Font
+Stats, Spotter itself, Mission Control, Siri, Time Machine, Screenshot, System Information, Font
 Book. Don't reintroduce such a heuristic.
 
 `AppIndex.start(settings:)` observes `$searchScopes`, so an edit re-indexes immediately; overlapping
@@ -55,6 +55,11 @@ Only the display name is indexed. Activation resolves the stable UUID through th
 to `ShellCommandRunner`; see [custom-commands.md](custom-commands.md) for persistence, hotkeys and
 execution semantics.
 
+`Sleep Display` and `Toggle Dark / Light Mode` are seeded once as ordinary custom commands rather
+than duplicated in `CommandRegistry`. They therefore appear in Settings, remain editable and
+deletable, and support custom hotkeys like anything the user adds. The appearance command may trigger
+macOS's one-time Automation consent for System Events.
+
 > **Invariant:** `Tools/fuzz-test.swift` contains a **copy** of `FuzzyMatch` from
 > `Tinycast/Core/AppIndex.swift`. If you change the scoring in one, mirror it in the other or the test
 > is meaningless.
@@ -84,7 +89,7 @@ running dot and the availability of the quit actions:
   anything was running; the palette only dismisses when something was, and it restores focus unless
   the app it just quit *was* `previousApp`.
 - **Quit All Applications** — a `CommandRegistry` command. `AppLauncher.quitAllTargets()` is the
-  policy (every `.regular` app except Finder — `terminate()` only relaunches it — and Tinycast,
+  policy (every `.regular` app except Finder — `terminate()` only relaunches it — and Spotter,
   excluded by PID because About/Settings temporarily flips it to `.regular`). `AppCore.quitAllApps()`
   resolves that list **once**, confirms it with an `NSAlert`, then terminates exactly what was
   confirmed. The palette hides before the alert — it is a floating panel and would sit above it.

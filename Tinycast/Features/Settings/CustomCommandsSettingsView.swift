@@ -13,7 +13,7 @@ struct CustomCommandsSettingsView: View {
             SettingsCallout(
                 title: "Commands run with your user account.",
                 message:
-                    "Tinycast uses /bin/zsh from your home folder without an interactive Terminal, "
+                    "Spotter uses /bin/zsh from your home folder without an interactive Terminal, "
                     + "so your shell config is skipped. Use full executable paths, or turn on Load "
                     + "Shell Environment for a command needing an alias, function or custom PATH.",
                 systemImage: "terminal",

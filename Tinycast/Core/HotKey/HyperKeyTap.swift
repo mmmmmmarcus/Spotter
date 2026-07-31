@@ -52,7 +52,7 @@ private enum CapsLockRemap {
     private static let mappingOff = #"{"UserKeyMapping":[]}"#
 
     // Serial queue so rapid on→off→on toggles (e.g. switching the Hyper key away from Caps Lock and back) apply hidutil in call order instead of racing as independent detached tasks and leaving the wrong final remap.
-    private static let queue = DispatchQueue(label: "com.tinycast.capslock-remap", qos: .utility)
+    private static let queue = DispatchQueue(label: "com.spotter.capslock-remap", qos: .utility)
 
     static func setEnabled(_ enabled: Bool) {
         let mapping = enabled ? mappingOn : mappingOff
@@ -74,10 +74,10 @@ private enum CapsLockRemap {
             try process.run()
             process.waitUntilExit()
             if process.terminationStatus != 0 {
-                NSLog("Tinycast: hidutil remap exited %d", process.terminationStatus)
+                NSLog("Spotter: hidutil remap exited %d", process.terminationStatus)
             }
         } catch {
-            NSLog("Tinycast: hidutil caps lock remap failed: %@", error.localizedDescription)
+            NSLog("Spotter: hidutil caps lock remap failed: %@", error.localizedDescription)
         }
     }
 }

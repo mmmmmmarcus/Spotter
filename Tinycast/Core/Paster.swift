@@ -65,7 +65,7 @@ enum Paster {
         pb.setData(Data(), forType: ClipboardManager.internalType)
     }
 
-    /// Paste into `app` *without* activating it (⌘V delivered straight to its process), leaving Tinycast frontmost so the palette stays open. Returns whether content was written (and thus promoted).
+    /// Paste into `app` *without* activating it (⌘V delivered straight to its process), leaving Spotter frontmost so the palette stays open. Returns whether content was written (and thus promoted).
     @MainActor @discardableResult
     static func pasteInPlace(
         _ item: ClipboardItem, store: ClipboardStore, into app: NSRunningApplication?

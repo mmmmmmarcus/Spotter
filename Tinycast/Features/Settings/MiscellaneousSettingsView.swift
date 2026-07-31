@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The catch-all pane. Home to currency conversion — the one feature in Tinycast that reaches the
+/// The catch-all pane. Home to currency conversion — the one feature in Spotter that reaches the
 /// network, which is why it ships off and needs an explicit yes before it can be switched on.
 struct MiscellaneousSettingsView: View {
     @ObservedObject private var currencyRates = AppCore.shared.currencyRates
@@ -106,7 +106,7 @@ private struct CurrencyConsentSheet: View {
             }
 
             Text(
-                "Tinycast downloads exchange rates from \(CurrencyRateStore.provider) once a day and "
+                "Spotter downloads exchange rates from \(CurrencyRateStore.provider) once a day and "
                 + "keeps a copy on your Mac. No account, no identifiers, nothing you type. "
                 + "Turning it off deletes the cached rates."
             )

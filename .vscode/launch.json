@@ -2,15 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      // F5: build the .app, then debug the binary *inside* the bundle so NSBundle.main
-      // resolves Info.plist (LSUIElement) and resources. Path matches the fixed
-      // -derivedDataPath used by the build task.
+      // F5 always debugs the canonical installed copy; the pre-launch task replaces it first.
       "type": "swift",
       "request": "launch",
-      "name": "Run Tinycast Dev (bundled .app)",
-      "program": "${workspaceFolder}/build/DerivedData/Build/Products/Debug/Tinycast Dev.app/Contents/MacOS/Tinycast Dev",
+      "name": "Debug /Applications/Spotter.app",
+      "program": "/Applications/Spotter.app/Contents/MacOS/Spotter",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build Tinycast.app (debug)"
+      "preLaunchTask": "Install Spotter for Debugger"
     }
   ]
 }

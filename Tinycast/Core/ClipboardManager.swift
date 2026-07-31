@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class ClipboardManager {
     /// Marker we attach to the pasteboard when *we* write to it, so polling ignores our own pastes.
-    static let internalType = NSPasteboard.PasteboardType("com.tinycast.internal")
+    static let internalType = NSPasteboard.PasteboardType("com.spotter.internal")
 
     /// Longest text we capture into history; bigger copies are skipped outright (truncating would silently drop the tail on paste).
     static let maxTextLength = 32_000

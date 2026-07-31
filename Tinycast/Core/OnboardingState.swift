@@ -3,7 +3,7 @@ import Foundation
 /// First-run marker stored as a file in Application Support (not UserDefaults) so a full uninstall — including leftover/`--zap` cleanup — clears it and a reinstall re-runs onboarding; a UserDefaults flag gets resurrected by cfprefsd and survives removal.
 enum OnboardingState {
     private static let markerURL: URL = {
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.tinycast.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
         return FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)

@@ -27,6 +27,6 @@
 	<key>NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Tinycast</string>
+	<string>Spotter</string>
 </dict>
 </plist>

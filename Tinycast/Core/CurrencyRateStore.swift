@@ -18,7 +18,7 @@ final class CurrencyRateStore: ObservableObject {
         string: "https://api.frankfurter.dev/v2/rates?base=USD")!
     /// Daily. The feed republishes about once a day, so asking more often just costs requests without
     /// getting newer numbers — and the age is measured from the persisted snapshot, so relaunching
-    /// Tinycast repeatedly doesn't re-fetch.
+    /// Spotter repeatedly doesn't re-fetch.
     static let refreshInterval: TimeInterval = 24 * 3600
     /// Shorter retry so a machine that was offline at launch picks rates up soon after it reconnects.
     private static let retryInterval: TimeInterval = 15 * 60
@@ -39,7 +39,7 @@ final class CurrencyRateStore: ObservableObject {
     init() {
         // Absent reads as false, which is the only safe default for a network feature.
         isEnabled = defaults.bool(forKey: Self.consentKey)
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.tinycast.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
         let base = FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)

@@ -8,12 +8,12 @@ struct PermissionsSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "Permissions",
-            subtitle: "Access Tinycast needs to work with other apps."
+            subtitle: "Access Spotter needs to work with other apps."
         ) {
             SettingsCard(header: "Accessibility") {
                 SettingsRow(
                     title: "Accessibility",
-                    subtitle: "Lets Tinycast paste a clipboard item into the app you were using.",
+                    subtitle: "Lets Spotter paste a clipboard item into the app you were using.",
                     systemImage: "accessibility",
                     tint: .blue
                 ) {

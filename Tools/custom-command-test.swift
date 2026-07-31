@@ -5,7 +5,7 @@ import Foundation
 struct CustomCommandTests {
     @MainActor
     static func main() async {
-        let suiteName = "com.tinycast.custom-command-tests.\(UUID().uuidString)"
+        let suiteName = "com.spotter.custom-command-tests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
             print("FAIL  could not create an isolated UserDefaults suite")
             exit(1)
@@ -27,6 +27,20 @@ struct CustomCommandTests {
         // MARK: Store
 
         let store = CustomCommandStore(defaults: defaults)
+        check(
+            "a fresh store includes Sleep Display",
+            store.command(id: CustomCommand.sleepDisplayPresetID)?.command
+                == "/usr/bin/pmset displaysleepnow")
+        check(
+            "a fresh store includes the appearance toggle",
+            store.command(id: CustomCommand.toggleAppearancePresetID)?.command.contains(
+                "set dark mode to not dark mode") == true)
+        _ = store.remove(id: CustomCommand.sleepDisplayPresetID)
+        check(
+            "a deleted starter command does not return on reload",
+            CustomCommandStore(defaults: defaults).command(id: CustomCommand.sleepDisplayPresetID)
+                == nil)
+
         let added = try? store.add(
             CustomCommand(
                 name: "  Sleep Displays  ", command: "  /usr/bin/pmset displaysleepnow  ",
@@ -88,8 +102,8 @@ struct CustomCommandTests {
         let inHome = await ShellCommandRunner.run("test \"$PWD\" = \"$HOME\"")
         check("commands start in the user's home directory", inHome == .success)
 
-        let marker = await ShellCommandRunner.run("test \"$TINYCAST\" = 1")
-        check("the TINYCAST marker is exported so a shell config can detect us", marker == .success)
+        let marker = await ShellCommandRunner.run("test \"$SPOTTER\" = 1")
+        check("the SPOTTER marker is exported so a shell config can detect us", marker == .success)
 
         let failed = await ShellCommandRunner.run("printf 'expected failure' >&2; exit 7")
         check(
@@ -100,23 +114,23 @@ struct CustomCommandTests {
 
         // A throwaway ZDOTDIR proves interactive mode sources an rc file without depending on the developer's own dotfiles.
         let zdotdir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("tinycast-zdotdir-\(UUID().uuidString)")
+            .appendingPathComponent("spotter-zdotdir-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: zdotdir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: zdotdir) }
-        try? Data("alias tinycast_probe=true\n".utf8).write(
+        try? Data("alias spotter_probe=true\n".utf8).write(
             to: zdotdir.appendingPathComponent(".zshrc"))
         setenv("ZDOTDIR", zdotdir.path, 1)
         // `/etc/zshrc` sources `/etc/zshrc_$TERM_PROGRAM`, which starts Terminal's session save/restore and writes to the real home.
         unsetenv("TERM_PROGRAM")
 
         let withEnvironment = await ShellCommandRunner.run(
-            "tinycast_probe", loadingShellEnvironment: true)
+            "spotter_probe", loadingShellEnvironment: true)
         check(
             "loading the shell environment resolves an rc-file alias",
             withEnvironment == .success)
 
         // The exact symptom users reported: an alias that only exists in `.zshrc` is command-not-found.
-        let withoutEnvironment = await ShellCommandRunner.run("tinycast_probe")
+        let withoutEnvironment = await ShellCommandRunner.run("spotter_probe")
         var notFoundStatus: Int32 = 0
         if case .nonZeroExit(let status, _) = withoutEnvironment { notFoundStatus = status }
         check("the default shell exits 127 on an rc-file alias", notFoundStatus == 127)

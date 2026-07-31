@@ -22,9 +22,9 @@ enum CommandID: String, CaseIterable, Sendable {
         case .importSettings: return "Import Settings"
         case .importFromRaycast: return "Import from Raycast"
         case .settings: return "Settings"
-        case .about: return "About Tinycast"
+        case .about: return "About Spotter"
         case .quitAllApps: return "Quit All Applications"
-        case .quit: return "Quit Tinycast"
+        case .quit: return "Quit Spotter"
         }
     }
 
@@ -52,7 +52,7 @@ enum CommandRegistry {
             AppEntry(
                 id: id.rawValue, name: id.name,
                 url: URL(
-                    string: "tinycast://" + id.rawValue.replacingOccurrences(of: ":", with: "/"))!,
+                    string: "spotter://" + id.rawValue.replacingOccurrences(of: ":", with: "/"))!,
                 bundleID: nil, kind: .command)
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }

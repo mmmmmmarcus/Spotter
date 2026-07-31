@@ -1,6 +1,6 @@
 # Development
 
-How to build, test, package, and release Tinycast.
+How to build, test, package, and release Spotter.
 
 ## Requirements
 
@@ -9,51 +9,64 @@ How to build, test, package, and release Tinycast.
 
 ## First-time setup
 
-Create the `Tinycast Self-Signed` code-signing identity once — builds sign with it, which keeps the
-macOS Accessibility grant from being forgotten every rebuild. Follow **[signing.md](signing.md) §1**
-(a few `openssl`/`security` commands).
+Create and back up the `Spotter Self-Signed` code-signing identity once:
+
+```sh
+./Tools/setup-signing.sh
+```
+
+See [signing.md](signing.md) for the backup location and recovery details.
 
 ## Build & run
 
-Open the project in Xcode and run it:
+Use the canonical build/install/run entry point:
 
 ```sh
-open Tinycast.xcodeproj    # then press ⌘R
+./Tools/run-local.sh Debug
+./Tools/run-local.sh Release
 ```
 
-Or from the command line:
+Both commands build into `build/DerivedData`, validate the bundle identifier and signature, stop any
+existing Spotter process, atomically replace `/Applications/Spotter.app`, and launch exactly that
+copy. A failed build or validation leaves the currently installed app untouched; the previous
+installed app is retained at:
 
-```sh
-xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug build
+```text
+~/Library/Caches/com.spotter.local-install/Spotter.previous.app
 ```
 
-`xcodebuild` uses whatever `xcode-select` points at; if that's the Command Line Tools rather than
-Xcode, prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (the SwiftUI
-`@State`/`@FocusState` macros need Xcode's macOS platform).
+The wrapper selects `/Applications/Xcode.app/Contents/Developer` unless `DEVELOPER_DIR` is already
+set. It also updates xcode-build-server's compilation database when that tool is installed.
 
-`Tinycast.xcodeproj` is committed and generated from `project.yml` via
+`Spotter.xcodeproj` is committed and generated from `project.yml` via
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) — after changing project settings in `project.yml`,
 run `xcodegen generate` and commit the result.
 
-### The dev channel
+### One app, one identity
 
-Debug builds are a separate channel: **`Tinycast Dev.app`**, bundle id `com.tinycast.app.dev`. Since
-every persisted thing is keyed by bundle
-id — `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
-`~/Library/Caches/<id>/` (clipboard history, calculator history, exchange rates, frequent emoji),
-`~/Library/Application Support/<id>/` (the onboarding marker), the `SMAppService` login item, and the
-Accessibility / Input Monitoring (TCC) grants — a build you run locally can't read or clobber the
-installed app's state, and both can run side-by-side.
+Debug and Release deliberately share all identity-defining values:
 
-Consequences worth knowing:
+- installed path: `/Applications/Spotter.app`
+- product and executable: `Spotter`
+- bundle identifier: `com.spotter.app`
+- signing identity: `Spotter Self-Signed`
 
-- The dev build asks for Accessibility on its own the first time, and starts with **no** hotkeys bound
-  and onboarding unseen. Grant + bind once; it persists across rebuilds (the fixed build path and the
-  `Tinycast Self-Signed` identity keep the TCC grant alive).
-- Don't bind the same global hotkey in both — whichever registered first wins.
-- The Hyper Key's Caps Lock remap is `hidutil` state, which is **system-wide, not per-bundle**:
-  quitting one build clears the remap for the other, which then needs a rebind (or relaunch) to
-  restore it.
+The configurations still differ in optimization, debug symbols and debugger entitlements, but they
+update the same app and state. The runtime refuses to continue when launched from DerivedData; if the
+installed copy exists, it redirects there after the accidental process exits. It also activates an
+already-running Spotter and terminates the duplicate.
+
+On the first run after upgrading from the former `Spotter Dev.app`, the installer copies only safe
+local state: settings, shortcuts, custom commands, favorites, clipboard/calculator history, launcher
+ranking and frequent Emoji. Currency-network consent and its downloaded rate cache are explicitly
+not migrated. Because the old bundle/signature was different, grant Accessibility once after this
+transition; subsequent signed rebuilds retain the same app identity. After a verified installation,
+the wrapper removes the obsolete DerivedData `Spotter Dev.app` so an old build cannot be launched
+accidentally.
+
+Do not use Xcode's normal Run action: its executable lives in DerivedData and is intentionally
+rejected. Use VS Code F5 for an attached debugger, or use Xcode as an editor and run the wrapper from
+its terminal.
 
 ### Editor (VS Code) code-intelligence
 
@@ -62,13 +75,13 @@ once (it's machine-specific and git-ignored):
 
 ```sh
 brew install xcode-build-server
-xcode-build-server config -project Tinycast.xcodeproj -scheme Tinycast \
+xcode-build-server config -project Spotter.xcodeproj -scheme Spotter \
     --build_root "$PWD/build/DerivedData"
 ```
 
-`--build_root` matches the fixed path the VS Code build task / F5 use, so the editor indexes what you
-actually build. Do a build once (⌘⇧B or F5) to populate it. In VS Code, **F5** builds and launches the
-app; changes always apply (fixed build path — no need to delete `build/`).
+`--build_root` matches the wrapper's staging build path. In VS Code, **F5** builds and atomically
+installs Spotter, then launches `/Applications/Spotter.app/Contents/MacOS/Spotter` under the Swift
+debugger. The default build task performs the same update and launches without attaching.
 
 ## Tests
 
@@ -131,19 +144,19 @@ an unquoted code just reports "no exchange rate".
 For a local signed DMG:
 
 ```sh
-./build-dmg.sh            # -> build/Tinycast-<version>.dmg (version from project.yml)
-./build-dmg.sh 0.5.7      # -> build/Tinycast-0.5.7.dmg
+./build-dmg.sh            # -> build/Spotter-<version>.dmg (version from project.yml)
+./build-dmg.sh 0.5.7      # -> build/Spotter-0.5.7.dmg
 ```
 
-It builds a Release `Tinycast.app` signed with `Tinycast Self-Signed` and packs it (with an
+It builds a Release `Spotter.app` signed with `Spotter Self-Signed` and packs it (with an
 `/Applications` symlink). Official per-channel releases (beta/stable) are built by CI — see
 below and [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 
 ## Signing & Gatekeeper
 
-Both local builds and CI releases sign with the same stable `Tinycast Self-Signed` identity (not an
-Apple Developer ID), so macOS quarantines a directly-downloaded DMG — the Homebrew cask strips that
-automatically, and direct downloaders run `xattr -dr com.apple.quarantine "…/Tinycast.app"` once.
+Both local builds and CI releases sign with the same stable `Spotter Self-Signed` identity (not an
+Apple Developer ID), so macOS quarantines a directly-downloaded DMG. Run
+`xattr -dr com.apple.quarantine "…/Spotter.app"` once after copying it to Applications.
 Full details in [signing.md](signing.md).
 
 ## CI releases
@@ -151,30 +164,22 @@ Full details in [signing.md](signing.md).
 `.github/workflows/release.yml` builds and publishes a DMG from GitHub Actions — no local machine
 needed. Run it from the **Actions** tab (`Release` → **Run workflow**) and pick:
 
-- **channel** — `beta` or `stable`. Each builds a distinct app
-  (`Tinycast Beta.app` / `Tinycast.app`) with its own bundle id, alongside the local
-  `Tinycast Dev.app` (above).
-  Beta gets an auto-incrementing `-beta.N` suffix (`N` = the Actions run number)
-  so re-running never collides; stable ships the version as-is.
+- **channel** — `beta` or `stable`. Both build `Spotter.app` / `com.spotter.app`, so installing either
+  replaces the same app. Beta gets an auto-incrementing `-beta.N` version suffix (`N` = the Actions
+  run number) so re-running never collides; stable ships the version as-is.
 - **version** — base semver, e.g. `0.2.0`.
 
 It builds on a `macos-26` runner with Xcode 26 and publishes a GitHub Release tagged
-`v<full-version>` with a versioned DMG asset (`Tinycast-<full-version>.dmg`), marked prerelease
-for beta. On success it also bumps the matching cask in the tap (below).
+`v<full-version>` with a versioned DMG asset (`Spotter-<full-version>.dmg`), marked prerelease
+for beta.
 
-### Homebrew tap automation
-
-The release job's final step rewrites the `version` + `sha256` of the channel's cask (`tinycast`
-or `tinycast@beta`) in the
-[`homebrew-tinycast`](https://github.com/abue-ammar/homebrew-tinycast) tap and pushes. It needs a
-`HOMEBREW_TAP_TOKEN` repo secret — a fine-grained PAT with **Contents: read/write** on the tap
-repo. Without the secret the step logs a warning and skips (the release still publishes).
+This fork does not publish a Homebrew cask. The upstream tap remains owned by Tinycast and must not
+be updated by Spotter releases.
 
 ## Website
 
-`.github/workflows/website.yml` builds `website/` (Vite + React + TS) and deploys it to GitHub
-Pages at `https://abue-ammar.github.io/tinycast/` on every push to `main` that touches
-`website/`. Enable it once via **Settings → Pages → Source = GitHub Actions**.
+`website/` is the upstream Tinycast Vite + React + TypeScript site. It is intentionally not part of
+the Spotter app rename in this fork.
 
 ```sh
 cd website && npm install && npm run dev     # local preview

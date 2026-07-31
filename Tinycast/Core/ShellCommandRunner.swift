@@ -11,7 +11,7 @@ enum ShellCommandRunner {
     private static let stderrLimit = 8 * 1024
     /// `waitUntilExit` blocks for the whole life of the command, so it runs here rather than on a cooperative-pool thread a `brew upgrade` would hold for minutes. Concurrent so two commands don't queue behind each other.
     private static let queue = DispatchQueue(
-        label: "com.tinycast.shell-command", qos: .userInitiated, attributes: .concurrent)
+        label: "com.spotter.shell-command", qos: .userInitiated, attributes: .concurrent)
 
     /// `loadingShellEnvironment` defaults to the fast path, so a caller that forgets it gets the cheap shell rather than the user's whole config.
     nonisolated static func run(
@@ -33,8 +33,8 @@ enum ShellCommandRunner {
         // zsh only reads `.zshrc` for *interactive* shells, so `-l` alone never sees the user's aliases, functions or `PATH`.
         process.arguments = [loadingShellEnvironment ? "-ilc" : "-lc", command]
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
-        // Lets a shell config skip slow or interactive sections when Tinycast is the caller: `[[ -n $TINYCAST ]] && return`.
-        process.environment = ProcessInfo.processInfo.environment.merging(["TINYCAST": "1"]) {
+        // Lets a shell config skip slow or interactive sections when Spotter is the caller: `[[ -n $SPOTTER ]] && return`.
+        process.environment = ProcessInfo.processInfo.environment.merging(["SPOTTER": "1"]) {
             _, new in new
         }
         // Load-bearing for the interactive shell: a config that prompts reads EOF and moves on instead of hanging forever.
@@ -88,7 +88,7 @@ enum ShellCommandRunner {
 
     nonisolated private static func makeStderrCapture() -> StderrCapture? {
         let template = FileManager.default.temporaryDirectory
-            .appendingPathComponent("tinycast-command-stderr.XXXXXX").path
+            .appendingPathComponent("spotter-command-stderr.XXXXXX").path
         var bytes = Array(template.utf8CString)
         let descriptor = bytes.withUnsafeMutableBufferPointer { buffer in
             mkstemp(buffer.baseAddress!)

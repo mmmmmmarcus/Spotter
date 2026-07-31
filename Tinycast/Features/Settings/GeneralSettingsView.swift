@@ -27,10 +27,10 @@ struct GeneralSettingsView: View {
         var text =
             "Pressing \(settings.hyperKey.title) will trigger the left \(hyperGlyphs) modifier keys."
         if settings.hyperKeyReplacesGlyph {
-            text += " Hyper Key shortcuts will be shown in Tinycast with ✦."
+            text += " Hyper Key shortcuts will be shown in Spotter with ✦."
         }
         if hyperTap.status == .needsAccessibility {
-            text += " Tinycast needs Accessibility access to remap keys."
+            text += " Spotter needs Accessibility access to remap keys."
         }
         return text
     }
@@ -55,7 +55,7 @@ struct GeneralSettingsView: View {
                 SettingsRow(
                     title: "Learned ranking",
                     subtitle:
-                        "Tinycast privately learns which results you choose for each query. Reset all learned choices to restore the default order.",
+                        "Spotter privately learns which results you choose for each query. Reset all learned choices to restore the default order.",
                     systemImage: "chart.line.uptrend.xyaxis",
                     tint: .blue
                 ) {
@@ -186,7 +186,7 @@ struct GeneralSettingsView: View {
             SettingsCard(header: "General") {
                 SettingsRow(
                     title: "Launch at login",
-                    subtitle: "Start Tinycast automatically when you log in.",
+                    subtitle: "Start Spotter automatically when you log in.",
                     systemImage: "power",
                     tint: .green
                 ) {
@@ -199,7 +199,7 @@ struct GeneralSettingsView: View {
                 SettingsRow(
                     title: "Show in menu bar",
                     subtitle:
-                        "Keep the Tinycast icon in the menu bar. Shortcuts still work when hidden.",
+                        "Keep the Spotter icon in the menu bar. Shortcuts still work when hidden.",
                     systemImage: "menubar.arrow.up.rectangle",
                     tint: .gray
                 ) {
@@ -246,7 +246,7 @@ struct GeneralSettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Tinycast will relearn your preferred results as you use the launcher.")
+            Text("Spotter will relearn your preferred results as you use the launcher.")
         }
     }
 }

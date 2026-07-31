@@ -2,7 +2,7 @@ import SwiftUI
 
 extension Notification.Name {
     /// Switch an already-open Settings window to a pane (object: the target `SettingsTab`).
-    static let tinycastSelectSettingsTab = Notification.Name("TinycastSelectSettingsTab")
+    static let spotterSelectSettingsTab = Notification.Name("SpotterSelectSettingsTab")
 }
 
 enum SettingsTab: Int, CaseIterable, Identifiable {
@@ -87,7 +87,7 @@ struct SettingsRootView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onReceive(NotificationCenter.default.publisher(for: .tinycastSelectSettingsTab)) { note in
+        .onReceive(NotificationCenter.default.publisher(for: .spotterSelectSettingsTab)) { note in
             if let target = note.object as? SettingsTab { tab = target }
         }
     }

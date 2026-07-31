@@ -57,7 +57,7 @@ struct SearchScopesCard: View {
         panel.allowsMultipleSelection = true
         panel.prompt = "Add"
         panel.message = "Choose folders or applications to include in the launcher."
-        // Tinycast is an accessory app, so the panel opens behind the frontmost app without this.
+        // Spotter is an accessory app, so the panel opens behind the frontmost app without this.
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK else { return }
         settings.searchScopes = SearchScopes.normalize(

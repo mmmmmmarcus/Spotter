@@ -13,7 +13,7 @@ enum LaunchAtLogin {
                 if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
             }
         } catch {
-            NSLog("Tinycast: launch-at-login change failed: \(error.localizedDescription)")
+            NSLog("Spotter: launch-at-login change failed: \(error.localizedDescription)")
         }
     }
 }

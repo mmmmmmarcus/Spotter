@@ -17,7 +17,7 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
     var isVisible: Bool { panel?.isVisible ?? false }
 
     func show() {
-        // Ignore ourselves as the "previous" app (e.g. summoned while Settings/About/Onboarding is frontmost) so paste/focus-restore always targets the user's real app, never Tinycast's own field.
+        // Ignore ourselves as the "previous" app (e.g. summoned while Settings/About/Onboarding is frontmost) so paste/focus-restore always targets the user's real app, never Spotter's own field.
         let frontmost = NSWorkspace.shared.frontmostApplication
         if frontmost?.processIdentifier != NSRunningApplication.current.processIdentifier {
             previousApp = frontmost

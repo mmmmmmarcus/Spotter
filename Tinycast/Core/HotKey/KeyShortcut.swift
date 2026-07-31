@@ -145,7 +145,7 @@ extension KeyShortcut: Codable {
     }
 }
 
-/// Everything in Tinycast a global shortcut can be bound to.
+/// Everything in Spotter a global shortcut can be bound to.
 enum HotKeyAction: Hashable, Sendable {
     case togglePalette
     case toggleClipboard

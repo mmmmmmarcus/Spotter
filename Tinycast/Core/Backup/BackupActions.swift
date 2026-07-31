@@ -10,12 +10,12 @@ enum BackupActions {
         var missingImages: Int
     }
 
-    // MARK: - Tinycast native (self-contained: own file panels + alerts)
+    // MARK: - Spotter native (self-contained: own file panels + alerts)
 
     static func exportSettings() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "Tinycast-Settings-\(dateStamp()).json"
+        panel.nameFieldStringValue = "Spotter-Settings-\(dateStamp()).json"
         panel.canCreateDirectories = true
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }

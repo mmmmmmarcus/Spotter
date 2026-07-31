@@ -9,7 +9,7 @@ struct ClipboardSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "Clipboard",
-            subtitle: "Control how much history Tinycast keeps and which apps are recorded."
+            subtitle: "Control how much history Spotter keeps and which apps are recorded."
         ) {
             SettingsCard(header: "Shortcut") {
                 SettingsRow(

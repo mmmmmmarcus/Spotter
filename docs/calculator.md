@@ -151,7 +151,7 @@ base's own row — the store folds both into the `[code: rate]` shape `CurrencyR
 The table is cached at `~/Library/Caches/<bundle-id>/currency-rates.json`, refreshed every 24h with a
 15-minute retry after a failure. The feed republishes about once a day, so a tighter interval would
 cost requests without returning newer numbers. Age is measured from the persisted `fetchedAt`, not
-from launch, so relaunching Tinycast never re-fetches a snapshot that is still fresh — a cold start
+from launch, so relaunching Spotter never re-fetches a snapshot that is still fresh — a cold start
 with a same-day cache makes zero requests. Offline, the last snapshot keeps answering; with no snapshot at all
 the card says so rather than guessing, and a currency the feed doesn't quote reports
 `No exchange rate for <CODE>.` The store hands `CalcEngine.evaluate` a finished `CurrencyRates`

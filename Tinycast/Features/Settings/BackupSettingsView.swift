@@ -23,7 +23,7 @@ struct BackupSettingsView: View {
             title: "Backup",
             subtitle: "Export your settings, restore a backup, or import from Raycast."
         ) {
-            SettingsCard(header: "Tinycast") {
+            SettingsCard(header: "Spotter") {
                 SettingsRow(
                     title: "Export Settings",
                     subtitle:
@@ -38,7 +38,7 @@ struct BackupSettingsView: View {
                 SettingsRow(
                     title: "Import Settings",
                     subtitle:
-                        "Restore from a Tinycast backup. Only values in the file are changed.",
+                        "Restore from a Spotter backup. Only values in the file are changed.",
                     systemImage: "square.and.arrow.down",
                     tint: .green
                 ) {

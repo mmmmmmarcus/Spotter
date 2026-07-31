@@ -1,6 +1,6 @@
 # Architecture
 
-How Tinycast is wired together. See the per-subsystem docs for internals:
+How Spotter is wired together. See the per-subsystem docs for internals:
 [palette](palette.md), [launcher](launcher.md), [calculator](calculator.md),
 [clipboard](clipboard.md), [custom commands](custom-commands.md), [hotkeys](hotkeys.md), [ui](ui.md).
 
@@ -17,7 +17,7 @@ launch actions are methods on `AppCore` that the SwiftUI views call.
 
 ## Entry points and windows
 
-`TinycastApp` (`@main`) declares only a `MenuBarExtra` scene; everything else visible is driven
+`SpotterApp` (`@main`) declares only a `MenuBarExtra` scene; everything else visible is driven
 imperatively from AppKit.
 
 - **Command palette** — a borderless floating `NSPanel` (`Core/PalettePanel.swift`) hosting SwiftUI

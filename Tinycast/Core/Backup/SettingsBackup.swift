@@ -1,6 +1,6 @@
 import Foundation
 
-/// A passwordless, human-readable snapshot of Tinycast's configuration. Every field is optional so an import applies only the keys actually present (non-destructive merge): a partial file — or one from Raycast — leaves everything it omits untouched.
+/// A passwordless, human-readable snapshot of Spotter's configuration. Every field is optional so an import applies only the keys actually present (non-destructive merge): a partial file — or one from Raycast — leaves everything it omits untouched.
 struct SettingsBackup: Codable {
     var version = 2
     var settings: SettingsData?
