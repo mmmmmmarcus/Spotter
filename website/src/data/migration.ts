@@ -7,14 +7,14 @@ export const migration = {
   eyebrow: "Coming from Raycast?",
   title: "Bring everything over in one click.",
   intro:
-    "Tinycast reads a Raycast export directly. Point it at your .rayconfig file, type your passphrase, and your setup comes across — no redoing shortcuts by hand.",
+    "Spotter reads a Raycast export directly. Point it at your .rayconfig file, type your passphrase, and your setup comes across — no redoing shortcuts by hand.",
   steps: [
     {
       title: "Export from Raycast",
       body: "Raycast → Settings → Advanced → Export, and set a passphrase.",
     },
     {
-      title: "Import into Tinycast",
+      title: "Import into Spotter",
       body: "Open the palette, run “Import from Raycast,” and choose the file.",
     },
     {

@@ -1,6 +1,6 @@
-name: Tinycast
+name: Spotter
 options:
-  bundleIdPrefix: com.tinycast
+  bundleIdPrefix: com.spotter
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
@@ -15,7 +15,7 @@ settings:
     CODE_SIGN_STYLE: Manual
     # Stable self-signed identity so macOS keeps the Accessibility grant across rebuilds.
     # Create it once — see docs/signing.md.
-    CODE_SIGN_IDENTITY: "Tinycast Self-Signed"
+    CODE_SIGN_IDENTITY: "Spotter Self-Signed"
     ENABLE_HARDENED_RUNTIME: NO
     SWIFT_STRICT_CONCURRENCY: complete
   configs:
@@ -27,17 +27,17 @@ settings:
       DEAD_CODE_STRIPPING: YES
 
 targets:
-  Tinycast:
+  Spotter:
     type: application
     platform: macOS
     sources:
-      - path: Tinycast
+      - path: Spotter
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.tinycast.app
-        INFOPLIST_FILE: Tinycast/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Tinycast/Tinycast.entitlements
-        ASSETCATALOG_COMPILER_APPICON_NAME: tinycast
+        PRODUCT_BUNDLE_IDENTIFIER: com.spotter.app
+        INFOPLIST_FILE: Spotter/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Spotter/Spotter.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: spotter
         COMBINE_HIDPI_IMAGES: YES
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
@@ -47,5 +47,5 @@ targets:
         # locally-run build gets its own prefs, caches, TCC grants and login item instead of
         # inheriting — and corrupting — the installed app's state.
         Debug:
-          PRODUCT_NAME: Tinycast Dev
-          PRODUCT_BUNDLE_IDENTIFIER: com.tinycast.app.dev
+          PRODUCT_NAME: Spotter Dev
+          PRODUCT_BUNDLE_IDENTIFIER: com.spotter.app.dev

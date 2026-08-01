@@ -1,8 +1,8 @@
 # UI & Design System
 
-The design system for Tinycast's UI, written so an agent restyling or extending it stays consistent
-with what's already there. This documents **Tinycast as built** — every rule here maps to code in
-`Tinycast/`. `Core/Theme.swift` is the single design-token source.
+The design system for Spotter's UI, written so an agent restyling or extending it stays consistent
+with what's already there. This documents **Spotter as built** — every rule here maps to code in
+`Spotter/`. `Core/Theme.swift` is the single design-token source.
 
 Read this before touching any view body, `Theme` value, or the panel chrome.
 
@@ -10,7 +10,7 @@ Read this before touching any view body, `Theme` value, or the panel chrome.
 
 ## The look, in one paragraph
 
-Tinycast is a **Raycast-style dark command palette**: a borderless floating panel whose surface is
+Spotter is a **Raycast-style dark command palette**: a borderless floating panel whose surface is
 just the OS behind-window blur under a 40% black scrim — there is no gray chrome. Everything on that
 surface is white at a fixed alpha ramp. The header and bottom bar **float over the list as fully
 transparent overlays**; there are no hard-edged bars, strips, or dividers. Rows don't clip under the
@@ -41,7 +41,7 @@ These are the things that quietly break the look if changed. Preserve them unles
 
 ---
 
-## Tokens — `Tinycast/Core/Theme.swift`
+## Tokens — `Spotter/Core/Theme.swift`
 
 `Theme` is the single source of truth. **Never hardcode a spacing/radius/size/color that has a token.**
 Add a token rather than a magic number when introducing a new value.
@@ -183,9 +183,19 @@ pane use the native `.overlayScroller()`. Don't reintroduce native scrollers on 
 Settings runs in its own `NSWindow` (the SwiftUI `Settings` scene is unreliable for accessory apps) but
 shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not the palette:
 
+- The sidebar has scrollable **System** and **Plugins** groups. System panes have a fixed order;
+  plugin rows and their settings views are generated from `PluginRegistry`, so adding a plugin does
+  not add a `SettingsTab` case or a view switch branch. Each plugin owns its Settings view in
+  `Spotter/Plugins/<Name>/`; shared Settings components remain here.
+
 - **`SettingsPane`**: bold `.title2` title + secondary subtitle header, then scrollable content, `xxl` inset all around, the same thin scrollbar.
 - **`SettingsCard`**: rounded `card 10` container, `cardFill` (white 0.05) fill, `cardStroke` (white 0.10) hairline border. Rows inside are split by `SettingsDivider` — an inset hairline aligned under the row title (past the icon).
 - **`SettingsRow`**: optional 20pt SF Symbol, title + optional caption subtitle, trailing control, fixed `.horizontal xl / .vertical lg` rhythm.
+
+Native plugin workspaces use `AppCore.showPluginWindow` and the same `Theme` tokens. Their SwiftUI
+root declares a minimum content size but never owns an `NSWindow`. Use the native overlay scroller,
+cards for option groups, and a fixed footer for the primary action. Long-running work displays a
+small progress indicator and leaves the main actor before processing.
 
 The calculator's inline `CalculatorCard` reuses this card language (`cardFill` + `cardStroke`) rather than the row language, since it's a highlighted answer, not a list item. A value answer is a **two-column** layout: a source column (input echo) and a target column (result), separated by a centered `arrow.right` glyph (no divider line). Each column optionally carries a word-name **badge pill** beneath its value (`keyCap` font, `controlSurface` fill, `keyCap` radius) — `Expression`→`Result` for scalar arithmetic, unit or currency names for typed results (`Expression`→`Kilograms`), and moment labels for a date/time calc (`12:18 AM`→`9:00 AM`, `Friday, 24 July`→`Friday, 9 April, 2027`). A trailing operator keeps the last complete result and its badge visible while the next operand is being typed.
 

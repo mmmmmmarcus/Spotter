@@ -62,7 +62,7 @@ export function Gallery() {
   return (
     <Section
       id="gallery"
-      eyebrow="Tinycast in action"
+      eyebrow="Spotter in action"
       title="See it in motion."
       intro="A palette that stays out of your way — until you need it."
     >

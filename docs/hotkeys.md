@@ -12,7 +12,13 @@
 Shortcuts persist as JSON strings under `KeyboardShortcuts_<name>` UserDefaults keys — a **legacy
 format** from the removed KeyboardShortcuts package, kept so old bindings survive. The set of bound
 bundle IDs lives in `boundAppBundleIDs` and is re-registered on launch. System Settings panes use
-`boundPaneBundleIDs`; custom commands use their stable UUIDs in `boundCustomCommandIDs`.
+`boundPaneBundleIDs`; custom commands use their stable UUIDs in `boundCustomCommandIDs`. Built-in
+plugins expose stable `PluginActionKey` values through `PluginRegistry`; new keys use the
+`plugin.<plugin-id>.<action-id>` namespace while migrated actions may retain legacy defaults keys.
+
+Disabling a plugin makes registry dispatch a no-op while preserving the Carbon registration and saved
+binding. Re-enabling resumes the action without creating plugin-specific branches in `HotKeyManager`.
+Plugins with several commands expose a stable action key per command, so each can be bound directly.
 
 ## Recorder
 

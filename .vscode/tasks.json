@@ -9,9 +9,9 @@
       // database (.compile) stays in sync on every build — that's what keeps cross-file
       // symbols resolving in VS Code as you add/rename files. pipefail preserves the
       // xcodebuild exit code so a failed build still blocks F5 / the run step.
-      "label": "Build Tinycast.app (debug)",
+      "label": "Build Spotter.app (debug)",
       "type": "shell",
-      "command": "bash -c 'set -o pipefail; xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug -derivedDataPath build/DerivedData build 2>&1 | tee \"${TMPDIR:-/tmp}/tinycast-build.log\"; ec=$?; /opt/homebrew/bin/xcode-build-server parse -a -o .compile < \"${TMPDIR:-/tmp}/tinycast-build.log\" >/dev/null 2>&1 || true; exit $ec'",
+      "command": "bash -c 'set -o pipefail; xcodebuild -project Spotter.xcodeproj -scheme Spotter -configuration Debug -derivedDataPath build/DerivedData build 2>&1 | tee \"${TMPDIR:-/tmp}/spotter-build.log\"; ec=$?; /opt/homebrew/bin/xcode-build-server parse -a -o .compile < \"${TMPDIR:-/tmp}/spotter-build.log\" >/dev/null 2>&1 || true; exit $ec'",
       "options": {
         "cwd": "${workspaceFolder}",
         "env": { "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer" }
@@ -21,11 +21,11 @@
     },
     {
       // Rebuild, then relaunch the menu-bar app. Default build task (⌘⇧B).
-      "label": "Build & Run Tinycast (debug)",
+      "label": "Build & Run Spotter (debug)",
       "type": "shell",
-      "command": "killall 'Tinycast Dev' 2>/dev/null; open 'build/DerivedData/Build/Products/Debug/Tinycast Dev.app'",
+      "command": "killall 'Spotter Dev' 2>/dev/null; open 'build/DerivedData/Build/Products/Debug/Spotter Dev.app'",
       "options": { "cwd": "${workspaceFolder}" },
-      "dependsOn": "Build Tinycast.app (debug)",
+      "dependsOn": "Build Spotter.app (debug)",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": []
     }

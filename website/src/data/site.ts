@@ -2,13 +2,13 @@
 // the page. Update these in one place rather than hunting through components.
 
 export const site = {
-  name: "Tinycast",
+  name: "Spotter",
   tagline: "The essentials, without the bloat.",
-  repo: "https://github.com/abue-ammar/tinycast",
+  repo: "https://github.com/mmmmmmarcus/Spotter",
   version: "v0.1.0",
   platform: "macOS 26+",
   license: "AGPL-3.0",
-  licenseUrl: "https://github.com/abue-ammar/tinycast/blob/main/LICENSE",
+  licenseUrl: "https://github.com/mmmmmmarcus/Spotter/blob/main/LICENSE",
   // Community. Replace the placeholder with the real Discord invite when ready.
   community: {
     discord: "https://discord.gg/v2Eeb4QQy3",
@@ -36,22 +36,22 @@ export const channels = [
     id: "stable",
     label: "Stable",
     command:
-      "brew trust --tap abue-ammar/tinycast && brew install --cask abue-ammar/tinycast/tinycast",
+      "brew trust --tap mmmmmmarcus/spotter && brew install --cask mmmmmmarcus/spotter/spotter",
     note: "Recommended",
   },
   {
     id: "beta",
     label: "Beta",
     command:
-      "brew trust --tap abue-ammar/tinycast && brew install --cask abue-ammar/tinycast/tinycast@beta",
+      "brew trust --tap mmmmmmarcus/spotter && brew install --cask mmmmmmarcus/spotter/spotter@beta",
     note: "Side-by-side",
   },
 ] as const;
 
-// The one manual step: Tinycast isn't notarized (no $99/yr Developer ID), so
+// The one manual step: Spotter isn't notarized (no $99/yr Developer ID), so
 // macOS quarantines it. Clearing the flag once is expected.
 export const quarantineCommand =
-  'xattr -dr com.apple.quarantine "/Applications/Tinycast.app"';
+  'xattr -dr com.apple.quarantine "/Applications/Spotter.app"';
 
 // Headline numbers for the "why it's tiny" band. Kept honest, from the README.
 export const stats = [

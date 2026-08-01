@@ -1,4 +1,4 @@
-// Drives the "Tinycast in action" gallery + lightbox. Each item is a tile in
+// Drives the "Spotter in action" gallery + lightbox. Each item is a tile in
 // the grid and a slide in the lightbox. `src`/`thumb`/`poster` are resolved
 // against import.meta.env.BASE_URL in the component, so give plain filenames
 // that live in `public/`. `width`/`height` are the media's real pixel size
@@ -21,9 +21,9 @@ export type GalleryItem = {
 export const galleryItems: GalleryItem[] = [
   {
     type: "video",
-    src: "tinycast-in-action.mp4",
+    src: "spotter-in-action.mp4",
     poster: "screenshot.png",
-    title: "Tinycast in action",
+    title: "Spotter in action",
     caption: "A quick tour — launcher, clipboard, calculator, and more.",
     width: 3024,
     height: 1964,

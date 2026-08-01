@@ -9,14 +9,14 @@ import { Section } from "./ui/section";
 // equal. Kept in one place so the header and every row line up exactly.
 const cols = "grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]";
 
-// The Tinycast column runs 1.6/3.6 in from the left and is 1/3.6 wide; the
+// The Spotter column runs 1.6/3.6 in from the left and is 1/3.6 wide; the
 // highlight panel is positioned to match, so it reads as a single card behind
 // the whole column rather than a tint on each cell.
 const winnerLeft = "calc(100% * 1.6 / 3.6)";
 const winnerWidth = "calc(100% / 3.6)";
 
 // One cell's value: a boolean becomes a check/cross, a string prints as-is.
-// `own` is Tinycast's column — its checks glow violet and its text goes white.
+// `own` is Spotter's column — its checks glow violet and its text goes white.
 function Value({ value, own }: { value: Cell; own: boolean }) {
   if (typeof value === "boolean") {
     return value ? (
@@ -46,15 +46,15 @@ export function Compare() {
   return (
     <Section
       id="compare"
-      eyebrow="Tinycast vs Raycast"
+      eyebrow="Spotter vs Raycast"
       title="The essentials, minus the weight."
-      intro="Everything you actually reach for is here — then Tinycast wins on the things that don't show up in a feature list: size, price, and who owns your data."
+      intro="Everything you actually reach for is here — then Spotter wins on the things that don't show up in a feature list: size, price, and who owns your data."
     >
       <Reveal className="mx-auto max-w-4xl">
         {/* Desktop: the aligned three-column table. */}
         <div className="hidden overflow-x-auto rounded-2xl border border-border shadow-key md:block">
           <div className="relative min-w-152">
-            {/* The "winner column" — one continuous panel behind Tinycast. */}
+            {/* The "winner column" — one continuous panel behind Spotter. */}
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-y-0 z-0 rounded-xl bg-violet/[0.07] ring-1 ring-inset ring-violet/20"
@@ -69,7 +69,7 @@ export function Compare() {
                 </div>
                 <div className="flex items-center justify-center gap-1.5 px-4 py-4 text-body-lg font-medium text-white">
                   <Logo size={19} />
-                  Tinycast
+                  Spotter
                 </div>
                 <div className="flex items-center justify-center gap-1.5 px-4 py-4 text-body-lg font-medium text-ash">
                   <RaycastLogo size={17} />
@@ -93,7 +93,7 @@ export function Compare() {
                     )}
                   </div>
                   <div className="flex items-center justify-center px-4 py-3.5 text-center">
-                    <Value value={row.tinycast} own />
+                    <Value value={row.spotter} own />
                   </div>
                   <div className="flex items-center justify-center px-4 py-3.5 text-center">
                     <Value value={row.raycast} own={false} />
@@ -121,9 +121,9 @@ export function Compare() {
                 <div className="flex flex-col items-center gap-2 rounded-lg bg-violet/[0.07] px-3 py-3 text-center ring-1 ring-inset ring-violet/20">
                   <span className="flex items-center gap-1.5 font-mono text-eyebrow uppercase text-smoke">
                     <Logo size={13} />
-                    Tinycast
+                    Spotter
                   </span>
-                  <Value value={row.tinycast} own />
+                  <Value value={row.spotter} own />
                 </div>
                 <div className="flex flex-col items-center gap-2 px-3 py-3 text-center">
                   <span className="flex items-center gap-1.5 font-mono text-eyebrow uppercase text-smoke">

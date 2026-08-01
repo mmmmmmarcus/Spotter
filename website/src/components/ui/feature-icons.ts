@@ -1,11 +1,15 @@
 import {
   Archive,
+  Activity,
   Calculator,
+  CaseUpper,
   ClipboardList,
   Globe,
+  Image,
   Search,
   Smile,
   Sparkles,
+  Video,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +25,10 @@ export const featureIcons = {
   bolt: Zap,
   hyper: Sparkles,
   backup: Archive,
+  process: Activity,
+  case: CaseUpper,
+  image: Image,
+  recording: Video,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof featureIcons;

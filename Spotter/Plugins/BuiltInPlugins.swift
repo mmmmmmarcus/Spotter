@@ -1,0 +1,16 @@
+/// The only catalog edit needed to add a built-in plugin; each factory keeps its feature wiring local.
+@MainActor
+enum BuiltInPlugins {
+    static func registrations(core: AppCore) -> [PluginRegistration] {
+        [
+            CurrencyConversionPlugin.registration(core: core),
+            ClipboardPlugin.registration(core: core),
+            EmojiSymbolsPlugin.registration(core: core),
+            WorldClockPlugin.registration(),
+            KillProcessPlugin.registration(core: core),
+            ChangeCasePlugin.registration(core: core),
+            ImageModificationPlugin.registration(core: core),
+            QuickTimePlugin.registration(core: core),
+        ]
+    }
+}

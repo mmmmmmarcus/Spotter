@@ -87,7 +87,7 @@ export function Install() {
             One-time: clear the quarantine flag
           </h3>
           <p className="mt-2 text-body text-ash">
-            Tinycast isn't notarized — there's no paid Developer ID behind it —
+            Spotter isn't notarized — there's no paid Developer ID behind it —
             so macOS quarantines it on first launch. Run this once to let it
             open:
           </p>

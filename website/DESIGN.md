@@ -1,10 +1,10 @@
-# Tinycast — Style Reference
+# Spotter — Style Reference
 
 > Midnight command center, coral neon
 
 **Theme:** dark
 
-Tinycast reads as a dark power-tool cockpit: an almost-black canvas (#040506) with barely-visible elevation steps, a single warm coral accent (#ff6363) that carries brand identity, and quiet white/gray typography in Inter. Components are defined less by shadows and more by hairline borders, inset highlight strokes, and the distinctive 'keyboard key' inner-shadow treatment that makes cards feel pressed and tactile rather than floating. Color is rationed — the page is 98% achromatic, and the coral appears only in the logo, hero artwork, AI badge, and the occasional warm-tinted surface. Navigation floats with a glass-blur effect, and most interactive surfaces are neutral light-gray buttons on dark, not chromatic CTAs. The hero abandons the system entirely with large red/blue gradient geometry, then the rest of the page returns to the austere dark surface — contrast through atmosphere, not decoration.
+Spotter reads as a dark power-tool cockpit: an almost-black canvas (#040506) with barely-visible elevation steps, a single warm coral accent (#ff6363) that carries brand identity, and quiet white/gray typography in Inter. Components are defined less by shadows and more by hairline borders, inset highlight strokes, and the distinctive 'keyboard key' inner-shadow treatment that makes cards feel pressed and tactile rather than floating. Color is rationed — the page is 98% achromatic, and the coral appears only in the logo, hero artwork, AI badge, and the occasional warm-tinted surface. Navigation floats with a glass-blur effect, and most interactive surfaces are neutral light-gray buttons on dark, not chromatic CTAs. The hero abandons the system entirely with large red/blue gradient geometry, then the rest of the page returns to the austere dark surface — contrast through atmosphere, not decoration.
 
 ## Tokens — Colors
 
@@ -30,7 +30,7 @@ Tinycast reads as a dark power-tool cockpit: an almost-black canvas (#040506) wi
 
 ## Tokens — Typography
 
-### Inter — Primary interface typeface — body text at 16px/400, nav and card labels at 13–14px/500, subheadings at 18–22px/400, section headings at 32–56px in the 400–600 range, and display at 64px/600. Inter's neutral geometry carries the developer-tool seriousness; weight 400 at the 56px hero headline is an anti-convention choice — most brands shout with 700, Tinycast whispers with regular weight and lets the size do the work · `--font-inter`
+### Inter — Primary interface typeface — body text at 16px/400, nav and card labels at 13–14px/500, subheadings at 18–22px/400, section headings at 32–56px in the 400–600 range, and display at 64px/600. Inter's neutral geometry carries the developer-tool seriousness; weight 400 at the 56px hero headline is an anti-convention choice — most brands shout with 700, Spotter whispers with regular weight and lets the size do the work · `--font-inter`
 
 - **Substitute:** system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif
 - **Weights:** 400, 500, 600
@@ -38,7 +38,7 @@ Tinycast reads as a dark power-tool cockpit: an almost-black canvas (#040506) wi
 - **Line height:** 0.91–1.71
 - **Letter spacing:** 0.0040em at 56px, 0.0100em at 20px, 0.0140em at 14px, 0.0080em at 13px, 0.0730em at 11px (uppercase eyebrow)
 - **OpenType features:** `'calt', 'kern', 'liga', 'ss03'`
-- **Role:** Primary interface typeface — body text at 16px/400, nav and card labels at 13–14px/500, subheadings at 18–22px/400, section headings at 32–56px in the 400–600 range, and display at 64px/600. Inter's neutral geometry carries the developer-tool seriousness; weight 400 at the 56px hero headline is an anti-convention choice — most brands shout with 700, Tinycast whispers with regular weight and lets the size do the work
+- **Role:** Primary interface typeface — body text at 16px/400, nav and card labels at 13–14px/500, subheadings at 18–22px/400, section headings at 32–56px in the 400–600 range, and display at 64px/600. Inter's neutral geometry carries the developer-tool seriousness; weight 400 at the 56px hero headline is an anti-convention choice — most brands shout with 700, Spotter whispers with regular weight and lets the size do the work
 
 ### GeistMono — Monospace for version strings, technical micro-labels, terminal-style text — appears in footer metadata (v1.104.21), command-line hints, and 10px uppercase eyebrow tags. Geist Mono's compact, slightly geometric forms make the tiny labels feel engineered rather than decorative · `--font-geistmono`
 
@@ -147,7 +147,7 @@ Tinycast reads as a dark power-tool cockpit: an almost-black canvas (#040506) wi
 
 **Role:** Top-level site navigation
 
-Floating pill-shaped bar with backdrop-blur(48px), 1px solid border at #363739, 8px radius, transparent dark fill (sits over #040506). Logo at left (red diamond + 'Tinycast' wordmark in white, 13px/500), nav links centered at 13–14px in #9c9c9d, and a light-gray Download button at right. Padding approximately 8px vertical, 16px horizontal internally.
+Floating pill-shaped bar with backdrop-blur(48px), 1px solid border at #363739, 8px radius, transparent dark fill (sits over #040506). Logo at left (red diamond + 'Spotter' wordmark in white, 13px/500), nav links centered at 13–14px in #9c9c9d, and a light-gray Download button at right. Padding approximately 8px vertical, 16px horizontal internally.
 
 ### Neutral Filled Button (Download CTA)
 
@@ -271,7 +271,7 @@ Quick Color Reference:
 
 Example Component Prompts:
 
-1. Glass Navigation Bar: Floating pill nav with backdrop-filter blur(48px), 1px solid #363739 border, 8px radius, transparent dark fill. Left: red diamond logo (#ff6363) + 'Tinycast' wordmark in #ffffff at 13px Inter 500. Center: ghost nav links in #9c9c9d at 13px Inter 500 (Store, Pro, AI, iOS, Windows, Teams, Enterprise, Blog, Pricing) with no padding. Right: neutral filled button — Mist #e6e6e6 fill, Iron #454647 text 'Download' at 13px/500, 8px radius, 8px 12px padding, with a 15px Apple icon.
+1. Glass Navigation Bar: Floating pill nav with backdrop-filter blur(48px), 1px solid #363739 border, 8px radius, transparent dark fill. Left: red diamond logo (#ff6363) + 'Spotter' wordmark in #ffffff at 13px Inter 500. Center: ghost nav links in #9c9c9d at 13px Inter 500 (Store, Pro, AI, iOS, Windows, Teams, Enterprise, Blog, Pricing) with no padding. Right: neutral filled button — Mist #e6e6e6 fill, Iron #454647 text 'Download' at 13px/500, 8px radius, 8px 12px padding, with a 15px Apple icon.
 
 2. Hero Section: Full-bleed dark (#040506) background. Centered headline 'Your shortcut to everything.' at 56px Inter 400, #ffffff, letter-spacing 0.22px. Subheadline at 16px Inter 400, #9c9c9d, max-width ~480px. Behind the text: large abstract red/blue gradient composition — diagonal coral (#ff6363 with 40px blur) bars cutting across, blue radial gradient wash (rgba(4,63,150,0.7) to rgba(6,18,37,0.25)) at 50% 26%. Below: two neutral filled buttons side by side (Mist fill, Iron text) with Apple/Windows icons, then a Geist Mono 12px footer line: 'v1.104.21 | macOS 13+ | Install via homebrew' in #6a6b6c.
 

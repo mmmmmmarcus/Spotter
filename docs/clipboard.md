@@ -1,16 +1,25 @@
 # Clipboard history
 
+Clipboard is a self-contained native plugin under `Spotter/Plugins/Clipboard/`. The directory owns
+`ClipboardPlugin`, `ClipboardManager`, `ClipboardStore`, the palette view and its Settings view;
+`AppCore` remains the sole owner of the long-lived manager and store instances.
+
 ## Poll-based capture
 
 `ClipboardManager` runs a 0.5s `Timer` watching `NSPasteboard.general.changeCount`. To avoid
-re-capturing Tinycast's own writes, every write stamps a private `internalType` marker on the
+re-capturing Spotter's own writes, every write stamps a private `internalType` marker on the
 pasteboard and the poller skips anything carrying it.
+
+Its plugin lifecycle starts this timer only while the plugin is enabled;
+disabling it stops capture without deleting existing history, and re-enabling resumes with the
+current pasteboard change count so old contents are not re-captured.
 
 ## Store
 
-`ClipboardStore` is SQLite-backed: rows plus a trigram FTS5 index in `clipboard.sqlite3`, with image
-blobs as loose PNG files, all under `~/Library/Caches/<bundle-id>/`. The newest 1000 rows are mirrored
-in the `@Published items` window; FTS search reaches older rows.
+`Spotter/Plugins/Clipboard/ClipboardStore.swift` is SQLite-backed: rows plus a trigram FTS5 index in
+`clipboard.sqlite3`, with image blobs as loose PNG files, all under
+`~/Library/Caches/<bundle-id>/`. The newest 1000 rows are mirrored in the `@Published items` window;
+FTS search reaches older rows.
 
 A database that won't open is deleted and recreated (worst case the store degrades to session-only
 in-memory history).

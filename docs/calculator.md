@@ -2,8 +2,9 @@
 
 `Core/Calculator/` is a **Foundation-only** engine (no AppKit / SwiftUI imports) fronted by
 `CalcMemo`, a one-deep memo mirroring `AppIndex`'s. It must stay Foundation-only because the
-`Tools/calc-test.swift` harness compiles the real engine sources — including `CalcDateTime`. It is
-also **pure**: the one input it can't compute, the FX rate table, is passed in (see Currency below).
+`Tools/calc-test.swift` harness compiles the real engine sources — including `CalcDateTime` — together
+with the Foundation-only currency parser/data in `Plugins/CurrencyConversion/`. It is also **pure**:
+the one input it can't compute, the FX rate table, is passed in (see Currency below).
 
 ## Evaluation pipeline
 
@@ -73,6 +74,10 @@ echoes the typed text (`10km to mi ×`) rather than the conversion's own shorten
 
 ## Currency
 
+Currency Conversion is a built-in plugin. Its registration, store, parser, generated data and Settings
+view live together under `Spotter/Plugins/CurrencyConversion/`; the shared calculator receives only an
+injected `CurrencySource`.
+
 `CalcCurrency` mirrors `CalcUnits`' shape: a lookup table plus a `parseConversion` over the same
 `expr from (to|in|->) to` token shape, so `eur to usd` implies an amount of 1 exactly like `m to ft`.
 A leading sign is swapped back into amount-first order, so `€20 to GBP` and `20€ to GBP` parse alike.
@@ -117,7 +122,7 @@ suffix applies to the whole expression.
 ### Consent
 
 Currency conversion reaches the network, so it ships **off** and stays off until the user turns it on
-in Settings → Miscellaneous and accepts a sheet naming the provider, the request cadence and what
+in Settings → Plugins → Currency Conversion and accepts a sheet naming the provider, the request cadence and what
 leaves the machine. Declining leaves it off; there is no "remind me later" state. Any future feature
 that needs the network should follow the same shape rather than inventing a second one.
 
@@ -142,7 +147,7 @@ private **cacheless** `URLSession` (`.ephemeral`, `urlCache = nil`) rather than 
 The provider serves the table `Cache-Control: public, max-age=…`, so the shared session would store a
 second copy in the on-disk `URLCache` that deleting `currency-rates.json` doesn't touch.
 
-Rates come from `CurrencyRateStore` (`Core/`, owned by `AppCore`), which reads
+Rates come from `CurrencyRateStore` (`Plugins/CurrencyConversion/`, owned by `AppCore`), which reads
 [Frankfurter](https://frankfurter.dev) — open source, no key, no account, no quota, rates blended
 from 84 central banks. One `GET api.frankfurter.dev/v2/rates?base=USD`, ~1.4 KB gzipped. v2 answers
 with one flat `{date, base, quote, rate}` row per pair rather than a keyed table, and omits the
@@ -151,7 +156,7 @@ base's own row — the store folds both into the `[code: rate]` shape `CurrencyR
 The table is cached at `~/Library/Caches/<bundle-id>/currency-rates.json`, refreshed every 24h with a
 15-minute retry after a failure. The feed republishes about once a day, so a tighter interval would
 cost requests without returning newer numbers. Age is measured from the persisted `fetchedAt`, not
-from launch, so relaunching Tinycast never re-fetches a snapshot that is still fresh — a cold start
+from launch, so relaunching Spotter never re-fetches a snapshot that is still fresh — a cold start
 with a same-day cache makes zero requests. Offline, the last snapshot keeps answering; with no snapshot at all
 the card says so rather than guessing, and a currency the feed doesn't quote reports
 `No exchange rate for <CODE>.` The store hands `CalcEngine.evaluate` a finished `CurrencyRates`

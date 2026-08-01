@@ -8,7 +8,7 @@ export type Feature = {
   wide?: boolean;
 };
 
-// Everything Tinycast does, in plain language. Kept true to what the app
+// Everything Spotter does, in plain language. Kept true to what the app
 // actually ships — each maps to a real feature in the source.
 export const features: Feature[] = [
   {
@@ -31,6 +31,27 @@ export const features: Feature[] = [
     icon: "emoji",
     title: "Emoji & symbols",
     body: "Search the full emoji and symbol set, tune the skin tone, and your most-used ones float to the top.",
+  },
+  {
+    icon: "process",
+    title: "Process control",
+    body: "Sort running processes by CPU or memory, group app helpers, and terminate or restart them with explicit safety checks.",
+  },
+  {
+    icon: "case",
+    title: "Change case",
+    body: "Turn selected or copied text into 21 common cases, then copy or paste the result back into your app.",
+  },
+  {
+    icon: "image",
+    title: "Image modification",
+    body: "Batch-convert, resize, filter, optimize, pad, rotate, remove backgrounds, and strip metadata entirely on-device.",
+    wide: true,
+  },
+  {
+    icon: "recording",
+    title: "QuickTime recording",
+    body: "Start native screen, audio, or camera recording from the launcher or a dedicated global shortcut.",
   },
   {
     icon: "globe",

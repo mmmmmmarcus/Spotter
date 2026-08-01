@@ -23,7 +23,7 @@ lives — `/Applications/Safari.app` is a symlink flagged hidden, so `.skipsHidd
 Finder ships as an individual bundle scope rather than by adding `/System/Library/CoreServices`, which
 holds ~120 background-agent bundles. There is no reliable way to filter those: `LSUIElement`,
 `LSBackgroundOnly` and "declares no icon" each also exclude legitimately launchable apps — Raycast,
-Stats, Tinycast itself, Mission Control, Siri, Time Machine, Screenshot, System Information, Font
+Stats, Spotter itself, Mission Control, Siri, Time Machine, Screenshot, System Information, Font
 Book. Don't reintroduce such a heuristic.
 
 `AppIndex.start(settings:)` observes `$searchScopes`, so an edit re-indexes immediately; overlapping
@@ -45,18 +45,28 @@ Rankings are memoized one query deep and keyed by the ranking store's revision, 
 invalidates the cached order. `rank` resolves the whole learned table for a query up front via
 `boosts(query:)` — one fold and one clock read per pass, not per candidate.
 
-## Custom commands
+## Commands
 
 `CustomCommandStore` supplies user-authored entries to `AppIndex` without joining the off-main
-application scan. Built-in and custom commands are alphabetized into the same final section, so they
-reuse fuzzy ranking, favorites, visibility, keycap rendering and the launcher's flat selection.
+application scan. `PluginRegistry` supplies commands from enabled native plugins. Core, plugin and
+custom commands are alphabetized into the same final section, so they reuse fuzzy ranking, favorites,
+visibility, keycap rendering and the launcher's flat selection. Toggling a plugin rebuilds only this
+in-memory command slice; it does not rescan applications.
+
+A registration may mark a secondary command `defaultVisible: false`. `AppCore.start()` seeds that
+visibility exactly once, after which the normal visibility store and System → Shortcuts own the user
+choice. Change Case uses this for its 21 direct transformations so the default command list stays
+compact.
 
 Only the display name is indexed. Activation resolves the stable UUID through the store and dispatches
 to `ShellCommandRunner`; see [custom-commands.md](custom-commands.md) for persistence, hotkeys and
 execution semantics.
 
+Plugin command activation routes through the registration's in-process closure; see
+[plugins.md](plugins.md). It never goes through the custom shell-command runner.
+
 > **Invariant:** `Tools/fuzz-test.swift` contains a **copy** of `FuzzyMatch` from
-> `Tinycast/Core/AppIndex.swift`. If you change the scoring in one, mirror it in the other or the test
+> `Spotter/Core/AppIndex.swift`. If you change the scoring in one, mirror it in the other or the test
 > is meaningless.
 
 The ranking harness covers prefix learning, frequency/recency scoring, persistence, and both reset
@@ -84,7 +94,7 @@ running dot and the availability of the quit actions:
   anything was running; the palette only dismisses when something was, and it restores focus unless
   the app it just quit *was* `previousApp`.
 - **Quit All Applications** — a `CommandRegistry` command. `AppLauncher.quitAllTargets()` is the
-  policy (every `.regular` app except Finder — `terminate()` only relaunches it — and Tinycast,
+  policy (every `.regular` app except Finder — `terminate()` only relaunches it — and Spotter,
   excluded by PID because About/Settings temporarily flips it to `.regular`). `AppCore.quitAllApps()`
   resolves that list **once**, confirms it with an `NSAlert`, then terminates exactly what was
   confirmed. The palette hides before the alert — it is a floating panel and would sit above it.

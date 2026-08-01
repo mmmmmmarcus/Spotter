@@ -1,15 +1,15 @@
 ## Project
 
-Tinycast is a native macOS menu-bar launcher (a minimal Raycast): fuzzy app launcher, global +
+Spotter is a native macOS menu-bar launcher (a minimal Raycast): fuzzy app launcher, global +
 per-app hotkeys, a text/image clipboard history, an inline calculator, and an emoji picker. SwiftUI +
 AppKit, runs as an accessory (no Dock icon, `LSUIElement`). Targets **macOS 26+** (Liquid Glass) and
 builds with the **Xcode 26** toolchain.
 
-- **Build:** XcodeGen owns the project — `Tinycast.xcodeproj` is committed but generated from
+- **Build:** XcodeGen owns the project — `Spotter.xcodeproj` is committed but generated from
   `project.yml`. After editing `project.yml`, run `xcodegen generate` and commit. There is **no**
   `Package.swift` / SwiftPM. Full build/test/sign/release steps: [`docs/development.md`](docs/development.md),
   [`docs/signing.md`](docs/signing.md).
-- **Channels:** Debug builds are their own channel — `Tinycast Dev.app` / `com.tinycast.app.dev` — so a
+- **Channels:** Debug builds are their own channel — `Spotter Dev.app` / `com.spotter.app.dev` — so a
   local run never shares prefs, caches, TCC grants or login item with an installed stable/beta.
   Anything newly persisted must stay keyed by `Bundle.main.bundleIdentifier`.
 - **Tests:** no XCTest target — standalone `swiftc` harnesses in `Tools/` (see Critical Invariants and
@@ -35,13 +35,13 @@ Full detail: [`docs/architecture.md`](docs/architecture.md).
   every long-lived manager and the window controllers.
   `AppDelegate.applicationDidFinishLaunching` calls `AppCore.shared.start()` and nothing else — that
   is the one wiring point. Palette / paste / launch actions are methods on `AppCore` that views call.
-- **Mostly AppKit windows.** `TinycastApp` (`@main`) declares only a `MenuBarExtra` scene. The command
+- **Mostly AppKit windows.** `SpotterApp` (`@main`) declares only a `MenuBarExtra` scene. The command
   palette is a borderless floating `NSPanel` hosting SwiftUI; Settings/About are plain `NSWindow`s via
   `AuxWindowController`. SwiftUI `Settings` / `Window` scenes are deliberately avoided (unreliable for
   accessory apps).
 - **Subsystems:** [palette](docs/palette.md) · [launcher & fuzzy match](docs/launcher.md) ·
   [calculator](docs/calculator.md) · [clipboard](docs/clipboard.md) · [emoji](docs/emoji.md) ·
-  [hotkeys](docs/hotkeys.md) · [UI & design system](docs/ui.md).
+  [plugins](docs/plugins.md) · [hotkeys](docs/hotkeys.md) · [UI & design system](docs/ui.md).
 
 ## Critical Invariants
 
@@ -62,14 +62,20 @@ Never break these without an explicit task to do so.
 - **Focus restoration is load-bearing.** Paste targets the recorded `previousApp` and requires the
   Accessibility permission (`Permissions.ensureAccessibility()`). See [palette.md](docs/palette.md).
 - **`Core/Calculator/` (incl. `CalcDateTime`) must stay Foundation-only *and pure*** — no AppKit /
-  SwiftUI imports, no clock or network reads. `Tools/calc-test.swift` compiles the real engine
+  SwiftUI imports, no clock or network reads. The Currency Conversion parser and generated table in
+  `Plugins/CurrencyConversion/` share that boundary. `Tools/calc-test.swift` compiles the real
   sources. Both externally-sourced inputs are injected: the clock via `now`/`calendar`, the FX table
-  via `rates` (`CurrencyRateStore` owns the fetch). Likewise `Core/Emoji/`
-  (`EmojiCatalog`, `EmojiGridGeometry`) stays AppKit/SwiftUI-free for `Tools/emoji-test.swift`, and
-  `Core/ClipboardStore.swift` must keep to Foundation + SQLite3 with no other app source, so
-  `Tools/clipboard-test.swift` can compile it standalone. `Core/LauncherRankingStore.swift` is the
-  same deal for `Tools/ranking-test.swift` — Foundation only, with the clock injected via `now` and
-  the store path via `fileURL`, as is `Core/SearchScopes.swift` for `Tools/scopes-test.swift`.
+  via `rates` (`CurrencyRateStore` owns the fetch). Likewise the catalog and geometry sources in
+  `Plugins/EmojiSymbols/` stay AppKit/SwiftUI-free for `Tools/emoji-test.swift`,
+  `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar,
+  `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
+  Foundation-only and pure, and `Plugins/ImageModification/ImageModificationTypes.swift` stays
+  Foundation-only so their standalone harnesses compile without app state. `QuickTimeRunner` may use
+  Foundation's `Process`, but its harness must never execute a recording command.
+  `Plugins/Clipboard/ClipboardStore.swift` must keep to Foundation + SQLite3 with no other app
+  source, so their `Tools/` harnesses can compile them standalone. `Core/LauncherRankingStore.swift`
+  is the same deal for `Tools/ranking-test.swift` — Foundation only, with the clock injected via
+  `now` and the store path via `fileURL`, as is `Core/SearchScopes.swift` for `Tools/scopes-test.swift`.
   `Core/CustomCommand.swift` and `Core/ShellCommandRunner.swift` must likewise stay free of AppKit /
   SwiftUI (Foundation plus Combine for `ObservableObject` and Darwin for `mkstemp`) so
   `Tools/custom-command-test.swift` can compile them standalone — which is why the custom-command
@@ -78,10 +84,11 @@ Never break these without an explicit task to do so.
   scoring in one, mirror it in the other, or the test is meaningless.
 - **`EmojiData.generated.swift` is emitted by `node Tools/gen-emoji.js` and
   `CurrencyData.generated.swift` by `node Tools/gen-currencies.js`** — never edit either by hand.
+  Their outputs live in `Plugins/EmojiSymbols/` and `Plugins/CurrencyConversion/`, respectively.
   Currency names, signs and uncontested nouns are generated (Frankfurter × CLDR); the only
   hand-maintained currency data is `CalcCurrency.contested`, the nouns several currencies share
   (`dollars`, `pounds`). Don't add slang or synonyms there — no source of truth, so they rot.
-- **Every networked feature ships off and is consent-gated.** Tinycast is offline by default; a
+- **Every networked feature ships off and is consent-gated.** Spotter is offline by default; a
   feature that reaches the network must be opt-in behind a Settings toggle whose dialog names the
   provider, the cadence and what leaves the machine, and its owning store must re-check consent at
   every entry point — including on both sides of the `await` around the request, since consent can
@@ -91,13 +98,21 @@ Never break these without an explicit task to do so.
   `.off`, so forgetting to pass one disables the feature rather than enabling it. Fetch on a private
   **cacheless** `URLSession` (`.ephemeral`, `urlCache = nil`), never `URLSession.shared` — a cacheable
   response would leave a second copy in the on-disk `URLCache` that opting out doesn't delete.
-  `CurrencyRateStore` is the reference implementation — follow it rather than inventing a second shape.
+  `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
+  rather than inventing a second shape.
+- **Plugins are native compile-time modules.** Every built-in plugin owns one
+  `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
+  JavaScript execution, reflection-based discovery or a second plugin registry. See
+  [`docs/plugins.md`](docs/plugins.md) and use the tracked `$spotter-new-plugin` skill.
+- **Process and image mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
+  confirms termination/restart by default. Image Modification confirms every Replace Original run;
+  pixel work stays off the main actor and temporary output is bundle-identifier-scoped.
 - **Swift 6 language mode: data-race violations are hard errors.** Almost everything is `@MainActor`;
   cross-actor model types are `Sendable`; heavy / IO work (app scan, image decode) is pushed off-main
   via `Task.detached` / `nonisolated`. Keep that boundary. House idioms: `NotificationToken` (RAII) for
   block observers, `isolated deinit` for `ClipboardStore`'s SQLite teardown, decode raw Carbon / C
   pointers to plain values before crossing into actor code.
-- **Clipboard writes stamp a private `internalType` marker** so the poller skips Tinycast's own writes.
+- **Clipboard writes stamp a private `internalType` marker** so the poller skips Spotter's own writes.
 - **Hotkeys persist under legacy `KeyboardShortcuts_<name>` UserDefaults keys** (from the removed
   KeyboardShortcuts package) so old bindings survive. See [hotkeys.md](docs/hotkeys.md).
 - **Read [`docs/ui.md`](docs/ui.md) before any restyle or new view.** `Core/Theme.swift` is the single
@@ -110,18 +125,26 @@ Never break these without an explicit task to do so.
 
 ## Project Layout
 
-- `Tinycast/Core/` — managers, stores, windows, AppKit glue (no view bodies beyond hosting).
-  `Core/Calculator/` and `Core/Emoji/` are the Foundation-only engines; `Core/Theme.swift` the design
-  tokens; `Core/HotKey/` the in-house hotkey stack.
-- `Tinycast/Features/` — SwiftUI views: `RootPaletteView`, `Launcher/`, `Clipboard/`, `Calculator/`,
-  `Emoji/`, `Settings/`, `About/`, `Onboarding/`, plus shared `PopoverMenu`.
-- `Tinycast/App/` — `@main` app + delegate.
+- `Spotter/Core/` — shared managers, stores, windows and AppKit glue (no view bodies beyond hosting).
+  `Core/Calculator/` is the shared pure calculator engine; `Core/Theme.swift` owns design tokens;
+  `Core/HotKey/` is the in-house hotkey stack.
+- `Spotter/Plugins/Infrastructure/` — the shared plugin contract and registry;
+  `Spotter/Plugins/<Name>/` — each native plugin's registration, logic, settings and feature views;
+  `Spotter/Plugins/BuiltInPlugins.swift` — the intentionally explicit compile-time catalog.
+- `Spotter/Features/` — shared/system SwiftUI views: `RootPaletteView`, `Launcher/`, `Calculator/`,
+  `Settings/`, `About/`, `Onboarding/`, plus shared `PopoverMenu`.
+- `Spotter/App/` — `@main` app + delegate.
 - `Tools/` — standalone test harnesses and the emoji generator.
+- `.codex/skills/spotter-new-plugin/` — tracked project skill for scaffolding another native plugin.
 - `.github/workflows/release.yml` — the entire release pipeline (see `docs/development.md`).
 
 ## Additional Documentation
 
 - [`docs/architecture.md`](docs/architecture.md) — core ownership, windows, concurrency.
+- [`docs/plugins.md`](docs/plugins.md) — native plugin contract, directory layout and extension flow.
+- [`docs/kill-process.md`](docs/kill-process.md) · [`docs/change-case.md`](docs/change-case.md) ·
+  [`docs/image-modification.md`](docs/image-modification.md) · [`docs/quicktime.md`](docs/quicktime.md)
+  — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·
   [`docs/clipboard.md`](docs/clipboard.md) · [`docs/emoji.md`](docs/emoji.md) ·

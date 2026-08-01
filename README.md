@@ -1,10 +1,10 @@
-# Tinycast
+# Spotter
 
 A tiny, fully native macOS launcher — the essentials, without the bloat.
 
 <p align="center">
   <a href="https://discord.gg/v2Eeb4QQy3">
-    <img alt="Join the Tinycast Discord"
+    <img alt="Join the Spotter Discord"
          src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=flat&logo=discord&logoColor=white"></a>
   <a href="mailto:iabueammar@gmail.com?subject=Hiring%20enquiry">
     <img alt="Hire me — iabueammar@gmail.com"
@@ -16,7 +16,7 @@ A tiny, fully native macOS launcher — the essentials, without the bloat.
 
 <!-- Screenshot placeholder — drop the real image at docs/screenshot.png -->
 <p align="center">
-  <img src="docs/screenshot.png" alt="Tinycast command palette" width="720">
+  <img src="docs/screenshot.png" alt="Spotter command palette" width="720">
 </p>
 
 Around **3 MB on disk** and **under 100 MB of RAM** — no Electron, no telemetry, no background
@@ -29,35 +29,47 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **Custom commands** — run named shell commands through fuzzy search or their own global hotkeys.
 - **Calculator** — do math, unit and live currency conversions inline, right in the palette.
 - **Clipboard history** — text and images, searchable, pasted back into the app you were using.
+- **Emoji & symbols** — find and insert emoji from a fast native grid.
+- **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer.
+- **Kill process** — inspect CPU and memory use, group app helpers, then terminate or restart safely.
+- **Change case** — transform selected or copied text through 21 cases, then copy or paste it.
+- **Image modification** — batch-convert, resize, filter, optimize, pad, rotate, remove backgrounds,
+  and clear metadata with native macOS frameworks.
+- **QuickTime recording** — start a screen, audio, or movie recording directly from the launcher.
+- **Native plugins** — independently organized, individually enabled feature modules with shared
+  settings, permissions, commands and shortcuts, compiled directly into the app for native speed.
 - **Global hotkey** — one shortcut summons the palette from anywhere.
 - **Per-app hotkeys** — bind a key to an app; press it to toggle (focus/hide).
 
 ## Install
 
 ```sh
-brew trust --tap abue-ammar/tinycast   # required for third-party taps
-brew tap abue-ammar/tinycast
-brew install --cask tinycast          # stable
-brew install --cask tinycast@beta     # beta  (installs side-by-side)
+brew trust --tap mmmmmmarcus/spotter   # required for third-party taps
+brew tap mmmmmmarcus/spotter
+brew install --cask spotter          # stable
+brew install --cask spotter@beta     # beta  (installs side-by-side)
 ```
 
-Each channel is a separate app (`Tinycast.app`, `Tinycast Beta.app`) with its own settings and
+Each channel is a separate app (`Spotter.app`, `Spotter Beta.app`) with its own settings and
 permissions, so you can run stable next to the beta.
 
-Tinycast is self-signed. Installing via Homebrew clears the macOS quarantine flag for you
+Spotter is self-signed. Installing via Homebrew clears the macOS quarantine flag for you
 automatically on every install and update, so there's nothing to run. (If you download the DMG
 directly from Releases instead, clear it once: `xattr -dr com.apple.quarantine
-"/Applications/Tinycast.app"`.)
+"/Applications/Spotter.app"`.)
 
 ## Permissions
 
-**Accessibility** — needed only so Tinycast can paste a clipboard item back into the app you
-came from. You're prompted the first time you paste; grant it in **System Settings → Privacy &
-Security → Accessibility**.
+**Accessibility** — used to paste into the app you came from and to read selected text for plugins
+such as Change Case. You're prompted on first use.
+
+**Automation** — used only when a command asks another app to act: QuickTime Recording controls
+QuickTime Player, and Image Modification can read Finder's current selection. Manage both grants in
+**System Settings → Privacy & Security**.
 
 ## Using it
 
-1. Open **Settings → General** and record a global shortcut to summon Tinycast.
+1. Open **Settings → General** and record a global shortcut to summon Spotter.
 2. Press it anywhere → the palette floats in. Type to filter, **↵** to launch.
 3. **Tab** switches between Apps and Clipboard; **↑/↓** move, **Esc** dismisses.
 4. **Settings → Shortcuts** — search an app or custom command and record a global shortcut.
@@ -65,7 +77,9 @@ Security → Accessibility**.
 ## Building from source
 
 See **[docs/development.md](docs/development.md)** for the toolchain, build, packaging, release,
-and website workflows, and **[docs/ui.md](docs/ui.md)** for the UI design system.
+and website workflows, **[docs/plugins.md](docs/plugins.md)** for the built-in plugin architecture,
+and **[docs/ui.md](docs/ui.md)** for the UI design system. The repository also ships the
+`$spotter-new-plugin` Codex skill under `.codex/skills/` to scaffold new native plugin modules.
 
 ## Contributing
 
@@ -84,13 +98,13 @@ Questions, ideas, or just want to follow along? **[Join the Discord](https://dis
 
 ## Contributors
 
-Thank you to everyone who has put time into Tinycast — every fix and idea shows up in something
+Thank you to everyone who has put time into Spotter — every fix and idea shows up in something
 people use every day.
 
 <p align="center">
-  <a href="https://github.com/abue-ammar/tinycast/graphs/contributors">
-    <img alt="Tinycast contributors"
-         src="https://contrib.rocks/image?repo=abue-ammar/tinycast&max=28&columns=28">
+  <a href="https://github.com/mmmmmmarcus/Spotter/graphs/contributors">
+    <img alt="Spotter contributors"
+         src="https://contrib.rocks/image?repo=mmmmmmarcus/Spotter&max=28&columns=28">
   </a>
 </p>
 

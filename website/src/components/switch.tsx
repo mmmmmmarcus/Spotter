@@ -65,7 +65,7 @@ export function Switch() {
               src={`${import.meta.env.BASE_URL}import.png`}
               width={1800}
               height={1192}
-              alt="Tinycast's Import from Raycast screen, with Shortcuts, Favorites, Emoji skin tone, Launch at login, Menu-bar icon, and Clipboard history all selected to import."
+              alt="Spotter's Import from Raycast screen, with Shortcuts, Favorites, Emoji skin tone, Launch at login, Menu-bar icon, and Clipboard history all selected to import."
               className="block h-auto w-full"
               loading="lazy"
               decoding="async"

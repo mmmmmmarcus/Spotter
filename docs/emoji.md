@@ -1,16 +1,22 @@
 # Emoji picker
 
 A palette sub-screen (reached like Clipboard / Calculator History) presenting a searchable emoji grid.
+It is a built-in plugin: the catalog loads lazily when enabled, its launcher command and shortcut are
+routed through `PluginRegistry`, and disabling it returns an open emoji palette to the launcher.
 
 ## Layout
 
-- `Core/Emoji/` — the **Foundation-only** catalog + geometry (no AppKit / SwiftUI imports):
+- `Spotter/Plugins/EmojiSymbols/` owns the entire native plugin:
+  - `EmojiSymbolsPlugin.swift` — registration, commands, shortcut and lifecycle wiring.
   - `EmojiCatalog.swift` — the catalog model (groups, names, keywords).
   - `EmojiGridGeometry.swift` — pure grid-layout math (columns, item sizing).
   - `EmojiData.generated.swift` — the emoji dataset.
   - `EmojiIndex.swift` — search index over the catalog.
   - `FrequentEmojiStore.swift` — persisted most-recently / frequently used emoji.
-- `Features/Emoji/EmojiGridView.swift` — the SwiftUI grid view.
+  - `EmojiGridView.swift` and `EmojiSettingsView.swift` — the SwiftUI feature surfaces.
+
+`EmojiCatalog.swift`, `EmojiGridGeometry.swift` and the generated dataset form the
+**Foundation-only** testable boundary; the other files may use AppKit or SwiftUI as required.
 
 ## Invariants
 
@@ -20,8 +26,10 @@ A palette sub-screen (reached like Clipboard / Calculator History) presenting a 
   `Tools/emoji-test.swift` harness compiles the real sources:
 
   ```sh
-  swiftc Tinycast/Core/Emoji/EmojiCatalog.swift Tinycast/Core/Emoji/EmojiGridGeometry.swift \
-    Tinycast/Core/Emoji/EmojiData.generated.swift Tools/emoji-test.swift -o /tmp/emoji-test && /tmp/emoji-test
+  swiftc Spotter/Plugins/EmojiSymbols/EmojiCatalog.swift \
+    Spotter/Plugins/EmojiSymbols/EmojiGridGeometry.swift \
+    Spotter/Plugins/EmojiSymbols/EmojiData.generated.swift Tools/emoji-test.swift \
+    -o /tmp/emoji-test && /tmp/emoji-test
   ```
 
 - The grid list uses the palette scrollbar (`.thinScrollbar()` + `.hideNativeScrollers()`) and the

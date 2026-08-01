@@ -20,6 +20,11 @@ The flat `selection` index is the single source of truth for highlight / activat
 match the visible row order**, including the inline calculator card at index 0 when present (see
 [calculator.md](calculator.md)).
 
+In launcher mode an enabled plugin query provider may claim the inline card instead. The registry
+returns the first claim in catalog order; otherwise the calculator is the fallback. There is still at
+most one inline card at flat index 0, preserving the selection invariant. World Clock is the reference
+provider (`SF time now`), implemented in `Spotter/Plugins/WorldClock/`.
+
 ## Window placement
 
 `PaletteWindowController` resolves an anchor (left edge + top edge) **once per summon** and reuses it

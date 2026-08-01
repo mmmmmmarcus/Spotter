@@ -18,10 +18,14 @@ executable content.
 
 ## Launcher integration
 
-`AppIndex` owns two slices: applications/System Settings discovered off-main and custom command
-entries supplied on the main actor. It publishes those followed by one alphabetized command slice
-containing both `CommandRegistry` and user commands. This keeps the visible row order identical to
-the flat palette selection while allowing edits to invalidate fuzzy results without rescanning disk.
+`AppIndex` combines three sources: applications/System Settings discovered off-main, signed in-process
+commands from `CommandRegistry` and enabled plugins, and user-authored custom command entries supplied
+on the main actor. It publishes one alphabetized command slice after discovered apps. This keeps the
+visible row order identical to the flat palette selection while allowing plugin toggles or command
+edits to invalidate fuzzy results without rescanning disk.
+
+Plugin commands are native closures registered through `PluginRegistry`; only user-authored Custom
+Commands reach `ShellCommandRunner`.
 
 The command text is deliberately not searchable. Only the user-facing name enters fuzzy matching.
 
@@ -33,7 +37,7 @@ The command text is deliberately not searchable. Only the user-facing name enter
   environment** flag is on
 - the user's home directory as the working directory
 - standard input and output connected to `/dev/null`
-- `TINYCAST=1` added to the inherited environment
+- `SPOTTER=1` added to the inherited environment
 - up to 8 KiB of standard error retained for a failure alert
 
 No Terminal window or pseudo-terminal is created. `waitUntilExit` blocks for the whole life of the
@@ -50,7 +54,7 @@ command exits **127**. That is the single most common way a custom command fails
 It is per-command and off by default, because turning it on runs whatever the user's shell startup
 does — oh-my-zsh's auto-update (`git pull`, network, seconds), powerlevel10k's `gitstatusd`,
 `compinit` rewriting `~/.zcompdump`, or an `exec` that replaces the shell so the command never runs at
-all. `TINYCAST=1` exists so an rc file can skip those sections: `[[ -n $TINYCAST ]] && return`.
+all. `SPOTTER=1` exists so an rc file can skip those sections: `[[ -n $SPOTTER ]] && return`.
 
 Measured cost: ~10 ms for `-lc`, ~65 ms for `-ilc` against a real-world `~/.zshrc` (~11 ms against a
 minimal one — the interactive shell itself is ~2 ms, the rest is the user's own config).
@@ -58,8 +62,8 @@ minimal one — the interactive shell itself is ~2 ms, the rest is the user's ow
 Interactive prompts still cannot block. Standard input is `/dev/null`, so a `read` gets EOF and
 returns non-zero, and a launchd-launched app has no controlling terminal, so `/dev/tty` fails with
 `device not configured`. A dev build launched *from a terminal* inherits that terminal's tty, so an rc
-file reading `/dev/tty` can hang there but not for real users. There is **no timeout** — Tinycast
-never kills a running command, and a command outlives Tinycast quitting.
+file reading `/dev/tty` can hang there but not for real users. There is **no timeout** — Spotter
+never kills a running command, and a command outlives Spotter quitting.
 
 Because standard error surfaces only on a non-zero exit and only its last 8 KiB, rc-file startup noise
 is dropped while the actual error survives.
@@ -75,8 +79,8 @@ hotkeys keep firing, so a re-entrancy flag stops a held shortcut stacking alerts
 
 ### Reporting
 
-Tinycast dismisses an open palette before starting a custom command. A zero exit status is silent; a
-launch failure or non-zero status activates Tinycast and shows the bounded error detail. When the
+Spotter dismisses an open palette before starting a custom command. A zero exit status is silent; a
+launch failure or non-zero status activates Spotter and shows the bounded error detail. When the
 status is 127 and **Load shell environment** is off, the alert adds a one-line hint and an **Open
 Settings…** button that lands on the Custom Commands pane — the hint is gated on the status alone, not
 on grepping stderr, since 127 is equally a plain typo. The command string itself is never logged.

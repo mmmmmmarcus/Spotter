@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Tinycast design tokens — the single source of truth for the site.
+ * Spotter design tokens — the single source of truth for the site.
  * Components must only use sizes, colors, and shadows defined here; Tailwind's
  * default text scale is disabled below so an off-scale size can't slip in.
  */
@@ -18,7 +18,7 @@
   --color-border: #363739; /* hairline borders */
   --color-border-strong: #54555a; /* hovered borders */
 
-  /* Tinycast brand — violet mark from the app icon, cyan as its counter-tone. */
+  /* Spotter brand — violet mark from the app icon, cyan as its counter-tone. */
   --color-violet: #863bff;
   --color-violet-bright: #a875ff;
   --color-violet-deep: #7e14ff;
