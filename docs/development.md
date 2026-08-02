@@ -41,7 +41,7 @@ Debug builds are a separate channel: **`Spotter Dev.app`**, bundle id `com.spott
 every persisted thing is keyed by bundle
 id — `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
 `~/Library/Caches/<id>/` (clipboard history, calculator history, exchange rates, frequent emoji),
-`~/Library/Application Support/<id>/` (the onboarding marker), the `SMAppService` login item, and the
+`~/Library/Application Support/<id>/` (the onboarding marker and Notes data), the `SMAppService` login item, and the
 Accessibility / Input Monitoring (TCC) grants — a build you run locally can't read or clobber the
 installed app's state, and both can run side-by-side.
 
@@ -106,6 +106,8 @@ swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageI
     -o /tmp/image-modification-test && /tmp/image-modification-test
 swiftc -swift-version 6 Spotter/Plugins/QuickTime/QuickTimeRunner.swift \
     Tools/quicktime-test.swift -o /tmp/quicktime-test && /tmp/quicktime-test
+swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
+    Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 ```
 
 `Tools/fuzz-test.swift` holds a **copy** of `FuzzyMatch` from `Spotter/Core/AppIndex.swift` —
@@ -120,6 +122,10 @@ Kill Process tests parse a fixed `ps` fixture and never signal a real process. C
 real Foundation-only transformer. Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory. QuickTime tests only the generated AppleScript
 strings and never opens QuickTime.
+
+The Notes harness compiles the real Foundation-only model, store and Markdown transformer. It validates
+derived titles/previews, UTF-16 selections, formatting toggles and atomic persistence against a
+temporary archive without opening a window or touching the user's notes file.
 
 The clipboard harness likewise compiles the real `ClipboardStore.swift`, so that file must keep to
 Foundation + SQLite3 and depend on no other app source. Each case drives a store rooted in a

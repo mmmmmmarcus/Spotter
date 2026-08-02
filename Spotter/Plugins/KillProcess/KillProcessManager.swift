@@ -7,6 +7,21 @@ final class KillProcessManager: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var errorMessage: String?
     private var refreshTask: Task<Void, Never>?
+    private var pollingTask: Task<Void, Never>?
+
+    func start() {
+        guard pollingTask == nil else { return }
+        pollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.refresh()
+                let defaults = UserDefaults.standard
+                let interval = defaults.object(forKey: "kill-process.refresh-seconds") == nil
+                    ? 2.0 : max(0.5, defaults.double(forKey: "kill-process.refresh-seconds"))
+                try? await Task.sleep(for: .seconds(interval))
+            }
+        }
+    }
 
     func refresh() async {
         guard refreshTask == nil else { return }
@@ -28,6 +43,8 @@ final class KillProcessManager: ObservableObject {
     }
 
     func stop() {
+        pollingTask?.cancel()
+        pollingTask = nil
         refreshTask?.cancel()
         refreshTask = nil
         isRefreshing = false

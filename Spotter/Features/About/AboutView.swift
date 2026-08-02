@@ -201,6 +201,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
     @discardableResult
     func show<Content: View>(
         id: String, title: String, size: CGSize, seamlessTitleBar: Bool = false,
+        resizable: Bool = false, floating: Bool = false, minimumSize: CGSize? = nil,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         let window: NSWindow
@@ -212,6 +213,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             isNew = true
             var style: NSWindow.StyleMask = [.titled, .closable]
             if seamlessTitleBar { style.insert(.fullSizeContentView) }
+            if resizable { style.insert(.resizable) }
             window = NSWindow(
                 contentRect: NSRect(origin: .zero, size: size),
                 styleMask: style,
@@ -219,6 +221,11 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
                 defer: false
             )
             window.title = title
+            if let minimumSize { window.minSize = minimumSize }
+            if floating {
+                window.level = .floating
+                window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+            }
             // Let the content run edge-to-edge under a transparent titlebar so the window reads as one continuous surface — the modern inspector look.
             if seamlessTitleBar {
                 window.titlebarAppearsTransparent = true

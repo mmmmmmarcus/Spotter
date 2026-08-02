@@ -12,9 +12,15 @@ UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its con
 - `.launcher` → `LauncherList`
 - `.clipboard` → `ClipboardList` + preview
 - `.calculatorHistory` → `CalculatorHistoryList`
+- `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
 Clipboard and Calculator History are sub-screens reached from the launcher (Tab, a command, or a
 hotkey) and back out to it.
+
+Plugin palette screens reuse the same header search field, flat selection, keyboard navigation,
+section/row grammar, edge dissolve, bottom action group and ⌘K overlay. The plugin supplies immutable
+row snapshots plus primary/menu actions; it does not supply a view. Registry observation invalidates
+the palette when the plugin's `AppCore`-owned manager changes. Kill Process is the reference screen.
 
 The flat `selection` index is the single source of truth for highlight / activation and **must always
 match the visible row order**, including the inline calculator card at index 0 when present (see

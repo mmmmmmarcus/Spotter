@@ -197,6 +197,16 @@ root declares a minimum content size but never owns an `NSWindow`. Use the nativ
 cards for option groups, and a fixed footer for the primary action. Long-running work displays a
 small progress indicator and leaves the main actor before processing.
 
+List-oriented plugins do not use a workspace. Register a palette screen and render every result via
+`PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
+section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
+Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
+
+Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
+resizing and all-Spaces visibility while `AuxWindowController` remains the owner. Its sidebar follows
+the shared selection-over-hover precedence, its editor uses an overlay-scrolling `NSTextView`, and
+the bottom status row reports background persistence rather than presenting a manual Save action.
+
 The calculator's inline `CalculatorCard` reuses this card language (`cardFill` + `cardStroke`) rather than the row language, since it's a highlighted answer, not a list item. A value answer is a **two-column** layout: a source column (input echo) and a target column (result), separated by a centered `arrow.right` glyph (no divider line). Each column optionally carries a word-name **badge pill** beneath its value (`keyCap` font, `controlSurface` fill, `keyCap` radius) — `Expression`→`Result` for scalar arithmetic, unit or currency names for typed results (`Expression`→`Kilograms`), and moment labels for a date/time calc (`12:18 AM`→`9:00 AM`, `Friday, 24 July`→`Friday, 9 April, 2027`). A trailing operator keeps the last complete result and its badge visible while the next operand is being typed.
 
 ---

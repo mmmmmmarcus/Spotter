@@ -2,6 +2,7 @@ import SwiftUI
 
 struct KillProcessSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
+    @AppStorage("kill-process.sort") private var sortRaw = ProcessSort.cpu.rawValue
     @AppStorage("kill-process.group-apps") private var groupApps = true
     @AppStorage("kill-process.search-paths") private var searchPaths = false
     @AppStorage("kill-process.search-pids") private var searchPIDs = true
@@ -20,6 +21,19 @@ struct KillProcessSettingsView: View {
                 toggleRow("Kill Process", "List processes by CPU or memory usage.", "xmark.octagon", pluginsEnabled)
             }
             SettingsCard(header: "Process List") {
+                SettingsRow(
+                    title: "Sort By", subtitle: "Order the process results in the palette.",
+                    systemImage: "arrow.up.arrow.down", tint: .red
+                ) {
+                    Picker("", selection: $sortRaw) {
+                        ForEach(ProcessSort.allCases, id: \.rawValue) { value in
+                            Text(value.title).tag(value.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 140)
+                }
+                SettingsDivider()
                 toggleRow("Group Applications", "Combine app helpers with their parent application.", "rectangle.3.group", $groupApps)
                 SettingsDivider()
                 toggleRow("Search Paths", "Match the executable path as well as its name.", "folder", $searchPaths)
@@ -32,7 +46,7 @@ struct KillProcessSettingsView: View {
                 SettingsDivider()
                 toggleRow("Show Path", "Display executable paths in result rows.", "point.bottomleft.forward.to.point.topright.scurvepath", $showPath)
                 SettingsDivider()
-                SettingsRow(title: "Refresh Interval", subtitle: "Only refreshes while the process window is open.", systemImage: "arrow.clockwise", tint: .red) {
+                SettingsRow(title: "Refresh Interval", subtitle: "Only refreshes while the Kill Process palette is open.", systemImage: "arrow.clockwise", tint: .red) {
                     Picker("", selection: $refreshSeconds) {
                         Text("0.5 sec").tag(0.5)
                         Text("1 sec").tag(1.0)
@@ -45,7 +59,7 @@ struct KillProcessSettingsView: View {
                 toggleRow("Confirm Actions", "Ask before terminating or restarting a process. Force actions may request administrator approval.", "exclamationmark.shield", $confirmActions)
             }
             SettingsCard(header: "Shortcut") {
-                SettingsRow(title: "Kill Process", subtitle: "Open the running-process inspector.", systemImage: "keyboard", tint: .red) {
+                SettingsRow(title: "Kill Process", subtitle: "Open running processes in the Spotter palette.", systemImage: "keyboard", tint: .red) {
                     ShortcutRecorder(action: .plugin(.openKillProcess))
                 }
             }

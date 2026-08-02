@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 @MainActor
@@ -24,6 +25,18 @@ struct PluginCommandRegistration {
     }
 }
 
+/// A plugin-owned data source rendered by the shared command-palette shell and row grammar.
+@MainActor
+struct PluginPaletteScreenRegistration {
+    let placeholder: String
+    let snapshot: (_ query: String) -> PluginPaletteSnapshot
+    let performPrimaryAction: (_ itemID: String) -> Void
+    let actions: (_ itemID: String) -> PopoverMenuContent?
+    var onOpen: () -> Void = {}
+    var onClose: () -> Void = {}
+    var observeChanges: ((_ invalidate: @escaping @MainActor () -> Void) -> AnyCancellable)?
+}
+
 /// A compiled, signed built-in plugin registration that standardizes discovery without runtime loading.
 @MainActor
 struct PluginRegistration {
@@ -35,6 +48,7 @@ struct PluginRegistration {
     var shortcutActions: [PluginActionRegistration] = []
     var launcherCommands: [PluginCommandRegistration] = []
     var queryProvider: (any PluginQueryProvider)?
+    var paletteScreen: PluginPaletteScreenRegistration?
     var readEnabled: (() -> Bool)?
     var writeEnabled: ((Bool) -> Void)?
     var onEnable: () -> Void = {}
@@ -50,6 +64,8 @@ final class PluginRegistry: ObservableObject {
     private var orderedIDs: [PluginID] = []
     private var enabledQueryProviders: [any PluginQueryProvider] = []
     private var commandOwners: [String: PluginID] = [:]
+    private var paletteObservers: [PluginID: AnyCancellable] = [:]
+    private var activePaletteScreen: PluginID?
     private var started = false
     var onCommandsChanged: (([AppEntry]) -> Void)?
 
@@ -87,6 +103,11 @@ final class PluginRegistry: ObservableObject {
         }
         registrations[id] = registration
         orderedIDs.append(id)
+        if let observe = registration.paletteScreen?.observeChanges {
+            paletteObservers[id] = observe { [weak self] in
+                self?.objectWillChange.send()
+            }
+        }
         rebuildQueryProviders()
         onCommandsChanged?(launcherCommands)
     }
@@ -113,6 +134,7 @@ final class PluginRegistry: ObservableObject {
         else { return }
 
         objectWillChange.send()
+        if !enabled { deactivatePaletteScreen(id) }
         if let writeEnabled = registration.writeEnabled {
             writeEnabled(enabled)
         } else {
@@ -127,6 +149,44 @@ final class PluginRegistry: ObservableObject {
 
     func settingsView(for id: PluginID) -> AnyView {
         registrations[id]?.settingsView() ?? AnyView(EmptyView())
+    }
+
+    func paletteScreenPlaceholder(for id: PluginID) -> String? {
+        guard isEnabled(id) else { return nil }
+        return registrations[id]?.paletteScreen?.placeholder
+    }
+
+    func paletteSnapshot(for id: PluginID, query: String) -> PluginPaletteSnapshot? {
+        guard isEnabled(id), let screen = registrations[id]?.paletteScreen else { return nil }
+        return screen.snapshot(query)
+    }
+
+    func performPalettePrimaryAction(pluginID: PluginID, itemID: String) {
+        guard isEnabled(pluginID), let screen = registrations[pluginID]?.paletteScreen else { return }
+        screen.performPrimaryAction(itemID)
+    }
+
+    func paletteActions(pluginID: PluginID, itemID: String) -> PopoverMenuContent? {
+        guard isEnabled(pluginID), let screen = registrations[pluginID]?.paletteScreen else {
+            return nil
+        }
+        return screen.actions(itemID)
+    }
+
+    func activatePaletteScreen(_ id: PluginID) {
+        guard isEnabled(id), let screen = registrations[id]?.paletteScreen else { return }
+        guard activePaletteScreen != id else { return }
+        if let activePaletteScreen {
+            registrations[activePaletteScreen]?.paletteScreen?.onClose()
+        }
+        activePaletteScreen = id
+        screen.onOpen()
+    }
+
+    func deactivatePaletteScreen(_ id: PluginID) {
+        guard activePaletteScreen == id else { return }
+        registrations[id]?.paletteScreen?.onClose()
+        activePaletteScreen = nil
     }
 
     /// Runs only the precomputed enabled-provider array and returns the first claim by registry order.

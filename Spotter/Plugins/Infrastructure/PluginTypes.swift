@@ -17,6 +17,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let changeCase = PluginID(rawValue: "change-case")
     static let imageModification = PluginID(rawValue: "image-modification")
     static let quickTimeRecording = PluginID(rawValue: "quicktime-recording")
+    static let note = PluginID(rawValue: "note")
 }
 
 /// The small fixed palette Settings uses for plugin sidebar icon tiles.
@@ -85,4 +86,35 @@ struct PluginQueryResult: Equatable, Sendable {
 /// Pure synchronous query hook. Providers should reject unrelated input before doing expensive work.
 protocol PluginQueryProvider: Sendable {
     func evaluate(_ query: String, now: Date, calendar: Calendar) -> PluginQueryResult?
+}
+
+/// A palette-screen row icon that stays Foundation-only until the shared SwiftUI list renders it.
+enum PluginPaletteIcon: Equatable, Sendable {
+    case symbol(String)
+    case file(path: String)
+}
+
+/// Compact trailing metadata rendered by the shared palette row grammar.
+struct PluginPaletteAccessory: Equatable, Sendable {
+    let systemImage: String
+    let text: String
+}
+
+/// One selectable result supplied by a plugin palette screen.
+struct PluginPaletteItem: Equatable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let icon: PluginPaletteIcon
+    var accessories: [PluginPaletteAccessory] = []
+    let primaryActionTitle: String
+}
+
+/// An immutable screen snapshot; filtering happens in the plugin, rendering and selection stay shared.
+struct PluginPaletteSnapshot: Equatable, Sendable {
+    let sectionTitle: String
+    let items: [PluginPaletteItem]
+    var isLoading = false
+    var errorMessage: String?
+    let emptyMessage: String
 }

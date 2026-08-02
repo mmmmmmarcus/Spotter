@@ -1,8 +1,10 @@
 # Kill Process plugin
 
 Kill Process is an on-demand native process inspector modeled on Raycast's Kill Process extension. It
-does not poll while its window is closed. Opening the command runs `/bin/ps` off the main actor, parses
-plain values in `KillProcessEngine`, and refreshes only at the configured interval while visible.
+has no independent window or custom list UI. Opening the command enters a registered plugin mode in
+Spotter's main palette; the shared launcher owns its search field, flat keyboard selection, result
+rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is parsed into plain values by
+`KillProcessEngine`, and refreshes only at the configured interval while that palette mode is visible.
 
 ## Behavior
 
@@ -11,9 +13,11 @@ plain values in `KillProcessEngine`, and refreshes only at the configured interv
 - Terminate with `SIGTERM`, force-terminate with `SIGKILL`, restart an app/binary, or target every
   process with the same executable name. A force action retries permission-denied targets through the
   standard macOS administrator prompt.
-- Copy an executable path and manually refresh the snapshot.
+- Copy an executable path or manually refresh from the shared Actions menu.
 - Confirm termination and restart actions by default. PID 0, PID 1 and Spotter's own PID are never
   included.
 
 `KillProcessManager` is owned by `AppCore`; `KillProcessEngine` is Foundation-only and tested with a
-fixed `ps` fixture. Disabling the plugin cancels refresh work and closes its workspace.
+fixed `ps` fixture. Its registration maps the manager state into `PluginPaletteSnapshot` rows and
+routes row IDs back to process actions. Leaving the mode, hiding the palette or disabling the plugin
+cancels refresh work; disabling also returns the palette to the launcher root.

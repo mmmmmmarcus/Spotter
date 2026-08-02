@@ -5,6 +5,7 @@ enum BuiltInPlugins {
         [
             CurrencyConversionPlugin.registration(core: core),
             ClipboardPlugin.registration(core: core),
+            NotePlugin.registration(core: core),
             EmojiSymbolsPlugin.registration(core: core),
             WorldClockPlugin.registration(),
             KillProcessPlugin.registration(core: core),

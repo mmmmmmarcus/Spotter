@@ -29,6 +29,7 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **Custom commands** — run named shell commands through fuzzy search or their own global hotkeys.
 - **Calculator** — do math, unit and live currency conversions inline, right in the palette.
 - **Clipboard history** — text and images, searchable, pasted back into the app you were using.
+- **Notes** — capture unlimited local Markdown notes and todos in a floating, keyboard-first window.
 - **Emoji & symbols** — find and insert emoji from a fast native grid.
 - **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer.
 - **Kill process** — inspect CPU and memory use, group app helpers, then terminate or restart safely.

@@ -23,6 +23,7 @@ Spotter/Plugins/
 │   ├── CurrencyData.generated.swift
 │   └── CurrencyConversionSettingsView.swift
 ├── Clipboard/
+├── Note/
 ├── EmojiSymbols/
 ├── WorldClock/
 ├── KillProcess/
@@ -77,6 +78,8 @@ is optional:
   should ship hidden but remain discoverable in System → Shortcuts. The one-time visibility seed does
   not overwrite a later user choice.
 - `queryProvider` contributes a synchronous inline result provider.
+- `paletteScreen` contributes a searchable result-list snapshot, primary row action, ⌘K menu actions
+  and visible-only lifecycle to the shared command palette.
 - `onEnable` and `onDisable` start and stop work. They run once at startup for enabled plugins and on
   later state transitions. Both must be idempotent.
 - `readEnabled` and `writeEnabled` adapt a feature-owned state gate. Currency uses these because
@@ -89,10 +92,16 @@ Disabled plugin commands disappear from launcher search, shortcut actions no-op,
 removed from the hot-path cache, and `onDisable` stops ongoing work. A feature-specific entry point
 should still guard `PluginRegistry.isEnabled` as defense in depth.
 
-Plugin workspaces use `AppCore.showPluginWindow(id:title:size:content:)`. This keeps every `NSWindow`
-under the existing `AuxWindowController`; plugins own their SwiftUI content but never create window
-singletons or SwiftUI `Window` scenes. CPU, process, filesystem, image and AppleScript work must leave
-the main actor, returning only `Sendable` values to an `AppCore`-owned manager.
+Search/filter → result-list → action plugins are palette screens by default. They register
+`PluginPaletteScreenRegistration`, return `PluginPaletteSnapshot` values, and let
+`PluginPaletteList` own the UI. A plugin must not duplicate the launcher's search field, keyboard
+selection, row chrome, scrolling or footer in another window. Kill Process is the reference.
+
+Dedicated workspaces are reserved for sustained document/canvas editing or complex multi-step flows
+that cannot fit the launcher model. They use `AppCore.showPluginWindow(id:title:size:content:)`, which
+keeps every `NSWindow` under `AuxWindowController`; Notes and Image Modification are current examples.
+CPU, process, filesystem, image and AppleScript work must leave the main actor, returning only
+`Sendable` values to an `AppCore`-owned manager.
 
 ## Query providers and performance
 
@@ -142,18 +151,20 @@ The manual flow is:
    part of persisted settings.
 3. Put business logic in the plugin directory. Prefer a Foundation-only engine with injected clock,
    calendar, filesystem path or network snapshot, plus a standalone harness in `Tools/`.
-4. Add `<Name>Plugin.swift` with a `@MainActor` registration factory. If the plugin needs a long-lived
+4. Choose the smallest shared surface: inline provider for one answer, palette screen for a searchable
+   result list, or a justified dedicated workspace only for sustained editing/complex multi-step work.
+5. Add `<Name>Plugin.swift` with a `@MainActor` registration factory. If the plugin needs a long-lived
    manager, add exactly one owner property to `AppCore` and have the factory capture that instance.
-5. Add a Settings view built from `SettingsPane`, `SettingsCard` and `SettingsRow`. Its first card is
+6. Add a Settings view built from `SettingsPane`, `SettingsCard` and `SettingsRow`. Its first card is
    conventionally `Plugin` and contains the enable switch bound to `PluginRegistry`.
-6. Add one factory call to the ordered array in `Spotter/Plugins/BuiltInPlugins.swift`. Do not add
+7. Add one factory call to the ordered array in `Spotter/Plugins/BuiltInPlugins.swift`. Do not add
    reflection, directory scanning or another registry.
-7. If it runs work, make lifecycle methods idempotent and stop timers/tasks in `onDisable`. If it owns
-   a palette mode, return the palette to `.launcher` when disabling it.
-8. If it reaches the network, follow `CurrencyRateStore`: ship off, show explicit provider/cadence/data
+8. If it runs work, make lifecycle methods idempotent. Palette-only work starts/stops in screen
+   `onOpen`/`onClose`; `onDisable` stops it too and returns an active mode to `.launcher`.
+9. If it reaches the network, follow `CurrencyRateStore`: ship off, show explicit provider/cadence/data
    consent, re-check consent before and after every `await`, use a private cacheless session, delete
    cached data on revoke, and exclude the consent state from backup.
-9. Update the relevant subsystem documentation, run the feature and full standalone harnesses, run
+10. Update the relevant subsystem documentation, run the feature and full standalone harnesses, run
    `xcodegen generate`, and complete an Xcode build.
 
 Example registration factory:
@@ -198,12 +209,14 @@ shell-command feature; do not use shell commands as an internal plugin API.
   `CurrencyRateStore` owns consent and daily rates.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — enabled by default; disabling stops pasteboard
   polling while preserving history.
+- **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local Markdown notes in a
+  resizable floating workspace, with `Open Notes` and `New Note` actions.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
   IANA time-zone data. Queries include `SF time now`, `time in Tokyo`, `London time` and `上海时间`.
-- **Kill Process** (`Spotter/Plugins/KillProcess/`) — on-demand `ps` snapshot with CPU/memory sorting,
-  app-helper grouping, filtering, terminate/force-terminate/restart actions and confirmations.
+- **Kill Process** (`Spotter/Plugins/KillProcess/`) — launcher-native palette screen backed by an
+  on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and ImageIO
@@ -212,4 +225,5 @@ shell-command feature; do not use shell commands as an internal plugin API.
   screen, audio and movie recording; requires Automation only when a command runs.
 
 Detailed internals: [Kill Process](kill-process.md), [Change Case](change-case.md),
-[Image Modification](image-modification.md), and [QuickTime Recording](quicktime.md).
+[Image Modification](image-modification.md), [QuickTime Recording](quicktime.md), and
+[Notes](notes.md).

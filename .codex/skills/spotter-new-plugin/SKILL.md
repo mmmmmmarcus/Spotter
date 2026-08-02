@@ -1,6 +1,6 @@
 ---
 name: spotter-new-plugin
-description: Create or extend a native built-in Spotter plugin under Spotter/Plugins, including its registration, lifecycle, settings, permissions, launcher commands, shortcuts, inline query provider, tests, Xcode project regeneration, and documentation. Use whenever adding a new Spotter plugin, converting an existing feature into a plugin module, or adding plugin capabilities to the Spotter macOS codebase.
+description: Create or extend a native built-in Spotter plugin under Spotter/Plugins, including its registration, palette-first UI, lifecycle, settings, permissions, launcher commands, shortcuts, inline query provider, tests, Xcode project regeneration, and documentation. Use whenever adding a new Spotter plugin, converting an existing feature into a plugin module, or adding plugin capabilities to the Spotter macOS codebase.
 ---
 
 # Spotter New Plugin
@@ -18,7 +18,8 @@ plugin loading.
 5. Inspect the dirty worktree and preserve unrelated user changes.
 
 Use `Spotter/Plugins/WorldClock/` as the minimal query-plugin example, Clipboard as the lifecycle and
-permission example, and Currency Conversion as the consent-gated network example.
+permission example, Kill Process as the launcher-style palette-screen example, and Currency
+Conversion as the consent-gated network example.
 
 ## Define the module boundary
 
@@ -39,6 +40,19 @@ Keep long-lived managers owned by `AppCore`; registration closures may refer bac
 Do not add a plugin singleton. Keep pure engines Foundation-only and inject clocks, calendars,
 filesystem paths, network snapshots, and other external inputs.
 
+## Choose the surface
+
+**Palette first is mandatory.** A plugin whose interaction is search/filter → result rows → primary
+action/Actions menu must register a `PluginPaletteScreenRegistration` and render through the shared
+`PluginPaletteList`. It must not open an `NSWindow`, `NSPanel`, SwiftUI `Window`, custom search field,
+native `List`, or parallel footer. The shared palette owns query focus, flat selection, keyboard
+navigation, row appearance, edge dissolve and the ⌘K Actions menu. Kill Process is the reference.
+
+Use an inline `PluginQueryProvider` when one query produces one answer. Use a dedicated plugin window
+only when the task is genuinely a sustained document/canvas editor or a complex multi-step workspace
+that cannot fit the launcher interaction model; Notes and Image Modification are examples. Document
+that justification. Even then, call `AppCore.showPluginWindow` and never create a window owner.
+
 ## Register the plugin
 
 1. Add a permanent lowercase-hyphenated `PluginID` in
@@ -52,6 +66,7 @@ filesystem paths, network snapshots, and other external inputs.
    - `shortcutActions` for globally bindable actions.
    - `launcherCommands` for signed in-process launcher commands.
    - `queryProvider` for inline launcher answers.
+   - `paletteScreen` for searchable result lists and row actions inside the shared launcher shell.
    - `onEnable` and `onDisable` for timers, tasks, monitors, and mode cleanup.
    - `readEnabled` and `writeEnabled` only when the owning store must control state.
 
@@ -61,7 +76,8 @@ when migrating an existing feature.
 
 Use `defaultVisible: false` for secondary/direct launcher commands that should ship hidden. Give each
 one a stable `PluginActionKey` so System → Shortcuts can reveal it or bind it without adding central
-command cases. For a dedicated UI, call `AppCore.showPluginWindow`; never create a plugin window owner.
+command cases. A palette-screen `onOpen`/`onClose` owns polling and other visible-only work and must be
+idempotent; `onDisable` must also return an active plugin palette mode to `.launcher`.
 
 ## Build the Settings view
 

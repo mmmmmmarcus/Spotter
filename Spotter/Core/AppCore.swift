@@ -1,19 +1,33 @@
 import AppKit
 import SwiftUI
 
-enum PaletteMode: String, CaseIterable, Identifiable {
+enum PaletteMode: Equatable, Identifiable {
     case launcher
     case clipboard
     case calculatorHistory
     case emoji
+    case plugin(PluginID)
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .launcher: return "launcher"
+        case .clipboard: return "clipboard"
+        case .calculatorHistory: return "calculator-history"
+        case .emoji: return "emoji"
+        case .plugin(let id): return "plugin:" + id.rawValue
+        }
+    }
+    var pluginID: PluginID? {
+        guard case .plugin(let id) = self else { return nil }
+        return id
+    }
     var title: String {
         switch self {
         case .launcher: return "Apps"
         case .clipboard: return "Clipboard"
         case .calculatorHistory: return "Calculator History"
         case .emoji: return "Emoji & Symbols"
+        case .plugin: return "Plugin"
         }
     }
     var systemImage: String {
@@ -22,6 +36,7 @@ enum PaletteMode: String, CaseIterable, Identifiable {
         case .clipboard: return "doc.on.doc"
         case .calculatorHistory: return "plus.forwardslash.minus"
         case .emoji: return "face.smiling"
+        case .plugin: return "puzzlepiece.extension"
         }
     }
     var placeholder: String {
@@ -30,6 +45,7 @@ enum PaletteMode: String, CaseIterable, Identifiable {
         case .clipboard: return "Type to filter entries…"
         case .calculatorHistory: return "Do math, convert units, or search your past calculations…"
         case .emoji: return "Search emoji and symbols…"
+        case .plugin: return "Search plugin results…"
         }
     }
 }
@@ -52,7 +68,11 @@ struct PasteTarget: Equatable {
 /// View-model shared between the panel's SwiftUI tree and the coordinator.
 @MainActor
 final class PaletteViewModel: ObservableObject {
-    @Published var mode: PaletteMode = .launcher
+    @Published var mode: PaletteMode = .launcher {
+        didSet {
+            if oldValue != mode { onModeChanged?(oldValue, mode) }
+        }
+    }
     @Published var query: String = ""
     @Published var selection: Int = 0
     /// Changes every time the palette is shown so the search field can re-focus.
@@ -71,6 +91,7 @@ final class PaletteViewModel: ObservableObject {
     var menuOpen = false { didSet { onMenuOpenChanged?(menuOpen) } }
     /// Fired when `menuOpen` flips so `PalettePanel` can hide/show the search field's caret while it keeps first-responder status (no focus swap, so the placeholder never reflows).
     var onMenuOpenChanged: ((Bool) -> Void)?
+    var onModeChanged: ((PaletteMode, PaletteMode) -> Void)?
 
     func prepare(mode: PaletteMode) {
         self.mode = mode
@@ -109,6 +130,7 @@ final class AppCore: ObservableObject {
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
     let imageModification = ImageModificationManager()
+    let notes = NoteStore()
 
     private lazy var windowController = PaletteWindowController(core: self)
     private let auxWindows = AuxWindowController()
@@ -122,6 +144,10 @@ final class AppCore: ObservableObject {
         clipboardManager = ClipboardManager(store: clipboardStore, settings: settings)
         for registration in BuiltInPlugins.registrations(core: self) {
             plugins.register(registration)
+        }
+        palette.onModeChanged = { [weak self] oldMode, newMode in
+            if let id = oldMode.pluginID { self?.plugins.deactivatePaletteScreen(id) }
+            if let id = newMode.pluginID { self?.plugins.activatePaletteScreen(id) }
         }
     }
 
@@ -202,11 +228,13 @@ final class AppCore: ObservableObject {
             palette.prepare(mode: mode)
         }
         windowController.show()
+        if let id = palette.mode.pluginID { plugins.activatePaletteScreen(id) }
         // Re-scan on open so an app uninstalled since the last scan drops out of the launcher.
         if palette.mode == .launcher { Task { await appIndex.refresh() } }
     }
 
     func hidePalette(restoreFocus: Bool = true) {
+        if let id = palette.mode.pluginID { plugins.deactivatePaletteScreen(id) }
         windowController.hide(restoreFocus: restoreFocus)
     }
 
@@ -271,10 +299,14 @@ final class AppCore: ObservableObject {
     /// Native plugin workspaces share AppCore's auxiliary-window owner instead of creating plugin-specific window singletons.
     @discardableResult
     func showPluginWindow<Content: View>(
-        id: String, title: String, size: CGSize,
+        id: String, title: String, size: CGSize, resizable: Bool = false,
+        floating: Bool = false, minimumSize: CGSize? = nil,
         @ViewBuilder content: () -> Content
     ) -> Bool {
-        auxWindows.show(id: "plugin." + id, title: title, size: size, seamlessTitleBar: true) {
+        auxWindows.show(
+            id: "plugin." + id, title: title, size: size, seamlessTitleBar: true,
+            resizable: resizable, floating: floating, minimumSize: minimumSize
+        ) {
             content()
                 .environmentObject(self)
                 .environmentObject(self.plugins)

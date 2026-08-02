@@ -12,7 +12,7 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`,
 `CurrencyRateStore`, `RunningAppsMonitor`, `KillProcessManager`, `ChangeCaseStore`,
-`ImageModificationManager`, `PaletteViewModel`, `PluginRegistry` — plus the window
+`ImageModificationManager`, `NoteStore`, `PaletteViewModel`, `PluginRegistry` — plus the window
 controllers. The registry owns capability registrations, not feature managers: registration closures
 refer back to managers on `AppCore`, so it does not weaken the single-owner rule.
 `AppDelegate.applicationDidFinishLaunching` calls
@@ -28,9 +28,9 @@ plugin's own directory. These are source-level modules in the main target, so th
 calls and compile-time checking without framework or runtime-loader overhead.
 
 The registry generates the Plugins Settings group, persists safe enable states, routes plugin launcher
-commands and shortcut actions, declares permission use, and keeps a precomputed enabled query-provider
-list. See [plugins.md](plugins.md) for the contract, directory rules, `$spotter-new-plugin` project
-skill and new-plugin checklist.
+commands and shortcut actions, declares permission use, keeps a precomputed enabled query-provider
+list, and hosts plugin palette-screen registrations. See [plugins.md](plugins.md) for the contract,
+directory rules, `$spotter-new-plugin` project skill and new-plugin checklist.
 
 ## Entry points and windows
 
@@ -49,7 +49,12 @@ imperatively from AppKit.
   apps, so this is deliberate.
 - **Plugin workspaces** — the same `AuxWindowController`, reached only through
   `AppCore.showPluginWindow`. A plugin owns the hosted view and feature manager, while `AppCore`
-  retains sole window ownership and closes the workspace from `onDisable`.
+  retains sole window ownership and closes the workspace from `onDisable`. The helper can opt a
+  workspace into resizing and floating window level; Notes uses both while leaving ownership and
+  activation routing centralized.
+- **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
+  the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
+  `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
 
 The app forces `.darkAqua` appearance globally; the Liquid Glass material is tuned for a dark surface
 only.

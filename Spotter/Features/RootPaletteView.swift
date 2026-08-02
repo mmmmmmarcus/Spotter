@@ -31,6 +31,11 @@ struct RootPaletteView: View {
     /// Slim compact bar vs. full window — the single source of truth lives on `AppCore` so the window controller and this view can never disagree.
     private var isCollapsed: Bool { core.paletteIsCollapsed }
 
+    private var modePlaceholder: String {
+        guard let id = activePluginID else { return vm.mode.placeholder }
+        return plugins.paletteScreenPlaceholder(for: id) ?? vm.mode.placeholder
+    }
+
     /// Favorite slots shown in the compact bar: up to 5 launchable apps, or the first 4 plus an overflow "…" that expands the window. Evaluated only in the compact render and on the rare ⌘N keypress.
     private var compactFavoriteSlots: [CompactFavoriteSlot] {
         let favs = favorites.ordered(appIndex.matches("").filter(visibility.isVisible)).favorites
@@ -55,6 +60,12 @@ struct RootPaletteView: View {
     }
     /// Flat grid order across sections — what `vm.selection` indexes in emoji mode.
     private var emojiResults: [EmojiEntry] { emojiSections.flatMap(\.entries) }
+    private var activePluginID: PluginID? { vm.mode.pluginID }
+    private var pluginSnapshot: PluginPaletteSnapshot? {
+        guard let id = activePluginID else { return nil }
+        return plugins.paletteSnapshot(for: id, query: vm.query)
+    }
+    private var pluginResults: [PluginPaletteItem] { pluginSnapshot?.items ?? [] }
 
     /// Calculator stays available as core functionality; currency syntax is gated by its plugin.
     private var calcResult: CalcResult? {
@@ -71,7 +82,7 @@ struct RootPaletteView: View {
         switch vm.mode {
         case .launcher: return launcherInlineResult
         case .calculatorHistory: return calcResult.map(PaletteInlineResult.calculator)
-        case .clipboard, .emoji: return nil
+        case .clipboard, .emoji, .plugin: return nil
         }
     }
 
@@ -83,6 +94,7 @@ struct RootPaletteView: View {
         case .clipboard: return clipResults.count
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
+        case .plugin: return pluginResults.count
         }
     }
     /// Selection clamped into the current results — the single source of truth for highlight, preview and activation so the list and preview can never disagree.
@@ -113,6 +125,9 @@ struct RootPaletteView: View {
     }
     private var selectedEmojiEntry: EmojiEntry? {
         emojiResults.indices.contains(selection) ? emojiResults[selection] : nil
+    }
+    private var selectedPluginItem: PluginPaletteItem? {
+        pluginResults.indices.contains(selection) ? pluginResults[selection] : nil
     }
 
     /// The bottom-right Actions menu content for the current mode's selection, or nil when the selection has no actions.
@@ -164,6 +179,9 @@ struct RootPaletteView: View {
                     entry: emoji, core: core, target: vm.pasteTarget)
             }
             return nil
+        case .plugin(let id):
+            guard let item = selectedPluginItem else { return nil }
+            return plugins.paletteActions(pluginID: id, itemID: item.id)
         }
     }
 
@@ -193,13 +211,15 @@ struct RootPaletteView: View {
         let hist = vm.mode == .calculatorHistory ? histResults : []
         let emojiSections = vm.mode == .emoji ? emojiSections : []
         let emojis = emojiSections.flatMap(\.entries)
+        let plugin = activePluginID.flatMap { plugins.paletteSnapshot(for: $0, query: vm.query) }
+        let pluginItems = plugin?.items ?? []
         // Newest stored clip + the reorder token: the pair changes only when the store mutates, never when a query filters the list.
         let clipFollow = ClipFollowKey(id: store.items.first?.id, token: vm.followToken)
         // Every count/selection below derives from this one inline/offset pair — the flat selection index must always match the visible row order.
         let inline = inlineResult
         let offset = inline == nil ? 0 : 1
         // Only the active mode is non-empty.
-        let count = apps.count + offset + clips.count + hist.count + emojis.count
+        let count = apps.count + offset + clips.count + hist.count + emojis.count + pluginItems.count
         let sel = count == 0 ? 0 : min(max(vm.selection, 0), count - 1)
         let inlineSelected = inline != nil && sel == 0
         let inlineActionTitle = inlineSelected && inline?.result.isActionable == true
@@ -208,8 +228,11 @@ struct RootPaletteView: View {
         let favoriteCount =
             showSections ? apps.prefix(while: { favorites.isFavorite($0) }).count : 0
         let selectedApp = apps.indices.contains(sel - offset) ? apps[sel - offset] : nil
+        let selectedPlugin = pluginItems.indices.contains(sel) ? pluginItems[sel] : nil
         // Derive the footer label from the already-resolved selection so `bottomBar` doesn't re-run `appResults` (its filter/sort aren't memoized). The primary/Actions group is hidden when there's nothing to act on: no results in any mode, or an error calc card (selectable but action-less).
-        let pillLabel = actionPillLabel(selectedApp: selectedApp, inlineActionTitle: inlineActionTitle)
+        let pillLabel = actionPillLabel(
+            selectedApp: selectedApp, selectedPlugin: selectedPlugin,
+            inlineActionTitle: inlineActionTitle)
         let showActionGroup = count > 0 && !(inlineSelected && inlineActionTitle == nil)
 
         // The `header` (and its single search field) is always attached in the same position via safeAreaInset so its focus survives the compact↔expanded swap — only the results below it toggle. Collapsed shows the bar alone; expanded floats header + action bar over the list with edge-dissolve (see docs/ui.md).
@@ -219,7 +242,8 @@ struct RootPaletteView: View {
             } else {
                 content(
                     apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
-                    selection: sel, favoriteCount: favoriteCount, showSections: showSections
+                    plugin: plugin, selection: sel, favoriteCount: favoriteCount,
+                    showSections: showSections
                 )
             }
         }
@@ -392,6 +416,8 @@ struct RootPaletteView: View {
                 guard command, let app = selectedAppEntry, app.canRevealInFinder
                 else { return .ignored }
                 core.showInFinder(app)
+            case .plugin:
+                return .ignored
             }
             return .handled
         }
@@ -435,7 +461,7 @@ struct RootPaletteView: View {
                 deleteSelectedClip()
             case .calculatorHistory:
                 deleteSelectedHistoryEntry()
-            case .launcher, .emoji:
+            case .launcher, .emoji, .plugin:
                 return .ignored
             }
             return .handled
@@ -504,7 +530,7 @@ struct RootPaletteView: View {
     private var searchField: some View {
         TextField(
             "", text: $vm.query,
-            prompt: Text(vm.mode.placeholder).foregroundStyle(Theme.Colors.textTertiary)
+            prompt: Text(modePlaceholder).foregroundStyle(Theme.Colors.textTertiary)
         )
         .textFieldStyle(.plain)
         .font(Theme.Typography.searchField)
@@ -517,6 +543,7 @@ struct RootPaletteView: View {
     private func content(
         apps: [AppEntry], clips: [ClipboardItem], hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
+        plugin: PluginPaletteSnapshot?,
         selection: Int, favoriteCount: Int, showSections: Bool
     ) -> some View {
         switch vm.mode {
@@ -627,6 +654,31 @@ struct RootPaletteView: View {
                     }
                 )
             }
+        case .plugin:
+            if let error = plugin?.errorMessage {
+                EmptyResults(text: error)
+            } else if plugin?.isLoading == true, plugin?.items.isEmpty == true {
+                EmptyResults(text: "Loading…")
+            } else if let plugin, plugin.items.isEmpty {
+                EmptyResults(text: plugin.emptyMessage)
+            } else if let plugin {
+                let selected = plugin.items.indices.contains(selection) ? plugin.items[selection] : nil
+                PluginPaletteList(
+                    sectionTitle: plugin.sectionTitle,
+                    items: plugin.items,
+                    selectedID: selected?.id,
+                    scroll: scroll,
+                    onActivate: { item in
+                        if let index = plugin.items.firstIndex(of: item) { vm.selection = index }
+                        activateSelection()
+                    },
+                    onActions: { item in
+                        if let index = plugin.items.firstIndex(of: item) { vm.selection = index }
+                        openActions()
+                    })
+            } else {
+                EmptyResults(text: "Plugin unavailable")
+            }
         }
     }
 
@@ -676,7 +728,9 @@ struct RootPaletteView: View {
     }
 
     /// Pill label for the current selection, derived from the selection already resolved in `body` so it never re-runs the (unmemoized) `appResults` filter/sort.
-    private func actionPillLabel(selectedApp: AppEntry?, inlineActionTitle: String?) -> String {
+    private func actionPillLabel(
+        selectedApp: AppEntry?, selectedPlugin: PluginPaletteItem?, inlineActionTitle: String?
+    ) -> String {
         switch vm.mode {
         case .clipboard, .emoji:
             return vm.pasteTarget?.pasteTitle ?? "Paste"
@@ -689,6 +743,8 @@ struct RootPaletteView: View {
             case .command: return "Run Command"
             default: return "Open Application"
             }
+        case .plugin:
+            return selectedPlugin?.primaryActionTitle ?? "Run Action"
         }
     }
 
@@ -805,6 +861,9 @@ struct RootPaletteView: View {
         case .emoji:
             guard emojiResults.indices.contains(selection) else { return }
             core.pasteEmoji(emojiResults[selection])
+        case .plugin(let id):
+            guard pluginResults.indices.contains(selection) else { return }
+            plugins.performPalettePrimaryAction(pluginID: id, itemID: pluginResults[selection].id)
         }
     }
 

@@ -69,7 +69,9 @@ Never break these without an explicit task to do so.
   `Plugins/EmojiSymbols/` stay AppKit/SwiftUI-free for `Tools/emoji-test.swift`,
   `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar,
   `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
-  Foundation-only and pure, and `Plugins/ImageModification/ImageModificationTypes.swift` stays
+  Foundation-only and pure, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
+  `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`, and
+  `Plugins/ImageModification/ImageModificationTypes.swift` stays
   Foundation-only so their standalone harnesses compile without app state. `QuickTimeRunner` may use
   Foundation's `Process`, but its harness must never execute a recording command.
   `Plugins/Clipboard/ClipboardStore.swift` must keep to Foundation + SQLite3 with no other app
@@ -104,6 +106,11 @@ Never break these without an explicit task to do so.
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
   [`docs/plugins.md`](docs/plugins.md) and use the tracked `$spotter-new-plugin` skill.
+- **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
+  registered `PluginPaletteScreenRegistration` and the shared `PluginPaletteList`; they must not
+  create a separate window, search field, list chrome or footer. Dedicated plugin windows are limited
+  to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
+  and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
 - **Process and image mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
   confirms termination/restart by default. Image Modification confirms every Replace Original run;
   pixel work stays off the main actor and temporary output is bundle-identifier-scoped.
@@ -143,7 +150,8 @@ Never break these without an explicit task to do so.
 - [`docs/architecture.md`](docs/architecture.md) — core ownership, windows, concurrency.
 - [`docs/plugins.md`](docs/plugins.md) — native plugin contract, directory layout and extension flow.
 - [`docs/kill-process.md`](docs/kill-process.md) · [`docs/change-case.md`](docs/change-case.md) ·
-  [`docs/image-modification.md`](docs/image-modification.md) · [`docs/quicktime.md`](docs/quicktime.md)
+  [`docs/image-modification.md`](docs/image-modification.md) · [`docs/quicktime.md`](docs/quicktime.md) ·
+  [`docs/notes.md`](docs/notes.md)
   — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·
