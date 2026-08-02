@@ -23,7 +23,7 @@ Check existing [issues](https://github.com/mmmmmmarcus/Spotter/issues) and
 - After editing `project.yml`: `xcodegen generate`, commit the result. No SwiftPM.
 - Details: [`docs/development.md`](docs/development.md). Architecture:
   [`docs/architecture.md`](docs/architecture.md). New feature modules:
-  [`docs/plugins.md`](docs/plugins.md) and the tracked `$spotter-new-plugin` Codex skill.
+  [`docs/plugins.md`](docs/plugins.md) and the tracked `$spotter-plugin` Codex skill.
 
 ## Before submitting
 

@@ -48,6 +48,32 @@ enum BackupActions {
         }
     }
 
+    static func connectSettingsSyncFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Choose a Spotter settings JSON file to keep in sync."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url,
+            confirmAutomaticSync()
+        else { return }
+        AppCore.shared.settingsSync.connectExisting(url)
+    }
+
+    static func createSettingsSyncFile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "Spotter Settings.json"
+        panel.canCreateDirectories = true
+        panel.message = "Save in iCloud Drive to keep Spotter settings synchronized across Macs."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url,
+            confirmAutomaticSync()
+        else { return }
+        AppCore.shared.settingsSync.create(at: url)
+    }
+
     // MARK: - Raycast (the pane owns the passphrase field + inline status)
 
     static func importRaycast(file: URL, passphrase: String, options: RaycastImportOptions = .all)
@@ -121,6 +147,18 @@ enum BackupActions {
         let importButton = alert.addButton(withTitle: "Import")
         importButton.keyEquivalent = ""
         alert.addButton(withTitle: "Cancel").keyEquivalent = "\r"
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private static func confirmAutomaticSync() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Trust this settings file?"
+        alert.informativeText =
+            "Spotter will automatically apply future changes from this file. It may contain custom "
+            + "shell commands and global shortcuts, so choose a file that only you control."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Enable Sync")
+        alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn
     }
 

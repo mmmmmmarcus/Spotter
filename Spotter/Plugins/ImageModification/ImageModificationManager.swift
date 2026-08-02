@@ -2,82 +2,142 @@ import AppKit
 import UniformTypeIdentifiers
 
 @MainActor
-final class ImageModificationManager: ObservableObject {
-    @Published var request = ImageModificationRequest()
-    @Published var inputs: [URL] = []
-    @Published private(set) var results: [ImageModificationResult] = []
-    @Published private(set) var isRunning = false
-    @Published var errorMessage: String?
+final class ImageModificationManager {
+    private struct Inputs {
+        let urls: [URL]
+        let arePersistent: Bool
+    }
 
-    func prepare(operation: ImageOperation, sourceApp: NSRunningApplication?) {
-        request.operation = operation
-        request.output = ImageOutputLocation(
-            rawValue: UserDefaults.standard.string(forKey: "image-modification.output") ?? "alongside"
-        ) ?? .alongside
-        request.format = ImageFormat(
-            rawValue: UserDefaults.standard.string(forKey: "image-modification.format") ?? "png"
-        ) ?? .png
-        results = []
-        errorMessage = nil
-        loadClipboardFiles()
-        guard sourceApp?.bundleIdentifier == "com.apple.finder" else { return }
-        Task {
-            let selected = await Self.selectedFinderImages()
-            if !selected.isEmpty { inputs = selected }
+    private var task: Task<Void, Never>?
+
+    func run(operation: ImageOperation, sourceApp: NSRunningApplication?) {
+        precondition(operation != .convert, "Convert Image requires an explicit target format")
+        start(operation: operation, format: nil, sourceApp: sourceApp)
+    }
+
+    func convert(to format: ImageFormat, sourceApp: NSRunningApplication?) {
+        start(operation: .convert, format: format, sourceApp: sourceApp)
+    }
+
+    private func start(
+        operation: ImageOperation, format: ImageFormat?, sourceApp: NSRunningApplication?
+    ) {
+        guard task == nil else { return }
+        task = Task { [weak self] in
+            guard let self else { return }
+            await execute(operation: operation, format: format, sourceApp: sourceApp)
+            task = nil
         }
     }
 
-    func chooseFiles() {
+    func cancel() {
+        task?.cancel()
+    }
+
+    private func execute(
+        operation: ImageOperation, format: ImageFormat?, sourceApp: NSRunningApplication?
+    ) async {
+        do {
+            let inputs = operation == .create
+                ? Inputs(urls: [], arePersistent: false)
+                : try await resolveInputs(sourceApp: sourceApp)
+            guard !Task.isCancelled, operation == .create || !inputs.urls.isEmpty else { return }
+
+            let configuredOutput = ImageOutputLocation(
+                rawValue: UserDefaults.standard.string(forKey: "image-modification.output") ?? "alongside"
+            ) ?? .alongside
+            let configuredFormat = format ?? ImageFormat(
+                rawValue: UserDefaults.standard.string(forKey: "image-modification.format") ?? "png"
+            ) ?? .png
+            let request = ImageModificationRequest.commandDefaults(
+                operation: operation, output: configuredOutput, format: configuredFormat,
+                hasPersistentInput: inputs.arePersistent)
+
+            if request.output == .replace,
+                !confirmReplacement(count: inputs.urls.count, sourceApp: sourceApp)
+            {
+                return
+            }
+
+            let temporaryDirectory = temporaryDirectory
+            let results = try await Task.detached(priority: .userInitiated) {
+                try ImageModificationEngine.process(
+                    request: request, inputs: inputs.urls, temporaryDirectory: temporaryDirectory)
+            }.value
+            guard !Task.isCancelled else { return }
+            finishOutput(results, location: request.output)
+        } catch {
+            guard !Task.isCancelled else { return }
+            presentFailure(operation: operation, error: error, sourceApp: sourceApp)
+        }
+    }
+
+    private func resolveInputs(sourceApp: NSRunningApplication?) async throws -> Inputs {
+        if sourceApp?.bundleIdentifier == "com.apple.finder" {
+            let selected = await Self.selectedFinderImages()
+            if !selected.isEmpty { return Inputs(urls: selected, arePersistent: true) }
+        }
+        if let clipboard = try clipboardInputs() { return clipboard }
+        guard let selected = chooseFiles(sourceApp: sourceApp) else {
+            return Inputs(urls: [], arePersistent: true)
+        }
+        return Inputs(urls: selected, arePersistent: true)
+    }
+
+    private func clipboardInputs() throws -> Inputs? {
+        let pasteboard = NSPasteboard.general
+        if let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] {
+            let images = urls.filter {
+                UTType(filenameExtension: $0.pathExtension)?.conforms(to: .image) == true
+            }
+            if !images.isEmpty { return Inputs(urls: images, arePersistent: true) }
+        }
+        guard let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff)
+        else { return nil }
+        let url = temporaryDirectory.appendingPathComponent("clipboard-\(UUID().uuidString).png")
+        try data.write(to: url, options: .atomic)
+        return Inputs(urls: [url], arePersistent: false)
+    }
+
+    private func chooseFiles(sourceApp: NSRunningApplication?) -> [URL]? {
+        NSApp.activate(ignoringOtherApps: true)
+        defer { sourceApp?.activate() }
         let panel = NSOpenPanel()
+        panel.message = "Choose images to process"
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image]
-        if panel.runModal() == .OK { inputs = panel.urls }
+        guard panel.runModal() == .OK else { return nil }
+        return panel.urls
     }
 
-    func loadClipboardFiles() {
-        let pasteboard = NSPasteboard.general
-        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
-            inputs = urls.filter { UTType(filenameExtension: $0.pathExtension)?.conforms(to: .image) == true }
-            if !inputs.isEmpty { return }
-        }
-        guard let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff) else { return }
-        let url = temporaryDirectory.appendingPathComponent("clipboard-\(UUID().uuidString).png")
-        do { try data.write(to: url, options: .atomic); inputs = [url] }
-        catch { errorMessage = error.localizedDescription }
+    private func confirmReplacement(count: Int, sourceApp: NSRunningApplication?) -> Bool {
+        NSApp.activate(ignoringOtherApps: true)
+        defer { sourceApp?.activate() }
+        let alert = NSAlert()
+        alert.messageText = "Replace the original images?"
+        alert.informativeText = "This writes processed pixels over \(count) original file\(count == 1 ? "" : "s")."
+        alert.alertStyle = .warning
+        let replace = alert.addButton(withTitle: "Replace")
+        replace.hasDestructiveAction = true
+        replace.keyEquivalent = ""
+        alert.addButton(withTitle: "Cancel").keyEquivalent = "\r"
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
-    func removeInput(_ url: URL) { inputs.removeAll { $0 == url } }
-
-    func run() {
-        guard !isRunning else { return }
-        if request.operation != .create, inputs.isEmpty { errorMessage = ImageModificationFailure.noInput.localizedDescription; return }
-        if request.output == .replace {
-            let alert = NSAlert()
-            alert.messageText = "Replace the original images?"
-            alert.informativeText = "This writes processed pixels over \(inputs.count) original file\(inputs.count == 1 ? "" : "s")."
-            alert.alertStyle = .warning
-            let replace = alert.addButton(withTitle: "Replace")
-            replace.hasDestructiveAction = true
-            replace.keyEquivalent = ""
-            alert.addButton(withTitle: "Cancel").keyEquivalent = "\r"
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-        }
-        isRunning = true
-        errorMessage = nil
-        let request = request
-        let inputs = inputs
-        let temporaryDirectory = temporaryDirectory
-        Task {
-            do {
-                let output = try await Task.detached(priority: .userInitiated) {
-                    try ImageModificationEngine.process(request: request, inputs: inputs, temporaryDirectory: temporaryDirectory)
-                }.value
-                results = output
-                finishOutput(output, location: request.output)
-            } catch { errorMessage = error.localizedDescription }
-            isRunning = false
-        }
+    private func presentFailure(
+        operation: ImageOperation, error: Error, sourceApp: NSRunningApplication?
+    ) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Couldn’t \(operation.title)"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+        sourceApp?.activate()
     }
 
     private var temporaryDirectory: URL {
@@ -97,7 +157,9 @@ final class ImageModificationManager: ObservableObject {
         {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
+            pasteboard.declareTypes([.tiff, ClipboardManager.internalType], owner: nil)
             pasteboard.setData(tiff, forType: .tiff)
+            pasteboard.setData(Data(), forType: ClipboardManager.internalType)
         }
     }
 

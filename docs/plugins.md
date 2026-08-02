@@ -23,6 +23,7 @@ Spotter/Plugins/
 │   ├── CurrencyData.generated.swift
 │   └── CurrencyConversionSettingsView.swift
 ├── Clipboard/
+├── TextReplacement/
 ├── Note/
 ├── EmojiSymbols/
 ├── WorldClock/
@@ -99,7 +100,7 @@ selection, row chrome, scrolling or footer in another window. Kill Process is th
 
 Dedicated workspaces are reserved for sustained document/canvas editing or complex multi-step flows
 that cannot fit the launcher model. They use `AppCore.showPluginWindow(id:title:size:content:)`, which
-keeps every `NSWindow` under `AuxWindowController`; Notes and Image Modification are current examples.
+keeps every `NSWindow` under `AuxWindowController`; Notes is the current example.
 CPU, process, filesystem, image and AppleScript work must leave the main actor, returning only
 `Sendable` values to an `AppCore`-owned manager.
 
@@ -135,14 +136,14 @@ The launcher shows one inline answer at flat selection index 0. `PaletteInlineRe
 and plugin results to the shared card without coupling Foundation-only engines to SwiftUI. Plugin
 answers copy their payload but do not enter calculator history.
 
-## Adding a plugin
+## Working with a plugin
 
-The repository tracks a project skill at `.codex/skills/spotter-new-plugin/`. In Codex, invoke
-`$spotter-new-plugin` with the plugin name and behavior; the skill follows this checklist and the
-project invariants. Because it is committed with the repository, it is available after cloning Spotter
-on another computer.
+The repository tracks a project skill at `.codex/skills/spotter-plugin/`. In Codex, invoke
+`$spotter-plugin` to create, modify, migrate, debug, or remove a plugin; the skill applies the relevant
+lifecycle checklist and project invariants. Because it is committed with the repository, it is
+available after cloning Spotter on another computer.
 
-The manual flow is:
+The manual creation flow is:
 
 1. Create `Spotter/Plugins/<PascalCaseName>/`; keep all plugin-specific source, views, settings and
    generated assets there.
@@ -200,7 +201,7 @@ enum ExamplePlugin {
 }
 ```
 
-Plugin commands are signed application actions. System → Custom Commands remains the user-authored
+Plugin commands are signed application actions. System → Commands remains the user-authored
 shell-command feature; do not use shell commands as an internal plugin API.
 
 ## Current plugins
@@ -209,21 +210,27 @@ shell-command feature; do not use shell commands as an internal plugin API.
   `CurrencyRateStore` owns consent and daily rates.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — enabled by default; disabling stops pasteboard
   polling while preserving history.
-- **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local Markdown notes in a
-  resizable floating workspace, with `Open Notes` and `New Note` actions.
+- **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — disabled by default; expands
+  user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
+  event tap without storing typing history or using the clipboard.
+- **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local notes in a translucent,
+  content-height floating Markdown editor that opens 440 points wide with an inset overlay list,
+  plus `Open Notes` and `New Note` actions.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
-  IANA time-zone data. Queries include `SF time now`, `time in Tokyo`, `London time` and `上海时间`.
+  IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
+  adjustment; its launcher screen shows a user-managed saved-city list.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
-- **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and ImageIO
-  batch operations with Finder/clipboard/file input and explicit output handling.
+- **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
+  ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
+  a searchable target-format palette before any conversion begins.
 - **QuickTime Recording** (`Spotter/Plugins/QuickTime/`) — three on-demand AppleScript actions for
   screen, audio and movie recording; requires Automation only when a command runs.
 
-Detailed internals: [Kill Process](kill-process.md), [Change Case](change-case.md),
+Detailed internals: [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md), and
-[Notes](notes.md).
+[Notes](notes.md), plus [Text Replacement](text-replacement.md).

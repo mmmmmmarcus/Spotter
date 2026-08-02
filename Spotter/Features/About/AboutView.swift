@@ -201,7 +201,8 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
     @discardableResult
     func show<Content: View>(
         id: String, title: String, size: CGSize, seamlessTitleBar: Bool = false,
-        resizable: Bool = false, floating: Bool = false, minimumSize: CGSize? = nil,
+        resizable: Bool = false, floating: Bool = false, transparent: Bool = false,
+        minimumSize: CGSize? = nil,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         let window: NSWindow
@@ -222,6 +223,11 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             )
             window.title = title
             if let minimumSize { window.minSize = minimumSize }
+            if transparent {
+                window.isOpaque = false
+                window.backgroundColor = .clear
+                window.titlebarSeparatorStyle = .none
+            }
             if floating {
                 window.level = .floating
                 window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
@@ -251,6 +257,18 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             window.makeKeyAndOrderFront(nil)
         }
         return isNew
+    }
+
+    func resizeHeight(id: String, to requestedHeight: CGFloat, animated: Bool = true) {
+        guard let window = windows[id], requestedHeight.isFinite else { return }
+        let screenLimit = window.screen?.visibleFrame.height ?? requestedHeight
+        let height = min(max(requestedHeight, window.minSize.height), screenLimit)
+        guard abs(window.frame.height - height) > 0.5 else { return }
+        var frame = window.frame
+        let top = frame.maxY
+        frame.size.height = height
+        frame.origin.y = top - height
+        window.setFrame(frame, display: true, animate: animated)
     }
 
     /// Re-focus an open aux window on reopen (Dock-icon click); returns false when none is open. `windows` only holds live windows (`windowWillClose` prunes them).

@@ -11,8 +11,10 @@ How Spotter is wired together. See the per-subsystem docs for internals:
 manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `AppSettings`,
 `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`,
-`CurrencyRateStore`, `RunningAppsMonitor`, `KillProcessManager`, `ChangeCaseStore`,
-`ImageModificationManager`, `NoteStore`, `PaletteViewModel`, `PluginRegistry` — plus the window
+`CurrencyRateStore`, `RunningAppsMonitor`, `WorldClockStore`, `KillProcessManager`, `ChangeCaseStore`,
+`ImageModificationManager`, `TextReplacementStore`, `TextReplacementManager`, `NoteStore`,
+`SettingsSyncManager`,
+`PaletteViewModel`, `PluginRegistry` — plus the window
 controllers. The registry owns capability registrations, not feature managers: registration closures
 refer back to managers on `AppCore`, so it does not weaken the single-owner rule.
 `AppDelegate.applicationDidFinishLaunching` calls
@@ -30,7 +32,7 @@ calls and compile-time checking without framework or runtime-loader overhead.
 The registry generates the Plugins Settings group, persists safe enable states, routes plugin launcher
 commands and shortcut actions, declares permission use, keeps a precomputed enabled query-provider
 list, and hosts plugin palette-screen registrations. See [plugins.md](plugins.md) for the contract,
-directory rules, `$spotter-new-plugin` project skill and new-plugin checklist.
+directory rules, `$spotter-plugin` project skill and plugin lifecycle checklists.
 
 ## Entry points and windows
 
@@ -50,8 +52,9 @@ imperatively from AppKit.
 - **Plugin workspaces** — the same `AuxWindowController`, reached only through
   `AppCore.showPluginWindow`. A plugin owns the hosted view and feature manager, while `AppCore`
   retains sole window ownership and closes the workspace from `onDisable`. The helper can opt a
-  workspace into resizing and floating window level; Notes uses both while leaving ownership and
-  activation routing centralized.
+  workspace into transparency, resizing and floating window level. Notes uses all three and requests
+  content-driven height changes through `AppCore`, including its temporary list expansion, leaving
+  frame ownership and activation routing centralized.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.

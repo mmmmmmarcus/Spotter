@@ -9,9 +9,21 @@ builds with the **Xcode 26** toolchain.
   `project.yml`. After editing `project.yml`, run `xcodegen generate` and commit. There is **no**
   `Package.swift` / SwiftPM. Full build/test/sign/release steps: [`docs/development.md`](docs/development.md),
   [`docs/signing.md`](docs/signing.md).
-- **Channels:** Debug builds are their own channel — `Spotter Dev.app` / `com.spotter.app.dev` — so a
-  local run never shares prefs, caches, TCC grants or login item with an installed stable/beta.
-  Anything newly persisted must stay keyed by `Bundle.main.bundleIdentifier`.
+- **Local build destination:** Every non-release build must finish as
+  `/Applications/Spotter.app`. Do not maintain or launch a separate `Spotter Dev.app`, and do not
+  distinguish a routine Debug build from the normal locally installed app. Override the generated
+  Debug product name and bundle identifier as needed so the installed result is `Spotter.app` /
+  `com.spotter.app`.
+- **Replace and relaunch after every successful build.** Build into a staging/DerivedData location
+  first. Only after the new app has built and passed its required checks, quit the running Spotter,
+  delete the exact old `/Applications/Spotter.app`, copy the new app into `/Applications`, and launch
+  the newly installed copy automatically. Never delete the working installed copy before a new build
+  succeeds, and never target anything broader than the exact Spotter app bundle.
+- **Release is the only exception.** When the user explicitly requests a Release build, follow the
+  documented release/signing/DMG workflow and preserve its requested channel, product name, bundle
+  identifier, output location, and launch behavior. Otherwise, the local-build contract above wins
+  over the repository's older Debug-channel documentation and configuration defaults.
+- Anything newly persisted must stay keyed by `Bundle.main.bundleIdentifier`.
 - **Tests:** no XCTest target — standalone `swiftc` harnesses in `Tools/` (see Critical Invariants and
   `docs/development.md`).
 
@@ -67,9 +79,12 @@ Never break these without an explicit task to do so.
   sources. Both externally-sourced inputs are injected: the clock via `now`/`calendar`, the FX table
   via `rates` (`CurrencyRateStore` owns the fetch). Likewise the catalog and geometry sources in
   `Plugins/EmojiSymbols/` stay AppKit/SwiftUI-free for `Tools/emoji-test.swift`,
-  `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar,
+  `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar/
+  local time zone while `Plugins/WorldClock/WorldClockStore.swift` stays Foundation + Combine,
   `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
-  Foundation-only and pure, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
+  Foundation-only and pure, `Plugins/TextReplacement/TextReplacementEngine.swift` stays
+  Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
+  Foundation + Combine, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
   `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`, and
   `Plugins/ImageModification/ImageModificationTypes.swift` stays
   Foundation-only so their standalone harnesses compile without app state. `QuickTimeRunner` may use
@@ -105,21 +120,30 @@ Never break these without an explicit task to do so.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
-  [`docs/plugins.md`](docs/plugins.md) and use the tracked `$spotter-new-plugin` skill.
+  [`docs/plugins.md`](docs/plugins.md) and use the tracked `$spotter-plugin` skill.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
   registered `PluginPaletteScreenRegistration` and the shared `PluginPaletteList`; they must not
   create a separate window, search field, list chrome or footer. Dedicated plugin windows are limited
   to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
   and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
 - **Process and image mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
-  confirms termination/restart by default. Image Modification confirms every Replace Original run;
-  pixel work stays off the main actor and temporary output is bundle-identifier-scoped.
+  executes selected process actions immediately without dismissing its palette. Image Modification's
+  Convert Image command selects a target format in a second-level palette before any work starts and
+  confirms every Replace Original run; pixel work stays off the main actor and temporary output is
+  bundle-identifier-scoped.
 - **Swift 6 language mode: data-race violations are hard errors.** Almost everything is `@MainActor`;
   cross-actor model types are `Sendable`; heavy / IO work (app scan, image decode) is pushed off-main
   via `Task.detached` / `nonisolated`. Keep that boundary. House idioms: `NotificationToken` (RAII) for
   block observers, `isolated deinit` for `ClipboardStore`'s SQLite teardown, decode raw Carbon / C
   pointers to plain values before crossing into actor code.
 - **Clipboard writes stamp a private `internalType` marker** so the poller skips Spotter's own writes.
+- **Settings sync reuses `SettingsBackup`.** The selected JSON file may live in iCloud Drive, but
+  Spotter must coordinate access with `NSFileCoordinator`, observe replacement-safe file changes,
+  hot-apply only fully decoded snapshots, suppress its own write notifications, and never synchronize
+  network consent. See [`docs/settings-sync.md`](docs/settings-sync.md).
+- **Text Replacement never records arbitrary typing or uses the clipboard.** Its matcher retains only
+  a suffix that can still become a configured trigger, and its synthetic deletion/insertion events use
+  the shared event-source marker so neither its own tap nor Hyper Key rewrites them.
 - **Hotkeys persist under legacy `KeyboardShortcuts_<name>` UserDefaults keys** (from the removed
   KeyboardShortcuts package) so old bindings survive. See [hotkeys.md](docs/hotkeys.md).
 - **Read [`docs/ui.md`](docs/ui.md) before any restyle or new view.** `Core/Theme.swift` is the single
@@ -142,7 +166,7 @@ Never break these without an explicit task to do so.
   `Settings/`, `About/`, `Onboarding/`, plus shared `PopoverMenu`.
 - `Spotter/App/` — `@main` app + delegate.
 - `Tools/` — standalone test harnesses and the emoji generator.
-- `.codex/skills/spotter-new-plugin/` — tracked project skill for scaffolding another native plugin.
+- `.codex/skills/spotter-plugin/` — tracked project skill for all built-in plugin lifecycle work.
 - `.github/workflows/release.yml` — the entire release pipeline (see `docs/development.md`).
 
 ## Additional Documentation
@@ -156,7 +180,8 @@ Never break these without an explicit task to do so.
 - [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·
   [`docs/clipboard.md`](docs/clipboard.md) · [`docs/emoji.md`](docs/emoji.md) ·
-  [`docs/hotkeys.md`](docs/hotkeys.md) — subsystem internals.
+  [`docs/hotkeys.md`](docs/hotkeys.md) · [`docs/text-replacement.md`](docs/text-replacement.md) ·
+  [`docs/settings-sync.md`](docs/settings-sync.md) — subsystem internals.
 - [`docs/ui.md`](docs/ui.md) — the full visual design system, tokens, scrollbars, section headers.
 - [`docs/development.md`](docs/development.md) — build, test, package, release.
 - [`docs/signing.md`](docs/signing.md) — signing model and Gatekeeper.

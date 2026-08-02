@@ -19,8 +19,31 @@ struct NoteTests {
         check("todo title", "Ship the plugin", NoteEngine.title(in: "- [ ] Ship the plugin"))
         check("empty title", "Untitled Note", NoteEngine.title(in: " \n\t"))
         check(
-            "preview skips title", "First point Second point",
-            NoteEngine.preview(in: "# Plan\n- First point\n- Second point"))
+            "only first line is title", "Untitled Note",
+            NoteEngine.title(in: "\nSecond line is body"))
+        check(
+            "sidebar excerpt skips title", "First point Second point",
+            NoteEngine.excerpt(in: "# Plan\n- First point\n- Second point"))
+        check("empty editor has three rows", 3, NoteEngine.editorLineCount(in: ""))
+        check("editor follows line count", 7, NoteEngine.editorLineCount(in: "1\n2\n3\n4\n5\n6\n7"))
+        check(
+            "editor caps at twenty rows", 20,
+            NoteEngine.editorLineCount(in: Array(repeating: "line", count: 24).joined(separator: "\n")))
+        check(
+            "bullet continues", .continueWith("- "),
+            NoteEngine.listContinuation(after: "- first"))
+        check(
+            "indented checklist continues unchecked", .continueWith("  - [ ] "),
+            NoteEngine.listContinuation(after: "  - [x] done"))
+        check(
+            "numbered list increments", .continueWith("10. "),
+            NoteEngine.listContinuation(after: "9. ninth"))
+        check(
+            "empty bullet exits list", .endList,
+            NoteEngine.listContinuation(after: "- "))
+        check(
+            "plain line does not continue", nil,
+            NoteEngine.listContinuation(after: "plain text"))
 
         let bold = NoteEngine.applying(
             .bold, to: "hello world", selection: NSRange(location: 6, length: 5))

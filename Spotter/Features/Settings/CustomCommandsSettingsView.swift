@@ -7,7 +7,7 @@ struct CustomCommandsSettingsView: View {
 
     var body: some View {
         SettingsPane(
-            title: "Custom Commands",
+            title: "Commands",
             subtitle: "Run your own shell commands from the launcher or a global shortcut."
         ) {
             SettingsCallout(

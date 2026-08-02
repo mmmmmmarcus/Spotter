@@ -15,7 +15,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return "General"
         case .permissions: return "Permissions"
         case .shortcuts: return "Shortcuts"
-        case .customCommands: return "Custom Commands"
+        case .customCommands: return "Commands"
         case .backup: return "Backup"
         case .about: return "About"
         }

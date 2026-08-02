@@ -29,7 +29,14 @@ match the visible row order**, including the inline calculator card at index 0 w
 In launcher mode an enabled plugin query provider may claim the inline card instead. The registry
 returns the first claim in catalog order; otherwise the calculator is the fallback. There is still at
 most one inline card at flat index 0, preserving the selection invariant. World Clock is the reference
-provider (`SF time now`), implemented in `Spotter/Plugins/WorldClock/`.
+provider (`SF time now`), implemented in `Spotter/Plugins/WorldClock/`. Its result adds a third local
+system-time column. While that card is selected, ↑ advances and ↓ rewinds the represented instant by
+one hour instead of moving the flat selection; changing the query resets the offset.
+
+World Clock also registers a normal plugin palette screen. Launching its command shows the saved city
+rows through `PluginPaletteList`, with London, Shanghai and San Francisco as the first-run defaults.
+Image Modification uses the same shared screen as the second level of Convert Image: choosing the
+command shows writable target formats, and choosing a format is the action that starts conversion.
 
 ## Window placement
 

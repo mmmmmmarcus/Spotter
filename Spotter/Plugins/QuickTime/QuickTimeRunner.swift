@@ -20,14 +20,14 @@ enum QuickTimeRecordingKind: String, CaseIterable, Identifiable, Sendable {
     }
 
     var appleScript: String {
-        switch self {
-        case .screen:
-            "tell application \"QuickTime Player\" to start (new screen recording)"
-        case .audio:
-            "tell application \"QuickTime Player\" to activate\ntell application \"QuickTime Player\" to start (new audio recording)"
-        case .movie:
-            "tell application \"QuickTime Player\" to activate\ntell application \"QuickTime Player\" to start (new movie recording)"
-        }
+        """
+        tell application "QuickTime Player" to activate
+        tell application "System Events"
+            tell process "QuickTime Player"
+                click menu item "\(title)" of menu "File" of menu bar 1
+            end tell
+        end tell
+        """
     }
 }
 
@@ -46,9 +46,13 @@ enum QuickTimeRunner {
             process.standardError = pipe
             do {
                 try process.run()
-                process.waitUntilExit()
             } catch {
                 return (Int32(-1), error.localizedDescription)
+            }
+            try? await Task.sleep(for: .seconds(2))
+            if process.isRunning {
+                process.terminate()
+                return (Int32(0), "")
             }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")

@@ -199,18 +199,6 @@ extension AppCore {
         }
 
         let title = action.title
-        if UserDefaults.standard.object(forKey: "kill-process.confirm") == nil
-            || UserDefaults.standard.bool(forKey: "kill-process.confirm")
-        {
-            hidePalette(restoreFocus: false)
-            guard Self.confirmKillProcessAction(title, process: process) else {
-                showPalette(mode: .plugin(.killProcess))
-                return
-            }
-        } else {
-            hidePalette(restoreFocus: false)
-        }
-
         Task {
             do {
                 switch action {
@@ -228,23 +216,6 @@ extension AppCore {
                 Self.presentKillProcessFailure(title, error: error)
             }
         }
-    }
-
-    private static func confirmKillProcessAction(
-        _ action: String, process: RunningProcessInfo
-    ) -> Bool {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "\(action) \(process.appName ?? process.processName)?"
-        alert.informativeText = "PID \(process.id)"
-            + (process.childProcessIDs.isEmpty
-                ? "" : " and \(process.childProcessIDs.count) related processes")
-        alert.alertStyle = .warning
-        let actionButton = alert.addButton(withTitle: action)
-        actionButton.hasDestructiveAction = true
-        actionButton.keyEquivalent = ""
-        alert.addButton(withTitle: "Cancel").keyEquivalent = "\r"
-        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private static func presentKillProcessFailure(_ action: String, error: Error) {

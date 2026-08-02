@@ -1,85 +1,175 @@
 import Foundation
 
+struct WorldClockCity: Equatable, Hashable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let timeZoneIdentifier: String
+
+    init(name: String, timeZoneIdentifier: String) {
+        id = timeZoneIdentifier + "#" + name
+        self.name = name
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+}
+
 struct WorldClockResult: Equatable, Sendable {
     let city: String
     let timeZoneIdentifier: String
     let time: String
     let date: String
+    let localTimeZoneIdentifier: String
+    let localTime: String
+    let localDate: String
 }
 
-/// Foundation-only local-time lookup. The clock and calendar are injected so tests never read time.
+/// Foundation-only local-time lookup. The clock, calendar and local time zone are injected.
 enum WorldClockEngine {
     private struct Location: Sendable {
-        let city: String
-        let timeZoneIdentifier: String
+        let city: WorldClockCity
         let aliases: [String]
+
+        init(name: String, timeZoneIdentifier: String, aliases: [String]) {
+            city = WorldClockCity(name: name, timeZoneIdentifier: timeZoneIdentifier)
+            self.aliases = aliases
+        }
     }
 
     private static let commonLocations: [Location] = [
         Location(
-            city: "San Francisco", timeZoneIdentifier: "America/Los_Angeles",
+            name: "San Francisco", timeZoneIdentifier: "America/Los_Angeles",
             aliases: ["sf", "san francisco", "bay area"]),
         Location(
-            city: "Los Angeles", timeZoneIdentifier: "America/Los_Angeles",
+            name: "Los Angeles", timeZoneIdentifier: "America/Los_Angeles",
             aliases: ["la", "los angeles"]),
         Location(
-            city: "New York", timeZoneIdentifier: "America/New_York",
+            name: "New York", timeZoneIdentifier: "America/New_York",
             aliases: ["nyc", "new york"]),
-        Location(city: "London", timeZoneIdentifier: "Europe/London", aliases: ["london"]),
-        Location(city: "Paris", timeZoneIdentifier: "Europe/Paris", aliases: ["paris"]),
-        Location(city: "Berlin", timeZoneIdentifier: "Europe/Berlin", aliases: ["berlin"]),
-        Location(city: "Tokyo", timeZoneIdentifier: "Asia/Tokyo", aliases: ["tokyo"]),
+        Location(name: "London", timeZoneIdentifier: "Europe/London", aliases: ["london"]),
+        Location(name: "Paris", timeZoneIdentifier: "Europe/Paris", aliases: ["paris"]),
+        Location(name: "Berlin", timeZoneIdentifier: "Europe/Berlin", aliases: ["berlin"]),
+        Location(name: "Tokyo", timeZoneIdentifier: "Asia/Tokyo", aliases: ["tokyo"]),
         Location(
-            city: "Shanghai", timeZoneIdentifier: "Asia/Shanghai",
+            name: "Shanghai", timeZoneIdentifier: "Asia/Shanghai",
             aliases: ["shanghai", "上海"]),
         Location(
-            city: "Beijing", timeZoneIdentifier: "Asia/Shanghai",
+            name: "Beijing", timeZoneIdentifier: "Asia/Shanghai",
             aliases: ["beijing", "北京"]),
         Location(
-            city: "Hong Kong", timeZoneIdentifier: "Asia/Hong_Kong",
+            name: "Hong Kong", timeZoneIdentifier: "Asia/Hong_Kong",
             aliases: ["hk", "hong kong", "香港"]),
         Location(
-            city: "Singapore", timeZoneIdentifier: "Asia/Singapore",
+            name: "Singapore", timeZoneIdentifier: "Asia/Singapore",
             aliases: ["sg", "singapore"]),
-        Location(city: "Sydney", timeZoneIdentifier: "Australia/Sydney", aliases: ["sydney"]),
-        Location(city: "Melbourne", timeZoneIdentifier: "Australia/Melbourne", aliases: ["melbourne"]),
-        Location(city: "Dubai", timeZoneIdentifier: "Asia/Dubai", aliases: ["dubai"]),
-        Location(city: "Mumbai", timeZoneIdentifier: "Asia/Kolkata", aliases: ["mumbai", "bombay"]),
-        Location(city: "Delhi", timeZoneIdentifier: "Asia/Kolkata", aliases: ["delhi", "new delhi"]),
-        Location(city: "Toronto", timeZoneIdentifier: "America/Toronto", aliases: ["toronto"]),
-        Location(city: "Vancouver", timeZoneIdentifier: "America/Vancouver", aliases: ["vancouver"]),
-        Location(city: "Chicago", timeZoneIdentifier: "America/Chicago", aliases: ["chicago"]),
-        Location(city: "Honolulu", timeZoneIdentifier: "Pacific/Honolulu", aliases: ["honolulu"]),
+        Location(name: "Sydney", timeZoneIdentifier: "Australia/Sydney", aliases: ["sydney"]),
+        Location(
+            name: "Melbourne", timeZoneIdentifier: "Australia/Melbourne",
+            aliases: ["melbourne"]),
+        Location(name: "Dubai", timeZoneIdentifier: "Asia/Dubai", aliases: ["dubai"]),
+        Location(name: "Mumbai", timeZoneIdentifier: "Asia/Kolkata", aliases: ["mumbai", "bombay"]),
+        Location(
+            name: "Delhi", timeZoneIdentifier: "Asia/Kolkata",
+            aliases: ["delhi", "new delhi"]),
+        Location(name: "Toronto", timeZoneIdentifier: "America/Toronto", aliases: ["toronto"]),
+        Location(
+            name: "Vancouver", timeZoneIdentifier: "America/Vancouver",
+            aliases: ["vancouver"]),
+        Location(name: "Chicago", timeZoneIdentifier: "America/Chicago", aliases: ["chicago"]),
+        Location(
+            name: "Honolulu", timeZoneIdentifier: "Pacific/Honolulu", aliases: ["honolulu"]),
     ]
 
-    /// Common aliases win; the generated tail makes every city-shaped IANA identifier available.
-    private static let locationsByAlias: [String: Location] = {
-        var result: [String: Location] = [:]
-        for location in commonLocations {
-            for alias in location.aliases { result[normalized(alias)] = location }
-        }
-        for identifier in TimeZone.knownTimeZoneIdentifiers {
+    private static let generatedLocations: [Location] = {
+        let claimedAliases = Set(commonLocations.flatMap(\.aliases).map(normalized))
+        return TimeZone.knownTimeZoneIdentifiers.compactMap { identifier in
             let parts = identifier.split(separator: "/")
             guard parts.count >= 2, parts[0] != "Etc", parts[0] != "SystemV",
                 let rawCity = parts.last
-            else { continue }
+            else { return nil }
             let alias = normalized(String(rawCity).replacingOccurrences(of: "_", with: " "))
-            guard !alias.isEmpty, result[alias] == nil else { continue }
-            let city = alias.split(separator: " ").map { $0.capitalized }.joined(separator: " ")
-            result[alias] = Location(city: city, timeZoneIdentifier: identifier, aliases: [alias])
+            guard !alias.isEmpty, !claimedAliases.contains(alias) else { return nil }
+            let name = alias.split(separator: " ").map { $0.capitalized }.joined(separator: " ")
+            return Location(name: name, timeZoneIdentifier: identifier, aliases: [alias])
+        }
+        .sorted { $0.city.name.localizedStandardCompare($1.city.name) == .orderedAscending }
+    }()
+
+    private static let allLocations = commonLocations + generatedLocations
+
+    private static let locationsByAlias: [String: Location] = {
+        var result: [String: Location] = [:]
+        for location in allLocations {
+            for alias in location.aliases where result[normalized(alias)] == nil {
+                result[normalized(alias)] = location
+            }
         }
         return result
     }()
 
+    private static let locationsByID = Dictionary(
+        uniqueKeysWithValues: allLocations.map { ($0.city.id, $0) })
+
+    static let availableCities = allLocations.map(\.city)
+
+    static let defaultCities = ["London", "Shanghai", "San Francisco"].compactMap { name in
+        availableCities.first { $0.name == name }
+    }
+
+    static func city(id: String) -> WorldClockCity? { locationsByID[id]?.city }
+
+    static func searchCities(_ raw: String, excluding excluded: Set<String> = [])
+        -> [WorldClockCity]
+    {
+        let query = normalized(raw)
+        let candidates = allLocations.filter { !excluded.contains($0.city.id) }
+        guard !query.isEmpty else { return candidates.map(\.city) }
+        return candidates.filter { location in
+            normalized(location.city.name).contains(query)
+                || normalized(location.city.timeZoneIdentifier).contains(query)
+                || location.aliases.contains { normalized($0).contains(query) }
+        }
+        .sorted { left, right in
+            let leftPrefix = normalized(left.city.name).hasPrefix(query)
+                || left.aliases.contains { normalized($0).hasPrefix(query) }
+            let rightPrefix = normalized(right.city.name).hasPrefix(query)
+                || right.aliases.contains { normalized($0).hasPrefix(query) }
+            if leftPrefix != rightPrefix { return leftPrefix }
+            return left.city.name.localizedStandardCompare(right.city.name) == .orderedAscending
+        }
+        .map(\.city)
+    }
+
     static func evaluate(
         _ raw: String, now: Date = Date(), calendar: Calendar = .current,
-        locale: Locale = .current
+        locale: Locale = .current, localTimeZone: TimeZone
     ) -> WorldClockResult? {
         let query = normalized(raw)
-        guard query.count <= 256, requestsTime(query), let location = matchLocation(in: query),
-            let timeZone = TimeZone(identifier: location.timeZoneIdentifier)
+        guard query.count <= 256, requestsTime(query), let location = matchLocation(in: query)
         else { return nil }
+        return result(
+            for: location.city, now: now, calendar: calendar, locale: locale,
+            localTimeZone: localTimeZone)
+    }
 
+    static func result(
+        for city: WorldClockCity, now: Date, calendar: Calendar = .current,
+        locale: Locale = .current, localTimeZone: TimeZone
+    ) -> WorldClockResult? {
+        guard let timeZone = TimeZone(identifier: city.timeZoneIdentifier) else { return nil }
+        let remote = formatted(now, timeZone: timeZone, calendar: calendar, locale: locale)
+        let local = formatted(now, timeZone: localTimeZone, calendar: calendar, locale: locale)
+        return WorldClockResult(
+            city: city.name,
+            timeZoneIdentifier: city.timeZoneIdentifier,
+            time: remote.time,
+            date: remote.date,
+            localTimeZoneIdentifier: localTimeZone.identifier,
+            localTime: local.time,
+            localDate: local.date)
+    }
+
+    private static func formatted(
+        _ date: Date, timeZone: TimeZone, calendar: Calendar, locale: Locale
+    ) -> (time: String, date: String) {
         var zonedCalendar = calendar
         zonedCalendar.timeZone = timeZone
         var timeStyle = Date.FormatStyle(date: .omitted, time: .shortened, locale: locale)
@@ -88,13 +178,7 @@ enum WorldClockEngine {
         var dateStyle = Date.FormatStyle(date: .complete, time: .omitted, locale: locale)
         dateStyle.calendar = zonedCalendar
         dateStyle.timeZone = timeZone
-        let time = now.formatted(timeStyle)
-        let date = now.formatted(dateStyle)
-        return WorldClockResult(
-            city: location.city,
-            timeZoneIdentifier: location.timeZoneIdentifier,
-            time: time,
-            date: date)
+        return (date.formatted(timeStyle), date.formatted(dateStyle))
     }
 
     private static func requestsTime(_ query: String) -> Bool {
@@ -124,9 +208,9 @@ enum WorldClockEngine {
 
 struct WorldClockQueryProvider: PluginQueryProvider {
     func evaluate(_ query: String, now: Date, calendar: Calendar) -> PluginQueryResult? {
-        guard let result = WorldClockEngine.evaluate(query, now: now, calendar: calendar) else {
-            return nil
-        }
+        guard let result = WorldClockEngine.evaluate(
+            query, now: now, calendar: calendar, localTimeZone: .autoupdatingCurrent)
+        else { return nil }
         return PluginQueryResult(
             pluginID: .worldClock,
             sectionTitle: "World Clock",
@@ -135,6 +219,9 @@ struct WorldClockQueryProvider: PluginQueryProvider {
             targetBadge: result.date,
             display: result.time,
             copyText: result.time,
-            actionTitle: "Copy Time")
+            actionTitle: "Copy Time",
+            companion: PluginQueryCompanion(
+                display: result.localTime, badge: "Local · " + result.localDate),
+            supportsHourlyAdjustment: true)
     }
 }

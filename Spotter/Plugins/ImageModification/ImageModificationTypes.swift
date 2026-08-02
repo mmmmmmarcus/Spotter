@@ -129,6 +129,18 @@ struct ImageModificationRequest: Sendable {
     var padding = 40
     var colorHex = "#00000000"
     var secondColorHex = "#4F46E5"
+
+    static func commandDefaults(
+        operation: ImageOperation, output: ImageOutputLocation, format: ImageFormat,
+        hasPersistentInput: Bool
+    ) -> ImageModificationRequest {
+        var request = ImageModificationRequest(operation: operation, output: output, format: format)
+        if output == .alongside {
+            if operation == .create { request.output = .preview }
+            else if !hasPersistentInput { request.output = .clipboard }
+        }
+        return request
+    }
 }
 
 struct ImageModificationResult: Sendable {

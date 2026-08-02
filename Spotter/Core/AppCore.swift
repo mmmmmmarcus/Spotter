@@ -113,8 +113,11 @@ final class AppCore: ObservableObject {
     let launcherRanking: LauncherRankingStore
     let appIndex: AppIndex
     let customCommands = CustomCommandStore()
+    let settingsSync = SettingsSyncManager()
     let clipboardStore = ClipboardStore()
     let clipboardManager: ClipboardManager
+    let textReplacements: TextReplacementStore
+    let textReplacementManager: TextReplacementManager
     let hotKeys = HotKeyManager()
     let hyperKeyTap = HyperKeyTap()
     let settings = AppSettings()
@@ -127,6 +130,7 @@ final class AppCore: ObservableObject {
     let runningApps = RunningAppsMonitor()
     let palette = PaletteViewModel()
     let plugins = PluginRegistry()
+    let worldClock = WorldClockStore()
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
     let imageModification = ImageModificationManager()
@@ -142,6 +146,9 @@ final class AppCore: ObservableObject {
         self.launcherRanking = launcherRanking
         appIndex = AppIndex(ranking: launcherRanking)
         clipboardManager = ClipboardManager(store: clipboardStore, settings: settings)
+        let textReplacements = TextReplacementStore()
+        self.textReplacements = textReplacements
+        textReplacementManager = TextReplacementManager(store: textReplacements)
         for registration in BuiltInPlugins.registrations(core: self) {
             plugins.register(registration)
         }
@@ -176,6 +183,7 @@ final class AppCore: ObservableObject {
         appIndex.setCustomCommands(customCommands.commands)
         Task { await appIndex.refresh() }
         plugins.start()
+        settingsSync.start(core: self)
 
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
         hotKeys.onRunPluginAction = { [weak self] action in self?.plugins.perform(action) }
@@ -281,6 +289,7 @@ final class AppCore: ObservableObject {
                 .environmentObject(self.visibility)
                 .environmentObject(self.customCommands)
                 .environmentObject(self.plugins)
+                .environmentObject(self.settingsSync)
         }
         if !isNew {
             NotificationCenter.default.post(
@@ -300,12 +309,13 @@ final class AppCore: ObservableObject {
     @discardableResult
     func showPluginWindow<Content: View>(
         id: String, title: String, size: CGSize, resizable: Bool = false,
-        floating: Bool = false, minimumSize: CGSize? = nil,
+        floating: Bool = false, transparent: Bool = false, minimumSize: CGSize? = nil,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         auxWindows.show(
             id: "plugin." + id, title: title, size: size, seamlessTitleBar: true,
-            resizable: resizable, floating: floating, minimumSize: minimumSize
+            resizable: resizable, floating: floating, transparent: transparent,
+            minimumSize: minimumSize
         ) {
             content()
                 .environmentObject(self)
@@ -315,6 +325,10 @@ final class AppCore: ObservableObject {
 
     func closePluginWindow(id: String) {
         auxWindows.close(id: "plugin." + id)
+    }
+
+    func resizePluginWindow(id: String, height: CGFloat, animated: Bool = true) {
+        auxWindows.resizeHeight(id: "plugin." + id, to: height, animated: animated)
     }
 
     var previousApplication: NSRunningApplication? { windowController.previousApp }

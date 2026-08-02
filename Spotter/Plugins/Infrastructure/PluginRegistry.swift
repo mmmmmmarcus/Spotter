@@ -68,6 +68,7 @@ final class PluginRegistry: ObservableObject {
     private var activePaletteScreen: PluginID?
     private var started = false
     var onCommandsChanged: (([AppEntry]) -> Void)?
+    var onEnabledStatesChanged: (() -> Void)?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -145,6 +146,7 @@ final class PluginRegistry: ObservableObject {
         }
         rebuildQueryProviders()
         onCommandsChanged?(launcherCommands)
+        onEnabledStatesChanged?()
     }
 
     func settingsView(for id: PluginID) -> AnyView {

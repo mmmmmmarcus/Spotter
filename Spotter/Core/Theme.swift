@@ -58,6 +58,15 @@ enum Theme {
         /// Settings window: sidebar column width and the small icon used in setting rows.
         static let settingsSidebar: CGFloat = 184
         static let settingsRowIcon: CGFloat = 20
+        static let textReplacementPrefixFieldWidth: CGFloat = 80
+        static let textReplacementEditorWidth: CGFloat = 480
+        static let textReplacementEditorHeight: CGFloat = 120
+        static let noteWindowWidth: CGFloat = 440
+        static let noteWindowMinimumWidth: CGFloat = 360
+        static let noteListWindowHeight: CGFloat = 500
+        static let noteListTopInset: CGFloat = 116
+        static let noteToolbarHeight: CGFloat = 64
+        static let noteToolbarTitleInset: CGFloat = 112
         /// Little state indicator dot next to a settings row title (Hyper Key active/needs-permission).
         static let statusDot: CGFloat = 6
     }

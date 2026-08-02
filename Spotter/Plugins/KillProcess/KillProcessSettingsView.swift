@@ -9,7 +9,6 @@ struct KillProcessSettingsView: View {
     @AppStorage("kill-process.prioritize-apps") private var prioritizeApps = true
     @AppStorage("kill-process.show-path") private var showPath = false
     @AppStorage("kill-process.show-pid") private var showPID = true
-    @AppStorage("kill-process.confirm") private var confirmActions = true
     @AppStorage("kill-process.refresh-seconds") private var refreshSeconds = 2.0
 
     var body: some View {
@@ -54,9 +53,6 @@ struct KillProcessSettingsView: View {
                         Text("5 sec").tag(5.0)
                     }.labelsHidden()
                 }
-            }
-            SettingsCard(header: "Safety") {
-                toggleRow("Confirm Actions", "Ask before terminating or restarting a process. Force actions may request administrator approval.", "exclamationmark.shield", $confirmActions)
             }
             SettingsCard(header: "Shortcut") {
                 SettingsRow(title: "Kill Process", subtitle: "Open running processes in the Spotter palette.", systemImage: "keyboard", tint: .red) {

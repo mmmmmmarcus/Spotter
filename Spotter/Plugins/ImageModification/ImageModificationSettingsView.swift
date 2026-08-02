@@ -13,11 +13,11 @@ struct ImageModificationSettingsView: View {
                 }
             }
             SettingsCard(header: "Defaults") {
-                SettingsRow(title: "Output", subtitle: "Replace Original always asks for confirmation.", systemImage: "folder", tint: .teal) {
+                SettingsRow(title: "Output", subtitle: "Convert Image asks for a format first; Replace Original always asks for confirmation.", systemImage: "folder", tint: .teal) {
                     Picker("", selection: $output) { ForEach(ImageOutputLocation.allCases) { Text($0.title).tag($0.rawValue) } }.labelsHidden()
                 }
                 SettingsDivider()
-                SettingsRow(title: "Conversion Format", systemImage: "photo", tint: .teal) {
+                SettingsRow(title: "Created Image Format", systemImage: "photo", tint: .teal) {
                     Picker("", selection: $format) { ForEach(ImageFormat.allCases) { Text($0.title).tag($0.rawValue) } }.labelsHidden()
                 }
             }
@@ -29,6 +29,7 @@ struct ImageModificationSettingsView: View {
                     }
                 }
             }
+            SettingsCallout(title: "Direct commands", message: "Convert Image opens a searchable format menu before it runs. Other commands use Finder selection first, then copied image files or pixels, and open a file picker only when no input is available. Beside Original opens generated images in Preview and returns copied pixels to the clipboard.", systemImage: "bolt", tint: .teal)
             SettingsCallout(title: "Native format support", message: "The format picker matches ImageIO's native writable set, including AVIF, HEIC, JPEG 2000, PDF, PSD and texture formats. WebP and SVG can still be selected as inputs when macOS can decode them.", systemImage: "info.circle", tint: .teal)
         }
     }

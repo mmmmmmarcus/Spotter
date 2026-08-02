@@ -1,4 +1,0 @@
-interface:
-  display_name: "Spotter New Plugin"
-  short_description: "Scaffold a native Spotter plugin module"
-  default_prompt: "Use $spotter-new-plugin to add a native built-in plugin to Spotter."

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct BackupSettingsView: View {
+    @EnvironmentObject private var settingsSync: SettingsSyncManager
     @ObservedObject private var runningApps = AppCore.shared.runningApps
     @State private var raycastFile: URL?
     @State private var passphrase = ""
@@ -21,7 +22,7 @@ struct BackupSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "Backup",
-            subtitle: "Export your settings, restore a backup, or import from Raycast."
+            subtitle: "Sync or export your settings, restore a backup, or import from Raycast."
         ) {
             SettingsCard(header: "Spotter") {
                 SettingsRow(
@@ -46,6 +47,58 @@ struct BackupSettingsView: View {
                         .controlSize(.small)
                 }
             }
+
+            SettingsCard(header: "Sync") {
+                SettingsRow(
+                    title: "Settings File",
+                    subtitle: settingsSync.fileURL.map(displayPath)
+                        ?? "Choose an existing JSON file or create one in iCloud Drive.",
+                    systemImage: settingsSync.isICloudLocation ? "icloud" : "doc.text",
+                    tint: .blue
+                ) {
+                    HStack(spacing: Theme.Spacing.md) {
+                        Button("Choose…") { BackupActions.connectSettingsSyncFile() }
+                            .controlSize(.small)
+                        Button("Create…") { BackupActions.createSettingsSyncFile() }
+                            .controlSize(.small)
+                    }
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Automatic Sync",
+                    subtitle: settingsSync.statusText,
+                    systemImage: settingsSync.errorMessage == nil
+                        ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle.fill",
+                    tint: settingsSync.errorMessage == nil ? .teal : .orange
+                ) {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { settingsSync.isEnabled },
+                            set: { settingsSync.setEnabled($0) }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .disabled(settingsSync.fileURL == nil || settingsSync.isWorking)
+                }
+                if settingsSync.fileURL != nil {
+                    SettingsDivider()
+                    SettingsRow(
+                        title: "Disconnect",
+                        subtitle: "Stops syncing without deleting the JSON file.",
+                        systemImage: "link.badge.minus",
+                        tint: .secondary
+                    ) {
+                        Button("Disconnect") { settingsSync.disconnect() }
+                            .controlSize(.small)
+                    }
+                }
+            }
+            SettingsCallout(
+                title: "Location-based sync",
+                message: "Spotter watches the selected file and applies changes live. Put it in iCloud Drive to let macOS carry it between devices; local and other cloud folders also work.",
+                systemImage: "icloud.and.arrow.up",
+                tint: .blue)
 
             SettingsCard(header: "Import from Raycast") {
                 SettingsRow(
@@ -140,6 +193,10 @@ struct BackupSettingsView: View {
         guard let url = BackupActions.pickRaycastFile() else { return }
         raycastFile = url
         status = nil
+    }
+
+    private func displayPath(_ url: URL) -> String {
+        (url.path as NSString).abbreviatingWithTildeInPath
     }
 
     private func runRaycastImport() {

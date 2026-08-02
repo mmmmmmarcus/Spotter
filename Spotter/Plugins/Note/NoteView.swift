@@ -3,52 +3,75 @@ import SwiftUI
 
 struct NoteView: View {
     @ObservedObject var store: NoteStore
+    let resizeHeight: (CGFloat) -> Void
     @State private var query = ""
-    @State private var editRequest: NoteEditRequest?
-    @State private var showsPreview = false
+    @State private var showsNoteList = false
+    @State private var editorHeight: CGFloat
+    @FocusState private var searchIsFocused: Bool
+
+    init(store: NoteStore, resizeHeight: @escaping (CGFloat) -> Void) {
+        self.store = store
+        self.resizeHeight = resizeHeight
+        _editorHeight = State(
+            initialValue: NoteEditorMetrics.estimatedEditorHeight(
+                for: store.selectedNote?.content ?? ""))
+    }
 
     private var visibleNotes: [SpotterNote] { store.filteredNotes(query: query) }
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            Rectangle().fill(Theme.Colors.separator).frame(width: 1)
+        ZStack(alignment: .top) {
             editor
+
+            if showsNoteList {
+                noteList
+                    .padding(.horizontal, Theme.Spacing.xxl)
+                    .padding(.top, Theme.Size.noteListTopInset)
+                    .padding(.bottom, Theme.Spacing.xxl)
+                    .transition(
+                        .scale(scale: 0.98, anchor: .topTrailing).combined(with: .opacity))
+            }
         }
-        .background(VisualEffectView(material: .contentBackground, blending: .behindWindow))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(.easeOut(duration: 0.14), value: showsNoteList)
+        .background(Color.black.opacity(Theme.Colors.panelDimming))
+        .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
         .ignoresSafeArea(edges: .top)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
     }
 
-    private var sidebar: some View {
+    private var noteList: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Notes").font(.title2.weight(.bold))
-                Spacer()
-                Button { createNote() } label: { Image(systemName: "square.and.pencil") }
-                    .buttonStyle(.borderless)
-                    .keyboardShortcut("n", modifiers: .command)
-                    .help("New Note")
-            }
-            .padding(.horizontal, Theme.Spacing.xl)
-            .padding(.top, Theme.Spacing.xxl + Theme.Spacing.xl)
-            .padding(.bottom, Theme.Spacing.lg)
-
             HStack(spacing: Theme.Spacing.md) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
-                TextField("Search Notes", text: $query).textFieldStyle(.plain)
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.tertiary)
+                TextField("Search for notes…", text: $query)
+                    .textFieldStyle(.plain)
+                    .focused($searchIsFocused)
                 if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.tertiary)
+                    Button { query = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tertiary)
                 }
             }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.vertical, Theme.Spacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.Radius.menu, style: .continuous)
-                    .fill(Theme.Colors.controlSurface)
-            )
             .padding(.horizontal, Theme.Spacing.xl)
+            .frame(height: Theme.Size.headerHeight)
+
+            Rectangle().fill(Theme.Colors.separator).frame(height: 1)
+
+            HStack {
+                Text("Notes")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(visibleNotes.count) \(visibleNotes.count == 1 ? "Note" : "Notes")")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, Theme.Spacing.xl)
+            .padding(.top, Theme.Spacing.xl)
             .padding(.bottom, Theme.Spacing.md)
 
             if visibleNotes.isEmpty {
@@ -58,126 +81,95 @@ struct NoteView: View {
                 ScrollView {
                     LazyVStack(spacing: Theme.Spacing.xs) {
                         ForEach(visibleNotes) { note in
-                            NoteSidebarRow(
+                            NoteListRow(
                                 note: note, isSelected: store.selectedID == note.id,
-                                select: { store.select(note) }, delete: { confirmDelete(note) })
+                                select: { select(note) }, delete: { confirmDelete(note) })
                         }
                     }
                     .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.vertical, Theme.Spacing.xs)
+                    .padding(.bottom, Theme.Spacing.md)
                 }
                 .overlayScroller()
             }
-
-            Text("\(store.notes.count) \(store.notes.count == 1 ? "note" : "notes")")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.tertiary)
-                .padding(Theme.Spacing.lg)
         }
-        .frame(width: 230)
-        .background(VisualEffectView(material: .sidebar, blending: .behindWindow))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous)
+                .stroke(Theme.Colors.cardStroke, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.25), radius: 24, y: 12)
     }
 
-    @ViewBuilder
     private var editor: some View {
-        if let note = store.selectedNote {
-            VStack(spacing: 0) {
-                editorToolbar(note)
-                Rectangle().fill(Theme.Colors.separator).frame(height: 1)
-                if showsPreview {
-                    NoteMarkdownPreview(markdown: note.content)
-                } else {
-                    ZStack(alignment: .topLeading) {
-                        NoteMarkdownEditor(text: selectedContent, request: editRequest)
-                        if note.content.isEmpty {
-                            Text("Start writing…")
-                                .font(.body)
-                                .foregroundStyle(.tertiary)
-                                .padding(Theme.Spacing.xxl)
-                                .allowsHitTesting(false)
-                        }
+        VStack(spacing: 0) {
+            editorToolbar
+            Rectangle().fill(Theme.Colors.separator).frame(height: 1)
+
+            if let note = store.selectedNote {
+                ZStack(alignment: .topLeading) {
+                    NoteMarkdownEditor(
+                        text: selectedContent,
+                        onContentHeightChange: updateEditorHeight)
+                    if note.content.isEmpty {
+                        Text("Start writing…")
+                            .font(.body)
+                            .foregroundStyle(.tertiary)
+                            .padding(Theme.Spacing.xxl)
+                            .allowsHitTesting(false)
                     }
                 }
-                Rectangle().fill(Theme.Colors.separator).frame(height: 1)
-                editorFooter(note)
+                .frame(height: editorHeight)
+            } else {
+                ContentUnavailableView {
+                    Label("No Notes", systemImage: "note.text")
+                } description: {
+                    Text("Create a note to start writing.")
+                } actions: {
+                    Button("New Note") { createNote() }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        } else {
-            ContentUnavailableView {
-                Label("No Notes", systemImage: "note.text")
-            } description: {
-                Text("Create a note to start writing.")
-            } actions: {
-                Button("New Note") { createNote() }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private func editorToolbar(_ note: SpotterNote) -> some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            Text(note.title).font(.headline).lineLimit(1)
-            Spacer(minLength: Theme.Spacing.lg)
-            if !showsPreview {
-                formatButton("bold", help: "Bold", command: .bold, shortcut: "b")
-                formatButton("italic", help: "Italic", command: .italic, shortcut: "i")
-                formatButton("strikethrough", help: "Strikethrough", command: .strikethrough)
-                formatButton("chevron.left.forwardslash.chevron.right", help: "Inline Code", command: .inlineCode)
-                formatButton("link", help: "Link", command: .link)
-                formatButton("textformat.size.larger", help: "Heading", command: .heading)
-                formatButton("list.bullet", help: "Bulleted List", command: .bulletedList)
-                formatButton("list.number", help: "Numbered List", command: .numberedList)
-                formatButton("checklist", help: "Checklist", command: .checklist)
-            }
-            Button { showsPreview.toggle() } label: {
-                Image(systemName: showsPreview ? "pencil" : "eye")
-                    .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
-            }
-            .buttonStyle(.borderless)
-            .keyboardShortcut("p", modifiers: [.command, .shift])
-            .help(showsPreview ? "Edit" : "Preview")
-        }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.top, Theme.Spacing.xxl + Theme.Spacing.xl)
-        .padding(.bottom, Theme.Spacing.lg)
-    }
+    private var editorToolbar: some View {
+        ZStack {
+            Text(store.selectedNote?.title ?? "Notes")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, Theme.Size.noteToolbarTitleInset)
+                .allowsHitTesting(false)
 
-    private func editorFooter(_ note: SpotterNote) -> some View {
-        let words = note.content.split(whereSeparator: { $0.isWhitespace }).count
-        return HStack {
-            Text("\(words) \(words == 1 ? "word" : "words") · \(note.content.count) characters")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.tertiary)
-            Spacer()
-            switch store.saveState {
-            case .saved:
-                Label("Saved", systemImage: "checkmark.circle")
-                    .foregroundStyle(.secondary)
-            case .saving:
-                ProgressView().controlSize(.mini)
-                Text("Saving…").foregroundStyle(.secondary)
-            case .failed:
-                Label("Couldn’t Save", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-            }
-        }
-        .font(.caption)
-        .padding(.horizontal, Theme.Spacing.xl)
-        .frame(height: Theme.Size.bottomBarHeight)
-    }
+            HStack(spacing: Theme.Spacing.xs) {
+                Spacer(minLength: 0)
 
-    private func formatButton(
-        _ image: String, help: String, command: NoteMarkdownCommand, shortcut: KeyEquivalent? = nil
-    ) -> some View {
-        let button = Button { editRequest = NoteEditRequest(command: command) } label: {
-            Image(systemName: image)
-                .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
+                Button(action: toggleNoteList) {
+                    Image(systemName: "note.text")
+                        .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
+                }
+                .buttonStyle(.borderless)
+                .help(showsNoteList ? "Hide Notes List" : "Show Notes List")
+
+                Button {
+                    createNote()
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("n", modifiers: .command)
+                .help("New Note")
+            }
+            .padding(.horizontal, Theme.Spacing.xl)
         }
-        .buttonStyle(.borderless)
-        .help(help)
-        if let shortcut {
-            return AnyView(button.keyboardShortcut(shortcut, modifiers: .command))
-        }
-        return AnyView(button)
+        .padding(.top, Theme.Spacing.xxl)
+        .frame(height: Theme.Size.noteToolbarHeight)
     }
 
     private var selectedContent: Binding<String> {
@@ -186,10 +178,44 @@ struct NoteView: View {
             set: { store.updateSelectedContent($0) })
     }
 
+    private var editorWindowHeight: CGFloat {
+        NoteEditorMetrics.windowHeight(forEditorHeight: editorHeight)
+    }
+
     private func createNote() {
         query = ""
-        showsPreview = false
         store.createNote()
+        editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: "")
+        closeNoteList()
+    }
+
+    private func select(_ note: SpotterNote) {
+        store.select(note)
+        editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
+        closeNoteList()
+    }
+
+    private func updateEditorHeight(_ height: CGFloat) {
+        guard abs(editorHeight - height) > 0.5 else { return }
+        editorHeight = height
+        let contentHeight = NoteEditorMetrics.windowHeight(forEditorHeight: height)
+        resizeHeight(showsNoteList ? max(contentHeight, Theme.Size.noteListWindowHeight) : contentHeight)
+    }
+
+    private func toggleNoteList() {
+        if showsNoteList {
+            closeNoteList()
+        } else {
+            showsNoteList = true
+            resizeHeight(max(editorWindowHeight, Theme.Size.noteListWindowHeight))
+            DispatchQueue.main.async { searchIsFocused = true }
+        }
+    }
+
+    private func closeNoteList() {
+        showsNoteList = false
+        searchIsFocused = false
+        resizeHeight(editorWindowHeight)
     }
 
     private func confirmDelete(_ note: SpotterNote) {
@@ -205,7 +231,7 @@ struct NoteView: View {
     }
 }
 
-private struct NoteSidebarRow: View {
+private struct NoteListRow: View {
     let note: SpotterNote
     let isSelected: Bool
     let select: () -> Void
@@ -213,46 +239,47 @@ private struct NoteSidebarRow: View {
     @State private var hovering = false
 
     var body: some View {
-        Button(action: select) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                Text(note.title).font(.headline).lineLimit(1)
-                Text(note.preview).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                Text(note.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+        HStack(spacing: Theme.Spacing.md) {
+            Button(action: select) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    Text(note.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(metadata)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Theme.Spacing.lg)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
-                    .fill(isSelected ? Theme.Colors.selection : hovering ? Theme.Colors.rowHover : .clear)
-            )
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            if hovering || isSelected {
+                Button(role: .destructive, action: delete) {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .help("Delete Note")
+                .transition(.opacity)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, Theme.Spacing.xl)
+        .padding(.vertical, Theme.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
+                .fill(isSelected ? Theme.Colors.selection : hovering ? Theme.Colors.rowHover : .clear)
+        )
+        .contentShape(Rectangle())
         .contextMenu { Button("Delete Note", role: .destructive, action: delete) }
         .onHover { hovering = $0 }
-    }
-}
-
-private struct NoteMarkdownPreview: View {
-    let markdown: String
-
-    private var rendered: AttributedString {
-        (try? AttributedString(
-            markdown: markdown,
-            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)))
-            ?? AttributedString(markdown)
+        .animation(.easeOut(duration: 0.1), value: hovering)
     }
 
-    var body: some View {
-        ScrollView {
-            Text(rendered)
-                .font(.body)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(Theme.Spacing.xxl)
-        }
-        .overlayScroller()
+    private var metadata: String {
+        let characters = note.content.count
+        let count = "\(characters) \(characters == 1 ? "Character" : "Characters")"
+        if isSelected { return "Current · \(count)" }
+        return "Updated \(note.updatedAt.formatted(.relative(presentation: .named))) · \(count)"
     }
 }

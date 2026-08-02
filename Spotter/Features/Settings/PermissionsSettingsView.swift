@@ -74,7 +74,8 @@ struct PermissionsSettingsView: View {
         let names = plugins.plugins(requiring: .accessibility).map(\.name).joined(separator: ", ")
         return names.isEmpty
             ? "No installed plugin currently declares this permission."
-            : "Used by \(names) to read selected text or paste into the app you were using."
+            : "Used by \(names) to observe configured triggers, read selected text, or type into "
+                + "the app you were using."
     }
 
     private var automationSubtitle: String {

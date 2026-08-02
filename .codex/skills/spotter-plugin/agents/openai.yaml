@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spotter Plugin"
+  short_description: "Create, modify, and remove Spotter plugins"
+  default_prompt: "Use $spotter-plugin to create, modify, migrate, debug, or remove a native Spotter plugin."

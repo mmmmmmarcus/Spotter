@@ -13,6 +13,18 @@ struct ImageModificationTests {
         precondition(ImageOutputLocation.allCases.contains(.replace))
         let request = ImageModificationRequest(operation: .rotate, angle: 45)
         precondition(request.operation == .rotate && request.angle == 45)
+        precondition(ImageModificationRequest.commandDefaults(
+            operation: .create, output: .alongside, format: .png,
+            hasPersistentInput: false).output == .preview)
+        precondition(ImageModificationRequest.commandDefaults(
+            operation: .resize, output: .alongside, format: .png,
+            hasPersistentInput: false).output == .clipboard)
+        precondition(ImageModificationRequest.commandDefaults(
+            operation: .resize, output: .alongside, format: .png,
+            hasPersistentInput: true).output == .alongside)
+        precondition(ImageModificationRequest.commandDefaults(
+            operation: .convert, output: .alongside, format: .avif,
+            hasPersistentInput: true).format == .avif)
 
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("spotter-image-test-\(UUID().uuidString)", isDirectory: true)
@@ -42,6 +54,13 @@ struct ImageModificationTests {
         let resized = try! ImageModificationEngine.process(
             request: create, inputs: [created], temporaryDirectory: directory)[0].output
         precondition(pixelSize(resized) == CGSize(width: 32, height: 24))
+
+        create.operation = .convert
+        create.format = .jpeg
+        let converted = try! ImageModificationEngine.process(
+            request: create, inputs: [created], temporaryDirectory: directory)[0].output
+        precondition(converted.pathExtension == ImageFormat.jpeg.fileExtension)
+        precondition(sourceType(converted) == ImageFormat.jpeg.uniformType)
         print("Image Modification: ALL PASSED")
     }
 
@@ -52,5 +71,10 @@ struct ImageModificationTests {
             let height = properties[kCGImagePropertyPixelHeight] as? NSNumber
         else { return nil }
         return CGSize(width: width.doubleValue, height: height.doubleValue)
+    }
+
+    private static func sourceType(_ url: URL) -> String? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceGetType(source) as String?
     }
 }

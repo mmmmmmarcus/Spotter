@@ -94,8 +94,8 @@ extension SettingsBackup {
 
         backup.customCommands = core.customCommands.commands
         backup.favoriteApps = core.favorites.keys
-        backup.hiddenLauncherItems = Array(core.visibility.hiddenItemKeys)
-        backup.hiddenLauncherKinds = Array(core.visibility.hiddenKinds)
+        backup.hiddenLauncherItems = core.visibility.hiddenItemKeys.sorted()
+        backup.hiddenLauncherKinds = core.visibility.hiddenKinds.sorted()
         backup.pluginStates = core.plugins.exportedEnabledStates()
         return backup
     }

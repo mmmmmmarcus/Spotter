@@ -11,6 +11,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
 
     static let currencyConversion = PluginID(rawValue: "currency-conversion")
     static let clipboard = PluginID(rawValue: "clipboard")
+    static let textReplacement = PluginID(rawValue: "text-replacement")
     static let emoji = PluginID(rawValue: "emoji-symbols")
     static let worldClock = PluginID(rawValue: "world-clock")
     static let killProcess = PluginID(rawValue: "kill-process")
@@ -72,6 +73,11 @@ struct PluginActionKey: Hashable, Sendable {
 }
 
 /// Generic inline answer returned by a plugin query provider.
+struct PluginQueryCompanion: Equatable, Sendable {
+    let display: String
+    let badge: String?
+}
+
 struct PluginQueryResult: Equatable, Sendable {
     let pluginID: PluginID
     let sectionTitle: String
@@ -81,6 +87,26 @@ struct PluginQueryResult: Equatable, Sendable {
     let display: String
     let copyText: String
     let actionTitle: String
+    var companion: PluginQueryCompanion?
+    var supportsHourlyAdjustment: Bool
+
+    init(
+        pluginID: PluginID, sectionTitle: String, expression: String,
+        sourceBadge: String?, targetBadge: String?, display: String,
+        copyText: String, actionTitle: String,
+        companion: PluginQueryCompanion? = nil, supportsHourlyAdjustment: Bool = false
+    ) {
+        self.pluginID = pluginID
+        self.sectionTitle = sectionTitle
+        self.expression = expression
+        self.sourceBadge = sourceBadge
+        self.targetBadge = targetBadge
+        self.display = display
+        self.copyText = copyText
+        self.actionTitle = actionTitle
+        self.companion = companion
+        self.supportsHourlyAdjustment = supportsHourlyAdjustment
+    }
 }
 
 /// Pure synchronous query hook. Providers should reject unrelated input before doing expensive work.

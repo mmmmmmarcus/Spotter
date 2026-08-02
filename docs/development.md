@@ -94,8 +94,9 @@ swiftc -swift-version 6 Spotter/Core/CustomCommand.swift \
     Spotter/Core/ShellCommandRunner.swift Tools/custom-command-test.swift \
     -o /tmp/custom-command-test && /tmp/custom-command-test        # custom command store + runner
 swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
-    Spotter/Plugins/WorldClock/WorldClockEngine.swift Tools/world-clock-test.swift \
-    -o /tmp/world-clock-test && /tmp/world-clock-test              # world-clock plugin engine
+    Spotter/Plugins/WorldClock/WorldClockEngine.swift \
+    Spotter/Plugins/WorldClock/WorldClockStore.swift Tools/world-clock-test.swift \
+    -o /tmp/world-clock-test && /tmp/world-clock-test              # world-clock engine + store
 swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
     Tools/kill-process-test.swift -o /tmp/kill-process-test && /tmp/kill-process-test
 swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
@@ -108,6 +109,11 @@ swiftc -swift-version 6 Spotter/Plugins/QuickTime/QuickTimeRunner.swift \
     Tools/quicktime-test.swift -o /tmp/quicktime-test && /tmp/quicktime-test
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
+swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \
+    Spotter/Plugins/TextReplacement/TextReplacementStore.swift Tools/text-replacement-test.swift \
+    -o /tmp/text-replacement-test && /tmp/text-replacement-test
+swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
+    Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
 ```
 
 `Tools/fuzz-test.swift` holds a **copy** of `FuzzyMatch` from `Spotter/Core/AppIndex.swift` —
@@ -115,8 +121,9 @@ change the scoring in one and mirror it in the other. The calc harness compiles 
 sources, which is why `Spotter/Core/Calculator/` and the parser/data sources in
 `Spotter/Plugins/CurrencyConversion/` must stay Foundation-only.
 
-The World Clock harness likewise compiles the real Foundation-only engine. It injects a fixed date,
-calendar and locale, so daylight-saving and formatting checks never depend on the wall clock.
+The World Clock harness compiles the real Foundation-only engine and Foundation + Combine store. It
+injects a fixed date, calendar, local time zone and isolated `UserDefaults` suite, so daylight-saving,
+formatting and saved-city checks never depend on the wall clock or the user's preferences.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Image Modification creates and resizes real temporary pixels through
@@ -126,6 +133,13 @@ strings and never opens QuickTime.
 The Notes harness compiles the real Foundation-only model, store and Markdown transformer. It validates
 derived titles/previews, UTF-16 selections, formatting toggles and atomic persistence against a
 temporary archive without opening a window or touching the user's notes file.
+
+The Text Replacement harness compiles the real pure matcher and persisted store. It validates
+case-insensitive trigger matching, bounded suffix retention, backspace behavior, conflict rejection
+and bundle-scoped preference persistence without installing an event tap or observing real input.
+
+The Settings Sync harness exercises the real coordinated JSON reader/writer against a temporary file
+and validates the byte revision guard used to suppress self-triggered file notifications.
 
 The clipboard harness likewise compiles the real `ClipboardStore.swift`, so that file must keep to
 Foundation + SQLite3 and depend on no other app source. Each case drives a store rooted in a
@@ -157,15 +171,16 @@ left out and decided by hand in `CalcCurrency.contested`, the one currency table
 hand. Re-run the script when a currency is added or retired; nothing breaks in the meantime, since
 an unquoted code just reports "no exchange rate".
 
-## Adding a built-in plugin
+## Working with a built-in plugin
 
 Plugin-specific code belongs under `Spotter/Plugins/<Name>/`; the shared contract lives in
 `Spotter/Plugins/Infrastructure/`. Read [plugins.md](plugins.md) for the registration contract,
 performance rules and full checklist.
 
-The repository includes a project-local Codex skill at `.codex/skills/spotter-new-plugin/`. Invoke
-`$spotter-new-plugin` to scaffold and integrate a native plugin consistently. The directory is tracked
-by git, so cloning the repository on another computer brings the skill with the source.
+The repository includes a project-local Codex skill at `.codex/skills/spotter-plugin/`. Invoke
+`$spotter-plugin` to create, modify, migrate, debug, or remove a native plugin consistently. The
+directory is tracked by git, so cloning the repository on another computer brings the skill with the
+source.
 
 ## Packaging a DMG
 

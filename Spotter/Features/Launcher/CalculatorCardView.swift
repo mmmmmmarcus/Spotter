@@ -63,13 +63,24 @@ enum PaletteInlineResult: Equatable {
         guard case .plugin(let result) = self else { return nil }
         return result
     }
+
+    var companion: PluginQueryCompanion? { pluginResult?.companion }
 }
 
 /// The inline answer card pinned above the app results (expression → result, or a friendly message on impossible conversion); selectable like a row, Enter copies.
 struct CalculatorCard: View {
     let result: CalcResult
     let selected: Bool
+    var companion: PluginQueryCompanion?
     @State private var hovered = false
+
+    init(
+        result: CalcResult, selected: Bool, companion: PluginQueryCompanion? = nil
+    ) {
+        self.result = result
+        self.selected = selected
+        self.companion = companion
+    }
 
     private var fill: Color {
         if selected { return Theme.Colors.selection }
@@ -87,6 +98,13 @@ struct CalculatorCard: View {
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.tertiary)
                     CalcColumn(text: display, badge: result.targetBadge, weight: .semibold)
+                    if let companion {
+                        Image(systemName: "arrow.right")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                        CalcColumn(
+                            text: companion.display, badge: companion.badge, weight: .semibold)
+                    }
                 }
                 .fixedSize(horizontal: false, vertical: true)
             case .error(let message):

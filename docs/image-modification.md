@@ -1,23 +1,30 @@
 # Image Modification plugin
 
-Image Modification is the native counterpart of Raycast's Image Modification (`sips`) extension. It
-provides commands for filters, conversion, image creation, horizontal/vertical flips, optimization,
-padding, background removal, resizing, rotation, scaling and EXIF/metadata stripping.
+Image Modification is the native counterpart of Raycast's Image Modification (`sips`) extension. Its
+launcher commands run immediately without opening a plugin workspace. They cover filtering,
+conversion, image creation, horizontal/vertical flips, optimization, padding, background removal,
+resizing, rotation, scaling and EXIF/metadata stripping.
 
-The filter picker is built from the compatible Core Image blur, color, distortion, halftone, sharpen,
-stylize and tile categories available on the current macOS release. Create Image includes the same
-nine generator families as the reference: checkerboard, constant color, lenticular halo, linear and
-radial gradients, random noise, star shine, stripes and sunbeams.
+Choosing Convert Image opens a searchable second-level palette containing every writable target
+format. No input resolution or pixel work starts until the user explicitly selects one of those rows.
+The other commands use the plugin's configured output plus their operation defaults, while Create
+Image uses the configured created-image format.
+Generated images default to a 1200×800 linear gradient, resizing fits within 1200×800, rotation uses
+90 degrees, scaling uses 0.5×, padding uses 40 transparent pixels, optimization uses 82% quality and
+Apply Filter uses Core Image's Chrome photo effect.
 
 ## Pipeline
 
-Inputs come from Finder's current selection, copied image/file data, or `NSOpenPanel`. Finder selection
-is queried only when Finder was the source application and uses the macOS Automation grant. Operations
-run in a detached task through Core Image, Vision and ImageIO; no JS runtime, helper daemon or network
-request is involved. Vision's foreground mask powers background removal.
+Inputs resolve in order from Finder's current selection, copied image/file data, then `NSOpenPanel`
+when neither source has an image. Finder selection is queried only when Finder was the source
+application and uses the macOS Automation grant. Operations run in a detached task through Core
+Image, Vision and ImageIO; no JS runtime, helper daemon or network request is involved. Vision's
+foreground mask powers background removal.
 
 Outputs can be written beside the original, to Desktop or Downloads, opened in Preview, copied to the
 clipboard, or used to replace the original. Replace Original always confirms the resolved batch count.
+When Beside Original has no durable original, Create Image opens its result in Preview and copied pixel
+data is replaced with the processed result on the clipboard.
 Temporary clipboard/Preview output lives under the current bundle identifier's cache directory, so
 Debug, beta and stable channels remain isolated.
 

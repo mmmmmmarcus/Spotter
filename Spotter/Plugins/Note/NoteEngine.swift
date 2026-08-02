@@ -14,7 +14,7 @@ struct SpotterNote: Codable, Equatable, Identifiable, Sendable {
     }
 
     var title: String { NoteEngine.title(in: content) }
-    var preview: String { NoteEngine.preview(in: content) }
+    var excerpt: String { NoteEngine.excerpt(in: content) }
 }
 
 enum NoteMarkdownCommand: Sendable {
@@ -29,6 +29,11 @@ enum NoteMarkdownCommand: Sendable {
     case checklist
 }
 
+enum NoteListContinuation: Equatable, Sendable {
+    case continueWith(String)
+    case endList
+}
+
 struct NoteEditResult: Equatable, Sendable {
     let text: String
     let selection: NSRange
@@ -36,14 +41,44 @@ struct NoteEditResult: Equatable, Sendable {
 
 enum NoteEngine {
     static func title(in markdown: String) -> String {
-        for line in markdown.components(separatedBy: .newlines) {
-            let cleaned = stripMarkup(line)
-            if !cleaned.isEmpty { return String(cleaned.prefix(80)) }
-        }
-        return "Untitled Note"
+        let firstLine = markdown.components(separatedBy: .newlines).first ?? ""
+        let cleaned = stripMarkup(firstLine)
+        return cleaned.isEmpty ? "Untitled Note" : String(cleaned.prefix(80))
     }
 
-    static func preview(in markdown: String) -> String {
+    static func editorLineCount(in markdown: String, minimum: Int = 3, maximum: Int = 20) -> Int {
+        let logicalLines = markdown.reduce(into: 1) { count, character in
+            if character == "\n" { count += 1 }
+        }
+        return min(max(logicalLines, minimum), maximum)
+    }
+
+    static func listContinuation(after line: String) -> NoteListContinuation? {
+        let indentation = String(line.prefix(while: { $0 == " " || $0 == "\t" }))
+        let body = String(line.dropFirst(indentation.count))
+
+        for marker in ["- [ ] ", "- [x] ", "- [X] "] where body.hasPrefix(marker) {
+            let content = body.dropFirst(marker.count)
+            return content.trimmingCharacters(in: .whitespaces).isEmpty
+                ? .endList : .continueWith(indentation + "- [ ] ")
+        }
+
+        for marker in ["- ", "* ", "+ "] where body.hasPrefix(marker) {
+            let content = body.dropFirst(marker.count)
+            return content.trimmingCharacters(in: .whitespaces).isEmpty
+                ? .endList : .continueWith(indentation + marker)
+        }
+
+        let digits = body.prefix(while: { $0.isNumber })
+        guard !digits.isEmpty, body.dropFirst(digits.count).hasPrefix(". "),
+            let number = Int(digits)
+        else { return nil }
+        let content = body.dropFirst(digits.count + 2)
+        return content.trimmingCharacters(in: .whitespaces).isEmpty
+            ? .endList : .continueWith(indentation + "\(number + 1). ")
+    }
+
+    static func excerpt(in markdown: String) -> String {
         let meaningful = markdown.components(separatedBy: .newlines)
             .map(stripMarkup)
             .filter { !$0.isEmpty }

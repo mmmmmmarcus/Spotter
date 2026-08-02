@@ -42,11 +42,24 @@ extension AppCore {
         guard plugins.isEnabled(.note) else { return }
         if creatingNewNote { notes.createNote() }
         if palette.mode == .launcher { hidePalette(restoreFocus: false) }
+        let initialEditorHeight = NoteEditorMetrics.estimatedEditorHeight(
+            for: notes.selectedNote?.content ?? "")
         showPluginWindow(
-            id: "notes", title: "Notes", size: CGSize(width: 760, height: 600),
-            resizable: true, floating: true, minimumSize: CGSize(width: 640, height: 440)
+            id: "notes", title: "Notes",
+            size: CGSize(
+                width: Theme.Size.noteWindowWidth,
+                height: NoteEditorMetrics.windowHeight(forEditorHeight: initialEditorHeight)),
+            resizable: true, floating: true, transparent: true,
+            minimumSize: CGSize(
+                width: Theme.Size.noteWindowMinimumWidth,
+                height: NoteEditorMetrics.windowHeight(
+                    forEditorHeight: NoteEditorMetrics.minimumEditorHeight))
         ) {
-            NoteView(store: notes)
+            NoteView(
+                store: notes,
+                resizeHeight: { [weak self] height in
+                    self?.resizePluginWindow(id: "notes", height: height)
+                })
         }
     }
 }

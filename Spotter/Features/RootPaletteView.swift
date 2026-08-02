@@ -23,6 +23,8 @@ struct RootPaletteView: View {
     @State private var selectionIsRunning = false
     /// Highlighted row of whichever popover menu is open; reset to the first row on open, moved by ↑/↓ and hover, activated by ↵/click.
     @State private var menuSelection = 0
+    /// Hour offset applied only to an adjustable plugin query card; typing another query resets it.
+    @State private var pluginQueryHourOffset = 0
     /// The pending scroll request for whichever list or grid is mounted (modes are exclusive, so one piece of state serves all of them). Set only by keyboard nav and resets; mouse selection targets a visible row, so it leaves this and the scroll position put.
     @State private var scroll = ScrollIntent(kind: .top)
 
@@ -74,7 +76,8 @@ struct RootPaletteView: View {
     }
 
     private var launcherInlineResult: PaletteInlineResult? {
-        if let result = plugins.evaluate(vm.query) { return .plugin(result) }
+        let now = Date().addingTimeInterval(TimeInterval(pluginQueryHourOffset * 3_600))
+        if let result = plugins.evaluate(vm.query, now: now) { return .plugin(result) }
         return calcResult.map(PaletteInlineResult.calculator)
     }
 
@@ -295,10 +298,12 @@ struct RootPaletteView: View {
         }
         .onChange(of: vm.query) {
             vm.selection = 0
+            pluginQueryHourOffset = 0
             scroll = ScrollIntent(kind: .top)
         }
         .onChange(of: vm.mode) {
             vm.selection = 0
+            pluginQueryHourOffset = 0
             showActions = false
             scroll = ScrollIntent(kind: .top)
         }
@@ -362,6 +367,7 @@ struct RootPaletteView: View {
                 moveMenu(1)
                 return .handled
             }
+            if adjustPluginQueryHour(by: -1) { return .handled }
             if vm.mode == .emoji { moveEmojiRow(1) } else { move(1) }
             return .handled
         }
@@ -371,6 +377,7 @@ struct RootPaletteView: View {
                 moveMenu(-1)
                 return .handled
             }
+            if adjustPluginQueryHour(by: 1) { return .handled }
             if vm.mode == .emoji { moveEmojiRow(-1) } else { move(-1) }
             return .handled
         }
@@ -799,6 +806,14 @@ struct RootPaletteView: View {
         guard resultCount > 0 else { return }
         vm.selection = min(max(selection + delta, 0), resultCount - 1)
         scroll = ScrollIntent(kind: .follow)
+    }
+
+    private func adjustPluginQueryHour(by delta: Int) -> Bool {
+        guard vm.mode == .launcher, selection == 0,
+            selectedInlineResult?.pluginResult?.supportsHourlyAdjustment == true
+        else { return false }
+        pluginQueryHourOffset += delta
+        return true
     }
 
     /// Move the open menu's highlight, clamped at the ends (no wrap — consistent with `move`).

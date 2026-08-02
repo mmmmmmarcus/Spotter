@@ -3,7 +3,7 @@
 Notes is a native, local note-taking workspace modeled on the core experience described before the
 “Frictionless integrations” section of Raycast Notes: quick floating access, Markdown formatting,
 todos and multiple notes. It deliberately does not implement Raycast AI, snippets, quicklinks, cloud
-sync, export/share targets or deleted-note recovery.
+sync, export/share targets, a separate preview mode or deleted-note recovery.
 
 ## Entry points
 
@@ -13,15 +13,23 @@ The plugin registers two launcher commands and two independently bindable global
 - **New Note** creates an empty note and focuses it immediately.
 
 Both routes call `AppCore.openNotes`, which guards plugin enablement, dismisses the launcher when
-needed and opens the shared `AuxWindowController` workspace. The window opts into resizing,
-`.floating` level and all-Spaces visibility, but the plugin never creates or retains an `NSWindow`.
+needed and opens the shared `AuxWindowController` workspace. The translucent window opts into
+resizing, `.floating` level and all-Spaces visibility, but the plugin never creates or retains an
+`NSWindow`. The workspace opens as a 440-point-wide editor with four matching continuous corners.
+Its centered toolbar title is derived from the selected note's first line; the right side contains
+only the notes-list and New Note actions. The list starts hidden and opens as an inset material card
+over the editor, temporarily growing the window vertically rather than changing its width. Selecting
+a row returns to the single-note editor. The shared window owner keeps the top edge anchored while the
+editor grows from three visible lines to a maximum of twenty, after which the native overlay scroller
+takes over.
 Disabling the plugin closes the window and flushes the latest in-memory snapshot.
 
 ## Model and persistence
 
 `NoteStore` is `@MainActor` and owned once by `AppCore`. It keeps the ordered note list and active
-selection in memory; titles and sidebar previews are derived from the first meaningful Markdown
-lines rather than duplicated fields. Creating, editing and deleting notes mutate that one store.
+selection in memory; the first line is always the note title and later meaningful lines supply the
+list excerpt, so neither is stored as a duplicated field. Creating, editing and deleting notes
+mutate that one store.
 
 The archive is versioned JSON at:
 
@@ -38,14 +46,19 @@ permission or network consent.
 ## Editor
 
 `NoteMarkdownEditor` wraps one native `NSTextView` with overlay scrolling, undo and Find support.
-The persisted source is ordinary Markdown. Temporary TextKit attributes provide live heading, bold,
-italic, inline-code, link and completed-task feedback without changing the source string.
+The persisted source is ordinary Markdown. Temporary TextKit attributes provide live first-line
+title, heading, bold, italic, inline-code, link, list and completed-task presentation without changing
+the source string. Syntax markers collapse when the caret is outside their span, and a leading `- `
+is rendered as a bullet. Return continues bulleted, numbered and checklist items; Return on an empty
+item exits the list.
 
-The toolbar and keyboard shortcuts apply transformations through the Foundation-only `NoteEngine`:
-bold, italic, strikethrough, inline code, link, heading, bulleted list, numbered list and checklist.
-The same engine derives titles/previews and handles selections as UTF-16 `NSRange`s so AppKit and the
-pure tests use identical behavior. Preview mode renders the Markdown through Foundation's
-`AttributedString` parser.
+The minimal toolbar only exposes New Note and the notes-list toggle. Formatting stays in the
+writing flow: Command-B applies bold, Command-I applies italic and Command-K inserts a link, while
+ordinary Markdown markers cover strikethrough, inline code, headings, bulleted lists, numbered lists
+and checklists. The Foundation-only `NoteEngine` performs shortcut transformations, derives
+titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and the pure tests use
+identical behavior. There is no separate title field, preview surface, formatting palette,
+word/character counter or save-status footer; persistence remains automatic in the background.
 
 ## Testing
 

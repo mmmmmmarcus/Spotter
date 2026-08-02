@@ -78,7 +78,9 @@ struct LauncherList: View {
                                 case .header(let title):
                                     SectionHeader(title: title, isFirst: row.id == rows.first?.id)
                                 case .inline(let inline):
-                                    CalculatorCard(result: inline.result, selected: inlineSelected)
+                                    CalculatorCard(
+                                        result: inline.result, selected: inlineSelected,
+                                        companion: inline.companion)
                                         .contentShape(Rectangle())
                                         .onTapGesture(perform: onActivateInline)
                                         .onRightClick(perform: onInlineActions)

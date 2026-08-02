@@ -13,9 +13,10 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
 - Terminate with `SIGTERM`, force-terminate with `SIGKILL`, restart an app/binary, or target every
   process with the same executable name. A force action retries permission-denied targets through the
   standard macOS administrator prompt.
+- Process actions execute immediately without a confirmation dialog. After completion the palette
+  stays open and refreshes its process results in place.
 - Copy an executable path or manually refresh from the shared Actions menu.
-- Confirm termination and restart actions by default. PID 0, PID 1 and Spotter's own PID are never
-  included.
+- PID 0, PID 1 and Spotter's own PID are never included.
 
 `KillProcessManager` is owned by `AppCore`; `KillProcessEngine` is Foundation-only and tested with a
 fixed `ps` fixture. Its registration maps the manager state into `PluginPaletteSnapshot` rows and

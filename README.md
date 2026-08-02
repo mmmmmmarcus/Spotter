@@ -80,7 +80,8 @@ QuickTime Player, and Image Modification can read Finder's current selection. Ma
 See **[docs/development.md](docs/development.md)** for the toolchain, build, packaging, release,
 and website workflows, **[docs/plugins.md](docs/plugins.md)** for the built-in plugin architecture,
 and **[docs/ui.md](docs/ui.md)** for the UI design system. The repository also ships the
-`$spotter-new-plugin` Codex skill under `.codex/skills/` to scaffold new native plugin modules.
+`$spotter-plugin` Codex skill under `.codex/skills/` for creating, modifying, or removing native
+plugin modules.
 
 ## Contributing
 
