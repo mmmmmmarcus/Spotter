@@ -53,7 +53,8 @@ extension AppCore {
             minimumSize: CGSize(
                 width: Theme.Size.noteWindowMinimumWidth,
                 height: NoteEditorMetrics.windowHeight(
-                    forEditorHeight: NoteEditorMetrics.minimumEditorHeight))
+                    forEditorHeight: NoteEditorMetrics.minimumEditorHeight)),
+            closeButtonOnly: true
         ) {
             NoteView(
                 store: notes,

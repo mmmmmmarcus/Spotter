@@ -202,7 +202,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
     func show<Content: View>(
         id: String, title: String, size: CGSize, seamlessTitleBar: Bool = false,
         resizable: Bool = false, floating: Bool = false, transparent: Bool = false,
-        minimumSize: CGSize? = nil,
+        minimumSize: CGSize? = nil, closeButtonOnly: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         let window: NSWindow
@@ -225,7 +225,8 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             if let minimumSize { window.minSize = minimumSize }
             if transparent {
                 window.isOpaque = false
-                window.backgroundColor = .clear
+                window.backgroundColor = NSColor.black.withAlphaComponent(
+                    Theme.Colors.panelDimming)
                 window.titlebarSeparatorStyle = .none
             }
             if floating {
@@ -237,6 +238,10 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
                 window.titlebarAppearsTransparent = true
                 window.titleVisibility = .hidden
                 window.isMovableByWindowBackground = true
+            }
+            if closeButtonOnly {
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                window.standardWindowButton(.zoomButton)?.isHidden = true
             }
             window.isReleasedWhenClosed = false
             let hosting = NSHostingView(rootView: content())

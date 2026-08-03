@@ -15,7 +15,9 @@ The plugin registers two launcher commands and two independently bindable global
 Both routes call `AppCore.openNotes`, which guards plugin enablement, dismisses the launcher when
 needed and opens the shared `AuxWindowController` workspace. The translucent window opts into
 resizing, `.floating` level and all-Spaces visibility, but the plugin never creates or retains an
-`NSWindow`. The workspace opens as a 440-point-wide editor with four matching continuous corners.
+`NSWindow`. Its surface extends through the seamless title bar so the lone close button remains
+inside the rounded window; minimize and zoom controls are hidden. The workspace opens as a
+440-point-wide editor with four matching continuous corners.
 Its centered toolbar title is derived from the selected note's first line; the right side contains
 only the notes-list and New Note actions. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting

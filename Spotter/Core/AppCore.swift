@@ -310,12 +310,13 @@ final class AppCore: ObservableObject {
     func showPluginWindow<Content: View>(
         id: String, title: String, size: CGSize, resizable: Bool = false,
         floating: Bool = false, transparent: Bool = false, minimumSize: CGSize? = nil,
+        closeButtonOnly: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         auxWindows.show(
             id: "plugin." + id, title: title, size: size, seamlessTitleBar: true,
             resizable: resizable, floating: floating, transparent: transparent,
-            minimumSize: minimumSize
+            minimumSize: minimumSize, closeButtonOnly: closeButtonOnly
         ) {
             content()
                 .environmentObject(self)
