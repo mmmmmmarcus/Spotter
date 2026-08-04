@@ -14,6 +14,8 @@ enum BuiltInPlugins {
             SelectionToolsPlugin.registration(core: core),
             ImageModificationPlugin.registration(core: core),
             QuickTimePlugin.registration(core: core),
+            MolePlugin.registration(core: core),
+            CoffeePlugin.registration(core: core),
         ]
     }
 }

@@ -119,6 +119,10 @@ swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
     Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
 swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
+swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift Tools/mole-test.swift \
+    -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
+swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
+    -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
 swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
     Spotter/Core/HotKey/DoubleTapModifier.swift Tools/hotkey-test.swift \
     -o /tmp/hotkey-test && /tmp/hotkey-test                       # double-tap recognition

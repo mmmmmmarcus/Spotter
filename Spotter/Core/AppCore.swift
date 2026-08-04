@@ -137,7 +137,12 @@ final class AppCore: ObservableObject {
     let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
+    let mole = MoleManager()
+    let coffee = CoffeeManager()
     let updates = UpdateStore()
+
+    /// Which list the Coffee palette screen is showing; set by the command that opened it.
+    var coffeeScreen: CoffeeScreen = .status
 
     private lazy var windowController = PaletteWindowController(core: self)
     private let auxWindows = AuxWindowController()

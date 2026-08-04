@@ -232,9 +232,14 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins.
+- **Mole** (`Spotter/Plugins/Mole/`) — disabled by default; renders `mole status` and
+  `mole history --json` as palette rows and hands the destructive interactive commands to Terminal.
+- **Coffee** (`Spotter/Plugins/Coffee/`) — disabled by default; keeps the Mac awake indefinitely,
+  for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
 - **QuickTime Recording** (`Spotter/Plugins/QuickTime/`) — three on-demand AppleScript actions for
   screen, audio and movie recording; requires Automation only when a command runs.
 
 Detailed internals: [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
-[Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md), and
+[Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md),
+[Mole](mole.md), [Coffee](coffee.md), and
 [Notes](notes.md), plus [Text Replacement](text-replacement.md).

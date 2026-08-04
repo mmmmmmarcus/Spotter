@@ -39,6 +39,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
   permissions survive.
 - **Image modification** — batch-convert, resize, filter, optimize, pad, rotate, remove backgrounds,
   and clear metadata with native macOS frameworks.
+- **Mole** — drive the Mole CLI: system health and cleanup history right in the palette.
+- **Coffee** — keep your Mac awake indefinitely, for a set time, or while an app runs.
 - **QuickTime recording** — start a screen, audio, or movie recording directly from the launcher.
 - **Native plugins** — independently organized, individually enabled feature modules with shared
   settings, permissions, commands and shortcuts, compiled directly into the app for native speed.
