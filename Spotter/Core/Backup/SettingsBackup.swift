@@ -215,6 +215,20 @@ extension SettingsBackup {
 // MARK: - Serialization
 
 extension SettingsBackup {
+    /// Newest format this build can interpret. Older files decode fine (every field is optional), but a newer file could carry semantics this build would silently misapply, so it is rejected instead.
+    static let supportedVersion = 2
+
+    enum DecodeError: LocalizedError {
+        case unsupportedVersion(Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedVersion(let version):
+                return "This backup was written by a newer Spotter (format \(version)); update Spotter to import it."
+            }
+        }
+    }
+
     func encoded() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -222,6 +236,10 @@ extension SettingsBackup {
     }
 
     init(json: Data) throws {
-        self = try JSONDecoder().decode(SettingsBackup.self, from: json)
+        let decoded = try JSONDecoder().decode(SettingsBackup.self, from: json)
+        guard decoded.version <= Self.supportedVersion else {
+            throw DecodeError.unsupportedVersion(decoded.version)
+        }
+        self = decoded
     }
 }

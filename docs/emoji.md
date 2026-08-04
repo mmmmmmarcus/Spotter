@@ -9,7 +9,8 @@ routed through `PluginRegistry`, and disabling it returns an open emoji palette 
 - `Spotter/Plugins/EmojiSymbols/` owns the entire native plugin:
   - `EmojiSymbolsPlugin.swift` — registration, commands, shortcut and lifecycle wiring.
   - `EmojiCatalog.swift` — the catalog model (groups, names, keywords).
-  - `EmojiGridGeometry.swift` — pure grid-layout math (columns, item sizing).
+  - `EmojiGridGeometry.swift` — pure flat-index keyboard navigation math (up/down across ragged
+    sectioned rows); cell sizing lives in `Theme.Size` and `EmojiGridView`.
   - `EmojiData.generated.swift` — the emoji dataset.
   - `EmojiIndex.swift` — search index over the catalog.
   - `FrequentEmojiStore.swift` — persisted most-recently / frequently used emoji.

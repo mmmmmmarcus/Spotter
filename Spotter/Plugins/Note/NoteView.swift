@@ -33,7 +33,7 @@ struct NoteView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.easeOut(duration: 0.14), value: showsNoteList)
+        .animation(.easeOut(duration: Theme.Animation.quick), value: showsNoteList)
         .ignoresSafeArea(edges: .top)
         .background(Color.black.opacity(Theme.Colors.panelDimming))
         .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
@@ -168,7 +168,6 @@ struct NoteView: View {
             }
             .padding(.horizontal, Theme.Spacing.xl)
         }
-        .padding(.top, Theme.Spacing.xxl)
         .frame(height: Theme.Size.noteToolbarHeight)
     }
 

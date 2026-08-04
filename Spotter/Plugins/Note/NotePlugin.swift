@@ -54,7 +54,7 @@ extension AppCore {
                 width: Theme.Size.noteWindowMinimumWidth,
                 height: NoteEditorMetrics.windowHeight(
                     forEditorHeight: NoteEditorMetrics.minimumEditorHeight)),
-            closeButtonOnly: true
+            closeButtonOnly: true, contentExtendsIntoTitleBar: true
         ) {
             NoteView(
                 store: notes,

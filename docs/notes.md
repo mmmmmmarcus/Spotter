@@ -15,15 +15,19 @@ The plugin registers two launcher commands and two independently bindable global
 Both routes call `AppCore.openNotes`, which guards plugin enablement, dismisses the launcher when
 needed and opens the shared `AuxWindowController` workspace. The translucent window opts into
 resizing, `.floating` level and all-Spaces visibility, but the plugin never creates or retains an
-`NSWindow`. Its surface extends through the seamless title bar so the lone close button remains
-inside the rounded window; minimize and zoom controls are hidden. The workspace opens as a
+`NSWindow`. The native window backdrop stays clear while its host neutralizes the title-bar safe-area
+inset, leaving the clipped Note material as the only rounded surface. The surface and toolbar extend
+through one seamless title bar, with the lone close button directly left of the centered note title
+in the same native-height row; minimize and zoom controls are hidden. The workspace opens as a
 440-point-wide editor with four matching continuous corners.
 Its centered toolbar title is derived from the selected note's first line; the right side contains
 only the notes-list and New Note actions. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting
 a row returns to the single-note editor. The shared window owner keeps the top edge anchored while the
 editor grows from three visible lines to a maximum of twenty, after which the native overlay scroller
-takes over.
+takes over. Programmatic height changes interpolate real window frames from the anchored top edge
+instead of asking AppKit to scale a cached window image, so the window does not jump and its corner
+radius stays constant during the transition.
 Disabling the plugin closes the window and flushes the latest in-memory snapshot.
 
 ## Model and persistence

@@ -133,6 +133,7 @@ final class AppCore: ObservableObject {
     let worldClock = WorldClockStore()
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
+    let selectionTools = SelectionToolsManager()
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
 
@@ -184,6 +185,14 @@ final class AppCore: ObservableObject {
         Task { await appIndex.refresh() }
         plugins.start()
         settingsSync.start(core: self)
+
+        // Selection Tools' ⌘C fallback borrows the pasteboard briefly; pause history capture around it so the transient copy and restore never enter clipboard history.
+        selectionTools.suspendClipboardCapture = { [weak self] in
+            self?.clipboardManager.beginSuppressingCapture()
+        }
+        selectionTools.resumeClipboardCapture = { [weak self] in
+            self?.clipboardManager.endSuppressingCapture()
+        }
 
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
         hotKeys.onRunPluginAction = { [weak self] action in self?.plugins.perform(action) }
@@ -310,13 +319,14 @@ final class AppCore: ObservableObject {
     func showPluginWindow<Content: View>(
         id: String, title: String, size: CGSize, resizable: Bool = false,
         floating: Bool = false, transparent: Bool = false, minimumSize: CGSize? = nil,
-        closeButtonOnly: Bool = false,
+        closeButtonOnly: Bool = false, contentExtendsIntoTitleBar: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         auxWindows.show(
             id: "plugin." + id, title: title, size: size, seamlessTitleBar: true,
             resizable: resizable, floating: floating, transparent: transparent,
-            minimumSize: minimumSize, closeButtonOnly: closeButtonOnly
+            minimumSize: minimumSize, closeButtonOnly: closeButtonOnly,
+            contentExtendsIntoTitleBar: contentExtendsIntoTitleBar
         ) {
             content()
                 .environmentObject(self)

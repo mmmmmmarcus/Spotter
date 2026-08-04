@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 
 enum ChangeCaseInputSource: String, CaseIterable, Identifiable {
     case selectedText, clipboard
@@ -45,7 +44,9 @@ final class ChangeCaseStore: ObservableObject {
 
     func loadInput(from app: NSRunningApplication?) {
         let source = ChangeCaseInputSource(rawValue: defaults.string(forKey: "change-case.source") ?? "selectedText") ?? .selectedText
-        let selected = app.flatMap { Self.selectedText(pid: $0.processIdentifier) }
+        let selected = app.flatMap {
+            try? SelectedTextReader.read(pid: $0.processIdentifier).get()
+        }
         let clipboard = NSPasteboard.general.string(forType: .string)
         input = source == .selectedText ? (selected ?? clipboard ?? "") : (clipboard ?? selected ?? "")
     }
@@ -88,17 +89,5 @@ final class ChangeCaseStore: ObservableObject {
     private func persist() {
         defaults.set(pinned.map(\.rawValue).sorted(), forKey: "change-case.pinned")
         defaults.set(recent.map(\.rawValue), forKey: "change-case.recent")
-    }
-
-    private static func selectedText(pid: pid_t) -> String? {
-        let app = AXUIElementCreateApplication(pid)
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-            let focused
-        else { return nil }
-        var selected: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(focused as! AXUIElement, kAXSelectedTextAttribute as CFString, &selected) == .success
-        else { return nil }
-        return selected as? String
     }
 }

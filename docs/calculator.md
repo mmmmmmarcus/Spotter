@@ -11,17 +11,22 @@ the one input it can't compute, the FX rate table, is passed in (see Currency be
 `CalcEngine.evaluate` runs:
 
 1. Natural-language date/time (`CalcDateTime`, e.g. `hrs till 9am`, `days till 9april`,
-   `today + 3 weeks`)
-2. Numeric reject
-3. Tokenize
-4. Complete-prefix evaluation for a trailing binary operator (`10kg +` → `10 kg`)
+   `today + 3 weeks`) — first because `hrs till july` carries no digit
+2. Tokenize
+3. Complete-prefix evaluation for a trailing binary operator (`10kg +` → `10 kg`)
+4. Single-token special cases: a non-decimal radix literal echoes its decimal (`0xff`), a compact
+   number expands (`10k`), any other lone literal stays a search
 5. Base conversion
-6. Explicit unit conversion (`10km to mi`)
+6. Explicit unit conversion (`10km to mi`, and the keyword-less pair form `day s`)
 7. **Typed quantity arithmetic** (`10kg + 500g`, `$10 + €5`, `(1hr + 30min) to s`)
 8. **Currency conversion** (`1 euro to dollars`, `€20 to GBP`)
 9. **Bare-unit auto-conversion** (`1m` → feet + inches, `1hr` → 60 min, via
    `CalcUnits.parseBareConversion` + the `autoTargets` map)
-10. Plain arithmetic
+10. Natural-language percent (`CalcPercent`: `20% off 500`, `50 as % of 200` — `X% of Y` and
+    `Y + X%` need no special path, they fall out of the `of` operator and percent semantics)
+11. Numeric reject — this late so the digit-free conversion forms above still evaluate; it only
+    guards the arithmetic fallback
+12. Plain arithmetic
 
 Date/time depends on the clock, so it takes an injected `now` / `calendar` — the public `evaluate(_:)`
 uses the live clock, and `evaluate(_:now:calendar:)` lets `calc-test.swift` assert exact strings

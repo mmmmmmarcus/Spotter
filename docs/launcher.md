@@ -72,7 +72,7 @@ Plugin command activation routes through the registration's in-process closure; 
 The ranking harness covers prefix learning, frequency/recency scoring, persistence, and both reset
 paths; see the command in `development.md`.
 
-Icons go through a count-capped `NSCache` (`IconCache`).
+Icons go through a byte-capped `NSCache` (`IconCache`, 32 MB, cost = decoded bitmap bytes).
 
 ## Reveal in Finder
 

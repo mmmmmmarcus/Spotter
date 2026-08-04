@@ -35,25 +35,21 @@ Xcode, prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (t
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) — after changing project settings in `project.yml`,
 run `xcodegen generate` and commit the result.
 
-### The dev channel
+### Local builds install as the one Spotter.app
 
-Debug builds are a separate channel: **`Spotter Dev.app`**, bundle id `com.spotter.app.dev`. Since
-every persisted thing is keyed by bundle
-id — `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
+There is no separate dev channel. Debug builds produce **`Spotter.app`**, bundle id
+`com.spotter.app` — the same identity as the installed app — so a rebuild keeps every persisted
+thing, all keyed by bundle id: `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
 `~/Library/Caches/<id>/` (clipboard history, calculator history, exchange rates, frequent emoji),
-`~/Library/Application Support/<id>/` (the onboarding marker and Notes data), the `SMAppService` login item, and the
-Accessibility / Input Monitoring (TCC) grants — a build you run locally can't read or clobber the
-installed app's state, and both can run side-by-side.
+`~/Library/Application Support/<id>/` (the onboarding marker and Notes data), the `SMAppService`
+login item, and the Accessibility / Input Monitoring (TCC) grants (the stable `Spotter Self-Signed`
+identity is what keeps those grants alive across rebuilds).
 
-Consequences worth knowing:
-
-- The dev build asks for Accessibility on its own the first time, and starts with **no** hotkeys bound
-  and onboarding unseen. Grant + bind once; it persists across rebuilds (the fixed build path and the
-  `Spotter Self-Signed` identity keep the TCC grant alive).
-- Don't bind the same global hotkey in both — whichever registered first wins.
-- The Hyper Key's Caps Lock remap is `hidutil` state, which is **system-wide, not per-bundle**:
-  quitting one build clears the remap for the other, which then needs a rebind (or relaunch) to
-  restore it.
+The install contract (see `AGENTS.md`): build into a staging location (e.g.
+`build/LocalInstallDerivedData`), and only after the build and its checks succeed, quit the running
+Spotter, replace the exact `/Applications/Spotter.app`, and relaunch it. Never delete the working
+installed copy before a new build has succeeded. Since old and new builds share one bundle id, they
+cannot run side-by-side — replace, don't fork.
 
 ### Editor (VS Code) code-intelligence
 
@@ -101,6 +97,12 @@ swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
     Tools/kill-process-test.swift -o /tmp/kill-process-test && /tmp/kill-process-test
 swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
     Tools/change-case-test.swift -o /tmp/change-case-test && /tmp/change-case-test
+swiftc -swift-version 6 -framework AppKit -framework NaturalLanguage -framework Translation \
+    Spotter/Plugins/SelectionTools/SelectionToolsTypes.swift \
+    Spotter/Plugins/SelectionTools/SearchURLBuilder.swift \
+    Spotter/Plugins/SelectionTools/TranslationService.swift \
+    Spotter/Plugins/SelectionTools/GrammarService.swift Tools/selection-tools-test.swift \
+    -o /tmp/selection-tools-test && /tmp/selection-tools-test
 swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageIO -framework Vision \
     Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
     Spotter/Plugins/ImageModification/ImageModificationEngine.swift Tools/image-modification-test.swift \
@@ -126,7 +128,10 @@ injects a fixed date, calendar, local time zone and isolated `UserDefaults` suit
 formatting and saved-city checks never depend on the wall clock or the user's preferences.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
-real Foundation-only transformer. Image Modification creates and resizes real temporary pixels through
+real Foundation-only transformer. Selection Tools tests URLComponents encoding, request generations,
+cancellation, pure Translation/grammar response mapping and the local `NSSpellChecker` callback
+without opening a browser or sending text over the network.
+Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory. QuickTime tests only the generated AppleScript
 strings and never opens QuickTime.
 

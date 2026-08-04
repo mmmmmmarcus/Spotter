@@ -5,7 +5,11 @@ constant, dot, header, lower, lower-first, no-case, kebab, upper-kebab, Pascal, 
 random, sentence, snake, alternating, swap, title, upper and upper-first.
 
 The preferred input can be selected text or the clipboard; an empty preferred source falls back to
-the other. Reading selection and pasting use Accessibility only after the user invokes an action.
+the other. Reading selection goes through the shared stateless `SelectedTextReader` (its synchronous
+single-shot path), while pasting uses Accessibility only after the user invokes an action. Change
+Case keeps its explicit clipboard-source fallback; Selection Tools instead layers a guarded ⌘C
+fallback behind Accessibility (see [selection-tools.md](selection-tools.md)).
+The shared reader supports native `AXSelectedText` controls plus Electron/Chromium text-marker ranges.
 Transformations are local and synchronous in the Foundation-only `ChangeCaseEngine`.
 
 The browser offers editable input, filtering, previews, pinned cases, four recent cases and explicit

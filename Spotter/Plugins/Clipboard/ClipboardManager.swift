@@ -19,6 +19,8 @@ final class ClipboardManager {
     private let settings: AppSettings
     private var timer: Timer?
     private var lastChangeCount = 0
+    /// True while Selection Tools' ⌘C fallback transiently owns the pasteboard; polls in that window are marked seen without capturing.
+    private var isSuppressed = false
 
     init(store: ClipboardStore, settings: AppSettings) {
         self.store = store
@@ -45,8 +47,22 @@ final class ClipboardManager {
         timer = nil
     }
 
+    func beginSuppressingCapture() {
+        isSuppressed = true
+    }
+
+    func endSuppressingCapture() {
+        // Sync to the current count so anything written during the window is treated as already seen.
+        lastChangeCount = NSPasteboard.general.changeCount
+        isSuppressed = false
+    }
+
     private func poll() {
         let pb = NSPasteboard.general
+        if isSuppressed {
+            lastChangeCount = pb.changeCount
+            return
+        }
         guard pb.changeCount != lastChangeCount else { return }
         lastChangeCount = pb.changeCount
 

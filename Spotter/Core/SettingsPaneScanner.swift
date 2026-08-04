@@ -12,9 +12,6 @@ enum SettingsPaneScanner {
         "com.apple.HeadphoneSettings": "Headphones",
     ]
 
-    /// Panes that shouldn't appear in the launcher at all (contextual/one-shot panes).
-    private static let skippedBundleIDs: Set<String> = []
-
     /// All Settings panes, sorted by display name.
     nonisolated static func scan() -> [AppEntry] {
         let fm = FileManager.default
@@ -29,7 +26,6 @@ enum SettingsPaneScanner {
                 let info = plist(at: url.appendingPathComponent("Contents/Info.plist")),
                 isSettingsPane(info: info),
                 let bundleID = info["CFBundleIdentifier"] as? String,
-                !skippedBundleIDs.contains(bundleID),
                 let name = displayName(appexURL: url, info: info, bundleID: bundleID)
             else { continue }
             result.append(

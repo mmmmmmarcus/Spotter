@@ -16,6 +16,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let worldClock = PluginID(rawValue: "world-clock")
     static let killProcess = PluginID(rawValue: "kill-process")
     static let changeCase = PluginID(rawValue: "change-case")
+    static let selectionTools = PluginID(rawValue: "selection-tools")
     static let imageModification = PluginID(rawValue: "image-modification")
     static let quickTimeRecording = PluginID(rawValue: "quicktime-recording")
     static let note = PluginID(rawValue: "note")
@@ -133,6 +134,8 @@ struct PluginPaletteItem: Equatable, Identifiable, Sendable {
     let subtitle: String?
     let icon: PluginPaletteIcon
     var accessories: [PluginPaletteAccessory] = []
+    var titleLineLimit: Int? = 1
+    var subtitleLineLimit: Int? = 1
     let primaryActionTitle: String
 }
 
@@ -141,6 +144,7 @@ struct PluginPaletteSnapshot: Equatable, Sendable {
     let sectionTitle: String
     let items: [PluginPaletteItem]
     var isLoading = false
+    var loadingMessage = "Loading…"
     var errorMessage: String?
     let emptyMessage: String
 }

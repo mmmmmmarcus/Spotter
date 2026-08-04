@@ -201,17 +201,25 @@ List-oriented plugins do not use a workspace. Register a palette screen and rend
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
 section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
+Selection Tools is the asynchronous-result reference: loading and failure remain centered shared
+palette states, while successful original/translated/corrected text and grammar issues are ordinary
+`PluginPaletteItem` rows. Result rows may opt out of the default one-line title/subtitle limit so the
+complete selected text remains visible without copying search, scrolling, footer or selection UI.
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the
-owner. It opens as a 440-point editor with four matching continuous corners; the surface fills the
-seamless title bar behind a single native close button, with minimize and zoom hidden. The selected
-first-line title is centered in the chrome, with only notes-list and New Note actions at the right.
+owner. It opens as a 440-point editor with four matching continuous corners; the native backdrop stays
+clear while its host neutralizes the safe-area inset, so the clipped Note material is the only rounded
+surface and fills one seamless title bar behind a single native close button. Minimize and zoom stay
+hidden. The selected first-line title is centered in that same native-height row, directly right of
+the window control, with only notes-list and New Note actions at the right.
 The list appears as an inset material card over the editor, temporarily grows the window vertically,
 and uses selection-over-hover precedence. The overlay-scrolling `NSTextView` presents live Markdown
 and handles common formatting shortcuts, while the shared window owner grows the single-note
 workspace from three visible editor lines to twenty before scrolling. Notes has no separate title
-input, formatting buttons, preview mode or bottom status row; persistence remains automatic.
+input, formatting buttons, preview mode or bottom status row; persistence remains automatic. Height
+changes use short live-frame interpolation from the anchored top edge so SwiftUI redraws the fixed
+panel radius throughout instead of letting AppKit bitmap-scale the rounded surface.
 
 The calculator's inline `CalculatorCard` reuses this card language (`cardFill` + `cardStroke`) rather than the row language, since it's a highlighted answer, not a list item. A value answer is normally a **two-column** layout: a source column (input echo) and a target column (result), separated by a centered `arrow.right` glyph (no divider line). A plugin result may add one companion column; World Clock uses it for the local system time after the requested city's time. Each column optionally carries a word-name **badge pill** beneath its value (`keyCap` font, `controlSurface` fill, `keyCap` radius) — `Expression`→`Result` for scalar arithmetic, unit or currency names for typed results (`Expression`→`Kilograms`), and moment labels for a date/time calc (`12:18 AM`→`9:00 AM`, `Friday, 24 July`→`Friday, 9 April, 2027`). A trailing operator keeps the last complete result and its badge visible while the next operand is being typed.
 

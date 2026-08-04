@@ -11,9 +11,8 @@ builds with the **Xcode 26** toolchain.
   [`docs/signing.md`](docs/signing.md).
 - **Local build destination:** Every non-release build must finish as
   `/Applications/Spotter.app`. Do not maintain or launch a separate `Spotter Dev.app`, and do not
-  distinguish a routine Debug build from the normal locally installed app. Override the generated
-  Debug product name and bundle identifier as needed so the installed result is `Spotter.app` /
-  `com.spotter.app`.
+  distinguish a routine Debug build from the normal locally installed app. `project.yml` already
+  builds Debug as `Spotter.app` / `com.spotter.app`; keep it that way.
 - **Replace and relaunch after every successful build.** Build into a staging/DerivedData location
   first. Only after the new app has built and passed its required checks, quit the running Spotter,
   delete the exact old `/Applications/Spotter.app`, copy the new app into `/Applications`, and launch
@@ -21,8 +20,7 @@ builds with the **Xcode 26** toolchain.
   succeeds, and never target anything broader than the exact Spotter app bundle.
 - **Release is the only exception.** When the user explicitly requests a Release build, follow the
   documented release/signing/DMG workflow and preserve its requested channel, product name, bundle
-  identifier, output location, and launch behavior. Otherwise, the local-build contract above wins
-  over the repository's older Debug-channel documentation and configuration defaults.
+  identifier, output location, and launch behavior.
 - Anything newly persisted must stay keyed by `Bundle.main.bundleIdentifier`.
 - **Tests:** no XCTest target — standalone `swiftc` harnesses in `Tools/` (see Critical Invariants and
   `docs/development.md`).
@@ -82,7 +80,9 @@ Never break these without an explicit task to do so.
   `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar/
   local time zone while `Plugins/WorldClock/WorldClockStore.swift` stays Foundation + Combine,
   `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
-  Foundation-only and pure, `Plugins/TextReplacement/TextReplacementEngine.swift` stays
+  Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift` and
+  `Plugins/SelectionTools/SearchURLBuilder.swift` stay Foundation-only and pure,
+  `Plugins/TextReplacement/TextReplacementEngine.swift` stays
   Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
   Foundation + Combine, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
   `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`, and

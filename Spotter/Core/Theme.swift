@@ -2,6 +2,10 @@ import SwiftUI
 
 /// Central design tokens for the palette UI (dark design system per `docs/ui.md`; the app forces `.darkAqua`, so colors are literal white/black alphas).
 enum Theme {
+    enum Animation {
+        static let quick: TimeInterval = 0.14
+    }
+
     enum Spacing {
         static let xxs: CGFloat = 2
         static let xs: CGFloat = 4
@@ -64,8 +68,8 @@ enum Theme {
         static let noteWindowWidth: CGFloat = 440
         static let noteWindowMinimumWidth: CGFloat = 360
         static let noteListWindowHeight: CGFloat = 500
-        static let noteListTopInset: CGFloat = 116
-        static let noteToolbarHeight: CGFloat = 64
+        static let noteListTopInset: CGFloat = 84
+        static let noteToolbarHeight: CGFloat = 32
         static let noteToolbarTitleInset: CGFloat = 112
         /// Little state indicator dot next to a settings row title (Hyper Key active/needs-permission).
         static let statusDot: CGFloat = 6

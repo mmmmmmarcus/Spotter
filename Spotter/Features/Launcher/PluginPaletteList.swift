@@ -13,24 +13,20 @@ struct PluginPaletteList: View {
         selectedID != nil && selectedID == items.first?.id
     }
 
+    // Multi-line result rows (Selection Tools) have heights a LazyVStack can only estimate, which makes `.follow` reveals land short; small lists render eagerly so every offset is exact. Large lists (Kill Process) are single-line fixed-height rows where estimation is safe and laziness matters.
+    private var rendersEagerly: Bool {
+        items.count <= 40
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    SectionHeader(title: sectionTitle, isFirst: true)
-                    ForEach(items) { item in
-                        PluginPaletteRow(item: item, selected: item.id == selectedID)
-                            .id(item.id)
-                            .contentShape(Rectangle())
-                            .onTapGesture { onActivate(item) }
-                            .onRightClick { onActions(item) }
-                    }
-                }
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, Theme.Spacing.xs)
-                .padding(.bottom, Theme.Spacing.md)
-                .hideNativeScrollers()
-                .scrollOriginAnchor()
+                rows
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.top, Theme.Spacing.xs)
+                    .padding(.bottom, Theme.Spacing.md)
+                    .hideNativeScrollers()
+                    .scrollOriginAnchor()
             }
             .edgeDissolve()
             .thinScrollbar()
@@ -46,6 +42,27 @@ struct PluginPaletteList: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        if rendersEagerly {
+            VStack(spacing: 0) { rowContent }
+        } else {
+            LazyVStack(spacing: 0) { rowContent }
+        }
+    }
+
+    @ViewBuilder
+    private var rowContent: some View {
+        SectionHeader(title: sectionTitle, isFirst: true)
+        ForEach(items) { item in
+            PluginPaletteRow(item: item, selected: item.id == selectedID)
+                .id(item.id)
+                .contentShape(Rectangle())
+                .onTapGesture { onActivate(item) }
+                .onRightClick { onActions(item) }
         }
     }
 }
@@ -68,12 +85,14 @@ private struct PluginPaletteRow: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(item.title)
                     .font(Theme.Typography.rowTitle)
-                    .lineLimit(1)
+                    .lineLimit(item.titleLineLimit)
+                    .multilineTextAlignment(.leading)
                 if let subtitle = item.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(item.subtitleLineLimit)
+                        .multilineTextAlignment(.leading)
                 }
             }
             Spacer(minLength: Theme.Spacing.xl)

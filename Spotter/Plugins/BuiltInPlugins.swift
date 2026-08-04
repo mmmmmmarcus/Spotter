@@ -11,6 +11,7 @@ enum BuiltInPlugins {
             WorldClockPlugin.registration(core: core),
             KillProcessPlugin.registration(core: core),
             ChangeCasePlugin.registration(core: core),
+            SelectionToolsPlugin.registration(core: core),
             ImageModificationPlugin.registration(core: core),
             QuickTimePlugin.registration(core: core),
         ]

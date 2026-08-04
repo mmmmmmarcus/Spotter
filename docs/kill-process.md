@@ -12,7 +12,10 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
 - Optionally group helpers that share an outer `.app` bundle and aggregate their CPU/memory totals.
 - Terminate with `SIGTERM`, force-terminate with `SIGKILL`, restart an app/binary, or target every
   process with the same executable name. A force action retries permission-denied targets through the
-  standard macOS administrator prompt.
+  standard macOS administrator prompt (`osascript … with administrator privileges`). That prompt is
+  per-action credential entry, not a TCC grant, so Kill Process deliberately declares no
+  `PluginPermission` and does not appear in System → Permissions; the Settings pane carries a callout
+  instead.
 - Process actions execute immediately without a confirmation dialog. After completion the palette
   stays open and refreshes its process results in place.
 - Copy an executable path or manually refresh from the shared Actions menu.

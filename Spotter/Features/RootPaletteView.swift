@@ -238,14 +238,31 @@ struct RootPaletteView: View {
             inlineActionTitle: inlineActionTitle)
         let showActionGroup = count > 0 && !(inlineSelected && inlineActionTitle == nil)
 
+        let layout = paletteLayout(
+            apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
+            plugin: plugin, selection: sel, favoriteCount: favoriteCount,
+            showSections: showSections, pillLabel: pillLabel,
+            showActionGroup: showActionGroup
+        )
+        let statefulLayout = paletteWithStateHandlers(
+            layout, clips: clips, clipFollow: clipFollow)
+        return paletteWithKeyHandlers(statefulLayout)
+    }
+
+    private func paletteLayout(
+        apps: [AppEntry], clips: [ClipboardItem], hist: [CalcHistoryEntry],
+        emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
+        plugin: PluginPaletteSnapshot?, selection: Int, favoriteCount: Int,
+        showSections: Bool, pillLabel: String, showActionGroup: Bool
+    ) -> some View {
         // The `header` (and its single search field) is always attached in the same position via safeAreaInset so its focus survives the compact↔expanded swap — only the results below it toggle. Collapsed shows the bar alone; expanded floats header + action bar over the list with edge-dissolve (see docs/ui.md).
-        return Group {
+        Group {
             if isCollapsed {
                 Color.clear
             } else {
                 content(
                     apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
-                    plugin: plugin, selection: sel, favoriteCount: favoriteCount,
+                    plugin: plugin, selection: selection, favoriteCount: favoriteCount,
                     showSections: showSections
                 )
             }
@@ -290,6 +307,12 @@ struct RootPaletteView: View {
         .background(Color.black.opacity(Theme.Colors.panelDimming))
         .background(VisualEffectView())
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
+    }
+
+    private func paletteWithStateHandlers<Content: View>(
+        _ content: Content, clips: [ClipboardItem], clipFollow: ClipFollowKey
+    ) -> some View {
+        content
         // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up).
         .onChange(of: vm.focusToken) {
             searchFocused = true
@@ -340,6 +363,10 @@ struct RootPaletteView: View {
         .onAppear { searchFocused = true }
         // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
         .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
+    }
+
+    private func paletteWithKeyHandlers<Content: View>(_ content: Content) -> some View {
+        content
         // ⌘1–⌘5 launch the compact bar's favorite slots (or expand, for the "…" overflow slot).
         .onKeyPress(keys: ["1", "2", "3", "4", "5"], phases: .down) { press in
             guard isCollapsed, settings.showFavoritesInCompactMode,
@@ -665,7 +692,7 @@ struct RootPaletteView: View {
             if let error = plugin?.errorMessage {
                 EmptyResults(text: error)
             } else if plugin?.isLoading == true, plugin?.items.isEmpty == true {
-                EmptyResults(text: "Loading…")
+                EmptyResults(text: plugin?.loadingMessage ?? "Loading…")
             } else if let plugin, plugin.items.isEmpty {
                 EmptyResults(text: plugin.emptyMessage)
             } else if let plugin {
@@ -783,7 +810,7 @@ struct RootPaletteView: View {
 
     /// Inset of the menu panels from the window's bottom corners, kept just inside the rounded corner so the menu's own corner isn't clipped.
     private static let menuInset: CGFloat = 8
-    private static let menuAnimation: Animation = .easeOut(duration: 0.14)
+    private static let menuAnimation: Animation = .easeOut(duration: Theme.Animation.quick)
 
     private static func menuTransition(_ anchor: UnitPoint) -> AnyTransition {
         .opacity.combined(with: .scale(scale: 0.96, anchor: anchor))

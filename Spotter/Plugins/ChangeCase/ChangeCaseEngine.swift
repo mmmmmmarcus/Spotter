@@ -75,8 +75,8 @@ enum ChangeCaseEngine {
         if kind == .lowerFirst { return changeFirst(input, upper: false) }
         if kind == .upperFirst { return changeFirst(input, upper: true) }
 
-        let preservesOriginal = kind == .swap || kind == .alternating || kind == .random
-            || kind == .lowerFirst || kind == .upperFirst
+        // Only these two reach here with per-character casing of their own; the other casing-preserving kinds returned above.
+        let preservesOriginal = kind == .alternating || kind == .random
         let source = options.preserveCase || preservesOriginal ? input : input.lowercased()
         let edges = retainedEdges(source, options: options)
         let tokens = words(edges.body)
@@ -106,7 +106,7 @@ enum ChangeCaseEngine {
         case .path:
             transformed = tokens.map { $0.lowercased() }.joined(separator: "/")
         case .random:
-            transformed = tokens.joined(separator: " ").enumerated().map { index, character in
+            transformed = tokens.joined(separator: " ").map { character in
                 Bool.random() ? String(character).uppercased() : String(character).lowercased()
             }.joined()
         case .sentence:
@@ -120,6 +120,7 @@ enum ChangeCaseEngine {
         case .title:
             transformed = title(tokens, exceptions: options.exceptions)
         case .lower, .lowerFirst, .swap, .upper, .upperFirst:
+            // Unreachable — these returned before tokenization; the arm exists only for exhaustiveness.
             transformed = input
         }
         return edges.prefix + transformed + edges.suffix

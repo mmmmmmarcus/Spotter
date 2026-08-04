@@ -12,7 +12,8 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`,
 `CurrencyRateStore`, `RunningAppsMonitor`, `WorldClockStore`, `KillProcessManager`, `ChangeCaseStore`,
-`ImageModificationManager`, `TextReplacementStore`, `TextReplacementManager`, `NoteStore`,
+`SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
+`TextReplacementManager`, `NoteStore`,
 `SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry` — plus the window
 controllers. The registry owns capability registrations, not feature managers: registration closures
@@ -58,6 +59,8 @@ imperatively from AppKit.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
+  Selection Tools uses this route for asynchronous on-device translation and grammar states after it
+  snapshots the frontmost app's Accessibility selection, before Spotter activates.
 
 The app forces `.darkAqua` appearance globally; the Liquid Glass material is tuned for a dark surface
 only.

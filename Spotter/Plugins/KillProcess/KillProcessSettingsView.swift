@@ -14,11 +14,15 @@ struct KillProcessSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "Kill Process",
-            subtitle: "Inspect and terminate running processes without background polling."
+            subtitle: "Inspect and terminate running processes; refreshes only while its palette is open."
         ) {
             SettingsCard(header: "Plugin") {
                 toggleRow("Kill Process", "List processes by CPU or memory usage.", "xmark.octagon", pluginsEnabled)
             }
+            SettingsCallout(
+                title: "Administrator prompt",
+                message: "Force-terminating a process Spotter may not signal asks for administrator credentials through the standard macOS prompt. Nothing runs elevated without that per-action approval.",
+                systemImage: "lock.shield")
             SettingsCard(header: "Process List") {
                 SettingsRow(
                     title: "Sort By", subtitle: "Order the process results in the palette.",

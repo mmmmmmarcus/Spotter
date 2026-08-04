@@ -196,6 +196,8 @@ private struct AboutLinkRow: View {
 @MainActor
 final class AuxWindowController: NSObject, NSWindowDelegate {
     private var windows: [String: NSWindow] = [:]
+    private var resizeAnimations: [String: Task<Void, Never>] = [:]
+    private var resizeAnimationTokens: [String: UUID] = [:]
 
     /// Returns `true` when a new window was created, `false` when an existing one was re-raised.
     @discardableResult
@@ -203,6 +205,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         id: String, title: String, size: CGSize, seamlessTitleBar: Bool = false,
         resizable: Bool = false, floating: Bool = false, transparent: Bool = false,
         minimumSize: CGSize? = nil, closeButtonOnly: Bool = false,
+        contentExtendsIntoTitleBar: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         let window: NSWindow
@@ -225,8 +228,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             if let minimumSize { window.minSize = minimumSize }
             if transparent {
                 window.isOpaque = false
-                window.backgroundColor = NSColor.black.withAlphaComponent(
-                    Theme.Colors.panelDimming)
+                window.backgroundColor = .clear
                 window.titlebarSeparatorStyle = .none
             }
             if floating {
@@ -244,7 +246,13 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
                 window.standardWindowButton(.zoomButton)?.isHidden = true
             }
             window.isReleasedWhenClosed = false
-            let hosting = NSHostingView(rootView: content())
+            let rootView = content()
+            let hosting: NSHostingView<Content>
+            if contentExtendsIntoTitleBar {
+                hosting = FullWindowHostingView(rootView: rootView)
+            } else {
+                hosting = NSHostingView(rootView: rootView)
+            }
             // Let the window keep its requested size instead of resizing to the SwiftUI fitting size (an unconstrained fill would otherwise blow the window up); the content fills the fixed frame.
             hosting.sizingOptions = []
             window.contentView = hosting
@@ -268,12 +276,42 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         guard let window = windows[id], requestedHeight.isFinite else { return }
         let screenLimit = window.screen?.visibleFrame.height ?? requestedHeight
         let height = min(max(requestedHeight, window.minSize.height), screenLimit)
+        resizeAnimations[id]?.cancel()
+        resizeAnimationTokens[id] = nil
         guard abs(window.frame.height - height) > 0.5 else { return }
-        var frame = window.frame
-        let top = frame.maxY
-        frame.size.height = height
-        frame.origin.y = top - height
-        window.setFrame(frame, display: true, animate: animated)
+
+        let startFrame = window.frame
+        var targetFrame = startFrame
+        targetFrame.size.height = height
+        targetFrame.origin.y = startFrame.maxY - height
+        guard animated, !window.inLiveResize else {
+            window.setFrame(targetFrame, display: true)
+            return
+        }
+
+        let token = UUID()
+        resizeAnimationTokens[id] = token
+        resizeAnimations[id] = Task { @MainActor [weak self, weak window] in
+            guard let self, let window else { return }
+            let startTime = ProcessInfo.processInfo.systemUptime
+            while !Task.isCancelled {
+                let elapsed = ProcessInfo.processInfo.systemUptime - startTime
+                let progress = min(elapsed / Theme.Animation.quick, 1)
+                let easedProgress = 1 - pow(1 - progress, 3)
+                var frame = startFrame
+                frame.size.height += (targetFrame.height - startFrame.height) * easedProgress
+                frame.origin.y = startFrame.maxY - frame.height
+                window.setFrame(frame, display: true)
+                if progress >= 1 { break }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+            guard !Task.isCancelled else { return }
+            window.setFrame(targetFrame, display: true)
+            if self.resizeAnimationTokens[id] == token {
+                self.resizeAnimations[id] = nil
+                self.resizeAnimationTokens[id] = nil
+            }
+        }
     }
 
     /// Re-focus an open aux window on reopen (Dock-icon click); returns false when none is open. `windows` only holds live windows (`windowWillClose` prunes them).
@@ -296,7 +334,15 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         guard let window = notification.object as? NSWindow,
             let id = windows.first(where: { $0.value === window })?.key
         else { return }
+        resizeAnimations[id]?.cancel()
+        resizeAnimations[id] = nil
+        resizeAnimationTokens[id] = nil
         windows.removeValue(forKey: id)
         if windows.isEmpty { NSApp.setActivationPolicy(.accessory) }
     }
+}
+
+private final class FullWindowHostingView<Content: View>: NSHostingView<Content> {
+    override var safeAreaInsets: NSEdgeInsets { NSEdgeInsets() }
+    override var safeAreaRect: NSRect { bounds }
 }
