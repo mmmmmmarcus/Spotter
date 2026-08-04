@@ -235,6 +235,8 @@ struct GeneralSettingsView: View {
                         .controlSize(.small)
                 }
             }
+
+            OpenRouterSettingsCard()
         }
         .confirmationDialog(
             "Reset learned launcher ranking?",
@@ -248,5 +250,150 @@ struct GeneralSettingsView: View {
         } message: {
             Text("Spotter will relearn your preferred results as you use the launcher.")
         }
+    }
+}
+
+/// OpenRouter credential + consent card. The key/model sync through settings backups; the enable
+/// flag lives on `OpenRouterStore` and never syncs, so an imported file cannot grant network access.
+private struct OpenRouterSettingsCard: View {
+    @ObservedObject private var store = AppCore.shared.openRouter
+    @State private var keyDraft = AppCore.shared.openRouter.apiKey
+    @State private var modelDraft = AppCore.shared.openRouter.model
+    @State private var askingConsent = false
+
+    var body: some View {
+        SettingsCard(header: "AI (OpenRouter)") {
+            SettingsRow(
+                title: "AI Translate & Grammar",
+                subtitle: aiStatus,
+                systemImage: "sparkle",
+                tint: .purple,
+                statusDot: store.isReady ? .green : nil
+            ) {
+                Toggle("", isOn: enabledBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            SettingsDivider()
+            SettingsRow(
+                title: "API Key",
+                subtitle: keySubtitle,
+                systemImage: "key",
+                tint: .purple
+            ) {
+                HStack(spacing: Theme.Spacing.md) {
+                    SecureField("sk-or-…", text: $keyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                        .onSubmit { store.setAPIKey(keyDraft) }
+                        .onChange(of: keyDraft) { store.setAPIKey(keyDraft) }
+                    Button("Validate") {
+                        Task { await store.validate() }
+                    }
+                    .controlSize(.small)
+                    .disabled(keyDraft.isEmpty || store.validation == .checking)
+                }
+            }
+            SettingsDivider()
+            SettingsRow(
+                title: "Model",
+                subtitle: "Any OpenRouter model id, e.g. \(OpenRouterStore.defaultModel).",
+                systemImage: "cpu",
+                tint: .purple
+            ) {
+                TextField(OpenRouterStore.defaultModel, text: $modelDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 220)
+                    .onSubmit { store.setModel(modelDraft) }
+                    .onChange(of: modelDraft) { store.setModel(modelDraft) }
+            }
+        }
+        .sheet(isPresented: $askingConsent) {
+            OpenRouterConsentSheet(
+                onCancel: { askingConsent = false },
+                onAccept: {
+                    askingConsent = false
+                    store.setEnabled(true)
+                })
+        }
+        // The key/model can change underneath this pane (settings sync applying a remote file).
+        .onChange(of: store.apiKey) { if store.apiKey != keyDraft { keyDraft = store.apiKey } }
+        .onChange(of: store.model) { if store.model != modelDraft { modelDraft = store.model } }
+    }
+
+    private var enabledBinding: Binding<Bool> {
+        Binding(
+            get: { store.isEnabled },
+            set: { enabled in
+                if enabled {
+                    askingConsent = true
+                } else {
+                    store.setEnabled(false)
+                }
+            })
+    }
+
+    private var aiStatus: String {
+        guard store.isEnabled else {
+            return "Translate and fix grammar with an AI model. Off — no service is contacted."
+        }
+        guard !store.apiKey.isEmpty else {
+            return "On, but no API key is set — Selection Tools falls back to on-device services."
+        }
+        return "Selection Tools translates and checks grammar through \(OpenRouterStore.provider)."
+    }
+
+    private var keySubtitle: String {
+        switch store.validation {
+        case .unknown: "Stored on this Mac and included in settings backups and sync."
+        case .checking: "Checking key with \(OpenRouterStore.provider)…"
+        case .valid(let detail): detail
+        case .invalid(let message): message
+        }
+    }
+}
+
+private struct OpenRouterConsentSheet: View {
+    let onCancel: () -> Void
+    let onAccept: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            HStack(spacing: Theme.Spacing.lg) {
+                Image(systemName: "network")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(.purple)
+                Text("Turn on AI translate & grammar?")
+                    .font(.headline)
+            }
+
+            Text(
+                "When you run Translate or Check Grammar, Spotter sends the selected text and your "
+                    + "instructions to \(OpenRouterStore.provider) using your API key, and your "
+                    + "chosen model answers. Nothing is sent at any other time, and nothing is "
+                    + "sent while this is off."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: Theme.Spacing.lg) {
+                Link(destination: OpenRouterStore.providerURL) {
+                    HStack(spacing: Theme.Spacing.xs) {
+                        Text(OpenRouterStore.providerURL.host() ?? "Provider")
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .font(.callout)
+                }
+                Spacer()
+                Button("Not Now", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Enable", action: onAccept)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(Theme.Spacing.xxl)
+        .frame(width: 420)
     }
 }

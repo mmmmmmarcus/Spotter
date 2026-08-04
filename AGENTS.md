@@ -80,8 +80,9 @@ Never break these without an explicit task to do so.
   `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar/
   local time zone while `Plugins/WorldClock/WorldClockStore.swift` stays Foundation + Combine,
   `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
-  Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift` and
-  `Plugins/SelectionTools/SearchURLBuilder.swift` stay Foundation-only and pure,
+  Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift`,
+  `Plugins/SelectionTools/SearchURLBuilder.swift` and `Plugins/SelectionTools/SelectionLLM.swift`
+  stay Foundation-only and pure,
   `Plugins/TextReplacement/TextReplacementEngine.swift` stays
   Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
   Foundation + Combine, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
@@ -116,7 +117,9 @@ Never break these without an explicit task to do so.
   **cacheless** `URLSession` (`.ephemeral`, `urlCache = nil`), never `URLSession.shared` — a cacheable
   response would leave a second copy in the on-disk `URLCache` that opting out doesn't delete.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
-  rather than inventing a second shape.
+  rather than inventing a second shape. `Core/OpenRouterStore.swift` follows the same shape for
+  LLM-backed features; its API key and model sync through `SettingsBackup`, but its consent flag
+  never does.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See

@@ -100,6 +100,7 @@ swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
 swiftc -swift-version 6 -framework AppKit -framework NaturalLanguage -framework Translation \
     Spotter/Plugins/SelectionTools/SelectionToolsTypes.swift \
     Spotter/Plugins/SelectionTools/SearchURLBuilder.swift \
+    Spotter/Plugins/SelectionTools/SelectionLLM.swift \
     Spotter/Plugins/SelectionTools/TranslationService.swift \
     Spotter/Plugins/SelectionTools/GrammarService.swift Tools/selection-tools-test.swift \
     -o /tmp/selection-tools-test && /tmp/selection-tools-test

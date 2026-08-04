@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0072EF62189516843C0F4FF7 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D143CDE86259528CFC5F56 /* Theme.swift */; };
+		02B318301CF9CD176CDEE199 /* SelectionLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877179DBE39808E47E948AD4 /* SelectionLLM.swift */; };
 		04360F63BDEE30C1925F805B /* ImageModificationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57737D17272961EF0A264675 /* ImageModificationPlugin.swift */; };
 		04BD0C95C5A98DB1E9B4122D /* CurrencyConversionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6919806BEBF9D1E830E9E0A /* CurrencyConversionSettingsView.swift */; };
 		0527FC6AB7CD093420A9CEA3 /* SelectionToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */; };
@@ -16,6 +17,7 @@
 		084DC68B54BF150103E64881 /* ScrollIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86BA65B8DEE192723E55849 /* ScrollIntent.swift */; };
 		08696DF02787925B23E4DB9C /* AppCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B578FB7AD0ACF30B9EBC161E /* AppCore.swift */; };
 		09C2DF48D078FE99A0B504D4 /* ClipboardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 046C81A9351D9CF343F8FCFB /* ClipboardStore.swift */; };
+		09D7C3E54EA2A8DF27E88D4C /* OpenRouterSelectionServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F7DC774DDDB3BFA17677B3 /* OpenRouterSelectionServices.swift */; };
 		0AC2999B2C9745BB543AC53D /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F924F6B10442AE67F8405D7 /* SettingsComponents.swift */; };
 		0AD63C7BDA2187F30A003DC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 183A61AFFD4D20BA651DBEDF /* Assets.xcassets */; };
 		0C0140615CF003D101DEA93D /* ChangeCaseSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B5534165D6477C68E4E8B63 /* ChangeCaseSettingsView.swift */; };
@@ -53,6 +55,7 @@
 		4B9A141BD0E6B6B6AE7729EC /* VisibilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB3757FA662D508E113F837 /* VisibilityStore.swift */; };
 		4D893C74BF3716AD2A9FEC20 /* FrequentEmojiStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F8D9F0596067673B16F9B3 /* FrequentEmojiStore.swift */; };
 		4E39EFF4E39EFA257308DF9B /* icon.json in Resources */ = {isa = PBXBuildFile; fileRef = 7ADD7544E118DDFB0CC67E3A /* icon.json */; };
+		5C481321CB0146474462D5F0 /* OpenRouterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9D78AFD2E35C90F7FAB933 /* OpenRouterStore.swift */; };
 		5F5F4190161FA6569021181C /* EmojiIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B017FD6AEF925DB962DFB5C /* EmojiIndex.swift */; };
 		61D1312CDF6F88E027BFDD8B /* AppIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = B106F55A48529154846D232B /* AppIndex.swift */; };
 		64B05A63190110CCC027E700 /* ImageModificationTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */; };
@@ -195,10 +198,12 @@
 		5BF93553A01C5315C277F8A5 /* SearchURLBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchURLBuilder.swift; sourceTree = "<group>"; };
 		6132946DCF8B0D3F85FF34D0 /* NoteSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSettingsView.swift; sourceTree = "<group>"; };
 		61C32AF22CFC7346E6A56F33 /* CustomCommandsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommandsSettingsView.swift; sourceTree = "<group>"; };
+		65F7DC774DDDB3BFA17677B3 /* OpenRouterSelectionServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterSelectionServices.swift; sourceTree = "<group>"; };
 		669FECA0B11D71E765DC0F0D /* NotificationToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationToken.swift; sourceTree = "<group>"; };
 		6AC7A287D22028FC616E9A44 /* VisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectView.swift; sourceTree = "<group>"; };
 		6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotterApp.swift; sourceTree = "<group>"; };
 		6CC5F2AA5E4C20EC212A2749 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		6E9D78AFD2E35C90F7FAB933 /* OpenRouterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterStore.swift; sourceTree = "<group>"; };
 		6EDE23FAB52E117850F81D38 /* SearchScopes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScopes.swift; sourceTree = "<group>"; };
 		7008824D3AF5652511CB555E /* PalettePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PalettePanel.swift; sourceTree = "<group>"; };
 		735F2643F7896C0AFB92D614 /* KillProcessSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KillProcessSettingsView.swift; sourceTree = "<group>"; };
@@ -213,6 +218,7 @@
 		80E4DF7799638EECF937F60F /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageModificationTypes.swift; sourceTree = "<group>"; };
 		86AB7F80FD918C4318C2DB52 /* ChangeCaseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCaseEngine.swift; sourceTree = "<group>"; };
+		877179DBE39808E47E948AD4 /* SelectionLLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionLLM.swift; sourceTree = "<group>"; };
 		8D580827F82667E578C1D827 /* WorldClockEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockEngine.swift; sourceTree = "<group>"; };
 		8EFDA506189C9DCA0F620DB2 /* TextReplacementSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementSettingsView.swift; sourceTree = "<group>"; };
 		8F1644996CA8B7491C5F3B09 /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
@@ -526,8 +532,10 @@
 			isa = PBXGroup;
 			children = (
 				BBBA5AB69D41CDC0BC08217C /* GrammarService.swift */,
+				65F7DC774DDDB3BFA17677B3 /* OpenRouterSelectionServices.swift */,
 				5BF93553A01C5315C277F8A5 /* SearchURLBuilder.swift */,
 				2DFE867027E0971823712259 /* SelectionCopyCapture.swift */,
+				877179DBE39808E47E948AD4 /* SelectionLLM.swift */,
 				CBC9C7B1C931032E7A8857D7 /* SelectionToolsManager.swift */,
 				A0A385D1DE1C72BBE9C9892E /* SelectionToolsPlugin.swift */,
 				9FCD067CF03771680ED94C60 /* SelectionToolsResults.swift */,
@@ -580,6 +588,7 @@
 				0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */,
 				669FECA0B11D71E765DC0F0D /* NotificationToken.swift */,
 				7B2B1D180CB11167DFD22ECF /* OnboardingState.swift */,
+				6E9D78AFD2E35C90F7FAB933 /* OpenRouterStore.swift */,
 				2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */,
 				7008824D3AF5652511CB555E /* PalettePanel.swift */,
 				0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */,
@@ -805,6 +814,8 @@
 				31BAEAEA3C34CE65BF4F0518 /* NotificationToken.swift in Sources */,
 				D772C9006C6B07197B04ECCD /* OnboardingState.swift in Sources */,
 				8500ED4873E0F1311E596B98 /* OnboardingView.swift in Sources */,
+				09D7C3E54EA2A8DF27E88D4C /* OpenRouterSelectionServices.swift in Sources */,
+				5C481321CB0146474462D5F0 /* OpenRouterStore.swift in Sources */,
 				B975478C37367538F86BCED9 /* OverlayScroller.swift in Sources */,
 				D1407E0293929CCBB47C64F9 /* PalettePanel.swift in Sources */,
 				2B4F9D37E9833D15ACD74ECF /* PaletteWindowController.swift in Sources */,
@@ -830,6 +841,7 @@
 				241CB5E964B391FAEF748B83 /* SearchURLBuilder.swift in Sources */,
 				E3B2E5B534B15C2A836D6213 /* SelectedTextReader.swift in Sources */,
 				D0E71DD68277ACCBAD585137 /* SelectionCopyCapture.swift in Sources */,
+				02B318301CF9CD176CDEE199 /* SelectionLLM.swift in Sources */,
 				6BCD0BBDFF479DB1510AC4C2 /* SelectionToolsManager.swift in Sources */,
 				189C24F0A10D6480C64AEE6D /* SelectionToolsPlugin.swift in Sources */,
 				B0C094B6F69225388968BF06 /* SelectionToolsResults.swift in Sources */,

@@ -210,7 +210,7 @@ private extension SelectionToolsFailure {
         case .accessibilityDenied, .focusedControlUnavailable, .selectedTextUnavailable,
             .emptySelection, .invalidSearchURL, .browserOpenFailed,
             .sourceLanguageUnknown, .translationLanguagesNotInstalled, .translationUnavailable,
-            .grammarUnavailable, .cancelled:
+            .grammarUnavailable, .llmRequestFailed, .cancelled:
             false
         }
     }

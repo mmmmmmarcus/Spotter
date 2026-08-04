@@ -27,6 +27,9 @@ struct SettingsBackup: Codable {
         var showFavoritesInCompactMode: Bool?
         var searchScopes: [String]?
         var openOnCursorScreen: Bool?
+        // Credential and model only — the OpenRouter consent flag stays on `OpenRouterStore` and is deliberately never exported, so importing a file cannot grant network access.
+        var openRouterAPIKey: String?
+        var openRouterModel: String?
     }
 
     struct HotkeyBackup: Codable {
@@ -71,7 +74,9 @@ extension SettingsBackup {
             compactMode: s.compactMode,
             showFavoritesInCompactMode: s.showFavoritesInCompactMode,
             searchScopes: s.searchScopes,
-            openOnCursorScreen: s.openOnCursorScreen)
+            openOnCursorScreen: s.openOnCursorScreen,
+            openRouterAPIKey: core.openRouter.apiKey.isEmpty ? nil : core.openRouter.apiKey,
+            openRouterModel: core.openRouter.model)
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -183,6 +188,14 @@ extension SettingsBackup {
         }
         if let flag = s.openOnCursorScreen {
             settings.openOnCursorScreen = flag
+            count += 1
+        }
+        if let key = s.openRouterAPIKey {
+            core.openRouter.setAPIKey(key)
+            count += 1
+        }
+        if let model = s.openRouterModel {
+            core.openRouter.setModel(model)
             count += 1
         }
         return count

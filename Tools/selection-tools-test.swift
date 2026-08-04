@@ -93,6 +93,51 @@ struct SelectionToolsTests {
             print("FAIL  system grammar callback returns safely: \(error)")
         }
 
+        check(
+            "LLM target is the first preferred language",
+            SelectionLLM.targetLanguage(preferred: ["zh-Hans-CN", "en-US"], detectedSource: "en") == "zh")
+        check(
+            "LLM target skips the source language",
+            SelectionLLM.targetLanguage(preferred: ["zh-Hans-CN", "en-US"], detectedSource: "zh") == "en")
+        check(
+            "LLM target falls back to English",
+            SelectionLLM.targetLanguage(preferred: ["fr-FR"], detectedSource: "fr") == "en")
+        check(
+            "LLM target defaults to English with no preferences",
+            SelectionLLM.targetLanguage(preferred: [], detectedSource: "de") == "en")
+        check(
+            "LLM English-only stays English",
+            SelectionLLM.targetLanguage(preferred: ["en-US"], detectedSource: "en") == "en")
+
+        check(
+            "LLM translation prompt names the target",
+            SelectionLLM.translationSystemPrompt(targetLanguageName: "French").contains("French"))
+        check(
+            "LLM translation parse strips fences",
+            SelectionLLM.parseTranslation("```\nBonjour\n```") == "Bonjour")
+
+        let grammarJSON = #"""
+        ```json
+        {"corrected": "I have an apple.", "issues": [
+          {"original": "has", "message": "Agreement", "suggestion": "have"},
+          {"original": "a", "message": "Article", "suggestion": "an"}
+        ]}
+        ```
+        """#
+        let llmGrammar = SelectionLLM.parseGrammar(grammarJSON, originalText: "I has a apple.")
+        check("LLM grammar parse reads corrected text", llmGrammar.correctedText == "I have an apple.")
+        check("LLM grammar parse keeps issues", llmGrammar.issues.map(\.message) == ["Agreement", "Article"])
+        check(
+            "LLM grammar issues anchor left to right",
+            llmGrammar.issues.map(\.location) == [2, 6])
+        check(
+            "LLM grammar suggestion carries through",
+            llmGrammar.issues.first?.suggestions == ["have"])
+        let fallback = SelectionLLM.parseGrammar("Just a plain reply.", originalText: "x")
+        check(
+            "LLM grammar non-JSON degrades to corrected text",
+            fallback.correctedText == "Just a plain reply." && fallback.issues.isEmpty)
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

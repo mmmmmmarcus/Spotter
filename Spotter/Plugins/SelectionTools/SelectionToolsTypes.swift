@@ -70,6 +70,7 @@ enum SelectionToolsFailure: Error, Equatable, Sendable {
     case translationLanguagesNotInstalled
     case translationUnavailable
     case grammarUnavailable
+    case llmRequestFailed
     case cancelled
 
     var message: String {
@@ -98,6 +99,8 @@ enum SelectionToolsFailure: Error, Equatable, Sendable {
             "macOS Translation could not translate the selected text."
         case .grammarUnavailable:
             "The macOS grammar service could not check the selected text."
+        case .llmRequestFailed:
+            "The AI request to OpenRouter failed — check your API key, model and connection in Settings → General."
         case .cancelled:
             "The request was cancelled."
         }

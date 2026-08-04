@@ -72,6 +72,28 @@ their AX selection and their copy.
 Spotter does not request Google. `NSWorkspace` gives the URL to the default browser, and an invalid URL
 or failed open switches to the Selection Tools palette error state instead of opening an empty page.
 
+## AI providers (OpenRouter)
+
+When the user has enabled **AI Translate & Grammar** in Settings → General and stored an OpenRouter
+API key, Translate and Check Grammar route through `Core/OpenRouterStore.swift` instead of the
+on-device services; without consent or a key they silently fall back to the system providers below.
+
+The store follows `CurrencyRateStore`'s network shape: ships off, consent lives on the store (never
+`AppSettings`), is re-checked on both sides of every `await`, and requests run on a private cacheless
+`URLSession`. The consent sheet names the provider, the trigger (only when an action runs) and what
+leaves the machine (the selected text, the instruction, the API key). The key and model mirror into
+`SettingsBackup` so they sync across Macs; the consent flag deliberately does not, so an imported or
+synced file can never grant network access — after a sync, the user flips the toggle once.
+
+`Plugins/SelectionTools/SelectionLLM.swift` is Foundation-only and pure: target-language choice
+(first preferred language; text already in it goes to the next preferred, else English), prompt
+construction, code-fence stripping, and grammar-JSON parsing (corrected text plus issues with
+left-to-right anchored ranges; a non-JSON reply degrades to "the whole reply is the corrected
+text"). `OpenRouterSelectionServices.swift` adapts it to the same
+`SelectionTranslationServing`/`SelectionGrammarChecking` protocols the system services implement, so
+the manager, state machine and palette are identical on both paths. An OpenRouter failure surfaces
+as one explicit palette error naming Settings → General.
+
 ## Translation and grammar providers
 
 Translation uses `TranslationSession(installedSource:target:)`, available on macOS 26 for non-UI

@@ -25,5 +25,8 @@ Spotter's own writes and normalized re-exports, preventing feedback loops. Malfo
 files leave live settings untouched, surface an inline error and remain watched for recovery.
 
 Connecting a file requires an explicit trust alert because settings JSON may include custom shell
-commands and global shortcuts. Network-consent plugin states remain excluded through the existing
-`exportsEnabledState` contract, so synchronization cannot grant network access.
+commands, global shortcuts and the OpenRouter API key. Network-consent states remain excluded — the
+plugin flags through the existing `exportsEnabledState` contract and OpenRouter's enable flag by
+staying on `OpenRouterStore` — so synchronization cannot grant network access: a synced Mac receives
+the key and model but AI features stay off until enabled locally. The key travels in plain JSON, so
+the file should live somewhere private (iCloud Drive is fine; a shared folder is not).

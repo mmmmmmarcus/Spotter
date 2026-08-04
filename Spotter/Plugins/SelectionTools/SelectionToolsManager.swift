@@ -9,16 +9,34 @@ final class SelectionToolsManager: ObservableObject {
     private var requestTask: Task<Void, Never>?
     private let translationService: any SelectionTranslationServing
     private let grammarService: any SelectionGrammarChecking
+    /// LLM path, preferred over the on-device services whenever it is consented and keyed.
+    private let openRouter: OpenRouterStore?
     /// Wired by `AppCore.start()` so the ⌘C fallback can pause clipboard-history capture around its transient pasteboard use without reaching into another plugin's manager.
     var suspendClipboardCapture: (() -> Void)?
     var resumeClipboardCapture: (() -> Void)?
 
     init(
         translationService: any SelectionTranslationServing = SystemSelectionTranslationService(),
-        grammarService: any SelectionGrammarChecking = SystemSelectionGrammarService()
+        grammarService: any SelectionGrammarChecking = SystemSelectionGrammarService(),
+        openRouter: OpenRouterStore? = nil
     ) {
         self.translationService = translationService
         self.grammarService = grammarService
+        self.openRouter = openRouter
+    }
+
+    private var activeTranslationService: any SelectionTranslationServing {
+        if let openRouter, openRouter.isReady {
+            return OpenRouterTranslationService(store: openRouter)
+        }
+        return translationService
+    }
+
+    private var activeGrammarService: any SelectionGrammarChecking {
+        if let openRouter, openRouter.isReady {
+            return OpenRouterGrammarService(store: openRouter)
+        }
+        return grammarService
     }
 
     func captureSelection() async -> Result<SelectedTextSnapshot, SelectionToolsFailure> {
@@ -81,13 +99,16 @@ final class SelectionToolsManager: ObservableObject {
         case .search:
             return
         case .translate:
-            requestTask = Task { [weak self, translationService] in
+            let service = activeTranslationService
+            requestTask = Task { [weak self] in
                 do {
-                    let result = try await translationService.translate(snapshot.text)
+                    let result = try await service.translate(snapshot.text)
                     try Task.checkCancellation()
                     self?.completeTranslation(result, request: request)
                 } catch is CancellationError {
                     self?.completeFailure(.cancelled, request: request)
+                } catch is OpenRouterError {
+                    self?.completeFailure(.llmRequestFailed, request: request)
                 } catch let error as SelectionTranslationServiceError {
                     self?.completeFailure(Self.map(error), request: request)
                 } catch {
@@ -95,13 +116,16 @@ final class SelectionToolsManager: ObservableObject {
                 }
             }
         case .grammar:
-            requestTask = Task { [weak self, grammarService] in
+            let service = activeGrammarService
+            requestTask = Task { [weak self] in
                 do {
-                    let result = try await grammarService.check(snapshot.text)
+                    let result = try await service.check(snapshot.text)
                     try Task.checkCancellation()
                     self?.completeGrammar(result, request: request)
                 } catch is CancellationError {
                     self?.completeFailure(.cancelled, request: request)
+                } catch is OpenRouterError {
+                    self?.completeFailure(.llmRequestFailed, request: request)
                 } catch {
                     self?.completeFailure(.grammarUnavailable, request: request)
                 }

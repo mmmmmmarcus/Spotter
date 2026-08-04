@@ -133,7 +133,8 @@ final class AppCore: ObservableObject {
     let worldClock = WorldClockStore()
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
-    let selectionTools = SelectionToolsManager()
+    let openRouter = OpenRouterStore()
+    let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
 
@@ -150,6 +151,7 @@ final class AppCore: ObservableObject {
         let textReplacements = TextReplacementStore()
         self.textReplacements = textReplacements
         textReplacementManager = TextReplacementManager(store: textReplacements)
+        selectionTools = SelectionToolsManager(openRouter: openRouter)
         for registration in BuiltInPlugins.registrations(core: self) {
             plugins.register(registration)
         }
