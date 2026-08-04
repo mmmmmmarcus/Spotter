@@ -50,8 +50,8 @@ struct ShortcutRecorder: View {
     private var content: some View {
         if isRecording {
             recordingLabel
-        } else if let shortcut = hotKeys.shortcut(for: action) {
-            boundLabel(shortcut)
+        } else if let binding = hotKeys.binding(for: action) {
+            boundLabel(binding.keycaps)
         } else {
             Text("Record Shortcut")
                 .font(Theme.Typography.keyCap)
@@ -69,16 +69,16 @@ struct ShortcutRecorder: View {
                 Text(KeyShortcut.collapsedModifierSymbols(from: session.heldModifiers).joined())
                     .foregroundStyle(.primary)
             } else {
-                Text("Type shortcut…")
+                Text("Type shortcut or double-tap ⌘ ⌃ ⌥ ⇧…")
                     .foregroundStyle(.secondary)
             }
         }
         .font(Theme.Typography.keyCap)
     }
 
-    private func boundLabel(_ shortcut: KeyShortcut) -> some View {
+    private func boundLabel(_ keycaps: [String]) -> some View {
         HStack(spacing: Theme.Spacing.xs) {
-            ForEach(Array(shortcut.keycaps.enumerated()), id: \.offset) { _, cap in
+            ForEach(Array(keycaps.enumerated()), id: \.offset) { _, cap in
                 Text(cap)
                     .font(Theme.Typography.keyCap)
                     .foregroundStyle(.secondary)
@@ -119,6 +119,7 @@ private final class CaptureSession: ObservableObject {
     private var monitors: [Any] = []
     private var resignObserver: NSObjectProtocol?
     private var conflictReset: Task<Void, Never>?
+    private var doubleTapDetector = DoubleTapDetector()
 
     func start(action: HotKeyAction, hotKeys: HotKeyManager) {
         stop()
@@ -145,9 +146,21 @@ private final class CaptureSession: ObservableObject {
         if let monitor = NSEvent.addLocalMonitorForEvents(
             matching: .flagsChanged,
             handler: {
-                [weak self] event in
+                [weak self, weak hotKeys] event in
                 let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-                MainActor.assumeIsolated { self?.heldModifiers = flags }
+                let hasOther = event.modifierFlags.contains(.function)
+                let timestamp = event.timestamp
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.heldModifiers = flags
+                    // Same pure detector the global monitor runs, so recording a double-tap means exactly what triggering one does.
+                    guard let hotKeys,
+                        let modifier = self.doubleTapDetector.handle(
+                            .modifiers(Self.doubleTapModifiers(in: flags), hasOtherModifiers: hasOther),
+                            at: timestamp)
+                    else { return }
+                    self.commit(.doubleTap(modifier), action: action, hotKeys: hotKeys)
+                }
                 return event
             })
         {
@@ -184,6 +197,7 @@ private final class CaptureSession: ObservableObject {
         conflictReset = nil
         conflictOwner = nil
         heldModifiers = []
+        doubleTapDetector.reset()
     }
 
     private func handleKeyDown(
@@ -197,19 +211,38 @@ private final class CaptureSession: ObservableObject {
         }
         // Plain Delete clears the existing binding.
         if bareKey, keyCode == kVK_Delete || keyCode == kVK_ForwardDelete {
-            hotKeys.setShortcut(nil, for: action)
+            hotKeys.setBinding(nil, for: action)
             hotKeys.recordingAction = nil
             return
         }
+        // A real key cancels any double-tap in flight — the press became a chord.
+        _ = doubleTapDetector.handle(.otherInput, at: 0)
         // Not a bindable combo (e.g. a bare letter): swallow it and keep recording.
         guard let shortcut = KeyShortcut(keyCode: keyCode, modifierFlags: flags) else { return }
+        commit(.combo(shortcut), action: action, hotKeys: hotKeys)
+    }
 
-        if let owner = hotKeys.conflictOwner(of: shortcut, excluding: action) {
+    /// The one path both engines' captures end on, so conflict handling can't drift between them.
+    private func commit(
+        _ binding: HotKeyBinding, action: HotKeyAction, hotKeys: HotKeyManager
+    ) {
+        if let owner = hotKeys.conflictOwner(of: binding, excluding: action) {
             flashConflict(owner)
             return
         }
-        hotKeys.setShortcut(shortcut, for: action)
+        hotKeys.setBinding(binding, for: action)
         hotKeys.recordingAction = nil
+    }
+
+    private static func doubleTapModifiers(in flags: NSEvent.ModifierFlags)
+        -> Set<DoubleTapModifier>
+    {
+        var held: Set<DoubleTapModifier> = []
+        if flags.contains(.control) { held.insert(.control) }
+        if flags.contains(.option) { held.insert(.option) }
+        if flags.contains(.shift) { held.insert(.shift) }
+        if flags.contains(.command) { held.insert(.command) }
+        return held
     }
 
     private func flashConflict(_ owner: String) {

@@ -157,12 +157,12 @@ private struct AppRow: View {
         return .clear
     }
 
-    /// Keycaps for this entry's hotkey, or `nil` if none is bound.
+    /// Keycaps for this entry's hotkey, or `nil` if none is bound. Both binding kinds render through the same path, so a double-tap shows as its doubled glyph.
     private var shortcutCaps: [String]? {
         guard let action = app.hotKeyAction,
-            let shortcut = hotKeys.shortcut(for: action)
+            let binding = hotKeys.binding(for: action)
         else { return nil }
-        return shortcut.keycaps
+        return binding.keycaps
     }
 
     var body: some View {

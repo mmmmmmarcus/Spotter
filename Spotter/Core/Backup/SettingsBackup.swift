@@ -37,15 +37,15 @@ struct SettingsBackup: Codable {
     }
 
     struct HotkeyBackup: Codable {
-        var togglePalette: KeyShortcut?
+        var togglePalette: HotKeyBinding?
         // Legacy per-action fields, read on import only; `pluginActions` supersedes both on export.
-        var toggleClipboard: KeyShortcut?
-        var toggleEmoji: KeyShortcut?
-        var apps: [String: KeyShortcut]?
-        var panes: [String: KeyShortcut]?
-        var customCommands: [String: KeyShortcut]?
+        var toggleClipboard: HotKeyBinding?
+        var toggleEmoji: HotKeyBinding?
+        var apps: [String: HotKeyBinding]?
+        var panes: [String: HotKeyBinding]?
+        var customCommands: [String: HotKeyBinding]?
         /// Every bound plugin shortcut, keyed `<plugin-id>.<action-id>` — new plugins sync automatically.
-        var pluginActions: [String: KeyShortcut]?
+        var pluginActions: [String: HotKeyBinding]?
     }
 
     /// Per-plugin preferences that live in raw bundle-scoped `UserDefaults`. Gathered as effective values (defaults resolved), so a synced Mac lands on exactly what the source Mac shows.
@@ -126,25 +126,25 @@ extension SettingsBackup {
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
-        hotkeys.togglePalette = hk.shortcut(for: .togglePalette)
+        hotkeys.togglePalette = hk.binding(for: .togglePalette)
         // Covers every plugin action, clipboard/emoji included — their legacy fields are import-only now.
         hotkeys.pluginActions = Dictionary(
             uniqueKeysWithValues: core.plugins.shortcutActions.compactMap { key in
-                hk.shortcut(for: .plugin(key)).map {
+                hk.binding(for: .plugin(key)).map {
                     ("\(key.pluginID.rawValue).\(key.actionID)", $0)
                 }
             })
         hotkeys.apps = Dictionary(
             uniqueKeysWithValues: hk.boundBundleIDs.compactMap { id in
-                hk.shortcut(for: .app(bundleID: id)).map { (id, $0) }
+                hk.binding(for: .app(bundleID: id)).map { (id, $0) }
             })
         hotkeys.panes = Dictionary(
             uniqueKeysWithValues: hk.boundPaneBundleIDs.compactMap { id in
-                hk.shortcut(for: .settingsPane(bundleID: id)).map { (id, $0) }
+                hk.binding(for: .settingsPane(bundleID: id)).map { (id, $0) }
             })
         hotkeys.customCommands = Dictionary(
             uniqueKeysWithValues: hk.boundCustomCommandIDs.compactMap { id in
-                hk.shortcut(for: .customCommand(id: id)).map { (id.uuidString.lowercased(), $0) }
+                hk.binding(for: .customCommand(id: id)).map { (id.uuidString.lowercased(), $0) }
             })
         backup.hotkeys = hotkeys
 
@@ -356,9 +356,9 @@ extension SettingsBackup {
         let hk = core.hotKeys
         var count = 0
         // Skip a binding whose combo is already claimed by an earlier-applied (or existing) action: two actions on the same key would make Carbon's second RegisterEventHotKey fail with eventHotKeyExistsErr, silently killing that shortcut. The recorder does this check interactively; imports must too.
-        func apply(_ s: KeyShortcut, _ action: HotKeyAction) {
+        func apply(_ s: HotKeyBinding, _ action: HotKeyAction) {
             guard hk.conflictOwner(of: s, excluding: action) == nil else { return }
-            hk.setShortcut(s, for: action)
+            hk.setBinding(s, for: action)
             count += 1
         }
         if let s = hotkeys.togglePalette { apply(s, .togglePalette) }

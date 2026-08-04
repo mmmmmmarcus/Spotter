@@ -5,7 +5,23 @@
 - `KeyShortcut` — Sendable model, Carbon keycode + modifiers, layout-aware glyphs via `UCKeyTranslate`.
 - `HotKeyCenter` — the Carbon `RegisterEventHotKey` layer, pausable.
 
-`HotKeyManager` owns both: persistence, conflict lookup, and dispatch.
+- `DoubleTapDetector` — pure, clock-injected recognition of "tap a lone modifier twice".
+- `DoubleTapMonitor` — the listen-only event tap that feeds it, installed only while something is bound.
+
+`HotKeyManager` owns them all: persistence, conflict lookup, and dispatch.
+
+## Two engines, one binding
+
+A `HotKeyBinding` is either a `.combo` (a Carbon registration) or a `.doubleTap` of ⌘/⌃/⌥/⇧ — Carbon
+cannot register a modifier-only shortcut at all, so double-taps run through an event tap instead. Both
+kinds share conflict detection (comparing whole bindings, so two actions can never claim the same
+modifier) and both render through `HotKeyBinding.keycaps`, which is why a double-tap shows as its
+doubled glyph everywhere a combo shows its caps.
+
+A tap fires on the second *release*, so the modifier is already up when the action runs — the palette
+never opens with a phantom ⌘ held. A press longer than 0.25 s, a gap over 0.30 s, a second modifier
+joining, or any key/click in between all cancel it. Caps Lock is deliberately excluded (it belongs to
+the Hyper Key) and so is `fn`, which isn't a real modifier on every keyboard.
 
 ## Persistence
 

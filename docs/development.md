@@ -119,6 +119,9 @@ swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
     Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
 swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
+swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
+    Spotter/Core/HotKey/DoubleTapModifier.swift Tools/hotkey-test.swift \
+    -o /tmp/hotkey-test && /tmp/hotkey-test                       # double-tap recognition
 ```
 
 `Tools/fuzz-test.swift` compiles the real `Spotter/Core/SearchRelevance.swift`, so that file must

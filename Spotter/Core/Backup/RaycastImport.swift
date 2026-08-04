@@ -205,13 +205,13 @@ enum RaycastImport {
     private static func mapHotkeys(_ json: [String: Any]) -> SettingsBackup.HotkeyBackup? {
         let settings = json["settings"] as? [String: Any]
         var hotkeys = SettingsBackup.HotkeyBackup()
-        var apps: [String: KeyShortcut] = [:]
+        var apps: [String: HotKeyBinding] = [:]
         var mapped = false
 
         if let general = settings?["general"] as? [String: Any],
             let shortcut = keyShortcut(from: general["globalHotkey"])
         {
-            hotkeys.togglePalette = shortcut
+            hotkeys.togglePalette = .combo(shortcut)
             mapped = true
         }
 
@@ -219,16 +219,16 @@ enum RaycastImport {
             guard let shortcut = keyShortcut(from: command["macosHotkey"]) else { continue }
             switch command["extensionId"] as? String {
             case "e:r:clipboard-history":
-                hotkeys.toggleClipboard = shortcut
+                hotkeys.toggleClipboard = .combo(shortcut)
                 mapped = true
             case "e:r:emoji-picker":
-                hotkeys.toggleEmoji = shortcut
+                hotkeys.toggleEmoji = .combo(shortcut)
                 mapped = true
             case "e:r:applications":
                 if let path = appPath(fromCommandID: command["id"] as? String),
                     let bundleID = Bundle(url: URL(fileURLWithPath: path))?.bundleIdentifier
                 {
-                    apps[bundleID] = shortcut
+                    apps[bundleID] = .combo(shortcut)
                     mapped = true
                 }
             default:

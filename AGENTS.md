@@ -157,7 +157,10 @@ Never break these without an explicit task to do so.
   a suffix that can still become a configured trigger, and its synthetic deletion/insertion events use
   the shared event-source marker so neither its own tap nor Hyper Key rewrites them.
 - **Hotkeys persist under legacy `KeyboardShortcuts_<name>` UserDefaults keys** (from the removed
-  KeyboardShortcuts package) so old bindings survive. See [hotkeys.md](docs/hotkeys.md).
+  KeyboardShortcuts package) so old bindings survive — and a `.combo` binding must keep encoding as
+  the bare `KeyShortcut` record, or every existing binding and backup reads as unbound.
+  `Core/HotKey/DoubleTapDetector.swift` stays Foundation-only and pure for `Tools/hotkey-test.swift`.
+  See [hotkeys.md](docs/hotkeys.md).
 - **Read [`docs/ui.md`](docs/ui.md) before any restyle or new view.** `Core/Theme.swift` is the single
   design-token source.
 - **`Core/EdgeDissolve.swift` and `Core/ThinScrollbar.swift` are off-limits.** Both are tuned by eye
