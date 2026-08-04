@@ -6,9 +6,6 @@ A tiny, fully native macOS launcher — the essentials, without the bloat.
   <a href="https://discord.gg/v2Eeb4QQy3">
     <img alt="Join the Spotter Discord"
          src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=flat&logo=discord&logoColor=white"></a>
-  <a href="mailto:iabueammar@gmail.com?subject=Hiring%20enquiry">
-    <img alt="Hire me — iabueammar@gmail.com"
-         src="https://img.shields.io/badge/Hire%20me-Let's%20talk-111111?style=flat&logo=gmail&logoColor=white"></a>
   <a href="LICENSE">
     <img alt="License: AGPL-3.0"
          src="https://img.shields.io/badge/License-AGPL--3.0-3DA639?style=flat"></a>
@@ -116,6 +113,14 @@ people use every day.
   </a>
 </p>
 
+## Credits
+
+Spotter began as a fork of **[Tinycast](https://github.com/abue-ammar/tinycast)** by
+[Abue Ammar](https://github.com/abue-ammar), and its launcher, palette, calculator and clipboard
+foundations come from that work. Spotter has since developed independently — native plugin
+architecture, Notes, Selection Tools, settings sync, in-app updates — but the original copyright
+stands and this project stays under the same license.
+
 ## License
 
-[AGPL-3.0](LICENSE)
+[AGPL-3.0](LICENSE) · Spotter © 2026 Marcus Fei · portions © 2026 Abue Ammar (Tinycast)

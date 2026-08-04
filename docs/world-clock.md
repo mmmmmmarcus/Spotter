@@ -7,8 +7,8 @@ time-zone data built into macOS. It never reads the network.
 
 Queries such as `time in London`, `SF time now`, `Tokyo time` and `上海时间` show the requested city,
 its current time and date, then the system's local time for the same instant. While the inline card is
-selected, ↑ advances that instant by one hour and ↓ rewinds it by one hour. Both city and local values
-move together, and editing the query resets the offset.
+selected, → advances that instant by one hour and ← rewinds it by one hour (↑/↓ stay list
+navigation). Both city and local values move together, and editing the query resets the offset.
 
 `WorldClockEngine` remains Foundation-only and pure: callers inject the date, calendar and local time
 zone. Common aliases are hand-curated, while the remaining city catalog is derived from

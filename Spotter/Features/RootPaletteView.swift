@@ -394,7 +394,6 @@ struct RootPaletteView: View {
                 moveMenu(1)
                 return .handled
             }
-            if adjustPluginQueryHour(by: -1) { return .handled }
             if vm.mode == .emoji { moveEmojiRow(1) } else { move(1) }
             return .handled
         }
@@ -404,19 +403,20 @@ struct RootPaletteView: View {
                 moveMenu(-1)
                 return .handled
             }
-            if adjustPluginQueryHour(by: 1) { return .handled }
             if vm.mode == .emoji { moveEmojiRow(-1) } else { move(-1) }
             return .handled
         }
-        // Horizontal arrows step the emoji grid; everywhere else they stay with the field editor's caret. An open menu swallows them so the list behind never moves.
+        // Horizontal arrows step the emoji grid and adjust an hourly inline card (← rewinds, → advances — ↑/↓ stay pure list navigation); everywhere else they stay with the field editor's caret. An open menu swallows them so the list behind never moves.
         .onKeyPress(.leftArrow) {
             if menuOpen { return .handled }
+            if adjustPluginQueryHour(by: -1) { return .handled }
             guard vm.mode == .emoji else { return .ignored }
             move(-1)
             return .handled
         }
         .onKeyPress(.rightArrow) {
             if menuOpen { return .handled }
+            if adjustPluginQueryHour(by: 1) { return .handled }
             guard vm.mode == .emoji else { return .ignored }
             move(1)
             return .handled
@@ -835,6 +835,7 @@ struct RootPaletteView: View {
         scroll = ScrollIntent(kind: .follow)
     }
 
+    /// ← rewinds and → advances the represented instant by one hour while an hourly inline card is selected. Deliberately takes the horizontal arrows from the field editor's caret in that state — retyping resets the offset, and ↑/↓ keep moving the flat selection.
     private func adjustPluginQueryHour(by delta: Int) -> Bool {
         guard vm.mode == .launcher, selection == 0,
             selectedInlineResult?.pluginResult?.supportsHourlyAdjustment == true

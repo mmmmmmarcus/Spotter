@@ -30,8 +30,9 @@ In launcher mode an enabled plugin query provider may claim the inline card inst
 returns the first claim in catalog order; otherwise the calculator is the fallback. There is still at
 most one inline card at flat index 0, preserving the selection invariant. World Clock is the reference
 provider (`SF time now`), implemented in `Spotter/Plugins/WorldClock/`. Its result adds a third local
-system-time column. While that card is selected, ↑ advances and ↓ rewinds the represented instant by
-one hour instead of moving the flat selection; changing the query resets the offset.
+system-time column. While that card is selected, → advances and ← rewinds the represented instant by
+one hour (taking those keys from the field editor's caret in that state); ↑/↓ keep moving the flat
+selection, and changing the query resets the offset.
 
 World Clock also registers a normal plugin palette screen. Launching its command shows the saved city
 rows through `PluginPaletteList`, with London, Shanghai and San Francisco as the first-run defaults.

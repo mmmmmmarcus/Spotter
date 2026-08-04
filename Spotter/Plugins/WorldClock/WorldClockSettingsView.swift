@@ -102,7 +102,7 @@ struct WorldClockSettingsView: View {
             SettingsCard(header: "Query") {
                 SettingsRow(
                     title: "time in London",
-                    subtitle: "The result compares London with local system time; ↑/↓ adjusts one hour.",
+                    subtitle: "The result compares London with local system time; ←/→ adjusts one hour back or forward.",
                     systemImage: "text.magnifyingglass",
                     tint: .blue
                 ) { EmptyView() }

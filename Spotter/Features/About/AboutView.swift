@@ -90,18 +90,22 @@ struct AboutView: View {
     // No section header: the callout's own title is the header.
     private var support: some View {
         SettingsCallout(
-            title: "Buy Me Brave Origin",
+            title: "Open Source",
             message:
-                "If you enjoy my work and would like to support me or buy me Brave Origin, feel free to reach out on Discord, X, or via email.",
+                "Spotter is free and open source under AGPL-3.0. Issues, ideas and pull requests are welcome on GitHub, or come say hello on Discord.",
             systemImage: "bolt.fill",
             tint: Theme.Colors.brand
         )
     }
 
+    // The upstream copyright stays alongside ours: much of the foundation is still Tinycast's code, and AGPL-3.0 requires preserving that notice.
     private var footer: some View {
-        Text("© 2026 Abue Ammar · Released under AGPL-3.0")
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
+        VStack(spacing: Theme.Spacing.xxs) {
+            Text("© 2026 Marcus Fei · Released under AGPL-3.0")
+            Text("Based on Tinycast © 2026 Abue Ammar")
+        }
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
     }
 }
 
@@ -133,11 +137,9 @@ private struct AboutLink: Identifiable {
             detail: "Join the Spotter community",
             url: URL(string: "https://discord.gg/v2Eeb4QQy3")!),
         AboutLink(
-            id: "x", glyph: .brand("BrandX"), title: "X", detail: "@abue_ammar",
-            url: URL(string: "https://x.com/abue_ammar")!),
-        AboutLink(
-            id: "email", glyph: .symbol("envelope"), title: "Email",
-            detail: "iabueammar@gmail.com", url: URL(string: "mailto:iabueammar@gmail.com")!),
+            id: "upstream", glyph: .brand("BrandGitHub"), title: "Based on Tinycast",
+            detail: "github.com/abue-ammar/tinycast",
+            url: URL(string: "https://github.com/abue-ammar/tinycast")!),
     ]
 }
 
