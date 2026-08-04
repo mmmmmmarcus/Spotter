@@ -98,8 +98,10 @@ Never break these without an explicit task to do so.
   SwiftUI (Foundation plus Combine for `ObservableObject` and Darwin for `mkstemp`) so
   `Tools/custom-command-test.swift` can compile them standalone — which is why the custom-command
   confirmation gate lives in `AppCore` and not in the runner.
-- **`Tools/fuzz-test.swift` holds a COPY of `FuzzyMatch`** from `Core/AppIndex.swift`. Change the
-  scoring in one, mirror it in the other, or the test is meaningless.
+- **`Core/SearchRelevance.swift` stays Foundation-only and pure** — `Tools/fuzz-test.swift` compiles
+  the real scorer, so there is no copy to keep in sync (the old mirrored-`FuzzyMatch` invariant is
+  retired). `Core/SpotlightNames.swift` owns the only Spotlight read; keep its per-bundle
+  modification-date cache, since the scan reruns on every launcher open.
 - **`EmojiData.generated.swift` is emitted by `node Tools/gen-emoji.js` and
   `CurrencyData.generated.swift` by `node Tools/gen-currencies.js`** — never edit either by hand.
   Their outputs live in `Plugins/EmojiSymbols/` and `Plugins/CurrencyConversion/`, respectively.

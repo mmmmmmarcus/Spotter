@@ -15,10 +15,15 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     let kind: Kind
     let symbolImage: String?
     let pluginActionKey: PluginActionKey?
+    /// Spotlight's `kMDItemAlternateNames`, ranked below the display name. Applications only.
+    var alternateNames: [String] = []
+    /// `CFBundleExecutable`, matched literally as a last resort. Applications only.
+    var executableName: String?
 
     init(
         id: String, name: String, url: URL, bundleID: String?, kind: Kind,
-        symbolImage: String? = nil, pluginActionKey: PluginActionKey? = nil
+        symbolImage: String? = nil, pluginActionKey: PluginActionKey? = nil,
+        alternateNames: [String] = [], executableName: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -27,10 +32,18 @@ struct AppEntry: Identifiable, Hashable, Sendable {
         self.kind = kind
         self.symbolImage = symbolImage
         self.pluginActionKey = pluginActionKey
+        self.alternateNames = alternateNames
+        self.executableName = executableName
     }
 
     /// Stable identity for learned ranking, favorites, and other per-entry preferences.
     var preferenceKey: String { bundleID ?? id }
+
+    var searchFields: SearchFields {
+        SearchFields(
+            names: [name], alternateNames: alternateNames,
+            bundleID: bundleID, executableName: executableName)
+    }
 
     var kindLabel: String {
         switch kind {
@@ -181,6 +194,7 @@ final class AppIndex: ObservableObject {
     private var matchCache: (query: String, rankingRevision: Int, result: [AppEntry])?
 
     private var discoveredEntries: [AppEntry] = []
+    private var spotlightCache = SpotlightNames.Cache()
     private var customCommandEntries: [AppEntry] = []
     private var pluginCommandEntries: [AppEntry] = []
     private var isRefreshing = false
@@ -244,15 +258,22 @@ final class AppIndex: ObservableObject {
         repeat {
             refreshPending = false
             let scopes = settings?.searchScopes ?? SearchScopes.defaults
-            let found = await Task.detached(priority: .utility) { AppIndex.scan(scopes: scopes) }
-                .value
+            // The Spotlight cache rides across passes so a reopen re-reads only bundles whose modification date moved.
+            let cache = spotlightCache
+            let (found, updatedCache) = await Task.detached(priority: .utility) {
+                AppIndex.scan(scopes: scopes, cache: SpotlightNames.Cache(reusing: cache))
+            }.value
+            spotlightCache = updatedCache
             guard found != discoveredEntries else { continue }
             discoveredEntries = found
             publishEntries()
         } while refreshPending
     }
 
-    nonisolated private static func scan(scopes: [String]) -> [AppEntry] {
+    nonisolated private static func scan(
+        scopes: [String], cache: SpotlightNames.Cache
+    ) -> ([AppEntry], SpotlightNames.Cache) {
+        var cache = cache
         var seenBundleIDs = Set<String>()
         var result: [AppEntry] = []
         for url in SearchScopes.appBundles(in: scopes) {
@@ -265,16 +286,23 @@ final class AppIndex: ObservableObject {
                 (bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
                 ?? (bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String)
                 ?? url.deletingPathExtension().lastPathComponent
+            let executable = bundle?.object(forInfoDictionaryKey: "CFBundleExecutable") as? String
             result.append(
                 AppEntry(
                     id: url.path, name: name, url: url, bundleID: bundleID,
-                    kind: .application))
+                    kind: .application,
+                    alternateNames: cache.alternateNames(for: url, displayName: name),
+                    // A binary named after the app adds nothing the display name doesn't already cover.
+                    executableName: executable.flatMap {
+                        $0.caseInsensitiveCompare(name) == .orderedSame ? nil : $0
+                    }))
         }
         // `publishEntries` appends commands after apps and Settings panes so the sectioned flat selection maps 1:1 onto rows.
         let apps = result.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
-        return apps + SettingsPaneScanner.scan()
+        // Settings panes are `.appex` bundles, which carry no Spotlight alternate names.
+        return (apps + SettingsPaneScanner.scan(), cache)
     }
 
     private func publishEntries() {
@@ -304,7 +332,9 @@ final class AppIndex: ObservableObject {
     private func rank(_ q: String, limit: Int) -> [AppEntry] {
         let learned = ranking.boosts(query: q)
         let scored = apps.compactMap { app -> (AppEntry, Int)? in
-            guard let score = FuzzyMatch.score(query: q, candidate: app.name) else { return nil }
+            guard let score = SearchRelevance.score(query: q, fields: app.searchFields) else {
+                return nil
+            }
             return (app, score + (learned[app.preferenceKey] ?? 0))
         }
         return
@@ -316,67 +346,5 @@ final class AppIndex: ObservableObject {
             }
             .prefix(limit)
             .map(\.0)
-    }
-}
-
-enum FuzzyMatch {
-    /// Tiered relevance score (higher is better), or nil when the query doesn't match; tiers are spaced so a better kind always wins.
-    static func score(query: String, candidate: String) -> Int? {
-        let q = normalized(query)
-        let c = normalized(candidate)
-        guard !q.isEmpty else { return 0 }
-
-        if c == q { return 100_000 }
-        if c.hasPrefix(q) { return 90_000 - c.count }
-
-        if let range = c.range(of: q) {
-            let atWordStart = isWordStart(c, range.lowerBound)
-            return (atWordStart ? 80_000 : 70_000) - c.count
-        }
-
-        guard let sub = subsequenceScore(Array(q), Array(c)) else { return nil }
-        return sub
-    }
-
-    /// App metadata can contain invisible bidirectional/zero-width format scalars (WhatsApp's display name starts with U+200E); they must not demote an otherwise-visible prefix match.
-    private static func normalized(_ value: String) -> String {
-        let scalars = value.unicodeScalars.filter {
-            $0.properties.generalCategory != .format
-        }
-        return String(String.UnicodeScalarView(scalars)).lowercased()
-    }
-
-    private static func isWordStart(_ s: String, _ index: String.Index) -> Bool {
-        if index == s.startIndex { return true }
-        let before = s[s.index(before: index)]
-        return !before.isLetter && !before.isNumber
-    }
-
-    /// Subsequence match with bonuses for consecutive hits and word boundaries, or nil when `q` isn't a subsequence of `c`.
-    private static func subsequenceScore(_ q: [Character], _ c: [Character]) -> Int? {
-        var qi = 0
-        var score = 0
-        var run = 0
-        var prev = -2
-        for (ci, ch) in c.enumerated() where qi < q.count && ch == q[qi] {
-            var bonus = 1
-            if ci == prev + 1 {
-                run += 1
-                bonus += run * 3
-            } else {
-                run = 0
-            }
-            if ci == 0 {
-                bonus += 12
-            } else {
-                let before = c[ci - 1]
-                if !before.isLetter && !before.isNumber { bonus += 8 }
-            }
-            score += bonus
-            prev = ci
-            qi += 1
-        }
-        guard qi == q.count else { return nil }
-        return score
     }
 }

@@ -71,8 +71,10 @@ app; changes always apply (fixed build path — no need to delete `build/`).
 There's no XCTest target. Standalone harnesses:
 
 ```sh
-swift Tools/fuzz-test.swift                                        # launcher fuzzy matcher
-swiftc -swift-version 6 Spotter/Core/LauncherRankingStore.swift Tools/ranking-test.swift \
+swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift Tools/fuzz-test.swift \
+    -o /tmp/fuzz-test && /tmp/fuzz-test                            # search relevance + fuzzy matcher
+swiftc -swift-version 6 Spotter/Core/LauncherRankingStore.swift \
+    Spotter/Core/SearchRelevance.swift Tools/ranking-test.swift \
     -o /tmp/ranking-test && /tmp/ranking-test                      # learned launcher ranking
 swiftc Spotter/Core/Calculator/*.swift \
     Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
@@ -119,8 +121,8 @@ swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
 ```
 
-`Tools/fuzz-test.swift` holds a **copy** of `FuzzyMatch` from `Spotter/Core/AppIndex.swift` —
-change the scoring in one and mirror it in the other. The calc harness compiles the real engine
+`Tools/fuzz-test.swift` compiles the real `Spotter/Core/SearchRelevance.swift`, so that file must
+stay Foundation-only and pure — there is no copy of the scorer to keep in sync. The calc harness compiles the real engine
 sources, which is why `Spotter/Core/Calculator/` and the parser/data sources in
 `Spotter/Plugins/CurrencyConversion/` must stay Foundation-only.
 
