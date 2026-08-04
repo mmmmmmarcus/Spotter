@@ -48,25 +48,43 @@ Now local builds (Xcode, VS Code F5, `xcodebuild`) sign with it, and you grant A
 The release workflow needs the same identity as two repo secrets. Export it, base64-encode it, and
 pick a password:
 
-```sh
-# Pick a random password for the exported bundle.
-P12_PASSWORD="$(openssl rand -base64 24)"; echo "password: $P12_PASSWORD"
+> ⚠️ **`security export -t identities` exports *every* identity in the keychain, not just
+> Spotter's.** If your login keychain also holds an Apple Developer ID (or any other) certificate,
+> the naive export bundles those private keys too — and uploading that to a repo secret leaks them.
+> The recipe below extracts **only** `Spotter Self-Signed` and verifies it before you upload.
 
-# Export the identity (approve the keychain dialog if asked) and base64-encode it.
+```sh
+# Work in a private scratch directory.
+D="$(mktemp -d)"; chmod 700 "$D"; cd "$D"
+
+# Export everything the keychain has, then keep only the Spotter identity's cert + key.
+EXPORT_PW="$(openssl rand -base64 24)"
 security export -t identities -f pkcs12 \
   -k ~/Library/Keychains/login.keychain-db \
-  -P "$P12_PASSWORD" -o /tmp/signing.p12
-base64 -i /tmp/signing.p12 | tr -d '\n' > /tmp/signing.p12.base64
-rm -f /tmp/signing.p12
+  -P "$EXPORT_PW" -o all.p12
+openssl pkcs12 -in all.p12 -passin pass:"$EXPORT_PW" -nodes -legacy -out all.pem
+awk '/friendlyName: Spotter Self-Signed/,/-----END/' all.pem > spotter.pem
+
+# Repackage just that identity.
+P12_PASSWORD="$(openssl rand -base64 24)"; echo "password: $P12_PASSWORD"
+openssl pkcs12 -export -in spotter.pem -inkey spotter.pem \
+  -name "Spotter Self-Signed" -out signing.p12 -passout pass:"$P12_PASSWORD" -legacy
+
+# VERIFY before uploading: this must print exactly one certificate, CN=Spotter Self-Signed.
+openssl pkcs12 -in signing.p12 -passin pass:"$P12_PASSWORD" -nokeys -legacy | grep subject=
+
+base64 -i signing.p12 | tr -d '\n' > signing.p12.base64
 ```
 
 Then set the two secrets on the repo (via `gh`, authed as the repo owner, or paste them in the GitHub
 UI under **Settings → Secrets and variables → Actions**):
 
 ```sh
-gh secret set SIGNING_P12_BASE64   --repo mmmmmmarcus/Spotter < /tmp/signing.p12.base64
+gh secret set SIGNING_P12_BASE64   --repo mmmmmmarcus/Spotter < signing.p12.base64
 gh secret set SIGNING_P12_PASSWORD --repo mmmmmmarcus/Spotter --body "$P12_PASSWORD"
-rm -f /tmp/signing.p12.base64   # holds your private key — delete it
+
+# Everything in this directory is private key material — remove the whole thing.
+cd /; rm -rf "$D"
 ```
 
 If you ever lose the secrets, just re-run this section — as long as the `Spotter Self-Signed`
