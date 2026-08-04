@@ -1,10 +1,15 @@
 import Foundation
 import NaturalLanguage
 
-/// LLM-backed counterparts of the system translation/grammar services; chosen by
-/// `SelectionToolsManager` when `OpenRouterStore.isReady`, with the on-device services as fallback.
+enum SelectionTranslationServiceError: Error, Equatable, Sendable {
+    case sourceLanguageUnknown
+    case unavailable
+}
+
+/// The translate/grammar engines: OpenRouter is the only path — no key means the manager fails the
+/// request with `.llmNotConfigured` before these are ever constructed.
 @MainActor
-struct OpenRouterTranslationService: SelectionTranslationServing {
+struct OpenRouterTranslationService {
     let store: OpenRouterStore
 
     func translate(_ text: String) async throws -> SelectionTranslationResult {
@@ -19,11 +24,12 @@ struct OpenRouterTranslationService: SelectionTranslationServing {
             Locale(identifier: "en").localizedString(forLanguageCode: target) ?? target
         let raw = try await store.chat(
             system: SelectionLLM.translationSystemPrompt(targetLanguageName: targetName),
-            user: text)
+            user: text,
+            model: store.translationModel)
         try Task.checkCancellation()
         let translated = SelectionLLM.parseTranslation(raw)
         guard !translated.isEmpty else { throw OpenRouterError.badResponse }
-        return SelectionTranslationResponseMapper.map(
+        return SelectionTranslationResult(
             originalText: text,
             translatedText: translated,
             sourceLanguageIdentifier: detected,
@@ -32,12 +38,14 @@ struct OpenRouterTranslationService: SelectionTranslationServing {
 }
 
 @MainActor
-struct OpenRouterGrammarService: SelectionGrammarChecking {
+struct OpenRouterGrammarService {
     let store: OpenRouterStore
 
     func check(_ text: String) async throws -> SelectionGrammarResult {
         try Task.checkCancellation()
-        let raw = try await store.chat(system: SelectionLLM.grammarSystemPrompt(), user: text)
+        let raw = try await store.chat(
+            system: SelectionLLM.grammarSystemPrompt(), user: text,
+            model: store.grammarModel)
         try Task.checkCancellation()
         let result = SelectionLLM.parseGrammar(raw, originalText: text)
         guard !result.correctedText.isEmpty else { throw OpenRouterError.badResponse }

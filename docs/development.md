@@ -97,12 +97,10 @@ swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
     Tools/kill-process-test.swift -o /tmp/kill-process-test && /tmp/kill-process-test
 swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
     Tools/change-case-test.swift -o /tmp/change-case-test && /tmp/change-case-test
-swiftc -swift-version 6 -framework AppKit -framework NaturalLanguage -framework Translation \
+swiftc -swift-version 6 \
     Spotter/Plugins/SelectionTools/SelectionToolsTypes.swift \
     Spotter/Plugins/SelectionTools/SearchURLBuilder.swift \
-    Spotter/Plugins/SelectionTools/SelectionLLM.swift \
-    Spotter/Plugins/SelectionTools/TranslationService.swift \
-    Spotter/Plugins/SelectionTools/GrammarService.swift Tools/selection-tools-test.swift \
+    Spotter/Plugins/SelectionTools/SelectionLLM.swift Tools/selection-tools-test.swift \
     -o /tmp/selection-tools-test && /tmp/selection-tools-test
 swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageIO -framework Vision \
     Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
@@ -129,9 +127,9 @@ injects a fixed date, calendar, local time zone and isolated `UserDefaults` suit
 formatting and saved-city checks never depend on the wall clock or the user's preferences.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
-real Foundation-only transformer. Selection Tools tests URLComponents encoding, request generations,
-cancellation, pure Translation/grammar response mapping and the local `NSSpellChecker` callback
-without opening a browser or sending text over the network.
+real Foundation-only transformer. Selection Tools tests URLComponents encoding, request
+generation/cancellation and the pure LLM prompt/response logic without opening a browser or sending
+text over the network.
 Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory. QuickTime tests only the generated AppleScript
 strings and never opens QuickTime.

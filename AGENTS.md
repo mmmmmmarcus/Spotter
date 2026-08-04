@@ -117,9 +117,11 @@ Never break these without an explicit task to do so.
   **cacheless** `URLSession` (`.ephemeral`, `urlCache = nil`), never `URLSession.shared` — a cacheable
   response would leave a second copy in the on-disk `URLCache` that opting out doesn't delete.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
-  rather than inventing a second shape. `Core/OpenRouterStore.swift` follows the same shape for
-  LLM-backed features; its API key and model sync through `SettingsBackup`, but its consent flag
-  never does.
+  rather than inventing a second shape. **Deliberate exception (owner decision, Aug 2026):**
+  `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
+  means no request can be made (Selection Tools falls back on-device); entering the key, or syncing
+  a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
+  not copy this shape for new networked features without an explicit owner decision.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See

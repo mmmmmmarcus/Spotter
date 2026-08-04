@@ -227,7 +227,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
 - **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — three independent selected-text actions:
-  Google Search in the default browser, on-device macOS Translation, and local macOS grammar checking
+  Google Search in the default browser, plus AI translation and grammar checking (OpenRouter)
   presented through one asynchronous shared palette screen.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses

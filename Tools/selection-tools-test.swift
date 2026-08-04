@@ -54,18 +54,14 @@ struct SelectionToolsTests {
             "old result cannot replace loading state",
             machine.state == .loading(grammarRequest))
 
-        let grammarResult = SelectionGrammarResponseMapper.map(
+        let grammarResult = SelectionGrammarResult(
             originalText: snapshot.text,
-            rawIssues: [
-                SelectionGrammarRawIssue(
-                    location: 2, length: 3,
-                    message: "Use plural agreement", suggestions: ["have"]),
-                SelectionGrammarRawIssue(
-                    location: 6, length: 1,
-                    message: "Use an before a vowel sound", suggestions: ["an"]),
+            correctedText: "I have an apple.",
+            issues: [
+                SelectionGrammarIssue(
+                    location: 2, length: 3, originalText: "has",
+                    message: "Use plural agreement", suggestions: ["have"])
             ])
-        check("grammar corrections map in stable ranges", grammarResult.correctedText == "I have an apple.")
-        check("grammar issue mapping keeps descriptions", grammarResult.issues.map(\.message) == ["Use plural agreement", "Use an before a vowel sound"])
         check("current grammar result completes", machine.completeGrammar(grammarResult, for: grammarRequest))
         check("grammar completion publishes result", machine.state == .grammarChecked(grammarRequest, grammarResult))
 
@@ -77,21 +73,6 @@ struct SelectionToolsTests {
         check(
             "cancelled request cannot publish later",
             !machine.completeTranslation(staleTranslation, for: nextRequest))
-
-        let mappedTranslation = SelectionTranslationResponseMapper.map(
-            originalText: "Hello", translatedText: "你好",
-            sourceLanguageIdentifier: "en", targetLanguageIdentifier: "zh")
-        check("translation mapping keeps original", mappedTranslation.originalText == "Hello")
-        check("translation mapping keeps target", mappedTranslation.translatedText == "你好")
-        check("translation mapping keeps languages", mappedTranslation.sourceLanguageIdentifier == "en" && mappedTranslation.targetLanguageIdentifier == "zh")
-
-        do {
-            let liveGrammar = try await SystemSelectionGrammarService().check("I has a apple.")
-            check("system grammar callback returns safely", liveGrammar.originalText == "I has a apple.")
-        } catch {
-            failures += 1
-            print("FAIL  system grammar callback returns safely: \(error)")
-        }
 
         check(
             "LLM target is the first preferred language",

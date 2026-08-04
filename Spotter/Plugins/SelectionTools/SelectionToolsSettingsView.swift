@@ -2,6 +2,9 @@ import SwiftUI
 
 struct SelectionToolsSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
+    @ObservedObject private var openRouter = AppCore.shared.openRouter
+    @State private var translationModelDraft = AppCore.shared.openRouter.translationModel
+    @State private var grammarModelDraft = AppCore.shared.openRouter.grammarModel
 
     var body: some View {
         SettingsPane(
@@ -22,35 +25,48 @@ struct SelectionToolsSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "System Services") {
+            SettingsCard(header: "AI Models") {
                 SettingsRow(
-                    title: "Capture",
-                    subtitle: "Reads the selection through Accessibility. When an app hides it (canvas tools, some web apps), Spotter briefly copies the selection and then restores your clipboard.",
-                    systemImage: "text.cursor", tint: .teal
+                    title: "Translation Model",
+                    subtitle: aiSubtitle(
+                        "Any OpenRouter model id; used by Translate Selected Text."),
+                    systemImage: "translate", tint: .purple
                 ) {
-                    Text("Automatic")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    TextField(
+                        OpenRouterStore.defaultTranslationModel, text: $translationModelDraft
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 220)
+                    .onSubmit { openRouter.setTranslationModel(translationModelDraft) }
+                    .onChange(of: translationModelDraft) {
+                        openRouter.setTranslationModel(translationModelDraft)
+                    }
                 }
                 SettingsDivider()
                 SettingsRow(
-                    title: "Translation",
-                    subtitle: "Uses only macOS Translation languages already installed on this Mac; selected text stays on-device.",
-                    systemImage: "translate", tint: .teal
+                    title: "Grammar Model",
+                    subtitle: aiSubtitle(
+                        "Any OpenRouter model id; used by Check Selected Text Grammar."),
+                    systemImage: "text.badge.checkmark", tint: .purple
                 ) {
-                    Text("System Preferred")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    TextField(OpenRouterStore.defaultGrammarModel, text: $grammarModelDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                        .onSubmit { openRouter.setGrammarModel(grammarModelDraft) }
+                        .onChange(of: grammarModelDraft) {
+                            openRouter.setGrammarModel(grammarModelDraft)
+                        }
                 }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Grammar",
-                    subtitle: "Uses the local macOS spelling and grammar service; selected text stays on-device.",
-                    systemImage: "text.badge.checkmark", tint: .teal
-                ) {
-                    Text("On-device")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            }
+            // Models can change underneath this pane (settings sync applying a remote file).
+            .onChange(of: openRouter.translationModel) {
+                if openRouter.translationModel != translationModelDraft {
+                    translationModelDraft = openRouter.translationModel
+                }
+            }
+            .onChange(of: openRouter.grammarModel) {
+                if openRouter.grammarModel != grammarModelDraft {
+                    grammarModelDraft = openRouter.grammarModel
                 }
             }
 
@@ -80,6 +96,12 @@ struct SelectionToolsSettingsView: View {
         Binding(
             get: { plugins.isEnabled(.selectionTools) },
             set: { plugins.setEnabled($0, for: .selectionTools) })
+    }
+
+    private func aiSubtitle(_ base: String) -> String {
+        openRouter.isReady
+            ? base
+            : base + " Inactive — add an OpenRouter API key in Settings → General."
     }
 
     private func shortcutRow(

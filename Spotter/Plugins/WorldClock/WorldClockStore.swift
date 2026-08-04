@@ -50,6 +50,14 @@ final class WorldClockStore: ObservableObject {
         persist()
     }
 
+    /// Settings-backup import: replace the whole list, dropping IDs this build's catalog doesn't know.
+    func replace(cityIDs newIDs: [String]) {
+        let filtered = newIDs.filter { WorldClockEngine.city(id: $0) != nil }
+        guard filtered != cityIDs else { return }
+        cityIDs = filtered
+        persist()
+    }
+
     func start() {
         guard clockTask == nil else { return }
         now = nowProvider()

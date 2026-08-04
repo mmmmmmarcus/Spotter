@@ -7,36 +7,14 @@ final class SelectionToolsManager: ObservableObject {
 
     private var machine = SelectionToolsStateMachine()
     private var requestTask: Task<Void, Never>?
-    private let translationService: any SelectionTranslationServing
-    private let grammarService: any SelectionGrammarChecking
-    /// LLM path, preferred over the on-device services whenever it is consented and keyed.
-    private let openRouter: OpenRouterStore?
+    /// The only translate/grammar engine; without an API key requests fail with `.llmNotConfigured`.
+    private let openRouter: OpenRouterStore
     /// Wired by `AppCore.start()` so the ⌘C fallback can pause clipboard-history capture around its transient pasteboard use without reaching into another plugin's manager.
     var suspendClipboardCapture: (() -> Void)?
     var resumeClipboardCapture: (() -> Void)?
 
-    init(
-        translationService: any SelectionTranslationServing = SystemSelectionTranslationService(),
-        grammarService: any SelectionGrammarChecking = SystemSelectionGrammarService(),
-        openRouter: OpenRouterStore? = nil
-    ) {
-        self.translationService = translationService
-        self.grammarService = grammarService
+    init(openRouter: OpenRouterStore) {
         self.openRouter = openRouter
-    }
-
-    private var activeTranslationService: any SelectionTranslationServing {
-        if let openRouter, openRouter.isReady {
-            return OpenRouterTranslationService(store: openRouter)
-        }
-        return translationService
-    }
-
-    private var activeGrammarService: any SelectionGrammarChecking {
-        if let openRouter, openRouter.isReady {
-            return OpenRouterGrammarService(store: openRouter)
-        }
-        return grammarService
     }
 
     func captureSelection() async -> Result<SelectedTextSnapshot, SelectionToolsFailure> {
@@ -93,13 +71,18 @@ final class SelectionToolsManager: ObservableObject {
     func start(action: SelectionToolAction, snapshot: SelectedTextSnapshot) {
         requestTask?.cancel()
         let request = machine.begin(action: action, snapshot: snapshot)
+        guard openRouter.isReady else {
+            machine.fail(.llmNotConfigured, for: request)
+            publishState()
+            return
+        }
         publishState()
 
         switch action {
         case .search:
             return
         case .translate:
-            let service = activeTranslationService
+            let service = OpenRouterTranslationService(store: openRouter)
             requestTask = Task { [weak self] in
                 do {
                     let result = try await service.translate(snapshot.text)
@@ -116,7 +99,7 @@ final class SelectionToolsManager: ObservableObject {
                 }
             }
         case .grammar:
-            let service = activeGrammarService
+            let service = OpenRouterGrammarService(store: openRouter)
             requestTask = Task { [weak self] in
                 do {
                     let result = try await service.check(snapshot.text)
@@ -204,7 +187,6 @@ final class SelectionToolsManager: ObservableObject {
     ) -> SelectionToolsFailure {
         switch error {
         case .sourceLanguageUnknown: .sourceLanguageUnknown
-        case .languagesNotInstalled: .translationLanguagesNotInstalled
         case .unavailable: .translationUnavailable
         }
     }

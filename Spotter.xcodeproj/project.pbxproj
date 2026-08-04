@@ -12,7 +12,6 @@
 		04360F63BDEE30C1925F805B /* ImageModificationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57737D17272961EF0A264675 /* ImageModificationPlugin.swift */; };
 		04BD0C95C5A98DB1E9B4122D /* CurrencyConversionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6919806BEBF9D1E830E9E0A /* CurrencyConversionSettingsView.swift */; };
 		0527FC6AB7CD093420A9CEA3 /* SelectionToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */; };
-		055F9B0A38D1F88925F09116 /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9447F76126F70021D0EF522 /* TranslationService.swift */; };
 		05E166214EB13354668D8FE3 /* TextReplacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AF8927AABC43F0F4697DEA /* TextReplacementEngine.swift */; };
 		084DC68B54BF150103E64881 /* ScrollIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86BA65B8DEE192723E55849 /* ScrollIntent.swift */; };
 		08696DF02787925B23E4DB9C /* AppCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B578FB7AD0ACF30B9EBC161E /* AppCore.swift */; };
@@ -80,7 +79,6 @@
 		85230C4CBAA7050C2A607318 /* ChangeCaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381F21F8B52A98154F0D8E36 /* ChangeCaseView.swift */; };
 		8564913535478963824E1D7E /* SpotterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */; };
 		859FBBAB57809296CF4138B8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56CDF128216DD71A2A2C54D /* AppSettings.swift */; };
-		9017845B6F49F7EC2940B808 /* GrammarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBA5AB69D41CDC0BC08217C /* GrammarService.swift */; };
 		9039498AF0C376FB8FEA9595 /* BuiltInPlugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054E9477DF5DF415492936A9 /* BuiltInPlugins.swift */; };
 		90A6A68B13096A72EDCA14CC /* ChangeCaseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AB7F80FD918C4318C2DB52 /* ChangeCaseEngine.swift */; };
 		9701E26CE8794A3BEDB9EB33 /* CalcUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00102833B5166EE72E545325 /* CalcUnits.swift */; };
@@ -241,7 +239,6 @@
 		A6919806BEBF9D1E830E9E0A /* CurrencyConversionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyConversionSettingsView.swift; sourceTree = "<group>"; };
 		A79BCC858A42FEC5901581AC /* HyperKeyTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperKeyTap.swift; sourceTree = "<group>"; };
 		A8FDA359F35C67B15CF90C46 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
-		A9447F76126F70021D0EF522 /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
 		ACD8626DE6AD0B451E431936 /* ChangeCasePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCasePlugin.swift; sourceTree = "<group>"; };
 		B106F55A48529154846D232B /* AppIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIndex.swift; sourceTree = "<group>"; };
 		B20E554F1050B16540CCBF5D /* SelectedTextReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextReader.swift; sourceTree = "<group>"; };
@@ -249,7 +246,6 @@
 		B578FB7AD0ACF30B9EBC161E /* AppCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCore.swift; sourceTree = "<group>"; };
 		B86F0BE33EC12D76308E7A98 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		B9919D9E91AF2B34B3B5E173 /* QuickTimeRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTimeRunner.swift; sourceTree = "<group>"; };
-		BBBA5AB69D41CDC0BC08217C /* GrammarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrammarService.swift; sourceTree = "<group>"; };
 		BE606C002203EDEE75AD6EB9 /* CurrencyConversionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyConversionPlugin.swift; sourceTree = "<group>"; };
 		C0D7FC8027F35E0F0E397BC7 /* PluginPaletteList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginPaletteList.swift; sourceTree = "<group>"; };
 		C155697E9B8E5ACC69F519FD /* QuickTimePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTimePlugin.swift; sourceTree = "<group>"; };
@@ -531,7 +527,6 @@
 		CF9875D40E6785EA0A5AFD9E /* SelectionTools */ = {
 			isa = PBXGroup;
 			children = (
-				BBBA5AB69D41CDC0BC08217C /* GrammarService.swift */,
 				65F7DC774DDDB3BFA17677B3 /* OpenRouterSelectionServices.swift */,
 				5BF93553A01C5315C277F8A5 /* SearchURLBuilder.swift */,
 				2DFE867027E0971823712259 /* SelectionCopyCapture.swift */,
@@ -541,7 +536,6 @@
 				9FCD067CF03771680ED94C60 /* SelectionToolsResults.swift */,
 				3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */,
 				D10E544C780380D882E6910C /* SelectionToolsTypes.swift */,
-				A9447F76126F70021D0EF522 /* TranslationService.swift */,
 			);
 			path = SelectionTools;
 			sourceTree = "<group>";
@@ -785,7 +779,6 @@
 				D06D2F714DB5F13FAFFF1A49 /* FavoritesStore.swift in Sources */,
 				4D893C74BF3716AD2A9FEC20 /* FrequentEmojiStore.swift in Sources */,
 				2D6A4987B4236BAEE8EFAEE3 /* GeneralSettingsView.swift in Sources */,
-				9017845B6F49F7EC2940B808 /* GrammarService.swift in Sources */,
 				D373612C89BC71CE6EDF4085 /* Gunzip.swift in Sources */,
 				DCBE3EDCAA17691CE7A6621D /* HotKeyCenter.swift in Sources */,
 				757150EB01D931470DFA4A62 /* HotKeyManager.swift in Sources */,
@@ -864,7 +857,6 @@
 				6780976D52AB15577C5C61BA /* TextReplacementStore.swift in Sources */,
 				0072EF62189516843C0F4FF7 /* Theme.swift in Sources */,
 				CAB28684B11E838CBAAE63D0 /* ThinScrollbar.swift in Sources */,
-				055F9B0A38D1F88925F09116 /* TranslationService.swift in Sources */,
 				4B9A141BD0E6B6B6AE7729EC /* VisibilityStore.swift in Sources */,
 				C3C2ADCB8EBD0ED5B3FF0309 /* VisualEffectView.swift in Sources */,
 				1031E53A55028C122EABBF77 /* WorldClockEngine.swift in Sources */,

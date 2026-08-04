@@ -209,8 +209,8 @@ private extension SelectionToolsFailure {
             true
         case .accessibilityDenied, .focusedControlUnavailable, .selectedTextUnavailable,
             .emptySelection, .invalidSearchURL, .browserOpenFailed,
-            .sourceLanguageUnknown, .translationLanguagesNotInstalled, .translationUnavailable,
-            .grammarUnavailable, .llmRequestFailed, .cancelled:
+            .sourceLanguageUnknown, .translationUnavailable,
+            .grammarUnavailable, .llmNotConfigured, .llmRequestFailed, .cancelled:
             false
         }
     }

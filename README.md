@@ -34,7 +34,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer.
 - **Kill process** — inspect CPU and memory use, group app helpers, then terminate or restart safely.
 - **Change case** — transform selected or copied text through 21 cases, then copy or paste it.
-- **Selection tools** — search, translate (on-device), or grammar-check text selected in any app.
+- **Selection tools** — search, translate, or grammar-check text selected in any app via your own
+  OpenRouter key.
 - **Text replacement** — expand your own prefix+keyword triggers into saved text as you type.
 - **Settings sync** — keep one JSON settings file (e.g. in iCloud Drive) applied across your Macs.
 - **Image modification** — batch-convert, resize, filter, optimize, pad, rotate, remove backgrounds,

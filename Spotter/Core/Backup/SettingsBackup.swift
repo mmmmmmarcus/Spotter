@@ -10,6 +10,9 @@ struct SettingsBackup: Codable {
     var hiddenLauncherItems: [String]?
     var hiddenLauncherKinds: [String]?
     var pluginStates: [String: Bool]?
+    var pluginPrefs: PluginPrefs?
+    var worldClockCities: [String]?
+    var textReplacement: TextReplacementBackup?
 
     /// Enum-backed settings are stored by raw value so the JSON stays legible and forward-compatible (an unknown value is ignored on import rather than failing the whole decode).
     struct SettingsData: Codable {
@@ -27,18 +30,60 @@ struct SettingsBackup: Codable {
         var showFavoritesInCompactMode: Bool?
         var searchScopes: [String]?
         var openOnCursorScreen: Bool?
-        // Credential and model only — the OpenRouter consent flag stays on `OpenRouterStore` and is deliberately never exported, so importing a file cannot grant network access.
+        // The key is the OpenRouter gate (owner decision): importing or syncing a file that carries one activates the AI path on this Mac.
         var openRouterAPIKey: String?
-        var openRouterModel: String?
+        var openRouterTranslationModel: String?
+        var openRouterGrammarModel: String?
     }
 
     struct HotkeyBackup: Codable {
         var togglePalette: KeyShortcut?
+        // Legacy per-action fields, read on import only; `pluginActions` supersedes both on export.
         var toggleClipboard: KeyShortcut?
         var toggleEmoji: KeyShortcut?
         var apps: [String: KeyShortcut]?
         var panes: [String: KeyShortcut]?
         var customCommands: [String: KeyShortcut]?
+        /// Every bound plugin shortcut, keyed `<plugin-id>.<action-id>` — new plugins sync automatically.
+        var pluginActions: [String: KeyShortcut]?
+    }
+
+    /// Per-plugin preferences that live in raw bundle-scoped `UserDefaults`. Gathered as effective values (defaults resolved), so a synced Mac lands on exactly what the source Mac shows.
+    struct PluginPrefs: Codable {
+        struct ChangeCase: Codable {
+            var source: String?
+            var primaryAction: String?
+            var preserveCase: Bool?
+            var preservePunctuation: Bool?
+            var exceptions: String?
+            var prefix: String?
+            var suffix: String?
+            var pinned: [String]?
+            var recent: [String]?
+            var disabled: [String]?
+        }
+        struct KillProcess: Codable {
+            var sort: String?
+            var groupApps: Bool?
+            var searchPaths: Bool?
+            var searchPIDs: Bool?
+            var prioritizeApps: Bool?
+            var showPID: Bool?
+            var showPath: Bool?
+            var refreshSeconds: Double?
+        }
+        struct ImageModification: Codable {
+            var output: String?
+            var format: String?
+        }
+        var changeCase: ChangeCase?
+        var killProcess: KillProcess?
+        var imageModification: ImageModification?
+    }
+
+    struct TextReplacementBackup: Codable {
+        var prefix: String?
+        var rules: [TextReplacementRule]?
     }
 
     /// A tally of what an import touched, for user-facing confirmation.
@@ -76,13 +121,19 @@ extension SettingsBackup {
             searchScopes: s.searchScopes,
             openOnCursorScreen: s.openOnCursorScreen,
             openRouterAPIKey: core.openRouter.apiKey.isEmpty ? nil : core.openRouter.apiKey,
-            openRouterModel: core.openRouter.model)
+            openRouterTranslationModel: core.openRouter.translationModel,
+            openRouterGrammarModel: core.openRouter.grammarModel)
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
         hotkeys.togglePalette = hk.shortcut(for: .togglePalette)
-        hotkeys.toggleClipboard = hk.shortcut(for: .plugin(.openClipboard))
-        hotkeys.toggleEmoji = hk.shortcut(for: .plugin(.openEmoji))
+        // Covers every plugin action, clipboard/emoji included — their legacy fields are import-only now.
+        hotkeys.pluginActions = Dictionary(
+            uniqueKeysWithValues: core.plugins.shortcutActions.compactMap { key in
+                hk.shortcut(for: .plugin(key)).map {
+                    ("\(key.pluginID.rawValue).\(key.actionID)", $0)
+                }
+            })
         hotkeys.apps = Dictionary(
             uniqueKeysWithValues: hk.boundBundleIDs.compactMap { id in
                 hk.shortcut(for: .app(bundleID: id)).map { (id, $0) }
@@ -102,7 +153,52 @@ extension SettingsBackup {
         backup.hiddenLauncherItems = core.visibility.hiddenItemKeys.sorted()
         backup.hiddenLauncherKinds = core.visibility.hiddenKinds.sorted()
         backup.pluginStates = core.plugins.exportedEnabledStates()
+        backup.pluginPrefs = gatherPluginPrefs()
+        backup.worldClockCities = core.worldClock.cityIDs
+        backup.textReplacement = TextReplacementBackup(
+            prefix: core.textReplacements.prefix,
+            rules: core.textReplacements.rules)
         return backup
+    }
+
+    /// Effective values, resolved with the same defaults their settings views use, so an export never carries "unset" holes.
+    private static func gatherPluginPrefs() -> PluginPrefs {
+        let d = UserDefaults.standard
+        var prefs = PluginPrefs()
+        prefs.changeCase = PluginPrefs.ChangeCase(
+            source: d.string(forKey: "change-case.source")
+                ?? ChangeCaseInputSource.selectedText.rawValue,
+            primaryAction: d.string(forKey: "change-case.primary-action")
+                ?? ChangeCasePrimaryAction.paste.rawValue,
+            preserveCase: d.object(forKey: "change-case.preserve-case") == nil
+                || d.bool(forKey: "change-case.preserve-case"),
+            preservePunctuation: d.bool(forKey: "change-case.preserve-punctuation"),
+            exceptions: d.string(forKey: "change-case.exceptions")
+                ?? "iOS, iPadOS, iPhone, macOS, tvOS, watchOS",
+            prefix: d.string(forKey: "change-case.prefix") ?? "",
+            suffix: d.string(forKey: "change-case.suffix") ?? "",
+            pinned: d.stringArray(forKey: "change-case.pinned") ?? [],
+            recent: d.stringArray(forKey: "change-case.recent") ?? [],
+            disabled: d.stringArray(forKey: "change-case.disabled") ?? [])
+        prefs.killProcess = PluginPrefs.KillProcess(
+            sort: d.string(forKey: "kill-process.sort") ?? ProcessSort.cpu.rawValue,
+            groupApps: d.object(forKey: "kill-process.group-apps") == nil
+                || d.bool(forKey: "kill-process.group-apps"),
+            searchPaths: d.bool(forKey: "kill-process.search-paths"),
+            searchPIDs: d.object(forKey: "kill-process.search-pids") == nil
+                || d.bool(forKey: "kill-process.search-pids"),
+            prioritizeApps: d.object(forKey: "kill-process.prioritize-apps") == nil
+                || d.bool(forKey: "kill-process.prioritize-apps"),
+            showPID: d.object(forKey: "kill-process.show-pid") == nil
+                || d.bool(forKey: "kill-process.show-pid"),
+            showPath: d.bool(forKey: "kill-process.show-path"),
+            refreshSeconds: d.object(forKey: "kill-process.refresh-seconds") == nil
+                ? 2.0 : d.double(forKey: "kill-process.refresh-seconds"))
+        prefs.imageModification = PluginPrefs.ImageModification(
+            output: d.string(forKey: "image-modification.output")
+                ?? ImageOutputLocation.alongside.rawValue,
+            format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
+        return prefs
     }
 
     @discardableResult
@@ -126,7 +222,58 @@ extension SettingsBackup {
             core.visibility.replace(hiddenItems: items, hiddenKinds: kinds)
             summary.hiddenItems = items.count
         }
+        if let pluginPrefs {
+            summary.settingsFields += Self.applyPluginPrefs(pluginPrefs, to: core)
+        }
+        if let worldClockCities {
+            core.worldClock.replace(cityIDs: worldClockCities)
+            summary.settingsFields += 1
+        }
+        if let textReplacement {
+            core.textReplacements.replace(
+                prefix: textReplacement.prefix, rules: textReplacement.rules ?? [])
+            summary.settingsFields += 1
+        }
         return summary
+    }
+
+    private static func applyPluginPrefs(_ prefs: PluginPrefs, to core: AppCore) -> Int {
+        let d = UserDefaults.standard
+        var count = 0
+        func set(_ value: Any?, _ key: String) {
+            guard let value else { return }
+            d.set(value, forKey: key)
+            count += 1
+        }
+        if let c = prefs.changeCase {
+            set(c.source, "change-case.source")
+            set(c.primaryAction, "change-case.primary-action")
+            set(c.preserveCase, "change-case.preserve-case")
+            set(c.preservePunctuation, "change-case.preserve-punctuation")
+            set(c.exceptions, "change-case.exceptions")
+            set(c.prefix, "change-case.prefix")
+            set(c.suffix, "change-case.suffix")
+            set(c.pinned, "change-case.pinned")
+            set(c.recent, "change-case.recent")
+            set(c.disabled, "change-case.disabled")
+            // Pinned/recent are cached as `@Published` state; re-read so the browser reflects the import without a relaunch.
+            core.changeCase.reloadPersisted()
+        }
+        if let k = prefs.killProcess {
+            set(k.sort, "kill-process.sort")
+            set(k.groupApps, "kill-process.group-apps")
+            set(k.searchPaths, "kill-process.search-paths")
+            set(k.searchPIDs, "kill-process.search-pids")
+            set(k.prioritizeApps, "kill-process.prioritize-apps")
+            set(k.showPID, "kill-process.show-pid")
+            set(k.showPath, "kill-process.show-path")
+            set(k.refreshSeconds, "kill-process.refresh-seconds")
+        }
+        if let i = prefs.imageModification {
+            set(i.output, "image-modification.output")
+            set(i.format, "image-modification.format")
+        }
+        return count
     }
 
     private func applySettings(_ s: SettingsData, to core: AppCore) -> Int {
@@ -194,8 +341,12 @@ extension SettingsBackup {
             core.openRouter.setAPIKey(key)
             count += 1
         }
-        if let model = s.openRouterModel {
-            core.openRouter.setModel(model)
+        if let model = s.openRouterTranslationModel {
+            core.openRouter.setTranslationModel(model)
+            count += 1
+        }
+        if let model = s.openRouterGrammarModel {
+            core.openRouter.setGrammarModel(model)
             count += 1
         }
         return count
@@ -211,8 +362,17 @@ extension SettingsBackup {
             count += 1
         }
         if let s = hotkeys.togglePalette { apply(s, .togglePalette) }
+        // Legacy single-action fields from older files; `pluginActions` below carries these in new exports.
         if let s = hotkeys.toggleClipboard { apply(s, .plugin(.openClipboard)) }
         if let s = hotkeys.toggleEmoji { apply(s, .plugin(.openEmoji)) }
+        if let pluginActions = hotkeys.pluginActions {
+            // Resolve through the registry so a binding only lands on an action this build actually has.
+            for key in core.plugins.shortcutActions {
+                if let s = pluginActions["\(key.pluginID.rawValue).\(key.actionID)"] {
+                    apply(s, .plugin(key))
+                }
+            }
+        }
         for (id, s) in hotkeys.apps ?? [:] { apply(s, .app(bundleID: id)) }
         for (id, s) in hotkeys.panes ?? [:] { apply(s, .settingsPane(bundleID: id)) }
         for (rawID, s) in hotkeys.customCommands ?? [:] {

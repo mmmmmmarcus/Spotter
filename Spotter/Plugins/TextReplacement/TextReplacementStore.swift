@@ -45,6 +45,21 @@ final class TextReplacementStore: ObservableObject {
         persist()
     }
 
+    /// Settings-backup import: replace prefix and rules wholesale, dropping anything that fails the same validation `add`/`update` enforce (a hand-edited file must not smuggle in a conflicting rule set).
+    func replace(prefix newPrefix: String?, rules newRules: [TextReplacementRule]) {
+        if let newPrefix, let normalized = try? TextReplacementValidator.normalizedPrefix(newPrefix) {
+            prefix = normalized
+        }
+        var accepted: [TextReplacementRule] = []
+        for rule in newRules {
+            if let normalized = try? TextReplacementValidator.normalizedRule(rule, among: accepted) {
+                accepted.append(normalized)
+            }
+        }
+        rules = accepted
+        persist()
+    }
+
     private func persist() {
         defaults.set(prefix, forKey: Self.prefixKey)
         if let data = try? JSONEncoder().encode(rules) {

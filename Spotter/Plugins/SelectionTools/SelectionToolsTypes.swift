@@ -67,9 +67,9 @@ enum SelectionToolsFailure: Error, Equatable, Sendable {
     case invalidSearchURL
     case browserOpenFailed
     case sourceLanguageUnknown
-    case translationLanguagesNotInstalled
     case translationUnavailable
     case grammarUnavailable
+    case llmNotConfigured
     case llmRequestFailed
     case cancelled
 
@@ -92,13 +92,13 @@ enum SelectionToolsFailure: Error, Equatable, Sendable {
         case .browserOpenFailed:
             "The default browser could not open the Google Search URL."
         case .sourceLanguageUnknown:
-            "macOS could not identify the selected text language."
-        case .translationLanguagesNotInstalled:
-            "The required macOS Translation languages are not installed on this Mac."
+            "The selected text's language could not be identified."
         case .translationUnavailable:
-            "macOS Translation could not translate the selected text."
+            "The translation request failed."
         case .grammarUnavailable:
-            "The macOS grammar service could not check the selected text."
+            "The grammar check failed."
+        case .llmNotConfigured:
+            "Add an OpenRouter API key in Settings → General → AI to translate and check grammar."
         case .llmRequestFailed:
             "The AI request to OpenRouter failed — check your API key, model and connection in Settings → General."
         case .cancelled:

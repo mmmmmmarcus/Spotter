@@ -26,6 +26,13 @@ final class ChangeCaseStore: ObservableObject {
         recent = (defaults.stringArray(forKey: "change-case.recent") ?? []).compactMap(ChangeCaseKind.init(rawValue:))
     }
 
+    /// Settings-backup import writes the raw defaults; re-read the two `@Published` caches (options are read live and need no reload).
+    func reloadPersisted() {
+        objectWillChange.send()
+        pinned = Set((defaults.stringArray(forKey: "change-case.pinned") ?? []).compactMap(ChangeCaseKind.init(rawValue:)))
+        recent = (defaults.stringArray(forKey: "change-case.recent") ?? []).compactMap(ChangeCaseKind.init(rawValue:))
+    }
+
     var enabledKinds: [ChangeCaseKind] {
         let disabled = Set(defaults.stringArray(forKey: "change-case.disabled") ?? [])
         return ChangeCaseKind.allCases.filter { !disabled.contains($0.rawValue) }

@@ -59,7 +59,7 @@ imperatively from AppKit.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
-  Selection Tools uses this route for asynchronous on-device translation and grammar states after it
+  Selection Tools uses this route for asynchronous AI translation and grammar states after it
   snapshots the frontmost app's Accessibility selection, before Spotter activates.
 
 The app forces `.darkAqua` appearance globally; the Liquid Glass material is tuned for a dark surface

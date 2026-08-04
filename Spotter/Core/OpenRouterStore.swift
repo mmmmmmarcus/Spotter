@@ -9,7 +9,7 @@ enum OpenRouterError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .notConfigured: "OpenRouter is not enabled or has no API key."
+        case .notConfigured: "OpenRouter has no API key."
         case .unauthorized: "OpenRouter rejected the API key."
         case .badResponse: "OpenRouter returned an unreadable response."
         case .http(let status): "OpenRouter request failed (HTTP \(status))."
@@ -17,16 +17,18 @@ enum OpenRouterError: LocalizedError, Equatable {
     }
 }
 
-/// API key, model choice, consent and the one chat-completion call for LLM-backed features.
-/// Follows `CurrencyRateStore`'s network shape: ships off, consent lives here (never in
-/// `AppSettings`), is re-checked on both sides of every `await`, and requests run on a private
-/// cacheless session. The key and model are mirrored into `SettingsBackup` so they sync between
-/// Macs, but the consent flag deliberately is not — an imported file must never grant network access.
+/// API key, per-action model choices and the one chat-completion call for LLM-backed features.
+/// The key is the gate (owner decision, Aug 2026): no key means no request can be made and the
+/// on-device services serve instead; entering — or syncing — a key is the consent act. Requests run
+/// on a private cacheless session, re-checked for a key on both sides of every `await`. The key and
+/// models mirror into `SettingsBackup` so they sync between Macs.
 @MainActor
 final class OpenRouterStore: ObservableObject {
     static let provider = "OpenRouter"
     static let providerURL = URL(string: "https://openrouter.ai")!
-    static let defaultModel = "openai/gpt-4o-mini"
+    /// Fast, strong instruction-following and multilingual quality — the right class for short interactive selections.
+    static let defaultTranslationModel = "anthropic/claude-haiku-4.5"
+    static let defaultGrammarModel = "anthropic/claude-haiku-4.5"
     private nonisolated static let chatEndpoint = URL(
         string: "https://openrouter.ai/api/v1/chat/completions")!
     private nonisolated static let keyEndpoint = URL(
@@ -40,25 +42,30 @@ final class OpenRouterStore: ObservableObject {
     }
 
     @Published private(set) var apiKey: String
-    @Published private(set) var model: String
-    /// Explicit user consent; absent reads as false, the only safe default for a network feature.
-    @Published private(set) var isEnabled: Bool
+    @Published private(set) var translationModel: String
+    @Published private(set) var grammarModel: String
     @Published private(set) var validation: Validation = .unknown
 
     private static let keyKey = "openrouter.api-key"
-    private static let modelKey = "openrouter.model"
-    private static let consentKey = "openrouter.enabled"
+    private static let legacyModelKey = "openrouter.model"
+    private static let translationModelKey = "openrouter.translation-model"
+    private static let grammarModelKey = "openrouter.grammar-model"
     private let defaults = UserDefaults.standard
 
     init() {
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
-        model = defaults.string(forKey: Self.modelKey) ?? Self.defaultModel
-        isEnabled = defaults.bool(forKey: Self.consentKey)
+        // One release carried a single shared model key; seed both per-action models from it once.
+        let legacy = defaults.string(forKey: Self.legacyModelKey)
+        translationModel =
+            defaults.string(forKey: Self.translationModelKey) ?? legacy
+            ?? Self.defaultTranslationModel
+        grammarModel =
+            defaults.string(forKey: Self.grammarModelKey) ?? legacy ?? Self.defaultGrammarModel
     }
 
-    /// Consent granted and a key present — what LLM-backed features check before preferring this path.
+    /// A key is present — LLM-backed features prefer this path; without one they fall back on-device.
     var isReady: Bool {
-        isEnabled && !apiKey.isEmpty
+        !apiKey.isEmpty
     }
 
     func setAPIKey(_ key: String) {
@@ -69,19 +76,23 @@ final class OpenRouterStore: ObservableObject {
         validation = .unknown
     }
 
-    func setModel(_ newModel: String) {
-        let trimmed = newModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolved = trimmed.isEmpty ? Self.defaultModel : trimmed
-        guard resolved != model else { return }
-        model = resolved
-        defaults.set(resolved, forKey: Self.modelKey)
+    func setTranslationModel(_ newModel: String) {
+        let resolved = Self.resolve(newModel, default: Self.defaultTranslationModel)
+        guard resolved != translationModel else { return }
+        translationModel = resolved
+        defaults.set(resolved, forKey: Self.translationModelKey)
     }
 
-    /// The Settings toggle's only entry point, called after the user accepts the consent dialog.
-    func setEnabled(_ enabled: Bool) {
-        guard enabled != isEnabled else { return }
-        isEnabled = enabled
-        defaults.set(enabled, forKey: Self.consentKey)
+    func setGrammarModel(_ newModel: String) {
+        let resolved = Self.resolve(newModel, default: Self.defaultGrammarModel)
+        guard resolved != grammarModel else { return }
+        grammarModel = resolved
+        defaults.set(resolved, forKey: Self.grammarModelKey)
+    }
+
+    private nonisolated static func resolve(_ model: String, default fallback: String) -> String {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
     }
 
     /// Manual key check from Settings; hits the key-metadata endpoint, never a model.
@@ -121,8 +132,8 @@ final class OpenRouterStore: ObservableObject {
         }
     }
 
-    /// One chat completion. Consent is re-checked on both sides of the request: it can be revoked from Settings while a reply is in flight, and a late response must not be surfaced.
-    func chat(system: String, user: String) async throws -> String {
+    /// One chat completion against the given model. The key is re-checked on both sides of the request: it can be cleared from Settings while a reply is in flight, and a late response must not be surfaced.
+    func chat(system: String, user: String, model: String) async throws -> String {
         guard isReady else { throw OpenRouterError.notConfigured }
         let body = ChatRequest(
             model: model,

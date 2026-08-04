@@ -10,6 +10,13 @@ Macs; Spotter itself uses no network service or CloudKit container. The Settings
 the selected item is an iCloud ubiquitous item and allows synchronization to be paused or disconnected
 without deleting the file.
 
+Coverage is deliberately complete for *configuration*: general settings, every bound hotkey
+(including all plugin actions, keyed `<plugin-id>.<action-id>` so new plugins sync automatically),
+custom commands, favorites, visibility, plugin enable states, the OpenRouter key and per-action
+models, per-plugin preferences (Change Case, Kill Process, Image Modification), World Clock's saved
+cities, and Text Replacement's prefix and rules. Content and learned state stay local by design:
+clipboard history, calculator history, notes, learned launcher ranking and frequent emoji.
+
 ## Live pipeline
 
 `AppCore` owns one `SettingsSyncManager`. It observes the stores represented by `SettingsBackup`,
@@ -25,8 +32,8 @@ Spotter's own writes and normalized re-exports, preventing feedback loops. Malfo
 files leave live settings untouched, surface an inline error and remain watched for recovery.
 
 Connecting a file requires an explicit trust alert because settings JSON may include custom shell
-commands, global shortcuts and the OpenRouter API key. Network-consent states remain excluded — the
-plugin flags through the existing `exportsEnabledState` contract and OpenRouter's enable flag by
-staying on `OpenRouterStore` — so synchronization cannot grant network access: a synced Mac receives
-the key and model but AI features stay off until enabled locally. The key travels in plain JSON, so
-the file should live somewhere private (iCloud Drive is fine; a shared folder is not).
+commands, global shortcuts and the OpenRouter API key. Plugin network-consent flags remain excluded
+through the existing `exportsEnabledState` contract. The OpenRouter key is the one deliberate
+exception (owner decision, Aug 2026): the key itself is the gate, so a synced Mac that receives it
+has the AI path active immediately — syncing the key is the consent act. The key travels in plain
+JSON, so the file should live somewhere private (iCloud Drive is fine; a shared folder is not).

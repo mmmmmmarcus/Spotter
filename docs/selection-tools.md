@@ -74,16 +74,18 @@ or failed open switches to the Selection Tools palette error state instead of op
 
 ## AI providers (OpenRouter)
 
-When the user has enabled **AI Translate & Grammar** in Settings → General and stored an OpenRouter
-API key, Translate and Check Grammar route through `Core/OpenRouterStore.swift` instead of the
-on-device services; without consent or a key they silently fall back to the system providers below.
+Translate and Check Grammar run exclusively through `Core/OpenRouterStore.swift`; there is no
+on-device fallback (owner decision, Aug 2026) — without an API key both actions fail with an
+explicit palette message pointing at Settings → General → AI. There is likewise deliberately
+**no separate enable toggle**:
+the key is the gate, and entering or syncing one is the consent act. Each action has its own model
+(Settings → Plugins → Selection Tools), defaulting to `anthropic/claude-haiku-4.5`, chosen for
+latency, instruction-following and multilingual quality on short interactive selections.
 
-The store follows `CurrencyRateStore`'s network shape: ships off, consent lives on the store (never
-`AppSettings`), is re-checked on both sides of every `await`, and requests run on a private cacheless
-`URLSession`. The consent sheet names the provider, the trigger (only when an action runs) and what
-leaves the machine (the selected text, the instruction, the API key). The key and model mirror into
-`SettingsBackup` so they sync across Macs; the consent flag deliberately does not, so an imported or
-synced file can never grant network access — after a sync, the user flips the toggle once.
+The store keeps the rest of `CurrencyRateStore`'s network shape: the key is re-checked on both
+sides of every `await` (clearing it mid-flight discards the response), and requests run on a
+private cacheless `URLSession`. The key and both models mirror into `SettingsBackup`, so a synced
+Mac gets a working AI path immediately.
 
 `Plugins/SelectionTools/SelectionLLM.swift` is Foundation-only and pure: target-language choice
 (first preferred language; text already in it goes to the next preferred, else English), prompt
@@ -94,19 +96,15 @@ text"). `OpenRouterSelectionServices.swift` adapts it to the same
 the manager, state machine and palette are identical on both paths. An OpenRouter failure surfaces
 as one explicit palette error naming Settings → General.
 
-## Translation and grammar providers
+## Translation and grammar engines
 
-Translation uses `TranslationSession(installedSource:target:)`, available on macOS 26 for non-UI
-contexts. `NaturalLanguage` identifies the source; the target is chosen from the user's preferred
-system languages. The installed-source initializer cannot request downloads, so Spotter uses only
-language assets already installed by macOS. Translation runs asynchronously and selected content is
-processed on-device. A missing language asset is reported explicitly; Spotter does not add an external
-provider, API key, network consent or fabricated fallback.
-
-Grammar uses `NSSpellChecker.requestChecking` with the grammar checking type. The system completion is
-decoded immediately into Sendable ranges, descriptions and corrections. A pure response mapper applies
-the first available correction from the end of the string toward the beginning, preserving valid
-UTF-16 ranges, and retains issues without an automatic correction for display.
+`OpenRouterSelectionServices.swift` holds both engines. Translation detects the source language
+locally with `NaturalLanguage`, picks the target from the user's preferred system languages
+(`SelectionLLM.targetLanguage`), and asks the configured translation model for the translation
+alone. Grammar asks the configured grammar model for the corrected text plus a JSON issues list;
+`SelectionLLM.parseGrammar` anchors each issue's range left-to-right in the original text and
+degrades a non-JSON reply to "the whole reply is the corrected text". The former on-device
+`TranslationSession`/`NSSpellChecker` services were removed with the fallback path.
 
 ## State and palette
 
