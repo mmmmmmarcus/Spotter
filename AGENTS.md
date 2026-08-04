@@ -122,6 +122,11 @@ Never break these without an explicit task to do so.
   means no request can be made (Selection Tools falls back on-device); entering the key, or syncing
   a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
   not copy this shape for new networked features without an explicit owner decision.
+  `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a
+  consent dialog (never synced); the manual Check for Updates click is itself the consent for that
+  one request, and installs only happen on an explicit click after the new bundle passes
+  designated-requirement signature verification. `Core/UpdateFeed.swift` stays Foundation-only and
+  pure for `Tools/update-test.swift`.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See

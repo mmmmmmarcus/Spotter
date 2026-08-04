@@ -137,6 +137,7 @@ final class AppCore: ObservableObject {
     let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
+    let updates = UpdateStore()
 
     private lazy var windowController = PaletteWindowController(core: self)
     private let auxWindows = AuxWindowController()
@@ -195,6 +196,10 @@ final class AppCore: ObservableObject {
         selectionTools.resumeClipboardCapture = { [weak self] in
             self?.clipboardManager.endSuppressingCapture()
         }
+
+        // Terminate through NSApp so applicationWillTerminate still runs (Hyper Key remap cleanup) before the relaunch helper brings the new build up.
+        updates.terminateForRelaunch = { NSApp.terminate(nil) }
+        updates.start()
 
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
         hotKeys.onRunPluginAction = { [weak self] action in self?.plugins.perform(action) }

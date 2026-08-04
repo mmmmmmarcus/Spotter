@@ -38,6 +38,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
   OpenRouter key.
 - **Text replacement** — expand your own prefix+keyword triggers into saved text as you type.
 - **Settings sync** — keep one JSON settings file (e.g. in iCloud Drive) applied across your Macs.
+- **In-app updates** — check GitHub Releases and update from Settings; signature-verified, and your
+  permissions survive.
 - **Image modification** — batch-convert, resize, filter, optimize, pad, rotate, remove backgrounds,
   and clear metadata with native macOS frameworks.
 - **QuickTime recording** — start a screen, audio, or movie recording directly from the launcher.

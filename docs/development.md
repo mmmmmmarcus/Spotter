@@ -115,6 +115,8 @@ swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.sw
     -o /tmp/text-replacement-test && /tmp/text-replacement-test
 swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
     Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
+swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
+    -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
 ```
 
 `Tools/fuzz-test.swift` holds a **copy** of `FuzzyMatch` from `Spotter/Core/AppIndex.swift` —
@@ -205,6 +207,18 @@ Both local builds and CI releases sign with the same stable `Spotter Self-Signed
 Apple Developer ID), so macOS quarantines a directly-downloaded DMG — the Homebrew cask strips that
 automatically, and direct downloaders run `xattr -dr com.apple.quarantine "…/Spotter.app"` once.
 Full details in [signing.md](signing.md).
+
+## In-app updates
+
+`Core/UpdateStore.swift` checks the GitHub Releases feed (daily behind an explicit consent toggle;
+Check for Updates in Settings → General is itself the user action) and installs in place: download
+the release's `Spotter-<version>.zip`, unpack with `ditto`, verify the new bundle satisfies the
+running app's **designated requirement** (the `Spotter Self-Signed` certificate — a hijacked asset
+fails here), stage beside `/Applications/Spotter.app`, remove-and-rename, relaunch. The working
+install is never deleted before its replacement is fully staged. `URLSession` downloads carry no
+quarantine flag, so an updated app launches without a Gatekeeper prompt. Releases published before
+the zip asset existed fall back to a "View release" button. `Core/UpdateFeed.swift` (semver +
+feed selection) is Foundation-only and pure for `Tools/update-test.swift`.
 
 ## CI releases
 

@@ -13,6 +13,7 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `CalculatorHistoryStore`,
 `CurrencyRateStore`, `RunningAppsMonitor`, `WorldClockStore`, `KillProcessManager`, `ChangeCaseStore`,
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
+`UpdateStore`,
 `TextReplacementManager`, `NoteStore`,
 `SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry` — plus the window
