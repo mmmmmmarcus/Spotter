@@ -137,6 +137,7 @@ final class AppCore: ObservableObject {
     let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
+    let windowMover = WindowMover()
     let mole = MoleManager()
     let coffee = CoffeeManager()
     let updates = UpdateStore()
@@ -355,6 +356,8 @@ final class AppCore: ObservableObject {
     }
 
     var previousApplication: NSRunningApplication? { windowController.previousApp }
+    /// Whether the palette panel is on screen — window commands need it to pick their target app.
+    var isPaletteShowing: Bool { windowController.isVisible }
 
     /// The first-run wizard: palette shortcut, Accessibility, Raycast import. Also re-runnable from Settings.
     func showOnboarding() {

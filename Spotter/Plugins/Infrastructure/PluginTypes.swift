@@ -22,6 +22,8 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let note = PluginID(rawValue: "note")
     static let mole = PluginID(rawValue: "mole")
     static let coffee = PluginID(rawValue: "coffee")
+    static let windowManagement = PluginID(rawValue: "window-management")
+    static let systemCommands = PluginID(rawValue: "system-commands")
 }
 
 /// The small fixed palette Settings uses for plugin sidebar icon tiles.

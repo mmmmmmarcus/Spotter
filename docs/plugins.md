@@ -232,6 +232,11 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins.
+- **Window Management** (`Spotter/Plugins/WindowManagement/`) — disabled by default; 30 commands
+  covering halves, quarters, thirds, sizing, display moves and fullscreen, on a pure geometry engine
+  with an AX mover.
+- **System Commands** (`Spotter/Plugins/SystemCommands/`) — disabled by default; 30 macOS actions
+  with confirmation on the destructive ones.
 - **Mole** (`Spotter/Plugins/Mole/`) — disabled by default; renders `mole status` and
   `mole history --json` as palette rows and hands the destructive interactive commands to Terminal.
 - **Coffee** (`Spotter/Plugins/Coffee/`) — disabled by default; keeps the Mac awake indefinitely,
@@ -241,5 +246,6 @@ shell-command feature; do not use shell commands as an internal plugin API.
 
 Detailed internals: [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md),
+[Window Management](window-management.md), [System Commands](system-commands.md),
 [Mole](mole.md), [Coffee](coffee.md), and
 [Notes](notes.md), plus [Text Replacement](text-replacement.md).
