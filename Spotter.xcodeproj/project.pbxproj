@@ -90,6 +90,7 @@
 		9B90649F3F54F2D036C08214 /* NoteEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153205CD1057E24782EA9A43 /* NoteEngine.swift */; };
 		9D1E9A3F37346DB2A4CEF564 /* RaycastImportSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB5A874A02DFEF5BC50CFA0 /* RaycastImportSelection.swift */; };
 		A0EF6A5216834020893AA042 /* ChangeCaseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF8C28A567670C9131C35CC /* ChangeCaseStore.swift */; };
+		A14BCA6DE687C5F3A0E2596F /* InputSourceLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D60D7E8BF89AC9EB221093E /* InputSourceLock.swift */; };
 		A1F4D1C65D235F6A73EF5747 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F3DB0D82605F0450E69E57 /* LaunchAtLogin.swift */; };
 		A2D98D8FC39DAD089215A124 /* ClipboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17AE76ADC7A9EC2466F6587 /* ClipboardView.swift */; };
 		A39D05C2AD356E8C909F2FCF /* NotePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0585A83889766AB5682CD10C /* NotePlugin.swift */; };
@@ -229,6 +230,7 @@
 		86AB7F80FD918C4318C2DB52 /* ChangeCaseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCaseEngine.swift; sourceTree = "<group>"; };
 		877179DBE39808E47E948AD4 /* SelectionLLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionLLM.swift; sourceTree = "<group>"; };
 		8D580827F82667E578C1D827 /* WorldClockEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockEngine.swift; sourceTree = "<group>"; };
+		8D60D7E8BF89AC9EB221093E /* InputSourceLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourceLock.swift; sourceTree = "<group>"; };
 		8EFDA506189C9DCA0F620DB2 /* TextReplacementSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementSettingsView.swift; sourceTree = "<group>"; };
 		8F1644996CA8B7491C5F3B09 /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
 		8FB5A874A02DFEF5BC50CFA0 /* RaycastImportSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastImportSelection.swift; sourceTree = "<group>"; };
@@ -598,6 +600,7 @@
 				A8FDA359F35C67B15CF90C46 /* FavoritesStore.swift */,
 				80E4DF7799638EECF937F60F /* HotKeyManager.swift */,
 				964BE9F71D0D45A8468D1F47 /* ImageThumbnail.swift */,
+				8D60D7E8BF89AC9EB221093E /* InputSourceLock.swift */,
 				25F3DB0D82605F0450E69E57 /* LaunchAtLogin.swift */,
 				0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */,
 				669FECA0B11D71E765DC0F0D /* NotificationToken.swift */,
@@ -818,6 +821,7 @@
 				699D13262D38B7B15A26A38A /* ImageModificationSettingsView.swift in Sources */,
 				64B05A63190110CCC027E700 /* ImageModificationTypes.swift in Sources */,
 				EBE65BC33FCDC1737D14B6D1 /* ImageThumbnail.swift in Sources */,
+				A14BCA6DE687C5F3A0E2596F /* InputSourceLock.swift in Sources */,
 				B792D578FD66F930189D5582 /* KeyShortcut.swift in Sources */,
 				74901CB4F985B164790F6AEA /* KillProcessEngine.swift in Sources */,
 				FB5A436CD8251AF55CBEA8AE /* KillProcessManager.swift in Sources */,

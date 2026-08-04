@@ -9,6 +9,8 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
     private var popToRootTimer: Timer?
     /// Left/top edge of the panel, resolved once per show and reused across compact↔expanded resizes so both states share an exact top edge (only the height changes). Cleared on hide so the next summon re-resolves for the current screen.
     private var anchor: (x: CGFloat, topEdgeY: CGFloat)?
+    /// True while `positionPanel` is writing the frame, so the resulting `windowDidMove` isn't mistaken for a user drag.
+    private var isPositioningPanel = false
 
     init(core: AppCore) {
         self.core = core
@@ -25,6 +27,8 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         // Resolve the name/icon path once per summon rather than per render; reading `previousApp` (not `frontmost`) keeps the label naming the same app paste will actually target.
         core.palette.pasteTarget = PasteTarget(app: previousApp)
         let panel = ensurePanel()
+        // Switch to ASCII before the field takes focus, so the first keystroke can't open an IME composition. One-shot: switching away afterwards is the user's call.
+        if core.settings.lockInputToEnglish { InputSourceLock.selectASCIIKeyboard() }
         // Open disarmed: the pointer may already sit over a row, but nothing should be highlighted until the user actually moves it.
         core.palette.hoverHighlightArmed = false
         // Re-resolve the anchor for wherever the user is summoning now, then hold it for the whole session so compact↔expanded resizes never move the window.
@@ -149,7 +153,9 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         let height = collapsed ? Theme.Size.compactHeight : Theme.Size.panelHeight
         let frame = NSRect(
             x: anchor.x, y: anchor.topEdgeY - height, width: Theme.Size.panelWidth, height: height)
+        isPositioningPanel = true
         panel.setFrame(frame, display: true)
+        isPositioningPanel = false
     }
 
     /// The display to anchor to. `NSScreen.main` is the *key window's* screen, which an accessory app driving a non-activating panel never has — it resolves to the menu-bar display, not the one the user is working on.
@@ -165,11 +171,32 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         if let anchor { return anchor }
         guard let screen = targetScreen() else { return nil }
         let visible = screen.visibleFrame
+        // A remembered position wins over the computed one, clamped so a display change can't strand the panel off-screen.
+        if core.settings.remembersPalettePosition,
+            let saved = core.settings.palettePosition
+        {
+            let x = min(max(saved.x, visible.minX), visible.maxX - Theme.Size.panelWidth)
+            let topEdgeY = min(max(saved.y, visible.minY + Theme.Size.headerHeight), visible.maxY)
+            let resolved = (x: x, topEdgeY: topEdgeY)
+            anchor = resolved
+            return resolved
+        }
         let resolved = (
             x: visible.midX - Theme.Size.panelWidth / 2,
             topEdgeY: visible.maxY - visible.height * Theme.Size.paletteTopMarginFraction
         )
         anchor = resolved
         return resolved
+    }
+
+    /// A user drag re-anchors the session and, when the setting is on, is remembered for later summons. Programmatic frames set `isPositioningPanel`, so a compact↔expanded resize never reads as a move.
+    func windowDidMove(_ notification: Notification) {
+        guard !isPositioningPanel, let panel, notification.object as? NSWindow === panel else {
+            return
+        }
+        let moved = (x: panel.frame.minX, topEdgeY: panel.frame.maxY)
+        anchor = moved
+        guard core.settings.remembersPalettePosition else { return }
+        core.settings.palettePosition = CGPoint(x: moved.x, y: moved.topEdgeY)
     }
 }

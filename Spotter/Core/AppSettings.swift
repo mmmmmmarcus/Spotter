@@ -40,6 +40,10 @@ final class AppSettings: ObservableObject {
         static let showFavoritesInCompactMode = "showFavoritesInCompactMode"
         static let searchScopes = "launcherSearchScopes"
         static let openOnCursorScreen = "openOnCursorScreen"
+        static let remembersPalettePosition = "remembersPalettePosition"
+        static let palettePositionX = "palettePositionX"
+        static let palettePositionY = "palettePositionY"
+        static let lockInputToEnglish = "lockInputToEnglish"
     }
 
     /// Folders (and individual `.app` bundles) `AppIndex` scans, in scan order. Editing this re-indexes — `AppIndex.start(settings:)` observes it.
@@ -104,7 +108,43 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(openOnCursorScreen, forKey: Key.openOnCursorScreen) }
     }
 
+    /// Keep wherever the user dragged the palette instead of re-centering on every summon.
+    @Published var remembersPalettePosition: Bool {
+        didSet {
+            defaults.set(remembersPalettePosition, forKey: Key.remembersPalettePosition)
+            // Turning it off must also forget the stored point, or re-enabling would silently restore a stale one.
+            if !remembersPalettePosition { palettePosition = nil }
+        }
+    }
+
+    /// The dragged panel's left edge and *top* edge (the anchor the controller places against), or nil when never moved.
+    @Published var palettePosition: CGPoint? {
+        didSet {
+            guard let palettePosition else {
+                defaults.removeObject(forKey: Key.palettePositionX)
+                defaults.removeObject(forKey: Key.palettePositionY)
+                return
+            }
+            defaults.set(Double(palettePosition.x), forKey: Key.palettePositionX)
+            defaults.set(Double(palettePosition.y), forKey: Key.palettePositionY)
+        }
+    }
+
+    /// Switch to an ASCII input source while the palette opens, so typing a query never lands in a CJK composer.
+    @Published var lockInputToEnglish: Bool {
+        didSet { defaults.set(lockInputToEnglish, forKey: Key.lockInputToEnglish) }
+    }
+
     init() {
+        remembersPalettePosition = defaults.bool(forKey: Key.remembersPalettePosition)
+        lockInputToEnglish = defaults.bool(forKey: Key.lockInputToEnglish)
+        // Absent reads as "never moved", which is what centers the panel.
+        palettePosition =
+            defaults.object(forKey: Key.palettePositionX) == nil
+            ? nil
+            : CGPoint(
+                x: defaults.double(forKey: Key.palettePositionX),
+                y: defaults.double(forKey: Key.palettePositionY))
         // integer(forKey:) returns 0 when unset, which no case matches — falls through to 3 Months.
         clipboardRetention =
             ClipboardRetention(rawValue: defaults.integer(forKey: Key.clipboardRetention))

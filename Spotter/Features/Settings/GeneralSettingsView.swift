@@ -210,6 +210,32 @@ struct GeneralSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
+                    title: "Remember Window Position",
+                    subtitle:
+                        "Drag the launcher by its background to move it. On, it reopens where you left it; off, it re-centers every time.",
+                    systemImage: "macwindow.on.rectangle",
+                    tint: .indigo
+                ) {
+                    Toggle("", isOn: $settings.remembersPalettePosition)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Lock Input Method to English",
+                    subtitle:
+                        "Switch the keyboard to an ASCII layout when the launcher opens. You can still switch to another input method while it's open.",
+                    systemImage: "keyboard",
+                    tint: .indigo
+                ) {
+                    Toggle("", isOn: $settings.lockInputToEnglish)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsDivider()
+                SettingsRow(
                     title: "Pop to Root Search",
                     subtitle: "Reset to the launcher this long after the window closes.",
                     systemImage: "arrow.uturn.backward",

@@ -62,7 +62,8 @@ final class PalettePanel: NSPanel {
         acceptsMouseMovedEvents = true
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        isMovableByWindowBackground = false
+        // Dragging the panel's own background moves it; SwiftUI rows and controls consume their own mouse-downs, so only empty chrome (the header beside the search field) initiates a drag.
+        isMovableByWindowBackground = true
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         isOpaque = false
