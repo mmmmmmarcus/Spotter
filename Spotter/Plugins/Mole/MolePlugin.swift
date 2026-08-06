@@ -3,17 +3,27 @@ import Combine
 import SwiftUI
 
 extension PluginActionKey {
+    static let openMoleMenu = standard(pluginID: .mole, actionID: "menu", title: "Mole")
     static let openMoleStatus = standard(
         pluginID: .mole, actionID: "status", title: "Mole System Status")
     static let openMoleHistory = standard(
         pluginID: .mole, actionID: "history", title: "Mole Cleanup History")
+    static let openMoleClean = standard(pluginID: .mole, actionID: "clean", title: "Mole Clean")
+    static let openMoleOptimize = standard(
+        pluginID: .mole, actionID: "optimize", title: "Mole Optimize")
+    static let openMolePurge = standard(pluginID: .mole, actionID: "purge", title: "Mole Purge")
+    static let openMoleUninstall = standard(
+        pluginID: .mole, actionID: "uninstall", title: "Mole Uninstall App")
+    static let openMoleAnalyze = standard(
+        pluginID: .mole, actionID: "analyze", title: "Mole Analyze Disk")
 }
 
 @MainActor
 enum MolePlugin {
     static func registration(core: AppCore) -> PluginRegistration {
         let screen = PluginPaletteScreenRegistration(
-            placeholder: "Filter Mole results…",
+            placeholder: "Choose a Mole command…",
+            livePlaceholder: { [weak core] in core?.mole.screen.placeholder },
             snapshot: { [weak core] query in
                 guard let core else {
                     return PluginPaletteSnapshot(
@@ -22,23 +32,11 @@ enum MolePlugin {
                 return MoleResults.snapshot(manager: core.mole, query: query)
             },
             performPrimaryAction: { [weak core] itemID in
-                core?.copyMoleRow(itemID: itemID)
+                core?.performMoleRow(itemID: itemID)
             },
-            actions: { [weak core] _ in
+            actions: { [weak core] itemID in
                 guard let core else { return nil }
-                return PopoverMenuContent(
-                    header: "Mole",
-                    items: [
-                        PopoverMenuItem(
-                            title: "Refresh", systemImage: "arrow.clockwise", shortcut: "⌘R"
-                        ) { core.mole.reload() },
-                        PopoverMenuItem(title: "System Status", systemImage: "waveform.path.ecg") {
-                            core.mole.open(.status)
-                        },
-                        PopoverMenuItem(
-                            title: "Cleanup History", systemImage: "clock.arrow.circlepath"
-                        ) { core.mole.open(.history) },
-                    ])
+                return MoleResults.menu(core: core, itemID: itemID)
             },
             onClose: { [weak core] in core?.mole.stop() },
             observeChanges: { [weak core] invalidate in
@@ -49,21 +47,29 @@ enum MolePlugin {
             metadata: PluginMetadata(
                 id: .mole,
                 name: "Mole",
-                summary: "Drive the Mole CLI: system health and cleanup history in the palette, deeper commands in Terminal.",
+                summary:
+                    "Drive the Mole CLI from the launcher: health, cleanup, optimize, purge, uninstall and disk analysis, all rendered in the palette.",
                 systemImage: "chart.pie",
                 tint: .green),
             defaultEnabled: false,
             shortcutActions: [
+                PluginActionRegistration(key: .openMoleMenu) { core.openMole(.menu) },
                 PluginActionRegistration(key: .openMoleStatus) { core.openMole(.status) },
                 PluginActionRegistration(key: .openMoleHistory) { core.openMole(.history) },
+                PluginActionRegistration(key: .openMoleClean) { core.openMole(.clean) },
+                PluginActionRegistration(key: .openMoleOptimize) { core.openMole(.optimize) },
+                PluginActionRegistration(key: .openMolePurge) { core.openMole(.purge) },
+                PluginActionRegistration(key: .openMoleUninstall) { core.openMole(.uninstall) },
+                PluginActionRegistration(key: .openMoleAnalyze) { core.openMole(.analyze) },
             ],
             launcherCommands: MoleCommand.allCases.map { command in
                 PluginCommandRegistration(
                     id: command.commandID,
                     name: command.title,
                     systemImage: command.systemImage,
-                    // Only the two rendered screens are primary; the TUI hand-offs ship hidden so the launcher stays compact.
-                    defaultVisible: command.rendersInPalette
+                    actionKey: command.shortcutKey,
+                    // The installer selector can only run in a terminal, so it ships hidden.
+                    defaultVisible: command.screen != nil
                 ) { core.runMole(command) }
             },
             paletteScreen: screen,
@@ -77,11 +83,32 @@ enum MolePlugin {
     }
 }
 
+extension MoleCommand {
+    var shortcutKey: PluginActionKey? {
+        switch self {
+        case .menu: .openMoleMenu
+        case .status: .openMoleStatus
+        case .history: .openMoleHistory
+        case .clean: .openMoleClean
+        case .optimize: .openMoleOptimize
+        case .purge: .openMolePurge
+        case .uninstall: .openMoleUninstall
+        case .analyze: .openMoleAnalyze
+        case .installer: nil
+        }
+    }
+}
+
 /// Turns manager state into palette rows. Pure mapping — no I/O — so the screen stays a snapshot.
 @MainActor
 enum MoleResults {
     static func snapshot(manager: MoleManager, query: String) -> PluginPaletteSnapshot {
-        let section = manager.screen == .status ? "Mole · System Status" : "Mole · Cleanup History"
+        let section = manager.screen.sectionTitle
+        if manager.screen == .menu {
+            return PluginPaletteSnapshot(
+                sectionTitle: section, items: filtered(menuItems(manager: manager), query: query),
+                emptyMessage: "No matching command")
+        }
         switch manager.state {
         case .idle:
             return PluginPaletteSnapshot(
@@ -89,31 +116,13 @@ enum MoleResults {
         case .loading:
             return PluginPaletteSnapshot(
                 sectionTitle: section, items: [], isLoading: true,
-                loadingMessage: "Asking Mole…", emptyMessage: "Asking Mole…")
+                loadingMessage: loadingMessage(manager: manager), emptyMessage: "Asking Mole…")
         case .failed(let message):
             return PluginPaletteSnapshot(
                 sectionTitle: section, items: [], errorMessage: message, emptyMessage: message)
         case .status(let status):
-            var items = [
-                PluginPaletteItem(
-                    id: "health",
-                    title: "Health Score \(status.healthScore)",
-                    subtitle: status.healthMessage,
-                    icon: .symbol("heart.text.square"),
-                    accessories: [.init(systemImage: "gauge", text: "\(status.healthScore)/100")],
-                    primaryActionTitle: "Copy Value")
-            ]
-            items += status.rows.map { row in
-                PluginPaletteItem(
-                    id: "row:" + row.title,
-                    title: row.title,
-                    subtitle: row.detail.isEmpty ? nil : row.detail,
-                    icon: .symbol("circle.fill"),
-                    accessories: [.init(systemImage: "number", text: row.value)],
-                    primaryActionTitle: "Copy Value")
-            }
             return PluginPaletteSnapshot(
-                sectionTitle: section, items: filtered(items, query: query),
+                sectionTitle: section, items: filtered(statusItems(status), query: query),
                 emptyMessage: "No matching status rows")
         case .history(let entries):
             guard !entries.isEmpty else {
@@ -121,19 +130,275 @@ enum MoleResults {
                     sectionTitle: section, items: [],
                     emptyMessage: "No cleanup history yet — run Mole Clean to create some.")
             }
-            let items = entries.enumerated().map { index, entry in
-                PluginPaletteItem(
-                    id: "history:\(index)",
-                    title: "\(entry.command.capitalized) · \(entry.size)",
-                    subtitle: "\(entry.startedAt) · \(entry.items) items"
-                        + (entry.failedTasks > 0 ? " · \(entry.failedTasks) failed" : ""),
-                    icon: .symbol("clock.arrow.circlepath"),
-                    primaryActionTitle: "Copy Summary")
-            }
             return PluginPaletteSnapshot(
-                sectionTitle: section, items: filtered(items, query: query),
+                sectionTitle: section, items: filtered(historyItems(entries), query: query),
                 emptyMessage: "No matching history")
+        case .report(let report):
+            return PluginPaletteSnapshot(
+                sectionTitle: section,
+                items: runRow(manager: manager)
+                    + filtered(reportItems(report), query: query),
+                emptyMessage: report.isEmpty
+                    ? "Nothing to do — Mole found no reclaimable items." : "No matching item")
+        case .purge(let entries):
+            return PluginPaletteSnapshot(
+                sectionTitle: section,
+                items: runRow(manager: manager) + filtered(purgeItems(entries), query: query),
+                emptyMessage: entries.isEmpty
+                    ? "No build artifacts found in your project folders." : "No matching directory")
+        case .apps(let apps):
+            return PluginPaletteSnapshot(
+                sectionTitle: section, items: filtered(appItems(apps), query: query),
+                emptyMessage: "No matching app")
+        case .analysis(let analysis):
+            return PluginPaletteSnapshot(
+                sectionTitle: "Mole · " + shortPath(analysis.path),
+                items: ascendRow(manager: manager)
+                    + filtered(diskItems(analysis), query: query),
+                emptyMessage: "This folder is empty")
         }
+    }
+
+    // MARK: - Rows
+
+    private static func menuItems(manager: MoleManager) -> [PluginPaletteItem] {
+        MoleCommand.allCases.map { command in
+            let terminalOnly = command.screen == nil
+            return PluginPaletteItem(
+                id: "menu:" + command.rawValue,
+                title: command.title.replacingOccurrences(of: "Mole ", with: ""),
+                subtitle: terminalOnly
+                    ? command.summary + " · opens in Terminal" : command.summary,
+                icon: .symbol(command.systemImage),
+                primaryActionTitle: terminalOnly ? "Open in Terminal" : "Open")
+        }
+    }
+
+    private static func statusItems(_ status: MoleStatus) -> [PluginPaletteItem] {
+        var items = [
+            PluginPaletteItem(
+                id: "health",
+                title: "Health Score \(status.healthScore)",
+                subtitle: status.healthMessage,
+                icon: .symbol("heart.text.square"),
+                accessories: [.init(systemImage: "gauge", text: "\(status.healthScore)/100")],
+                primaryActionTitle: "Copy Value")
+        ]
+        items += status.rows.map { row in
+            PluginPaletteItem(
+                id: "row:" + row.title,
+                title: row.title,
+                subtitle: row.detail.isEmpty ? nil : row.detail,
+                icon: .symbol("circle.fill"),
+                accessories: [.init(systemImage: "number", text: row.value)],
+                primaryActionTitle: "Copy Value")
+        }
+        return items
+    }
+
+    private static func historyItems(_ entries: [MoleHistoryEntry]) -> [PluginPaletteItem] {
+        entries.enumerated().map { index, entry in
+            PluginPaletteItem(
+                id: "history:\(index)",
+                title: "\(entry.command.capitalized) · \(entry.size)",
+                subtitle: "\(entry.startedAt) · \(entry.items) items"
+                    + (entry.failedTasks > 0 ? " · \(entry.failedTasks) failed" : ""),
+                icon: .symbol("clock.arrow.circlepath"),
+                primaryActionTitle: "Copy Summary")
+        }
+    }
+
+    private static func reportItems(_ report: MoleReport) -> [PluginPaletteItem] {
+        report.items.enumerated().map { index, item in
+            PluginPaletteItem(
+                id: "item:\(index)",
+                title: item.title,
+                subtitle: item.section.isEmpty ? nil : item.section,
+                icon: .symbol("circle.dashed"),
+                accessories: item.detail.isEmpty
+                    ? [] : [.init(systemImage: "externaldrive", text: item.detail)],
+                primaryActionTitle: "Copy Line")
+        }
+    }
+
+    private static func purgeItems(_ entries: [MolePurgeEntry]) -> [PluginPaletteItem] {
+        entries.enumerated().map { index, entry in
+            PluginPaletteItem(
+                id: "purge:\(index)",
+                title: (entry.path as NSString).lastPathComponent,
+                subtitle: entry.path,
+                icon: .symbol("hammer"),
+                accessories: [.init(systemImage: "externaldrive", text: entry.size)],
+                primaryActionTitle: "Reveal in Finder")
+        }
+    }
+
+    private static func appItems(_ apps: [MoleApp]) -> [PluginPaletteItem] {
+        apps.enumerated().map { index, app in
+            PluginPaletteItem(
+                id: "app:\(index)",
+                title: app.name,
+                subtitle: app.path,
+                icon: app.path.isEmpty ? .symbol("app") : .file(path: app.path),
+                accessories: app.size.isEmpty
+                    ? [] : [.init(systemImage: "externaldrive", text: app.size)],
+                primaryActionTitle: "Move to Trash")
+        }
+    }
+
+    private static func diskItems(_ analysis: MoleAnalysis) -> [PluginPaletteItem] {
+        analysis.entries.enumerated().map { index, entry in
+            PluginPaletteItem(
+                id: "entry:\(index)",
+                title: entry.name,
+                subtitle: entry.isDirectory ? "Folder" : "File",
+                icon: .symbol(entry.isDirectory ? "folder" : "doc"),
+                accessories: [
+                    .init(systemImage: "externaldrive", text: MoleParser.bytes(entry.size))
+                ],
+                primaryActionTitle: entry.isDirectory ? "Open" : "Reveal in Finder")
+        }
+    }
+
+    /// The one row that turns a preview into an action, pinned above the list it describes.
+    private static func runRow(manager: MoleManager) -> [PluginPaletteItem] {
+        guard let action = pendingAction(for: manager.screen) else { return [] }
+        let running = manager.runningAction != nil
+        let summary = manager.lastRunSummary.joined(separator: " · ")
+        return [
+            PluginPaletteItem(
+                id: "run",
+                title: running ? "Running \(action.title)…" : action.title,
+                subtitle: summary.isEmpty
+                    ? "Runs the command for real — Spotter asks first." : summary,
+                icon: .symbol(running ? "hourglass" : "play.circle.fill"),
+                subtitleLineLimit: 2,
+                primaryActionTitle: running ? "Running…" : "Run")
+        ]
+    }
+
+    private static func ascendRow(manager: MoleManager) -> [PluginPaletteItem] {
+        guard manager.canAscend else { return [] }
+        return [
+            PluginPaletteItem(
+                id: "up",
+                title: "Back",
+                subtitle: shortPath((manager.analyzePath as NSString).deletingLastPathComponent),
+                icon: .symbol("arrow.uturn.backward"),
+                primaryActionTitle: "Go Up")
+        ]
+    }
+
+    static func pendingAction(for screen: MoleScreen) -> MoleAction? {
+        switch screen {
+        case .clean: .clean
+        case .optimize: .optimize
+        case .purge: .purge
+        default: nil
+        }
+    }
+
+    private static func loadingMessage(manager: MoleManager) -> String {
+        switch manager.screen {
+        case .clean: "Scanning caches…"
+        case .optimize: "Checking system services…"
+        case .purge: "Scanning project folders…"
+        case .uninstall: "Listing installed apps…"
+        case .analyze: "Measuring \(shortPath(manager.analyzePath))…"
+        default: "Asking Mole…"
+        }
+    }
+
+    static func shortPath(_ path: String) -> String {
+        (path as NSString).abbreviatingWithTildeInPath
+    }
+
+    // MARK: - Actions menu
+
+    static func menu(core: AppCore, itemID: String) -> PopoverMenuContent? {
+        let manager = core.mole
+        var items: [PopoverMenuItem] = []
+
+        if let app = app(manager: manager, itemID: itemID) {
+            items.append(
+                PopoverMenuItem(title: "Move to Trash", systemImage: "trash") {
+                    core.runMoleAction(.uninstall(name: app.uninstallName, permanent: false))
+                })
+            items.append(
+                PopoverMenuItem(
+                    title: "Delete Permanently", systemImage: "trash.slash", isDestructive: true
+                ) { core.runMoleAction(.uninstall(name: app.uninstallName, permanent: true)) })
+            items.append(
+                PopoverMenuItem(title: "Reveal in Finder", systemImage: "folder") {
+                    core.revealInFinder(path: app.path)
+                })
+            items.append(
+                PopoverMenuItem(title: "Copy Bundle ID", systemImage: "doc.on.doc") {
+                    core.hidePalette(restoreFocus: false)
+                    Paster.copyPlainText(app.bundleID)
+                })
+        } else if let path = revealablePath(manager: manager, itemID: itemID) {
+            items.append(
+                PopoverMenuItem(title: "Reveal in Finder", systemImage: "folder") {
+                    core.revealInFinder(path: path)
+                })
+            items.append(
+                PopoverMenuItem(title: "Copy Path", systemImage: "doc.on.doc") {
+                    core.hidePalette(restoreFocus: false)
+                    Paster.copyPlainText(path)
+                })
+        }
+
+        if let action = pendingAction(for: manager.screen), !manager.isRunning {
+            items.append(
+                PopoverMenuItem(
+                    title: action.title, systemImage: "play.circle",
+                    isDestructive: action.isPermanent
+                ) { core.runMoleAction(action) })
+        }
+
+        items.append(
+            PopoverMenuItem(title: "Refresh", systemImage: "arrow.clockwise", shortcut: "⌘R") {
+                manager.reload()
+            })
+        if manager.screen != .menu {
+            items.append(
+                PopoverMenuItem(title: "All Mole Commands", systemImage: "circle.grid.2x2") {
+                    manager.open(.menu)
+                })
+        }
+        items.append(
+            PopoverMenuItem(title: "Mole Settings…", systemImage: "gearshape") {
+                core.hidePalette(restoreFocus: false)
+                core.showSettings(plugin: .mole)
+            })
+        return PopoverMenuContent(header: "Mole", items: items)
+    }
+
+    // MARK: - Item lookup
+
+    static func app(manager: MoleManager, itemID: String) -> MoleApp? {
+        guard case .apps(let apps) = manager.state, itemID.hasPrefix("app:"),
+            let index = Int(itemID.dropFirst("app:".count)), apps.indices.contains(index)
+        else { return nil }
+        return apps[index]
+    }
+
+    static func diskEntry(manager: MoleManager, itemID: String) -> MoleDiskEntry? {
+        guard case .analysis(let analysis) = manager.state, itemID.hasPrefix("entry:"),
+            let index = Int(itemID.dropFirst("entry:".count)),
+            analysis.entries.indices.contains(index)
+        else { return nil }
+        return analysis.entries[index]
+    }
+
+    /// Rows that point at something on disk, so the same menu entries work across three screens.
+    static func revealablePath(manager: MoleManager, itemID: String) -> String? {
+        if let entry = diskEntry(manager: manager, itemID: itemID) { return entry.path }
+        guard case .purge(let entries) = manager.state, itemID.hasPrefix("purge:"),
+            let index = Int(itemID.dropFirst("purge:".count)), entries.indices.contains(index)
+        else { return nil }
+        return (entries[index].path as NSString).expandingTildeInPath
     }
 
     static func copyText(manager: MoleManager, itemID: String) -> String? {
@@ -147,7 +412,14 @@ enum MoleResults {
             guard entries.indices.contains(index) else { return nil }
             let entry = entries[index]
             return "\(entry.command) \(entry.startedAt): \(entry.items) items, \(entry.size)"
-        case .idle, .loading, .failed:
+        case .report(let report):
+            let index = Int(itemID.dropFirst("item:".count)) ?? -1
+            guard report.items.indices.contains(index) else { return nil }
+            let item = report.items[index]
+            return [item.section, item.title, item.detail]
+                .filter { !$0.isEmpty }
+                .joined(separator: " · ")
+        case .idle, .loading, .failed, .purge, .apps, .analysis:
             return nil
         }
     }
@@ -164,8 +436,33 @@ enum MoleResults {
     }
 }
 
+/// Confirms a Mole run before anything is deleted. Return is bound to **Cancel** on the
+/// irreversible ones, so a reflexive second ↵ in the palette can't wipe a build folder.
+@MainActor
+enum MolePresenter {
+    private static var isConfirming = false
+
+    static func confirm(_ action: MoleAction) -> Bool {
+        guard !isConfirming else { return false }
+        isConfirming = true
+        defer { isConfirming = false }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "\(action.title)?"
+        alert.informativeText = action.confirmation
+        alert.alertStyle = action.isPermanent ? .critical : .warning
+        let run = alert.addButton(withTitle: action.title)
+        let cancel = alert.addButton(withTitle: "Cancel")
+        if action.isPermanent {
+            run.keyEquivalent = ""
+            cancel.keyEquivalent = "\r"
+        }
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+}
+
 extension AppCore {
-    func openMole(_ screen: MoleManager.Screen) {
+    func openMole(_ screen: MoleScreen) {
         guard plugins.isEnabled(.mole) else { return }
         mole.open(screen)
         palette.prepare(mode: .plugin(.mole))
@@ -174,18 +471,61 @@ extension AppCore {
 
     func runMole(_ command: MoleCommand) {
         guard plugins.isEnabled(.mole) else { return }
-        if command.rendersInPalette {
-            openMole(command == .status ? .status : .history)
+        guard let screen = command.screen else {
+            // A TUI needs a real terminal; hide first so the palette isn't left floating over it.
+            hidePalette(restoreFocus: false)
+            mole.runInTerminal(command)
             return
         }
-        // A TUI needs a real terminal; hide first so the palette isn't left floating over it.
-        hidePalette(restoreFocus: false)
-        mole.runInTerminal(command)
+        openMole(screen)
     }
 
-    func copyMoleRow(itemID: String) {
+    /// The one funnel every state-changing Mole run passes through, so no path skips the confirmation.
+    func runMoleAction(_ action: MoleAction) {
+        guard plugins.isEnabled(.mole), !mole.isRunning else { return }
+        guard MolePresenter.confirm(action) else { return }
+        mole.run(action)
+        // Deliberately stays open: the run row reports progress and the list refreshes underneath it.
+        showPalette(mode: .plugin(.mole), restoreAnyMode: true)
+    }
+
+    func performMoleRow(itemID: String) {
+        guard plugins.isEnabled(.mole) else { return }
+        if itemID.hasPrefix("menu:") {
+            let raw = String(itemID.dropFirst("menu:".count))
+            guard let command = MoleCommand(rawValue: raw) else { return }
+            runMole(command)
+            return
+        }
+        if itemID == "run" {
+            guard let action = MoleResults.pendingAction(for: mole.screen) else { return }
+            runMoleAction(action)
+            return
+        }
+        if itemID == "up" {
+            mole.ascend()
+            return
+        }
+        if let entry = MoleResults.diskEntry(manager: mole, itemID: itemID) {
+            entry.isDirectory ? mole.descend(into: entry) : revealInFinder(path: entry.path)
+            return
+        }
+        if let app = MoleResults.app(manager: mole, itemID: itemID) {
+            runMoleAction(.uninstall(name: app.uninstallName, permanent: false))
+            return
+        }
+        if let path = MoleResults.revealablePath(manager: mole, itemID: itemID) {
+            revealInFinder(path: path)
+            return
+        }
         guard let text = MoleResults.copyText(manager: mole, itemID: itemID) else { return }
         hidePalette(restoreFocus: false)
         Paster.copyPlainText(text)
+    }
+
+    func revealInFinder(path: String) {
+        guard !path.isEmpty else { return }
+        hidePalette(restoreFocus: false)
+        AppLauncher.showInFinder(URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
     }
 }

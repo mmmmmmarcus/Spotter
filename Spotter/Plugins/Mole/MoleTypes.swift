@@ -1,8 +1,8 @@
 import Foundation
 
-/// Mole's command surface plus the parsers for the two commands that emit JSON.
+/// Mole's command surface plus the parsers for every output shape Spotter renders.
 /// Foundation-only and pure so `Tools/mole-test.swift` compiles the real logic; process spawning
-/// and Terminal hand-off live in `MoleRunner`.
+/// lives in `MoleManager`.
 enum MoleCommand: String, CaseIterable, Sendable {
     case menu
     case clean
@@ -16,7 +16,7 @@ enum MoleCommand: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .menu: "Mole Menu"
+        case .menu: "Mole"
         case .clean: "Mole Clean"
         case .uninstall: "Mole Uninstall App"
         case .optimize: "Mole Optimize"
@@ -30,7 +30,7 @@ enum MoleCommand: String, CaseIterable, Sendable {
 
     var summary: String {
         switch self {
-        case .menu: "Open Mole's main menu"
+        case .menu: "Every Mole screen in one list"
         case .clean: "Free up disk space"
         case .uninstall: "Remove an app completely"
         case .optimize: "Refresh caches and services"
@@ -56,13 +56,134 @@ enum MoleCommand: String, CaseIterable, Sendable {
         }
     }
 
-    /// The two read-only commands emit JSON on a non-TTY, so Spotter renders them itself. Everything else is an interactive TUI that needs a real terminal — and several delete files, which is not something to run blind from a launcher.
-    var rendersInPalette: Bool {
-        self == .status || self == .history
+    /// The screen this command opens, or nil for the one command Spotter can't render.
+    /// `installer` always draws a full-screen selector that needs a real TTY, so it stays a hand-off.
+    var screen: MoleScreen? {
+        switch self {
+        case .menu: .menu
+        case .clean: .clean
+        case .uninstall: .uninstall
+        case .optimize: .optimize
+        case .analyze: .analyze
+        case .status: .status
+        case .history: .history
+        case .purge: .purge
+        case .installer: nil
+        }
     }
 
     var argument: String { rawValue }
     var commandID: String { "command:mole:" + rawValue }
+}
+
+/// One rendered Mole screen. `menu` is the hub every other screen is reachable from.
+enum MoleScreen: String, CaseIterable, Sendable {
+    case menu
+    case status
+    case clean
+    case optimize
+    case purge
+    case uninstall
+    case analyze
+    case history
+
+    var sectionTitle: String {
+        switch self {
+        case .menu: "Mole"
+        case .status: "Mole · System Status"
+        case .clean: "Mole · Clean"
+        case .optimize: "Mole · Optimize"
+        case .purge: "Mole · Purge"
+        case .uninstall: "Mole · Uninstall"
+        case .analyze: "Mole · Disk"
+        case .history: "Mole · Cleanup History"
+        }
+    }
+
+    var placeholder: String {
+        switch self {
+        case .menu: "Choose a Mole command…"
+        case .uninstall: "Search installed apps…"
+        case .analyze: "Filter this folder…"
+        default: "Filter Mole results…"
+        }
+    }
+
+    /// Arguments for the read-only pass that populates the screen. Nil when nothing is fetched.
+    var previewArguments: [String]? {
+        switch self {
+        case .menu: nil
+        case .status: ["status"]
+        case .history: ["history", "--json"]
+        case .clean: ["clean", "--dry-run"]
+        case .optimize: ["optimize", "--dry-run"]
+        case .purge: ["purge", "--dry-run"]
+        case .uninstall: ["uninstall", "--list"]
+        // Analyze targets a directory chosen at runtime, so the manager builds its arguments.
+        case .analyze: nil
+        }
+    }
+}
+
+/// A state-changing Mole run. Every case deletes something, so `AppCore` confirms before starting one.
+enum MoleAction: Equatable, Sendable {
+    case clean
+    case optimize
+    case purge
+    case uninstall(name: String, permanent: Bool)
+
+    var arguments: [String] {
+        switch self {
+        case .clean: ["clean"]
+        case .optimize: ["optimize"]
+        case .purge: ["purge"]
+        case .uninstall(let name, let permanent):
+            permanent ? ["uninstall", "--permanent", name] : ["uninstall", name]
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .clean: "Clean Now"
+        case .optimize: "Optimize Now"
+        case .purge: "Purge Now"
+        case .uninstall(let name, let permanent):
+            permanent ? "Delete \(name) Permanently" : "Uninstall \(name)"
+        }
+    }
+
+    var confirmation: String {
+        switch self {
+        case .clean:
+            "Mole will delete the caches, logs and temporary files listed here. System caches that need admin rights are skipped."
+        case .optimize:
+            "Mole will refresh system caches and services and repair safe maintenance issues."
+        case .purge:
+            "Mole will delete every build artifact directory listed here. They can be rebuilt, but this can't be undone."
+        case .uninstall(let name, let permanent):
+            permanent
+                ? "\(name) and its support files will be deleted immediately, bypassing the Trash. This can't be undone."
+                : "\(name) and its support files will be moved to the Trash."
+        }
+    }
+
+    var isPermanent: Bool {
+        switch self {
+        case .purge: true
+        case .uninstall(_, let permanent): permanent
+        case .clean, .optimize: false
+        }
+    }
+
+    /// The screen to re-read once the run finishes, so the list reflects what is left.
+    var screen: MoleScreen {
+        switch self {
+        case .clean: .clean
+        case .optimize: .optimize
+        case .purge: .purge
+        case .uninstall: .uninstall
+        }
+    }
 }
 
 /// The subset of `mole status` Spotter surfaces, already formatted for display.
@@ -85,6 +206,50 @@ struct MoleHistoryEntry: Equatable, Sendable {
     let items: Int
     let size: String
     let failedTasks: Int
+}
+
+/// `mole clean` / `mole optimize` output, which is sectioned plain text rather than JSON.
+struct MoleReport: Equatable, Sendable {
+    struct Item: Equatable, Sendable {
+        let section: String
+        let title: String
+        let detail: String
+    }
+
+    let items: [Item]
+    /// The closing lines Mole prints about space and counts, kept verbatim.
+    let summary: [String]
+
+    var isEmpty: Bool { items.isEmpty && summary.isEmpty }
+}
+
+/// One project artifact directory from `mole purge`.
+struct MolePurgeEntry: Equatable, Sendable {
+    let path: String
+    let size: String
+}
+
+/// One row of `mole uninstall --list`.
+struct MoleApp: Equatable, Sendable {
+    let name: String
+    let bundleID: String
+    /// The exact token `mole uninstall` accepts, which is not always the display name.
+    let uninstallName: String
+    let path: String
+    let size: String
+}
+
+/// One entry of an `analyze -json` listing.
+struct MoleDiskEntry: Equatable, Sendable {
+    let name: String
+    let path: String
+    let size: Int64
+    let isDirectory: Bool
+}
+
+struct MoleAnalysis: Equatable, Sendable {
+    let path: String
+    let entries: [MoleDiskEntry]
 }
 
 enum MoleParser {
@@ -131,6 +296,25 @@ enum MoleParser {
             let failed_tasks: Int?
         }
         let sessions: [Session]?
+    }
+
+    private struct AppPayload: Decodable {
+        let name: String?
+        let bundle_id: String?
+        let uninstall_name: String?
+        let path: String?
+        let size: String?
+    }
+
+    private struct AnalysisPayload: Decodable {
+        struct Entry: Decodable {
+            let name: String?
+            let path: String?
+            let size: Int64?
+            let is_dir: Bool?
+        }
+        let path: String?
+        let entries: [Entry]?
     }
 
     static func parseStatus(_ data: Data) -> MoleStatus? {
@@ -193,6 +377,134 @@ enum MoleParser {
                 size: s.size ?? "0B",
                 failedTasks: s.failed_tasks ?? 0)
         }
+    }
+
+    static func parseApps(_ data: Data) -> [MoleApp] {
+        guard let payload = try? JSONDecoder().decode([AppPayload].self, from: data) else {
+            return []
+        }
+        return payload.compactMap { app in
+            // The uninstall token is what the command actually needs; a row without one is unusable.
+            guard let name = app.name, let token = app.uninstall_name, !token.isEmpty else {
+                return nil
+            }
+            return MoleApp(
+                name: name,
+                bundleID: app.bundle_id ?? "",
+                uninstallName: token,
+                path: app.path ?? "",
+                size: app.size ?? "")
+        }
+    }
+
+    static func parseAnalysis(_ data: Data) -> MoleAnalysis? {
+        guard let payload = try? JSONDecoder().decode(AnalysisPayload.self, from: data),
+            let path = payload.path
+        else { return nil }
+        let entries = (payload.entries ?? []).compactMap { entry -> MoleDiskEntry? in
+            guard let name = entry.name, let entryPath = entry.path else { return nil }
+            return MoleDiskEntry(
+                name: name, path: entryPath, size: entry.size ?? 0,
+                isDirectory: entry.is_dir ?? false)
+        }
+        return MoleAnalysis(path: path, entries: entries)
+    }
+
+    /// `mole purge` prints one line per directory: `✓ [DRY RUN] <path>, <size>`.
+    /// The path may itself contain commas, so the size is taken from the last one.
+    static func parsePurge(_ text: String) -> [MolePurgeEntry] {
+        stripANSI(text).split(separator: "\n").compactMap { rawLine in
+            var line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("✓") else { return nil }
+            line = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[DRY RUN]") {
+                line = String(line.dropFirst("[DRY RUN]".count)).trimmingCharacters(in: .whitespaces)
+            }
+            guard let comma = line.lastIndex(of: ",") else { return nil }
+            let path = String(line[..<comma]).trimmingCharacters(in: .whitespaces)
+            let size = String(line[line.index(after: comma)...]).trimmingCharacters(in: .whitespaces)
+            guard !path.isEmpty, !size.isEmpty else { return nil }
+            return MolePurgeEntry(path: path, size: size)
+        }
+    }
+
+    private static let summaryPrefixes = [
+        "Potential space:", "Tracked cleanup:", "Free space:", "Would apply", "Applied",
+        "Dry run complete", "Dry Run Complete", "Clean complete", "Skipped while active:",
+        "System was already clean", "No additional space freed",
+    ]
+
+    /// Item markers Mole uses across `clean` and `optimize`: done, applied, and suggested.
+    private static let itemMarkers: Set<Character> = ["→", "✓", "⊙"]
+
+    /// `mole clean` and `mole optimize` print section headers followed by marked item lines.
+    /// Anything else — banners, whitelist echoes, file-list hints — is noise the palette skips.
+    static func parseReport(_ text: String) -> MoleReport {
+        var items: [MoleReport.Item] = []
+        var summary: [String] = []
+        var section = ""
+        for rawLine in stripANSI(text).split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty else { continue }
+            if line.hasPrefix("➤") {
+                section = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
+                continue
+            }
+            if summaryPrefixes.contains(where: line.hasPrefix) {
+                summary.append(line)
+                continue
+            }
+            // Optimize heads some groups with a bare all-caps line instead of the ➤ marker.
+            if isUppercaseHeading(line) {
+                section = line
+                continue
+            }
+            guard let marker = line.first, itemMarkers.contains(marker) else { continue }
+            let body = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
+            guard !body.isEmpty, !body.hasPrefix("DRY RUN MODE") else { continue }
+            // `·` separates the item from its size/count; a line without one is its own title.
+            if let separator = body.range(of: " · ") {
+                items.append(
+                    MoleReport.Item(
+                        section: section,
+                        title: String(body[..<separator.lowerBound]),
+                        detail: String(body[separator.upperBound...])))
+            } else {
+                items.append(MoleReport.Item(section: section, title: body, detail: ""))
+            }
+        }
+        return MoleReport(items: items, summary: summary)
+    }
+
+    private static func isUppercaseHeading(_ line: String) -> Bool {
+        let letters = line.filter(\.isLetter)
+        return !letters.isEmpty && letters.allSatisfy(\.isUppercase) && line.count <= 48
+    }
+
+    /// Mole colors and repaints its output; the palette needs the plain text underneath.
+    static func stripANSI(_ text: String) -> String {
+        var result = ""
+        result.reserveCapacity(text.count)
+        var iterator = text.makeIterator()
+        var pending: Character?
+        while let character = pending ?? iterator.next() {
+            pending = nil
+            guard character == "\u{1B}" else {
+                // Mole redraws lines in place; a carriage return would otherwise glue two rows together.
+                result.append(character == "\r" ? "\n" : character)
+                continue
+            }
+            guard let next = iterator.next() else { break }
+            guard next == "[" else {
+                pending = next
+                continue
+            }
+            // CSI runs through parameter and intermediate bytes, then one final byte that ends it.
+            while let terminator = iterator.next() {
+                if !(" "..."?" ~= terminator) { break }
+            }
+        }
+        return result
     }
 
     /// Mole prints sizes with its own units; these two keep Spotter's own rows consistent with them.

@@ -5,6 +5,23 @@ struct MoleSettingsView: View {
     @ObservedObject private var mole = AppCore.shared.mole
     @State private var pathDraft = AppCore.shared.mole.binaryPathOverride
 
+    private static let shortcuts: [(String, String, String, PluginActionKey)] = [
+        ("All Commands", "Open the Mole hub listing every screen.", "circle.grid.2x2", .openMoleMenu),
+        (
+            "System Status", "Open Mole's health readout in the palette.", "waveform.path.ecg",
+            .openMoleStatus
+        ),
+        ("Clean", "Preview reclaimable caches, then clean.", "sparkles", .openMoleClean),
+        ("Optimize", "Preview system maintenance, then apply.", "wand.and.stars", .openMoleOptimize),
+        ("Purge", "Preview old build artifacts, then delete.", "hammer", .openMolePurge),
+        ("Uninstall App", "Search installed apps and remove one.", "trash", .openMoleUninstall),
+        ("Analyze Disk", "Browse folders by size.", "chart.pie", .openMoleAnalyze),
+        (
+            "Cleanup History", "Open recent Mole sessions in the palette.", "clock.arrow.circlepath",
+            .openMoleHistory
+        ),
+    ]
+
     var body: some View {
         SettingsPane(
             title: "Mole",
@@ -13,7 +30,7 @@ struct MoleSettingsView: View {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
                     title: "Mole",
-                    subtitle: "System health and cleanup history render in the palette; cleaning, uninstalling and analyzing open in Terminal.",
+                    subtitle: "Health, cleanup, optimize, purge, uninstall and disk analysis, all rendered in the palette.",
                     systemImage: "chart.pie", tint: .green,
                     statusDot: mole.isInstalled ? .green : .orange
                 ) {
@@ -47,26 +64,32 @@ struct MoleSettingsView: View {
                 }
             }
 
+            SettingsCallout(
+                title: "Spotter asks before anything is deleted.",
+                message:
+                    "Clean, Optimize, Purge and Uninstall open as previews first; running one needs an "
+                    + "explicit confirmation naming what it removes. Uninstall moves apps to the Trash "
+                    + "unless you pick Delete Permanently. Admin-only system caches are always skipped.",
+                systemImage: "hand.raised",
+                tint: .green)
+
             SettingsCard(header: "Shortcuts") {
-                SettingsRow(
-                    title: "System Status", subtitle: "Open Mole's health readout in the palette.",
-                    systemImage: "waveform.path.ecg", tint: .green
-                ) {
-                    ShortcutRecorder(action: .plugin(.openMoleStatus))
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Cleanup History", subtitle: "Open recent Mole sessions in the palette.",
-                    systemImage: "clock.arrow.circlepath", tint: .green
-                ) {
-                    ShortcutRecorder(action: .plugin(.openMoleHistory))
+                ForEach(Array(Self.shortcuts.enumerated()), id: \.offset) { index, entry in
+                    if index > 0 { SettingsDivider() }
+                    SettingsRow(
+                        title: entry.0, subtitle: entry.1, systemImage: entry.2, tint: .green
+                    ) {
+                        ShortcutRecorder(action: .plugin(entry.3))
+                    }
                 }
             }
 
             SettingsCallout(
-                title: "Destructive commands stay in Terminal",
-                message: "Clean, Uninstall, Optimize, Purge and Installer delete files and need Mole's own confirmations, so Spotter hands them to Terminal rather than running them silently.",
-                systemImage: "hand.raised")
+                title: "Remove Installers stays in Terminal.",
+                message:
+                    "It draws a full-screen selector and reads raw keystrokes, so it can't be rendered "
+                    + "in the palette. Every other Mole command runs here.",
+                systemImage: "terminal")
         }
     }
 

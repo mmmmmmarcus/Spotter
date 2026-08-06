@@ -1,37 +1,80 @@
-# Mole plugin
+# Mole
 
-A front end for the [Mole](https://github.com/tw93/mole) CLI (`brew install mole`), which deep-cleans
-and reports on a Mac. Ships **disabled** — it does nothing until Mole is installed and the plugin is
-turned on.
+A launcher front end for the [Mole](https://github.com/tw93/mole) CLI (`mole` / `mo`). Every Mole
+command that can run without a terminal runs inside Spotter's palette — reading, previewing and
+executing — so the loop closes in the launcher instead of handing off to Terminal.
 
-## The split: rendered vs handed off
+Disabled by default; the plugin does nothing until Mole is installed and it is switched on. Files
+live in `Spotter/Plugins/Mole/`.
 
-Mole's commands fall into two groups, and the plugin treats them differently on purpose.
+## Files
 
-`mole status` and `mole history --json` **emit JSON when stdout isn't a TTY**, so Spotter runs them
-itself and renders the result as ordinary `PluginPaletteList` rows — health score, CPU, memory, disk,
-trash, uptime, and past cleanup sessions. Enter copies a row's value. This is what closes the loop:
-the common "how is my Mac doing" question never leaves the launcher.
+| File | Role |
+| --- | --- |
+| `MoleTypes.swift` | Foundation-only, pure: the command catalog, screens, actions, and every output parser. |
+| `MoleManager.swift` | Locates the binary, runs Mole off-main, owns screen state and the Analyze navigation trail. |
+| `MolePlugin.swift` | Registration, palette snapshots, ⌘K menus, the confirmation dialog, and the `AppCore` entry points. |
+| `MoleSettingsView.swift` | Enable switch, binary path override, per-screen shortcuts. |
 
-Everything else — `clean`, `uninstall`, `optimize`, `analyze`, `purge`, `installer`, and the main
-menu — is an interactive TUI that **deletes files behind its own confirmations**. Those are handed to
-Terminal via AppleScript rather than run silently from a launcher; a palette has nowhere to show a
-TUI, and running a destructive command with no visible confirmation would be the wrong default. They
-ship `defaultVisible: false` so the launcher stays compact, and are revealable in System → Shortcuts.
-
-## Layout
-
-- `MoleTypes.swift` — the command catalog plus the two JSON parsers. Foundation-only and pure, so
-  `Tools/mole-test.swift` compiles the real logic (`swiftc -swift-version 6
-  Spotter/Plugins/Mole/MoleTypes.swift Tools/mole-test.swift`).
-- `MoleManager.swift` — `AppCore`-owned state: binary discovery, off-main process runs, Terminal
-  hand-off. A screen switch mid-flight discards the older response rather than letting it overwrite
-  the newer screen.
-- `MolePlugin.swift` — registration, palette-screen snapshot mapping, `AppCore` entry points.
-- `MoleSettingsView.swift` — enable switch, binary path override, shortcut recorders.
+`Tools/mole-test.swift` compiles `MoleTypes.swift` directly, so it must stay free of AppKit and
+SwiftUI, and its parsers must stay pure. The harness never executes Mole.
 
 ## Finding the binary
 
-Homebrew's Apple-silicon and Intel prefixes are checked for both `mole` and its `mo` alias; a manual
-install is handled by the path override in Settings (`mole.binary-path`). When nothing is found the
-palette says so instead of failing silently, and the settings pane shows an install hint.
+`/opt/homebrew/bin/mole`, `/usr/local/bin/mole`, then the `mo` aliases — or an explicit path saved
+under `mole.binary-path` in Settings. With nothing found, every screen reports it rather than failing
+silently.
+
+## Screens
+
+`Mole` opens the hub listing every command; each is also its own launcher entry and can take a global
+shortcut. The section header names the screen, and the placeholder changes with it through
+`livePlaceholder`.
+
+| Screen | Reads | Rows |
+| --- | --- | --- |
+| **Menu** | nothing | Every Mole command, opening its screen |
+| **System Status** | `mole status` | Health score, CPU, memory, disks, trash, uptime, hardware |
+| **Clean** | `mole clean --dry-run` | A run row, then every reclaimable cache with its size |
+| **Optimize** | `mole optimize --dry-run` | A run row, then every maintenance item |
+| **Purge** | `mole purge --dry-run` | A run row, then every build-artifact directory with its size |
+| **Uninstall** | `mole uninstall --list` | Every installed app with its icon, path and size |
+| **Analyze Disk** | `mole analyze -json <dir>` | Folder contents by size; ↵ descends, a Back row climbs out |
+| **Cleanup History** | `mole history --json` | Past sessions with item counts and reclaimed size |
+
+Every read-only pass runs with stdin on `/dev/null` and stdout on a pipe, which is what makes Mole
+take its non-interactive path: no TUI, no sudo prompt, nothing waiting on a keystroke.
+
+**Remove Installers is the one exception.** It always draws a full-screen selector and reads raw
+keystrokes, so it can't be rendered; it ships hidden from the launcher and opens in Terminal.
+
+## Running commands
+
+`MoleAction` is the whole state-changing surface — `clean`, `optimize`, `purge` and
+`uninstall(name:permanent:)`. Everything funnels through `AppCore.runMoleAction`, so no path can skip
+the confirmation:
+
+- The dialog names the action and says exactly what it removes.
+- On the irreversible ones — Purge, and Delete Permanently — **Return is bound to Cancel**, because a
+  destructive row is one ↵ away in the palette and a reflexive second ↵ must not wipe a build folder.
+- Uninstall moves the app to the Trash by default; **Delete Permanently** is a separate ⌘K entry.
+- Admin-only system caches are skipped: Mole asks for sudo on a TTY, and there isn't one.
+
+The palette deliberately stays open while a run is in flight. The run row reports progress, and the
+preview underneath re-reads itself when the run finishes so what's left is what's shown. Closing the
+palette cancels a *preview* but never a run — a half-cleaned machine is worse than a wasted read.
+
+## Parsing
+
+Only `status`, `history`, `uninstall --list` and `analyze -json` emit JSON. `clean`, `optimize` and
+`purge` emit colored, repainted text, so `MoleParser` strips ANSI (treating `\r` as a line break,
+since Mole redraws lines in place) and then reads the structure:
+
+- `➤ Section` headers, plus bare all-caps lines, start a section.
+- `→`, `✓` and `⊙` mark items; ` · ` splits an item from its size or count.
+- A fixed set of closing prefixes (`Potential space:`, `Tracked cleanup:`, `Free space:`,
+  `Dry run complete`, `Skipped while active:`, …) becomes the summary shown on the run row.
+- Everything else — banners, whitelist echoes, file-list hints — is dropped.
+
+`mole purge` prints `✓ [DRY RUN] <path>, <size>`; the size is taken from the **last** comma, because
+project paths contain commas.
