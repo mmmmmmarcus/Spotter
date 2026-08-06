@@ -32,6 +32,15 @@ targets:
     platform: macOS
     sources:
       - path: Spotter
+        excludes:
+          - spotter.icon
+      # Icon Composer bundles are directories. Left to itself XcodeGen walks into this one and
+      # copies `icon.json` and `thunder.svg` loose into Resources, so `actool` never compiles the
+      # icon and the app ships with none. `type: file` keeps it a single reference for the
+      # resources phase, which is what `ASSETCATALOG_COMPILER_APPICON_NAME: spotter` resolves.
+      - path: Spotter/spotter.icon
+        type: file
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.spotter.app

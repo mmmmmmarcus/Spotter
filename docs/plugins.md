@@ -25,6 +25,7 @@ Spotter/Plugins/
 ├── Clipboard/
 ├── TextReplacement/
 ├── Note/
+├── Quicklinks/
 ├── EmojiSymbols/
 ├── WorldClock/
 ├── KillProcess/
@@ -79,9 +80,19 @@ is optional:
 - `launcherCommands.defaultVisible` defaults to true. Set it to false for secondary commands that
   should ship hidden but remain discoverable in System → Shortcuts. The one-time visibility seed does
   not overwrite a later user choice.
+- `launcherCommands.iconFilePath` points a command row at a bundle to draw its icon from, instead of
+  the SF Symbol tile commands normally get. A quicklink uses it to show the icon of the app that
+  opens it.
+- `dynamicLauncherCommands` contributes entries that change at runtime — a user's saved quicklinks —
+  and is re-read on every rebuild instead of captured once. Call
+  `PluginRegistry.reloadDynamicCommands(for:)` whenever the underlying store changes; registration
+  seeds the routing table so entries restored from disk are launchable before any change fires.
 - `queryProvider` contributes a synchronous inline result provider.
 - `paletteScreen` contributes a searchable result-list snapshot, primary row action, ⌘K menu actions
   and visible-only lifecycle to the shared command palette.
+- `paletteScreen.livePlaceholder` overrides the static placeholder while the screen is open, for a
+  step-by-step flow whose prompt changes between steps (Quicklinks' argument entry). Returning nil
+  falls back to `placeholder`.
 - `onEnable` and `onDisable` start and stop work. They run once at startup for enabled plugins and on
   later state transitions. Both must be idempotent.
 - `readEnabled` and `writeEnabled` adapt a feature-owned state gate. Currency uses these because
@@ -217,6 +228,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local notes in a translucent,
   content-height floating Markdown editor that opens 440 points wide with an inset overlay list,
   plus `Open Notes` and `New Note` actions.
+- **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — enabled by default; user-saved links, files and
+  deep links published as launcher entries through `dynamicLauncherCommands`, with `{argument}`
+  placeholders collected one step at a time on a palette screen using `livePlaceholder`.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
@@ -237,8 +251,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
   with an AX mover.
 - **System Commands** (`Spotter/Plugins/SystemCommands/`) — disabled by default; 30 macOS actions
   with confirmation on the destructive ones.
-- **Mole** (`Spotter/Plugins/Mole/`) — disabled by default; renders `mole status` and
-  `mole history --json` as palette rows and hands the destructive interactive commands to Terminal.
+- **Mole** (`Spotter/Plugins/Mole/`) — disabled by default; a launcher front end for the Mole CLI.
+  Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
+  off a menu hub; state-changing runs preview first and go through one confirmed funnel. Only the
+  installer selector, which needs a real TTY, hands off to Terminal.
 - **Coffee** (`Spotter/Plugins/Coffee/`) — disabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
 - **QuickTime Recording** (`Spotter/Plugins/QuickTime/`) — three on-demand AppleScript actions for
@@ -247,5 +263,5 @@ shell-command feature; do not use shell commands as an internal plugin API.
 Detailed internals: [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md),
 [Window Management](window-management.md), [System Commands](system-commands.md),
-[Mole](mole.md), [Coffee](coffee.md), and
+[Mole](mole.md), [Coffee](coffee.md), [Quicklinks](quicklinks.md), and
 [Notes](notes.md), plus [Text Replacement](text-replacement.md).

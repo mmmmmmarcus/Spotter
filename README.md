@@ -27,6 +27,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **Calculator** — do math, unit and live currency conversions inline, right in the palette.
 - **Clipboard history** — text and images, searchable, pasted back into the app you were using.
 - **Notes** — capture unlimited local Markdown notes and todos in a floating, keyboard-first window.
+- **Quicklinks** — save links, files and deep links as launcher entries, with `{argument}`
+  placeholders Spotter asks you to fill before opening.
 - **Emoji & symbols** — find and insert emoji from a fast native grid.
 - **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer.
 - **Kill process** — inspect CPU and memory use, group app helpers, then terminate or restart safely.
@@ -41,7 +43,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
   and clear metadata with native macOS frameworks.
 - **Window management** — halves, quarters, thirds, sizing and display moves for any window.
 - **System commands** — lock, sleep, volume, Bluetooth, trash and more, straight from the launcher.
-- **Mole** — drive the Mole CLI: system health and cleanup history right in the palette.
+- **Mole** — drive the Mole CLI without leaving the launcher: health, cleanup, optimize, purge,
+  uninstall and disk analysis, each previewed before it runs.
 - **Coffee** — keep your Mac awake indefinitely, for a set time, or while an app runs.
 - **QuickTime recording** — start a screen, audio, or movie recording directly from the launcher.
 - **Native plugins** — independently organized, individually enabled feature modules with shared

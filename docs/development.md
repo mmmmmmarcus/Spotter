@@ -127,6 +127,9 @@ swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift Tools/mole-test.swi
     -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
+swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
+    Spotter/Plugins/Quicklinks/QuicklinkStore.swift Tools/quicklink-test.swift \
+    -o /tmp/quicklink-test && /tmp/quicklink-test                 # templates + encoding + store
 swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
     Spotter/Core/HotKey/DoubleTapModifier.swift Tools/hotkey-test.swift \
     -o /tmp/hotkey-test && /tmp/hotkey-test                       # double-tap recognition

@@ -86,7 +86,10 @@ Never break these without an explicit task to do so.
   `Plugins/TextReplacement/TextReplacementEngine.swift` stays
   Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
   Foundation + Combine, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
-  `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`, and
+  `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`,
+  `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
+  `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
+  `Tools/quicklink-test.swift`, and
   `Plugins/ImageModification/ImageModificationTypes.swift` stays
   Foundation-only so their standalone harnesses compile without app state. `QuickTimeRunner` may use
   Foundation's `Process`, but its harness must never execute a recording command.
@@ -190,7 +193,7 @@ Never break these without an explicit task to do so.
 - [`docs/plugins.md`](docs/plugins.md) — native plugin contract, directory layout and extension flow.
 - [`docs/kill-process.md`](docs/kill-process.md) · [`docs/change-case.md`](docs/change-case.md) ·
   [`docs/image-modification.md`](docs/image-modification.md) · [`docs/quicktime.md`](docs/quicktime.md) ·
-  [`docs/notes.md`](docs/notes.md)
+  [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md)
   — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·
