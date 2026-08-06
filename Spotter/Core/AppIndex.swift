@@ -14,6 +14,8 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     let bundleID: String?
     let kind: Kind
     let symbolImage: String?
+    /// A bundle to draw the icon from when the entry has no file of its own — a quicklink borrows the icon of the app that opens it. Overrides `symbolImage`.
+    let iconFilePath: String?
     let pluginActionKey: PluginActionKey?
     /// Spotlight's `kMDItemAlternateNames`, ranked below the display name. Applications only.
     var alternateNames: [String] = []
@@ -22,7 +24,8 @@ struct AppEntry: Identifiable, Hashable, Sendable {
 
     init(
         id: String, name: String, url: URL, bundleID: String?, kind: Kind,
-        symbolImage: String? = nil, pluginActionKey: PluginActionKey? = nil,
+        symbolImage: String? = nil, iconFilePath: String? = nil,
+        pluginActionKey: PluginActionKey? = nil,
         alternateNames: [String] = [], executableName: String? = nil
     ) {
         self.id = id
@@ -31,6 +34,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
         self.bundleID = bundleID
         self.kind = kind
         self.symbolImage = symbolImage
+        self.iconFilePath = iconFilePath
         self.pluginActionKey = pluginActionKey
         self.alternateNames = alternateNames
         self.executableName = executableName
@@ -70,15 +74,18 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     /// Command entries are synthetic — no file behind them to reveal.
     var canRevealInFinder: Bool { kind != .command }
 
-    /// Command entries draw an SF Symbol tile; everything else uses its file icon.
-    var isSymbolIcon: Bool { kind == .command }
+    /// Command entries draw an SF Symbol tile unless they borrowed a bundle; everything else uses its file icon.
+    var isSymbolIcon: Bool { kind == .command && iconFilePath == nil }
     var symbolIconName: String {
         symbolImage ?? (CustomCommand.id(fromEntryID: id) == nil ? "questionmark" : "terminal")
     }
 
+    /// The bundle whose icon this row draws, once it isn't a symbol tile.
+    var iconPath: String { iconFilePath ?? url.path }
+
     var icon: NSImage {
         isSymbolIcon
-            ? IconCache.symbolIcon(named: symbolIconName) : IconCache.icon(forFile: url.path)
+            ? IconCache.symbolIcon(named: symbolIconName) : IconCache.icon(forFile: iconPath)
     }
 }
 

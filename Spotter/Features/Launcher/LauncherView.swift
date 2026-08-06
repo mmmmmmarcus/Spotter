@@ -212,7 +212,7 @@ struct AppIconView: View {
         _image = State(
             initialValue: app.isSymbolIcon
                 ? IconCache.cachedSymbol(named: app.symbolIconName)
-                : IconCache.cached(forFile: app.url.path))
+                : IconCache.cached(forFile: app.iconPath))
     }
 
     var body: some View {
@@ -229,7 +229,7 @@ struct AppIconView: View {
             image =
                 app.isSymbolIcon
                 ? await IconCache.loadSymbolAsync(named: app.symbolIconName)
-                : await IconCache.loadAsync(forFile: app.url.path)
+                : await IconCache.loadAsync(forFile: app.iconPath)
         }
     }
 }

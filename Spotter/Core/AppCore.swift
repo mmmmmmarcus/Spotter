@@ -137,6 +137,8 @@ final class AppCore: ObservableObject {
     let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
+    let quicklinks = QuicklinkStore()
+    let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()
     let mole = MoleManager()
     let coffee = CoffeeManager()
@@ -159,6 +161,7 @@ final class AppCore: ObservableObject {
         self.textReplacements = textReplacements
         textReplacementManager = TextReplacementManager(store: textReplacements)
         selectionTools = SelectionToolsManager(openRouter: openRouter)
+        quicklinkManager = QuicklinkManager(store: quicklinks)
         for registration in BuiltInPlugins.registrations(core: self) {
             plugins.register(registration)
         }
@@ -191,6 +194,15 @@ final class AppCore: ObservableObject {
             self?.appIndex.setCustomCommands(commands)
         }
         appIndex.setCustomCommands(customCommands.commands)
+        quicklinks.onChange = { [weak self] in
+            QuicklinkManager.invalidateOpenerCache()
+            self?.plugins.reloadDynamicCommands(for: .quicklinks)
+        }
+        // Each argument step reuses the same field, so the prompt has to start empty.
+        quicklinkManager.onStepAdvanced = { [weak self] in
+            self?.palette.query = ""
+            self?.palette.selection = 0
+        }
         Task { await appIndex.refresh() }
         plugins.start()
         settingsSync.start(core: self)

@@ -12,6 +12,8 @@ struct PluginCommandRegistration {
     let id: String
     let name: String
     let systemImage: String
+    /// A bundle to draw the row icon from instead of `systemImage` — a quicklink shows the icon of the app that opens it.
+    var iconFilePath: String?
     var actionKey: PluginActionKey?
     var defaultVisible = true
     let perform: () -> Void
@@ -21,7 +23,7 @@ struct PluginCommandRegistration {
             id: id, name: name,
             url: URL(string: "spotter://plugin-command/" + id)!,
             bundleID: nil, kind: .command, symbolImage: systemImage,
-            pluginActionKey: actionKey)
+            iconFilePath: iconFilePath, pluginActionKey: actionKey)
     }
 }
 
@@ -29,6 +31,8 @@ struct PluginCommandRegistration {
 @MainActor
 struct PluginPaletteScreenRegistration {
     let placeholder: String
+    /// Overrides `placeholder` while the screen is open, for a step-by-step flow whose prompt changes (Quicklinks' argument entry). Returning nil falls back to the static one.
+    var livePlaceholder: (() -> String?)?
     let snapshot: (_ query: String) -> PluginPaletteSnapshot
     let performPrimaryAction: (_ itemID: String) -> Void
     let actions: (_ itemID: String) -> PopoverMenuContent?
@@ -48,6 +52,8 @@ struct PluginRegistration {
     var shortcutActions: [PluginActionRegistration] = []
     var launcherCommands: [PluginCommandRegistration] = []
     var queryProvider: (any PluginQueryProvider)?
+    /// Launcher entries a plugin owns that change at runtime (a user's saved quicklinks), re-read on every rebuild rather than captured at registration.
+    var dynamicLauncherCommands: (() -> [PluginCommandRegistration])?
     var paletteScreen: PluginPaletteScreenRegistration?
     var readEnabled: (() -> Bool)?
     var writeEnabled: ((Bool) -> Void)?
@@ -84,8 +90,9 @@ final class PluginRegistry: ObservableObject {
 
     var launcherCommands: [AppEntry] {
         orderedIDs.flatMap { id -> [AppEntry] in
-            guard isEnabled(id) else { return [] }
-            return registrations[id]?.launcherCommands.map(\.entry) ?? []
+            guard isEnabled(id), let registration = registrations[id] else { return [] }
+            let dynamic = registration.dynamicLauncherCommands?() ?? []
+            return (registration.launcherCommands + dynamic).map(\.entry)
         }
     }
 
@@ -104,6 +111,10 @@ final class PluginRegistry: ObservableObject {
         }
         registrations[id] = registration
         orderedIDs.append(id)
+        // Dynamic entries already exist at launch (a saved quicklink), so they need routing before any change fires.
+        for command in registration.dynamicLauncherCommands?() ?? [] {
+            commandOwners[command.id] = id
+        }
         if let observe = registration.paletteScreen?.observeChanges {
             paletteObservers[id] = observe { [weak self] in
                 self?.objectWillChange.send()
@@ -149,13 +160,23 @@ final class PluginRegistry: ObservableObject {
         onEnabledStatesChanged?()
     }
 
+    /// Re-publishes the launcher slice after a plugin's dynamic commands change; routing resolves through the same owner map.
+    func reloadDynamicCommands(for id: PluginID) {
+        guard let registration = registrations[id] else { return }
+        for command in registration.dynamicLauncherCommands?() ?? [] {
+            commandOwners[command.id] = id
+        }
+        onCommandsChanged?(launcherCommands)
+    }
+
     func settingsView(for id: PluginID) -> AnyView {
         registrations[id]?.settingsView() ?? AnyView(EmptyView())
     }
 
     func paletteScreenPlaceholder(for id: PluginID) -> String? {
         guard isEnabled(id) else { return nil }
-        return registrations[id]?.paletteScreen?.placeholder
+        guard let screen = registrations[id]?.paletteScreen else { return nil }
+        return screen.livePlaceholder?() ?? screen.placeholder
     }
 
     func paletteSnapshot(for id: PluginID, query: String) -> PluginPaletteSnapshot? {
@@ -213,7 +234,13 @@ final class PluginRegistry: ObservableObject {
     @discardableResult
     func performCommand(_ commandID: String) -> Bool {
         guard let owner = commandOwners[commandID], isEnabled(owner),
-            let command = registrations[owner]?.launcherCommands.first(where: { $0.id == commandID })
+            let registration = registrations[owner]
+        else { return false }
+        let dynamic = registration.dynamicLauncherCommands?() ?? []
+        guard
+            let command = (registration.launcherCommands + dynamic).first(where: {
+                $0.id == commandID
+            })
         else { return false }
         command.perform()
         return true

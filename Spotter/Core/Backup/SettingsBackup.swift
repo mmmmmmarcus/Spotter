@@ -12,6 +12,7 @@ struct SettingsBackup: Codable {
     var pluginStates: [String: Bool]?
     var pluginPrefs: PluginPrefs?
     var worldClockCities: [String]?
+    var quicklinks: [Quicklink]?
     var textReplacement: TextReplacementBackup?
 
     /// Enum-backed settings are stored by raw value so the JSON stays legible and forward-compatible (an unknown value is ignored on import rather than failing the whole decode).
@@ -159,6 +160,7 @@ extension SettingsBackup {
         backup.pluginStates = core.plugins.exportedEnabledStates()
         backup.pluginPrefs = gatherPluginPrefs()
         backup.worldClockCities = core.worldClock.cityIDs
+        backup.quicklinks = core.quicklinks.sorted
         backup.textReplacement = TextReplacementBackup(
             prefix: core.textReplacements.prefix,
             rules: core.textReplacements.rules)
@@ -231,6 +233,10 @@ extension SettingsBackup {
         }
         if let worldClockCities {
             core.worldClock.replace(cityIDs: worldClockCities)
+            summary.settingsFields += 1
+        }
+        if let quicklinks {
+            core.quicklinks.replace(with: quicklinks)
             summary.settingsFields += 1
         }
         if let textReplacement {
