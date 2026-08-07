@@ -32,6 +32,10 @@ final class MoleManager: ObservableObject {
     /// Where Mole was found, or nil when it isn't installed — the settings pane and the palette both read this.
     @Published private(set) var binaryPath: String?
 
+    /// Fired when a state-changing run finishes, so `AppCore` can surface a HUD if the Mole screen
+    /// isn't visible to show it on the run row.
+    var onRunFinished: ((MoleAction, [String]) -> Void)?
+
     /// The directory the Analyze screen is showing, plus the trail back out of it.
     @Published private(set) var analyzePath: String = NSHomeDirectory()
     private var analyzeTrail: [String] = []
@@ -168,6 +172,7 @@ final class MoleManager: ObservableObject {
         }
         // The list is now stale — re-read it so what's left is what's shown.
         if screen == action.screen { reload() }
+        onRunFinished?(action, lastRunSummary)
     }
 
     private func apply(_ result: Result<Data, MoleRunError>, for screen: MoleScreen) {

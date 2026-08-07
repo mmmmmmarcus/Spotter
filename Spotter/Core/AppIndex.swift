@@ -322,7 +322,11 @@ final class AppIndex: ObservableObject {
     }
 
     private func publishEntries() {
-        let commands = (CommandRegistry.all + pluginCommandEntries + customCommandEntries).sorted {
+        // The System Commands plugin republishes the legacy quit-all id; the plugin's entry wins so
+        // the row follows its enable state, and the registry fallback only shows when it's off.
+        let pluginIDs = Set(pluginCommandEntries.map(\.id))
+        let builtIns = CommandRegistry.all.filter { !pluginIDs.contains($0.id) }
+        let commands = (builtIns + pluginCommandEntries + customCommandEntries).sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
         let updated = discoveredEntries + commands

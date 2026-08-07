@@ -17,7 +17,12 @@ final class CommandHUD {
     private static let fadeOut: TimeInterval = 0.22
 
     func show(_ feedback: SystemCommandFeedback) {
-        model.feedback = feedback
+        show(title: feedback.title, symbol: feedback.symbol, isNoOp: feedback.isNoOp)
+    }
+
+    /// The generic entry any subsystem can use — a finished background run, not just system commands.
+    func show(title: String, symbol: String, isNoOp: Bool = false) {
+        model.content = Content(title: title, symbol: symbol, isNoOp: isNoOp)
         let panel = panel ?? makePanel()
         self.panel = panel
         position(panel)
@@ -71,8 +76,10 @@ final class CommandHUD {
     private func position(_ panel: NSPanel) {
         guard let host = panel.contentView else { return }
         let size = host.fittingSize
+        // NSMouseInRect, not contains: the mouse y sits on frame.maxY on the top edge, which a
+        // plain rect-contains misses (same reasoning as PaletteWindowController's screen pick).
         let screen =
-            NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
+            NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
             ?? NSScreen.main ?? NSScreen.screens.first
         guard let visible = screen?.visibleFrame else { return }
         panel.setFrame(
@@ -85,17 +92,24 @@ final class CommandHUD {
     }
 }
 
+/// What the HUD renders, detached from any one feature's feedback type.
+private struct Content {
+    let title: String
+    let symbol: String
+    let isNoOp: Bool
+}
+
 /// Plain observable box so the panel is built once and only its content changes between commands.
 @MainActor
 private final class Model: ObservableObject {
-    @Published var feedback: SystemCommandFeedback?
+    @Published var content: Content?
 }
 
 private struct CommandHUDView: View {
     @ObservedObject var model: Model
 
     var body: some View {
-        if let feedback = model.feedback {
+        if let feedback = model.content {
             HStack(spacing: Theme.Spacing.lg) {
                 Image(systemName: feedback.symbol)
                     .font(Theme.Typography.headerIcon)
