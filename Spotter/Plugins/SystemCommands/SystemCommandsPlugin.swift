@@ -19,7 +19,7 @@ enum SystemCommandsPlugin {
                 summary: "macOS actions in the launcher: lock, sleep, volume, Bluetooth, trash and more.",
                 systemImage: "switch.2",
                 tint: .teal),
-            defaultEnabled: false,
+            defaultEnabled: true,
             // Media keys and Dismiss Notifications drive the Accessibility API; the AppleScript commands prompt for Automation on first use.
             permissions: [.accessibility, .automation],
             shortcutActions: SystemCommandCatalog.all.map { command in
@@ -109,7 +109,10 @@ extension AppCore {
         }
         Task { @MainActor in
             do {
-                try await SystemCommandRunner.run(id, previousApp: target)
+                // Only commands whose effect is invisible report back; the rest return nil.
+                if let feedback = try await SystemCommandRunner.run(id, previousApp: target) {
+                    hud.show(feedback)
+                }
             } catch let failure as SystemCommandFailure {
                 SystemCommandPresenter.presentFailure(name: command.name, failure: failure)
             } catch {

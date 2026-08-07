@@ -143,6 +143,7 @@ final class AppCore: ObservableObject {
     let mole = MoleManager()
     let coffee = CoffeeManager()
     let updates = UpdateStore()
+    let hud = CommandHUD()
 
     /// Which list the Coffee palette screen is showing; set by the command that opened it.
     var coffeeScreen: CoffeeScreen = .status
@@ -175,8 +176,6 @@ final class AppCore: ObservableObject {
         // AppKit's default tooltip delay is ~2–3s; shorten it (in ms) so the compact-bar favorite tooltips appear promptly. Registration domain — never overrides a user default.
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 250])
         NSApp.setActivationPolicy(.accessory)
-        // Force dark: the Liquid Glass material is tuned for a deep dark surface and renders washed-out in Light mode.
-        NSApp.appearance = NSAppearance(named: .darkAqua)
 
         clipboardStore.maxAge = settings.clipboardRetention.maxAge
         appIndex.start(settings: settings)
