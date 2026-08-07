@@ -65,6 +65,18 @@ struct PasteTarget: Equatable {
     var pasteTitle: String { "Paste to \(name)" }
 }
 
+/// A destructive action awaiting an in-palette yes/no, rendered by `RootPaletteView` as a centered
+/// overlay instead of a system dialog. The default highlight is always Cancel: every confirmed
+/// action is one ↵ away in the palette, and a reflexive second ↵ must never be the confirmation.
+struct PaletteConfirmation {
+    let title: String
+    let message: String
+    let actionTitle: String
+    /// Tints the action red. Selection defaults to Cancel either way.
+    var isDestructive = true
+    let onConfirm: () -> Void
+}
+
 /// View-model shared between the panel's SwiftUI tree and the coordinator.
 @MainActor
 final class PaletteViewModel: ObservableObject {
@@ -85,6 +97,8 @@ final class PaletteViewModel: ObservableObject {
     @Published var forceExpanded = false
     /// The app a paste would land in, mirrored from `PaletteWindowController.previousApp` on every show. Deliberately *not* cleared by `prepare` — pop-to-root resets the screen, not the paste target.
     @Published var pasteTarget: PasteTarget?
+    /// A pending in-palette yes/no. While set, the overlay owns ↵ / Esc / ←→ and typing is frozen through the same mechanism as an open footer menu.
+    @Published var confirmation: PaletteConfirmation?
     /// Gates the mouse-hover highlight: true only while the pointer is physically moving (armed on `.mouseMoved`, disarmed on any `.keyDown` in `PalettePanel.sendEvent`). Plain, not `@Published` — read at hover time, never drives a re-render.
     var hoverHighlightArmed = false
     /// True while a footer popover menu (⌘K Actions or the app menu) is open, so `PalettePanel.sendEvent` swallows text-editing keystrokes the field editor would otherwise consume — the query must stay frozen while a menu owns the keyboard (matches Raycast). Plain, not `@Published` — read at event time, mirrored from the view's menu state.
@@ -100,6 +114,7 @@ final class PaletteViewModel: ObservableObject {
         forceExpanded = false
         hoverHighlightArmed = false
         menuOpen = false
+        confirmation = nil
         focusToken = UUID()
         resetToken = UUID()
     }
@@ -150,8 +165,6 @@ final class AppCore: ObservableObject {
 
     private lazy var windowController = PaletteWindowController(core: self)
     private let auxWindows = AuxWindowController()
-    /// Guards only the confirmation modal, not execution — two deliberate runs of an unguarded command still run twice.
-    private var isConfirmingCommand = false
 
     private init() {
         let launcherRanking = LauncherRankingStore()
@@ -214,6 +227,17 @@ final class AppCore: ObservableObject {
             self?.clipboardManager.endSuppressingCapture()
         }
 
+        // A run finishing while its screen is up already reports on the run row; anywhere else — palette closed, or parked on another screen — the HUD carries the result.
+        mole.onRunFinished = { [weak self] action, summary in
+            guard let self else { return }
+            let watching = self.windowController.isVisible && self.palette.mode == .plugin(.mole)
+                && self.mole.screen == action.screen
+            guard !watching else { return }
+            self.hud.show(
+                title: summary.first ?? "\(action.title) finished.",
+                symbol: action.isPermanent ? "trash" : "sparkles")
+        }
+
         // Terminate through NSApp so applicationWillTerminate still runs (Hyper Key remap cleanup) before the relaunch helper brings the new build up.
         updates.terminateForRelaunch = { NSApp.terminate(nil) }
         updates.start()
@@ -235,6 +259,17 @@ final class AppCore: ObservableObject {
     }
 
     // MARK: - Palette control
+
+    /// The one way any feature asks a yes/no: an in-palette overlay, never a system dialog. Shows
+    /// the palette first when the request came from a global hotkey with the panel closed.
+    func confirmInPalette(_ confirmation: PaletteConfirmation) {
+        if !windowController.isVisible {
+            showPalette(mode: palette.mode, restoreAnyMode: true)
+        }
+        // The compact bar has no room for the card; expand without disturbing the query.
+        palette.forceExpanded = true
+        palette.confirmation = confirmation
+    }
 
     func togglePalette() {
         if windowController.isVisible, palette.mode == .launcher {
@@ -448,15 +483,24 @@ final class AppCore: ObservableObject {
     /// The one funnel for both palette activation and the command's global hotkey, so the confirmation gate can't be bypassed by either.
     func runCustomCommand(id: UUID) {
         guard let command = customCommands.command(id: id) else { return }
-        // Hide before confirming: the palette is a floating panel and would sit above the alert.
-        if windowController.isVisible { hidePalette(restoreFocus: false) }
         if command.requiresConfirmation {
-            // Carbon hotkeys keep firing during a modal session; without this a held shortcut stacks alerts.
-            guard !isConfirmingCommand else { return }
-            isConfirmingCommand = true
-            defer { isConfirmingCommand = false }
-            guard Self.confirmRun(command) else { return }
+            confirmInPalette(
+                PaletteConfirmation(
+                    title: command.name,
+                    message: "Are you sure you want to run this command?",
+                    actionTitle: "Run",
+                    isDestructive: false
+                ) { [weak self] in
+                    self?.hidePalette(restoreFocus: false)
+                    self?.executeCustomCommand(command)
+                })
+            return
         }
+        if windowController.isVisible { hidePalette(restoreFocus: false) }
+        executeCustomCommand(command)
+    }
+
+    private func executeCustomCommand(_ command: CustomCommand) {
         Task {
             let outcome = await ShellCommandRunner.run(
                 command.command, loadingShellEnvironment: command.loadsShellEnvironment)
@@ -476,19 +520,6 @@ final class AppCore: ObservableObject {
         for entryID in entryIDs {
             launcherRanking.reset(itemKey: entryID)
         }
-    }
-
-    private static func confirmRun(_ command: CustomCommand) -> Bool {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = command.name
-        alert.informativeText = "Are you sure you want to run this command?"
-        alert.alertStyle = .warning
-        let runButton = alert.addButton(withTitle: "Run")
-        // ↵ goes to Cancel, as in `confirmQuitAll`: this command is one ↵ away in the palette.
-        runButton.keyEquivalent = ""
-        alert.addButton(withTitle: "Cancel").keyEquivalent = "\r"
-        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func presentCustomCommandFailure(
@@ -534,23 +565,17 @@ final class AppCore: ObservableObject {
     /// Quit All: the one action whose blast radius reaches outside Spotter, so it confirms first. The target list is resolved once and both counted and terminated, so the set the user approves is the set that quits.
     private func quitAllApps() {
         let targets = AppLauncher.quitAllTargets()
-        guard !targets.isEmpty, Self.confirmQuitAll(count: targets.count) else { return }
-        for app in targets { app.terminate() }
-    }
-
-    private static func confirmQuitAll(count: Int) -> Bool {
-        // An accessory app's alert opens behind the frontmost app unless it activates first (same as `BackupActions`).
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = count == 1 ? "Quit 1 application?" : "Quit \(count) applications?"
-        alert.informativeText = "Applications with unsaved changes will ask you to save."
-        alert.alertStyle = .warning
-        let quitButton = alert.addButton(withTitle: "Quit All")
-        quitButton.hasDestructiveAction = true
-        // `hasDestructiveAction` only tints the button — it stays the ↵ default. Hand ↵ to Cancel instead: this command is one ↵ away in the palette, and a second reflexive ↵ must not quit the desktop.
-        quitButton.keyEquivalent = ""
-        alert.addButton(withTitle: "Cancel").keyEquivalent = "\r"
-        return alert.runModal() == .alertFirstButtonReturn
+        guard !targets.isEmpty else { return }
+        confirmInPalette(
+            PaletteConfirmation(
+                title: targets.count == 1
+                    ? "Quit 1 application?" : "Quit \(targets.count) applications?",
+                message: "Applications with unsaved changes will ask you to save.",
+                actionTitle: "Quit All"
+            ) { [weak self] in
+                self?.hidePalette(restoreFocus: false)
+                for app in targets { app.terminate() }
+            })
     }
 
     private func runCommand(_ entry: AppEntry) {

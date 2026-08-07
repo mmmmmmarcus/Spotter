@@ -174,6 +174,7 @@
 		F91F68FE32440D040FB0FCA6 /* UpdateFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B34460791F6B79BDE3717A /* UpdateFeed.swift */; };
 		FB45DE0CAB0F2B8C4BA5ADF8 /* MoleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F7DDECB63C5DAF7722B842 /* MoleSettingsView.swift */; };
 		FB5A436CD8251AF55CBEA8AE /* KillProcessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A1C86607CA239A949A2D08 /* KillProcessManager.swift */; };
+		FBA1CCD04A0C670324F372B6 /* ConfirmationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CEE076F5688F414675AC47E /* ConfirmationCard.swift */; };
 		FC74D53199D195A4988881F5 /* WorldClockStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9AAFEDA3E48F52BE9725A1 /* WorldClockStore.swift */; };
 /* End PBXBuildFile section */
 
@@ -285,6 +286,7 @@
 		9970E8C7ADE0D645E9DF7EE7 /* KillProcessEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KillProcessEngine.swift; sourceTree = "<group>"; };
 		99AF8927AABC43F0F4697DEA /* TextReplacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementEngine.swift; sourceTree = "<group>"; };
 		9C94EBE4ECBE73CE017D8F24 /* CalculatorHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorHistoryStore.swift; sourceTree = "<group>"; };
+		9CEE076F5688F414675AC47E /* ConfirmationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmationCard.swift; sourceTree = "<group>"; };
 		9DF791D9740CBFE37A39760E /* SearchScopesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScopesCard.swift; sourceTree = "<group>"; };
 		9E060D21F511407E080FA1D1 /* AppLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLauncher.swift; sourceTree = "<group>"; };
 		9FC621FFFA712909B559E2B3 /* DoubleTapDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapDetector.swift; sourceTree = "<group>"; };
@@ -445,6 +447,7 @@
 				8DD0478FC75377C361F17560 /* Launcher */,
 				8984AADFB64E21D8BE9FDF02 /* Onboarding */,
 				C90BDD2D996A1ACA1E2A5B67 /* Settings */,
+				9CEE076F5688F414675AC47E /* ConfirmationCard.swift */,
 				F2821459ECF8A3EB12E1D0D5 /* PopoverMenu.swift */,
 				EEC07C3A56248A192651F6D2 /* RootPaletteView.swift */,
 			);
@@ -886,6 +889,7 @@
 				A059071A015B9B1B3983FFA5 /* CoffeeTypes.swift in Sources */,
 				67AF4C032DBB83701E991791 /* CommandHUD.swift in Sources */,
 				EE1DE04C9B5C83D0CA1D4323 /* CommandRegistry.swift in Sources */,
+				FBA1CCD04A0C670324F372B6 /* ConfirmationCard.swift in Sources */,
 				CEE52559A7F432B31E1300A1 /* CurrencyConversionPlugin.swift in Sources */,
 				04BD0C95C5A98DB1E9B4122D /* CurrencyConversionSettingsView.swift in Sources */,
 				3EBE2DBDC76D773D89A31E34 /* CurrencyData.generated.swift in Sources */,

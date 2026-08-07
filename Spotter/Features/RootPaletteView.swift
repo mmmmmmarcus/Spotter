@@ -25,6 +25,8 @@ struct RootPaletteView: View {
     @State private var menuSelection = 0
     /// Hour offset applied only to an adjustable plugin query card; typing another query resets it.
     @State private var pluginQueryHourOffset = 0
+    /// Highlighted button of the in-palette confirmation: 0 = Cancel (the default), 1 = the action.
+    @State private var confirmSelection = 0
     /// The pending scroll request for whichever list or grid is mounted (modes are exclusive, so one piece of state serves all of them). Set only by keyboard nav and resets; mouse selection targets a visible row, so it leaves this and the scroll position put.
     @State private var scroll = ScrollIntent(kind: .top)
 
@@ -104,6 +106,8 @@ struct RootPaletteView: View {
     private var selection: Int { resultCount == 0 ? 0 : min(max(vm.selection, 0), resultCount - 1) }
 
     private var menuOpen: Bool { showActions || showAppMenu }
+    /// The in-palette yes/no overlay. It outranks the menus for every key it owns.
+    private var confirmOpen: Bool { vm.confirmation != nil }
 
     // MARK: - Popover menu content
     //
@@ -302,6 +306,20 @@ struct RootPaletteView: View {
                 .transition(Self.menuTransition(.bottomTrailing))
             }
         }
+        // The in-palette yes/no. Above the menus, dim layer cancels, and Cancel is the ↵ default.
+        .overlay {
+            if let confirmation = vm.confirmation {
+                ZStack {
+                    Theme.Colors.panelScrim
+                        .contentShape(Rectangle())
+                        .onTapGesture { activateConfirmation(false) }
+                    ConfirmationCard(
+                        confirmation: confirmation, selection: $confirmSelection,
+                        onActivate: activateConfirmation)
+                }
+                .transition(.opacity)
+            }
+        }
         // The window's own frame (driven by `PaletteWindowController`) is the size source of truth; filling it keeps the glass background and corner clip matched to the current compact/expanded window height.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.Colors.panelScrim)
@@ -340,14 +358,22 @@ struct RootPaletteView: View {
                 showAppMenu = false
                 menuSelection = 0
             }
-            vm.menuOpen = menuOpen
+            vm.menuOpen = menuOpen || confirmOpen
         }
         .onChange(of: showAppMenu) {
             if showAppMenu {
                 showActions = false
                 menuSelection = 0
             }
-            vm.menuOpen = menuOpen
+            vm.menuOpen = menuOpen || confirmOpen
+        }
+        // The confirmation rides the same input-freeze channel as the menus: caret hidden, typing swallowed, nav keys through. Highlight always starts on Cancel.
+        .onChange(of: confirmOpen) {
+            if confirmOpen {
+                closeMenus()
+                confirmSelection = 0
+            }
+            vm.menuOpen = menuOpen || confirmOpen
         }
         // Follow a row the store moved: a fresh capture (or promote-on-paste) lands at the head of its section, and pinning lifts a row into the Pinned section. With a query typed the highlight stays put; `AppCore` has already placed it for pin/paste.
         .onChange(of: clipFollow) { old, new in
@@ -383,6 +409,7 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(.downArrow) {
+            if confirmOpen { return .handled }
             if isCollapsed {
                 // The compact bar has no visible selection; Down reveals the list at its first row
                 // while the shared search field stays mounted and focused.
@@ -398,6 +425,7 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(.upArrow) {
+            if confirmOpen { return .handled }
             if isCollapsed { return .ignored }
             if menuOpen {
                 moveMenu(-1)
@@ -408,15 +436,25 @@ struct RootPaletteView: View {
         }
         // Horizontal arrows step the emoji grid and adjust an hourly inline card (← rewinds, → advances — ↑/↓ stay pure list navigation); everywhere else they stay with the field editor's caret. An open menu swallows them so the list behind never moves.
         .onKeyPress(.leftArrow) {
+            if confirmOpen {
+                confirmSelection = 0
+                return .handled
+            }
             if menuOpen { return .handled }
             if adjustPluginQueryHour(by: -1) { return .handled }
+            if adjustPluginScreenHour(by: -1) { return .handled }
             guard vm.mode == .emoji else { return .ignored }
             move(-1)
             return .handled
         }
         .onKeyPress(.rightArrow) {
+            if confirmOpen {
+                confirmSelection = 1
+                return .handled
+            }
             if menuOpen { return .handled }
             if adjustPluginQueryHour(by: 1) { return .handled }
+            if adjustPluginScreenHour(by: 1) { return .handled }
             guard vm.mode == .emoji else { return .ignored }
             move(1)
             return .handled
@@ -425,6 +463,10 @@ struct RootPaletteView: View {
         .onKeyPress(keys: [.return], phases: .down) { press in
             let command = press.modifiers.contains(.command)
             let option = press.modifiers.contains(.option)
+            if confirmOpen {
+                activateConfirmation(confirmSelection == 1)
+                return .handled
+            }
             if menuOpen, !command, !option {
                 activateMenuItem(menuSelection)
                 return .handled
@@ -456,6 +498,10 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(.escape) {
+            if confirmOpen {
+                activateConfirmation(false)
+                return .handled
+            }
             if showActions || showAppMenu {
                 closeMenus()
                 return .handled
@@ -475,6 +521,10 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(.tab) {
+            if confirmOpen {
+                confirmSelection = confirmSelection == 0 ? 1 : 0
+                return .handled
+            }
             if menuOpen { return .handled }
             toggleMode()
             return .handled
@@ -853,6 +903,23 @@ struct RootPaletteView: View {
         else { return false }
         pluginQueryHourOffset += delta
         return true
+    }
+
+    /// The palette-screen sibling of the hourly card: ←/→ scrub a plugin screen that opts in (World
+    /// Clock), but only while the query is empty so a typed filter keeps its caret movement.
+    private func adjustPluginScreenHour(by delta: Int) -> Bool {
+        guard vm.query.isEmpty, let id = activePluginID,
+            let adjust = plugins.paletteHourAdjustment(for: id)
+        else { return false }
+        adjust(delta)
+        return true
+    }
+
+    /// The single activation path for the confirmation overlay, shared by keys and clicks.
+    private func activateConfirmation(_ confirmed: Bool) {
+        guard let confirmation = vm.confirmation else { return }
+        vm.confirmation = nil
+        if confirmed { confirmation.onConfirm() }
     }
 
     /// Move the open menu's highlight, clamped at the ends (no wrap — consistent with `move`).

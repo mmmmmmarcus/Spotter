@@ -436,31 +436,6 @@ enum MoleResults {
     }
 }
 
-/// Confirms a Mole run before anything is deleted. Return is bound to **Cancel** on the
-/// irreversible ones, so a reflexive second ↵ in the palette can't wipe a build folder.
-@MainActor
-enum MolePresenter {
-    private static var isConfirming = false
-
-    static func confirm(_ action: MoleAction) -> Bool {
-        guard !isConfirming else { return false }
-        isConfirming = true
-        defer { isConfirming = false }
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "\(action.title)?"
-        alert.informativeText = action.confirmation
-        alert.alertStyle = action.isPermanent ? .critical : .warning
-        let run = alert.addButton(withTitle: action.title)
-        let cancel = alert.addButton(withTitle: "Cancel")
-        if action.isPermanent {
-            run.keyEquivalent = ""
-            cancel.keyEquivalent = "\r"
-        }
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-}
-
 extension AppCore {
     func openMole(_ screen: MoleScreen) {
         guard plugins.isEnabled(.mole) else { return }
@@ -497,10 +472,18 @@ extension AppCore {
 
     func runMoleAction(_ action: MoleAction) {
         guard plugins.isEnabled(.mole), !mole.isRunning else { return }
-        guard MolePresenter.confirm(action) else { return }
-        mole.run(action)
-        // Deliberately stays open: the run row reports progress and the list refreshes underneath it.
-        showPalette(mode: .plugin(.mole), restoreAnyMode: true)
+        confirmInPalette(
+            PaletteConfirmation(
+                title: "\(action.title)?",
+                message: action.confirmation,
+                actionTitle: action.title,
+                isDestructive: action.isPermanent
+            ) { [weak self] in
+                guard let self, !self.mole.isRunning else { return }
+                self.mole.run(action)
+                // Deliberately stays open: the run row reports progress and the list refreshes underneath it.
+                self.showPalette(mode: .plugin(.mole), restoreAnyMode: true)
+            })
     }
 
     func performMoleRow(itemID: String) {

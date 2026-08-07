@@ -77,6 +77,8 @@ enum Theme {
         static let statusDot: CGFloat = 6
         /// Gap between the bottom of the visible screen and the command HUD, clearing the Dock.
         static let hudBottomMargin: CGFloat = 120
+        /// The in-palette confirmation card's width cap.
+        static let confirmationWidth: CGFloat = 380
     }
 
     /// System text styles (not hardcoded sizes) so the UI honors Dynamic Type.

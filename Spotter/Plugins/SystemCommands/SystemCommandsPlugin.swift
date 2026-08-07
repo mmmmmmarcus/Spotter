@@ -42,26 +42,6 @@ enum SystemCommandsPlugin {
 /// Confirmation and failure UI for system commands. Kept beside the plugin rather than in `AppCore`, so the destructive-command gate lives with the commands it guards.
 @MainActor
 enum SystemCommandPresenter {
-    /// Guards only the dialog, not execution — a held shortcut must not stack alerts.
-    private static var isConfirming = false
-
-    /// Return is bound to **Cancel**: a destructive command is one ↵ away in the palette, and a reflexive second ↵ must not restart the Mac.
-    static func confirm(_ command: SystemCommand) -> Bool {
-        guard !isConfirming else { return false }
-        isConfirming = true
-        defer { isConfirming = false }
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "\(command.name)?"
-        alert.informativeText = Self.explanation(for: command.id)
-        alert.alertStyle = .warning
-        let run = alert.addButton(withTitle: command.name)
-        run.keyEquivalent = ""
-        let cancel = alert.addButton(withTitle: "Cancel")
-        cancel.keyEquivalent = "\r"
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-
     static func presentFailure(name: String, failure: SystemCommandFailure) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
@@ -82,7 +62,7 @@ enum SystemCommandPresenter {
         }
     }
 
-    private static func explanation(for id: SystemCommand.ID) -> String {
+    static func explanation(for id: SystemCommand.ID) -> String {
         switch id {
         case .restart: "Your Mac will restart. Apps will be asked to save first."
         case .shutDown: "Your Mac will shut down. Apps will be asked to save first."
@@ -100,17 +80,32 @@ extension AppCore {
         guard plugins.isEnabled(.systemCommands),
             let command = SystemCommandCatalog.all.first(where: { $0.id == id })
         else { return }
+        if command.confirmation == .required {
+            confirmInPalette(
+                PaletteConfirmation(
+                    title: "\(command.name)?",
+                    message: SystemCommandPresenter.explanation(for: command.id),
+                    actionTitle: command.name
+                ) { [weak self] in
+                    guard let self else { return }
+                    // Captured at confirm time: the app the user came from, recorded when the palette showed.
+                    let target = self.previousApplication
+                    self.hidePalette(restoreFocus: true)
+                    self.executeSystemCommand(command, target: target)
+                })
+            return
+        }
         // Captured before hiding: several commands act on the app the user came from.
         let target = previousApplication
-        // The palette is a floating panel and would sit above the alert, so it goes first either way.
         hidePalette(restoreFocus: true)
-        if command.confirmation == .required {
-            guard SystemCommandPresenter.confirm(command) else { return }
-        }
+        executeSystemCommand(command, target: target)
+    }
+
+    private func executeSystemCommand(_ command: SystemCommand, target: NSRunningApplication?) {
         Task { @MainActor in
             do {
                 // Only commands whose effect is invisible report back; the rest return nil.
-                if let feedback = try await SystemCommandRunner.run(id, previousApp: target) {
+                if let feedback = try await SystemCommandRunner.run(command.id, previousApp: target) {
                     hud.show(feedback)
                 }
             } catch let failure as SystemCommandFailure {
