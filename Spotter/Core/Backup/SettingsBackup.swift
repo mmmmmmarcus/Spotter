@@ -79,9 +79,24 @@ struct SettingsBackup: Codable {
             var output: String?
             var format: String?
         }
+        struct Caffeinate: Codable {
+            var keepsDisplayAwake: Bool?
+            var keepsDiskAwake: Bool?
+        }
+        struct WindowManagement: Codable {
+            var gap: Int?
+            var cycleOnRepeat: Bool?
+        }
+        struct Mole: Codable {
+            // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
+            var binaryPath: String?
+        }
         var changeCase: ChangeCase?
         var killProcess: KillProcess?
         var imageModification: ImageModification?
+        var caffeinate: Caffeinate?
+        var windowManagement: WindowManagement?
+        var mole: Mole?
     }
 
     struct TextReplacementBackup: Codable {
@@ -204,6 +219,14 @@ extension SettingsBackup {
             output: d.string(forKey: "image-modification.output")
                 ?? ImageOutputLocation.alongside.rawValue,
             format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
+        prefs.caffeinate = PluginPrefs.Caffeinate(
+            keepsDisplayAwake: d.object(forKey: "coffee.keeps-display-awake") == nil
+                || d.bool(forKey: "coffee.keeps-display-awake"),
+            keepsDiskAwake: d.bool(forKey: "coffee.keeps-disk-awake"))
+        prefs.windowManagement = PluginPrefs.WindowManagement(
+            gap: d.integer(forKey: WindowManagementDefaults.gapKey),
+            cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
+        prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
         return prefs
     }
 
@@ -282,6 +305,26 @@ extension SettingsBackup {
         if let i = prefs.imageModification {
             set(i.output, "image-modification.output")
             set(i.format, "image-modification.format")
+        }
+        if let c = prefs.caffeinate {
+            // Through the manager, not raw defaults: options are cached `@Published` state, and a
+            // live caffeinate session restarts so the imported flags actually apply.
+            var options = core.coffee.options
+            if let display = c.keepsDisplayAwake { options.keepsDisplayAwake = display }
+            if let disk = c.keepsDiskAwake { options.keepsDiskAwake = disk }
+            if options != core.coffee.options {
+                core.coffee.options = options
+                count += 1
+            }
+        }
+        if let w = prefs.windowManagement {
+            set(w.gap, WindowManagementDefaults.gapKey)
+            set(w.cycleOnRepeat, WindowManagementDefaults.cycleKey)
+        }
+        if let m = prefs.mole, let path = m.binaryPath {
+            // Through the manager so `binaryPath` re-resolves; an empty string clears the override.
+            core.mole.setBinaryPathOverride(path)
+            count += 1
         }
         return count
     }

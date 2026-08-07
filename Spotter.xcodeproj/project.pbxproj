@@ -70,6 +70,7 @@
 		61D1312CDF6F88E027BFDD8B /* AppIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = B106F55A48529154846D232B /* AppIndex.swift */; };
 		64B05A63190110CCC027E700 /* ImageModificationTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */; };
 		6780976D52AB15577C5C61BA /* TextReplacementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322BD1E0F51E36F6E499FFC5 /* TextReplacementStore.swift */; };
+		67AF4C032DBB83701E991791 /* CommandHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */; };
 		68AFA52CCCB116233710ECA0 /* PluginTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E593DC8B2FFDB3E7D4E269BC /* PluginTypes.swift */; };
 		699D13262D38B7B15A26A38A /* ImageModificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98AACEC8AA42B16A4CE3807 /* ImageModificationSettingsView.swift */; };
 		69BD79349289B95B2234BF09 /* WorldClockSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B6EECF92F4DE89914475EF /* WorldClockSettingsView.swift */; };
@@ -312,6 +313,7 @@
 		C1DCDA3DDA71EB23010C3B83 /* QuicklinksPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinksPlugin.swift; sourceTree = "<group>"; };
 		C56565B07BE5151D843D54F5 /* EmojiSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSettingsView.swift; sourceTree = "<group>"; };
 		C56CDF128216DD71A2A2C54D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandHUD.swift; sourceTree = "<group>"; };
 		C97BF8A52FC54B377D0C496E /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
 		CBC9C7B1C931032E7A8857D7 /* SelectionToolsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolsManager.swift; sourceTree = "<group>"; };
 		D10E544C780380D882E6910C /* SelectionToolsTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolsTypes.swift; sourceTree = "<group>"; };
@@ -672,6 +674,7 @@
 				C56CDF128216DD71A2A2C54D /* AppSettings.swift */,
 				EE9C9C5A900B9FD315A6D58F /* Bundle+AppName.swift */,
 				9C94EBE4ECBE73CE017D8F24 /* CalculatorHistoryStore.swift */,
+				C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */,
 				1B00427B2E9D630317430C72 /* CommandRegistry.swift */,
 				2EF4FC36249D2F239DC103AD /* CustomCommand.swift */,
 				9092ABB2DA845D92B8913B0E /* EdgeDissolve.swift */,
@@ -881,6 +884,7 @@
 				353B2022FCC31CC61816623B /* CoffeePlugin.swift in Sources */,
 				F2DF20329882A390AB573647 /* CoffeeSettingsView.swift in Sources */,
 				A059071A015B9B1B3983FFA5 /* CoffeeTypes.swift in Sources */,
+				67AF4C032DBB83701E991791 /* CommandHUD.swift in Sources */,
 				EE1DE04C9B5C83D0CA1D4323 /* CommandRegistry.swift in Sources */,
 				CEE52559A7F432B31E1300A1 /* CurrencyConversionPlugin.swift in Sources */,
 				04BD0C95C5A98DB1E9B4122D /* CurrencyConversionSettingsView.swift in Sources */,
