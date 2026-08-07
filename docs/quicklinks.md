@@ -77,7 +77,9 @@ instead of an SF Symbol tile.
 ## Palette flow
 
 `Search Quicklinks` (or a bound shortcut) opens the plugin screen listing every saved link, pinned
-first then alphabetical. Selecting one:
+first then alphabetical; `Create Quicklink` is a second launcher command that jumps straight to the
+Settings pane. Rows carry a "Pinned" pill and an "N arguments" pill as accessories, and the list's
+⌘K menu offers Open / Copy Link / Pin–Unpin / Edit in Settings… / Delete. Selecting one:
 
 - **with no arguments** — opens immediately and dismisses the palette;
 - **with arguments** — stays open and switches to argument entry.

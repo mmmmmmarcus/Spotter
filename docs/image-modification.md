@@ -1,4 +1,10 @@
-# Image Modification plugin
+# Image Modification
+
+Enabled by default; registration declares the Automation permission (for reading Finder's selection),
+so it appears in System → Permissions. The output-location and format preferences sync through
+`SettingsBackup.PluginPrefs.ImageModification`. The Replace Original confirmation is the one dialog
+that deliberately stays a window-modal alert: it belongs to the Image Modification workspace, not the
+palette. plugin
 
 Image Modification is the native counterpart of Raycast's Image Modification (`sips`) extension. Its
 launcher commands run immediately without opening a plugin workspace. They cover filtering,

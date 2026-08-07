@@ -48,8 +48,9 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
   uninstall and disk analysis, each previewed before it runs.
 - **Caffeinate** — keep your Mac awake indefinitely, for a set time, or while an app runs.
 - **QuickTime recording** — start a screen, audio, or movie recording directly from the launcher.
-- **Native plugins** — independently organized, individually enabled feature modules with shared
-  settings, permissions, commands and shortcuts, compiled directly into the app for native speed.
+- **Native plugins** — independently organized feature modules, all on by default and individually
+  toggleable, with shared settings, permissions, commands and shortcuts, compiled directly into the
+  app for native speed.
 - **Global hotkey** — one shortcut summons the palette from anywhere.
 - **Per-app hotkeys** — bind a key to an app; press it to toggle (focus/hide).
 

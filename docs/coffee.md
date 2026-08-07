@@ -13,12 +13,15 @@ row's primary action still toggles.
 | --- | --- |
 | Caffeinate | Stay awake until stopped |
 | Decaffeinate | Release the assertion |
-| Toggle Caffeination | Flip between the two |
 | Caffeinate For… | Palette screen of durations (15m → 8h) |
 | Caffeinate While App Runs… | Palette screen of running apps; ends when that app quits |
 | Caffeination Status | Current state, with a live countdown for a timed session |
 
-Each has its own bindable shortcut, so ⌘⌘-style double-taps work here too.
+All but Caffeination Status have their own bindable shortcut, so ⌘⌘-style double-taps work here
+too; the status row's primary action still toggles between caffeinated and not. The screen's ⌘K menu
+offers Caffeinate, plus Decaffeinate while an assertion is held. The plugin declares no permissions —
+`caffeinate` is an ordinary child process. Its two assertion options sync through
+`SettingsBackup.PluginPrefs.Caffeinate`.
 
 ## How it holds the assertion
 

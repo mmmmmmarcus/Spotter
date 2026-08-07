@@ -1,5 +1,7 @@
 # QuickTime Recording plugin
 
+Enabled by default.
+
 QuickTime Recording exposes three no-view commands: New Screen Recording, New Audio Recording and New
 Movie Recording. Each command sends the corresponding AppleScript to QuickTime Player through the
 system `/usr/bin/osascript`, invokes QuickTime's native File-menu command, opens the matching recorder

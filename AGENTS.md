@@ -93,7 +93,11 @@ Never break these without an explicit task to do so.
   `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
-  `Tools/quicklink-test.swift`, and
+  `Tools/quicklink-test.swift`, `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
+  `Tools/mole-test.swift` (its harness never executes Mole), `Plugins/Coffee/CoffeeTypes.swift`
+  stays Foundation-only and pure for `Tools/coffee-test.swift`, the
+  `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
+  trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
   `Plugins/ImageModification/ImageModificationTypes.swift` stays
   Foundation-only so their standalone harnesses compile without app state. `QuickTimeRunner` may use
   Foundation's `Process`, but its harness must never execute a recording command.
@@ -145,6 +149,11 @@ Never break these without an explicit task to do so.
   create a separate window, search field, list chrome or footer. Dedicated plugin windows are limited
   to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
   and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
+- **Confirmations are in-palette.** Every destructive palette flow (Mole actions, System Commands,
+  custom commands, Quit All) asks through `AppCore.confirmInPalette` / `ConfirmationCard`, never an
+  `NSAlert`, and the card's highlight always starts on Cancel — a reflexive second ↵ must never be
+  the confirmation. The one deliberate exception is Image Modification's Replace Original alert,
+  which belongs to its workspace window.
 - **Process and image mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
   executes selected process actions immediately without dismissing its palette. Image Modification's
   Convert Image command selects a target format in a second-level palette before any work starts and
@@ -197,7 +206,11 @@ Never break these without an explicit task to do so.
 - [`docs/plugins.md`](docs/plugins.md) — native plugin contract, directory layout and extension flow.
 - [`docs/kill-process.md`](docs/kill-process.md) · [`docs/change-case.md`](docs/change-case.md) ·
   [`docs/image-modification.md`](docs/image-modification.md) · [`docs/quicktime.md`](docs/quicktime.md) ·
-  [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md)
+  [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md) ·
+  [`docs/world-clock.md`](docs/world-clock.md) · [`docs/selection-tools.md`](docs/selection-tools.md) ·
+  [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
+  [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
+  [`docs/custom-commands.md`](docs/custom-commands.md)
   — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·

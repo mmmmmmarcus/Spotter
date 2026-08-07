@@ -4,17 +4,20 @@ Rectangle-style window actions — halves, quarters, thirds, sizing, nudging, di
 fullscreen — searchable in the palette and bindable to global shortcuts. 30 commands, no new
 dependencies and no new permission: they reuse the Accessibility grant clipboard paste already needs.
 
-Ships **off**. Settings › Window Management is the switch, and while it is off there are no launcher
-entries and a still-registered shortcut moves nothing.
+Ships **on**. Settings › Window Management is the switch, and while it is off there are no launcher
+entries and a still-registered shortcut moves nothing. Of the 30 commands, 10 ship visible in the
+launcher and the other 20 ship hidden via `defaultVisible: false`, discoverable in System → Shortcuts.
 
 ## Layout
 
 | File | Imports | Role |
 |---|---|---|
-| `Core/WindowManagement/WindowCommand.swift` | Foundation | Catalog: id, name, symbol, kind, group, `cyclesOnRepeat`, `resizes` |
-| `Core/WindowManagement/WindowLayout.swift` | Foundation + CoreGraphics | **Pure.** Every frame the commands produce |
-| `Core/WindowManagement/WindowActionMemory.swift` | Foundation + CoreGraphics | **Pure.** Per-window cycle position and restore point |
-| `Core/WindowManagement/WindowMover.swift` | AppKit + ApplicationServices | `@MainActor`. Every `AXUIElement` call and the coordinate flip |
+| `Plugins/WindowManagement/WindowCommand.swift` | Foundation | Catalog: id, name, symbol, kind, group, `cyclesOnRepeat`, `resizes` |
+| `Plugins/WindowManagement/WindowLayout.swift` | Foundation + CoreGraphics | **Pure.** Every frame the commands produce |
+| `Plugins/WindowManagement/WindowActionMemory.swift` | Foundation + CoreGraphics | **Pure.** Per-window cycle position and restore point |
+| `Plugins/WindowManagement/WindowMover.swift` | AppKit + ApplicationServices | `@MainActor`. Every `AXUIElement` call and the coordinate flip |
+| `Plugins/WindowManagement/WindowManagementPlugin.swift` | SwiftUI | Registration, launcher commands, shortcut actions, `AppCore.runWindowCommand` |
+| `Plugins/WindowManagement/WindowManagementSettingsView.swift` | SwiftUI | Enable switch, gap and cycling preferences |
 
 The first three compile into `Tools/window-command-test.swift`, so they must not gain an AppKit,
 SwiftUI or `NSScreen` dependency, and must stay pure — `WindowActionMemory` takes `now` as a parameter
@@ -158,23 +161,22 @@ stock Electron app tiles correctly without it, delete the helper rather than kee
 
 ## Wiring
 
-- **`AppEntry.Kind.windowCommand`** — entries are `window-command:<id>`, published by
-  `AppIndex.setWindowCommandsVisible(_:)` between the system-action and custom-command slices.
-  `LauncherView.rows` mirrors that position with a "Window Management" section; the slice order is the
-  flat-selection invariant, so the two must move together.
-- **`HotKeyAction.windowCommand(id:)`** — persisted under
-  `KeyboardShortcuts_windowCommandHotkey.<raw-id>`, matching the legacy prefix convention. Unlike
-  custom commands there is no bound-ID index to maintain: the catalog is fixed, so `HotKeyManager.start`
-  and `conflictOwner` iterate `WindowCommand.ID.allCases` and `register` no-ops on an unbound command.
+This is a native plugin (`Spotter/Plugins/WindowManagement/`), registered through
+`BuiltInPlugins.swift` like every other:
+
+- **Launcher entries** are ordinary plugin commands, `command:window:<id>`, published by the registry
+  and alphabetized into the shared command slice — there is no dedicated launcher section or
+  `AppEntry` kind.
+- **Shortcuts** are `PluginActionKey.standard(pluginID: .windowManagement, actionID: <id>)`,
+  persisted under `KeyboardShortcuts_plugin.window-management.<id>` and registered through
+  `PluginRegistry` like every other plugin action.
 - **`AppCore.runWindowCommand(id:)`** is the one funnel for both palette activation and the global
-  hotkey, so the feature switch cannot be bypassed by either.
-- **Settings** — `windowManagementEnabled` (off), `windowManagementShowInLauncher` (on), `windowGap`
-  (0) and `windowCycleOnRepeat` (off). All four ride in settings backups: unlike `snippetsEnabled` they
-  grant no permission class of their own.
-- **Per-command visibility** reuses `VisibilityStore` as-is; clearing a recorded shortcut is how a
-  hotkey is disabled, so there is no separate per-command enabled flag. Window commands deliberately
-  get **no** launcher-category pane of their own — they are managed inside Settings › Window
-  Management, the same call already made for snippets.
+  hotkey, so the plugin's enable switch cannot be bypassed by either.
+- **Settings** — the enable flag is the registry's `plugin.window-management.enabled`; the two
+  preferences are `window-management.gap` (0) and `window-management.cycle-on-repeat` (off), read
+  live per command run and synced through `SettingsBackup.PluginPrefs.WindowManagement`.
+- **Per-command visibility** uses the shared `defaultVisible`/`VisibilityStore` mechanism: hidden
+  commands stay recordable in System → Shortcuts and can be unhidden like any launcher entry.
 
 ## Testing
 

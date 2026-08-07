@@ -32,7 +32,11 @@ Spotter/Plugins/
 ├── ChangeCase/
 ├── SelectionTools/
 ├── ImageModification/
-└── QuickTime/
+├── QuickTime/
+├── WindowManagement/
+├── SystemCommands/
+├── Mole/
+└── Coffee/
 ```
 
 `Infrastructure/` contains only the shared contract and registry. Every sibling plugin directory owns
@@ -87,12 +91,19 @@ is optional:
   and is re-read on every rebuild instead of captured once. Call
   `PluginRegistry.reloadDynamicCommands(for:)` whenever the underlying store changes; registration
   seeds the routing table so entries restored from disk are launchable before any change fires.
+- `canDisable` (default true) pins a plugin on; nothing currently sets it false.
+- `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
+  renders the recorded keycap.
 - `queryProvider` contributes a synchronous inline result provider.
 - `paletteScreen` contributes a searchable result-list snapshot, primary row action, ⌘K menu actions
   and visible-only lifecycle to the shared command palette.
 - `paletteScreen.livePlaceholder` overrides the static placeholder while the screen is open, for a
   step-by-step flow whose prompt changes between steps (Quicklinks' argument entry). Returning nil
   falls back to `placeholder`.
+- `paletteScreen.adjustHours` opts a screen into ←/→ hour scrubbing while the query is empty (World
+  Clock).
+- `paletteScreen.observeChanges` wires the screen's manager into the registry's invalidation, so a
+  background state change re-snapshots the visible list.
 - `onEnable` and `onDisable` start and stop work. They run once at startup for enabled plugins and on
   later state transitions. Both must be idempotent.
 - `readEnabled` and `writeEnabled` adapt a feature-owned state gate. Currency uses these because
@@ -100,6 +111,10 @@ is optional:
   bundle-scoped `UserDefaults` key.
 - `exportsEnabledState` controls Settings backup. It defaults to true. Network-consent plugins must set
   it to false so importing a backup cannot grant network access.
+- Per-plugin **preferences** (not just the enable flag) sync by extending
+  `SettingsBackup.PluginPrefs` — gather effective values, apply through the owning manager when the
+  manager caches state. Change Case, Kill Process, Image Modification, Caffeinate, Window Management
+  and Mole are the current entries; a new plugin with preferences adds its own.
 
 Disabled plugin commands disappear from launcher search, shortcut actions no-op, query providers are
 removed from the hot-path cache, and `onDisable` stops ongoing work. A feature-specific entry point
@@ -112,7 +127,8 @@ selection, row chrome, scrolling or footer in another window. Kill Process is th
 
 Dedicated workspaces are reserved for sustained document/canvas editing or complex multi-step flows
 that cannot fit the launcher model. They use `AppCore.showPluginWindow(id:title:size:content:)`, which
-keeps every `NSWindow` under `AuxWindowController`; Notes is the current example.
+keeps every `NSWindow` under `AuxWindowController`; Notes and the Change Case browser are the
+current examples.
 CPU, process, filesystem, image and AppleScript work must leave the main actor, returning only
 `Sendable` values to an `AppCore`-owned manager.
 
@@ -238,14 +254,14 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
   IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
   adjustment; its launcher screen shows a user-managed saved-city list.
-- **Kill Process** (`Spotter/Plugins/KillProcess/`) — launcher-native palette screen backed by an
+- **Kill Process** (`Spotter/Plugins/KillProcess/`) — enabled by default; launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
-- **Change Case** (`Spotter/Plugins/ChangeCase/`) — 21 local text transforms, selected-text/clipboard
+- **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
-- **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — three independent selected-text actions:
+- **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — enabled by default; three independent selected-text actions:
   Google Search in the default browser, plus AI translation and grammar checking (OpenRouter)
   presented through one asynchronous shared palette screen.
-- **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
+- **Image Modification** (`Spotter/Plugins/ImageModification/`) — enabled by default; local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins.
 - **Window Management** (`Spotter/Plugins/WindowManagement/`) — enabled by default; 30 commands
@@ -262,10 +278,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
-- **QuickTime Recording** (`Spotter/Plugins/QuickTime/`) — three on-demand AppleScript actions for
+- **QuickTime Recording** (`Spotter/Plugins/QuickTime/`) — enabled by default; three on-demand AppleScript actions for
   screen, audio and movie recording; requires Automation only when a command runs.
 
-Detailed internals: [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
+Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md),
 [Window Management](window-management.md), [System Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), and

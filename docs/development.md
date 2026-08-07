@@ -35,13 +35,19 @@ Xcode, prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (t
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) — after changing project settings in `project.yml`,
 run `xcodegen generate` and commit the result.
 
+One `project.yml` trap worth knowing: the app icon is the Icon Composer bundle `Spotter/spotter.icon`,
+which is a *directory*. It must stay excluded from the recursive `sources` walk and added back as a
+single `type: file` entry in the resources phase — without that XcodeGen registers its inner files as
+loose resources, `actool` never compiles the icon, and the app ships with the generic placeholder
+(no `CFBundleIconName` at all). `ASSETCATALOG_COMPILER_APPICON_NAME: spotter` resolves it.
+
 ### Local builds install as the one Spotter.app
 
 There is no separate dev channel. Debug builds produce **`Spotter.app`**, bundle id
 `com.spotter.app` — the same identity as the installed app — so a rebuild keeps every persisted
 thing, all keyed by bundle id: `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
 `~/Library/Caches/<id>/` (clipboard history, calculator history, exchange rates, frequent emoji),
-`~/Library/Application Support/<id>/` (the onboarding marker and Notes data), the `SMAppService`
+`~/Library/Application Support/<id>/` (the onboarding marker, Notes data and Quicklinks), the `SMAppService`
 login item, and the Accessibility / Input Monitoring (TCC) grants (the stable `Spotter Self-Signed`
 identity is what keeps those grants alive across rebuilds).
 
@@ -243,16 +249,19 @@ feed selection) is Foundation-only and pure for `Tools/update-test.swift`.
 `.github/workflows/release.yml` builds and publishes a DMG from GitHub Actions — no local machine
 needed. Run it from the **Actions** tab (`Release` → **Run workflow**) and pick:
 
-- **channel** — `beta` or `stable`. Each builds a distinct app
-  (`Spotter Beta.app` / `Spotter.app`) with its own bundle id, alongside the local
-  `Spotter Dev.app` (above).
-  Beta gets an auto-incrementing `-beta.N` suffix (`N` = the Actions run number)
-  so re-running never collides; stable ships the version as-is.
+- **channel** — `beta` or `stable`. Beta builds `Spotter Beta.app` with its own bundle id so it can
+  run beside stable; stable builds the same `Spotter.app` / `com.spotter.app` identity a local
+  Debug build produces (there is no separate dev app — see "Local builds install as the one
+  Spotter.app" above). Beta gets an auto-incrementing `-beta.N` suffix (`N` = the Actions run
+  number) so re-running never collides; stable ships the version as-is.
 - **version** — base semver, e.g. `0.2.0`.
 
 It builds on a `macos-26` runner with Xcode 26 and publishes a GitHub Release tagged
-`v<full-version>` with a versioned DMG asset (`Spotter-<full-version>.dmg`), marked prerelease
-for beta. On success it also bumps the matching cask in the tap (below).
+`v<full-version>` with two assets: the DMG (`Spotter-<full-version>.dmg`) and the zip
+(`Spotter-<full-version>.zip`) that the in-app updater downloads, both marked prerelease for beta.
+On success it also bumps the matching cask in the tap (below, gated on `HOMEBREW_TAP_TOKEN`) and
+posts a Discord announcement (gated on `DISCORD_WEBHOOK_URL`); both steps skip with a warning when
+their secret is unset.
 
 ### Homebrew tap automation
 

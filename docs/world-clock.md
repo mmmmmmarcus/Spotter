@@ -23,7 +23,10 @@ clock every 30 seconds while visible, filters only the saved cities and copies a
 `WorldClockStore`, owned by `AppCore`, persists the ordered city IDs in bundle-scoped `UserDefaults`.
 The palette screen manages the list in place: saved cities lead, and a non-empty query also surfaces
 up to eight catalog matches as **Add City** rows (`add:<id>`) — ↵ adds and clears the query so the
-grown list shows; ⌘K on a saved city offers Remove City.
+grown list shows; ⌘K on a saved city offers Remove City. While the query is empty, **←/→ scrub every
+row by ±1 hour** (the same gesture as the inline card): the offset shows in the section header as
+`Cities · +3 h`, applies through `WorldClockStore.previewOffsetHours`, and resets on the next open.
+The saved list itself syncs as `SettingsBackup.worldClockCities`.
 
 The plugin Settings pane searches the macOS city catalog, adds or removes cities and restores the
 three defaults. Disabling the plugin stops its visible-only clock task and exits an active World Clock

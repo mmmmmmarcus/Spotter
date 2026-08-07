@@ -12,19 +12,33 @@ UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its con
 - `.launcher` → `LauncherList`
 - `.clipboard` → `ClipboardList` + preview
 - `.calculatorHistory` → `CalculatorHistoryList`
+- `.emoji` → the emoji grid
 - `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
 Clipboard and Calculator History are sub-screens reached from the launcher (Tab, a command, or a
 hotkey) and back out to it.
 
-**Esc backs out one layer, matching Raycast.** An open footer menu closes first; then a sub-screen
+**Esc backs out one layer, matching Raycast.** An open confirmation cancels first, then an open
+footer menu closes; then a sub-screen
 (clipboard, history, emoji, any plugin screen) pops to a fresh launcher root; then a typed query
 clears; only Esc at the empty launcher root hides the palette. Backspace in an already-empty search
 is the same back gesture for sub-screens.
 
+**Confirmations are in-palette.** Any destructive flow asks through `AppCore.confirmInPalette`,
+which renders `ConfirmationCard` as a centered glass overlay: ←/→/Tab move the highlight, ↵
+activates it, Esc cancels, and the highlight always starts on Cancel so a reflexive second ↵ is
+never the confirmation. While the card is up, typing is frozen through the same channel as an open
+footer menu. A confirmation requested with the palette hidden (a global hotkey) shows the palette
+first and forces the compact bar to expand. There are no system confirmation dialogs in palette
+flows; the one deliberate exception is Image Modification's Replace Original alert, which belongs to
+its own workspace window.
+
 Plugin palette screens reuse the same header search field, flat selection, keyboard navigation,
 section/row grammar, edge dissolve, bottom action group and ⌘K overlay. The plugin supplies immutable
-row snapshots plus primary/menu actions; it does not supply a view. Registry observation invalidates
+row snapshots plus primary/menu actions; it does not supply a view. A screen may also supply a
+`livePlaceholder` (a prompt that changes per step — Quicklinks' argument entry) and an `adjustHours`
+hook (←/→ hour scrubbing on an empty query — World Clock, whose screen also adds and removes cities
+in place). Registry observation invalidates
 the palette when the plugin's `AppCore`-owned manager changes. Kill Process is the reference screen.
 
 The flat `selection` index is the single source of truth for highlight / activation and **must always
@@ -65,6 +79,10 @@ is the CoreGraphics cursor position flipped about the primary display's height, 
 in the half-open interval `(minY, maxY]`: the topmost row is exactly `maxY`, which `contains` excludes,
 while that same value is the `minY` of the display stacked above. `contains` would therefore hand a
 pointer parked at the top of one display to its neighbour. `NSMouseInRect` exists for precisely this.
+
+A user drag re-anchors the session, and with **Remember position** on the anchor persists across
+summons. Each show also runs `InputSourceLock.selectASCIIKeyboard()` when General → "Lock input
+method to English" is on, so the query field always starts in an ASCII layout.
 
 ## Menu-open input freeze
 

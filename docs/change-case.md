@@ -1,4 +1,8 @@
-# Change Case plugin
+# Change Case
+
+Enabled by default. The case browser is a dedicated `AuxWindowController` workspace opened through
+`AppCore.showPluginWindow` (720×560) — with Notes, one of the two dedicated-window plugins. Its nine
+preferences sync through `SettingsBackup.PluginPrefs.ChangeCase`. plugin
 
 Change Case implements the 21 transformations exposed by the Raycast extension: camel, capital,
 constant, dot, header, lower, lower-first, no-case, kebab, upper-kebab, Pascal, Pascal-snake, path,

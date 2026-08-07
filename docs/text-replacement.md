@@ -7,8 +7,9 @@ Matching is case-insensitive, while replacement text is inserted exactly as save
 
 ## Lifecycle and permission
 
-The plugin ships disabled because it observes global keyboard events. Enabling it is the explicit
-opt-in, and its registration declares Accessibility so System → Permissions lists the dependency.
+The plugin ships enabled but idle: the tap only installs once at least one rule exists and the
+Accessibility grant is present, so the default state observes nothing. Its registration declares
+Accessibility so System → Permissions lists the dependency.
 `TextReplacementManager` installs a modifying session event tap only while the plugin is enabled and
 at least one rule exists. Disabling the plugin, deleting the last rule, ending the user session or
 revoking Accessibility tears down or disables the tap. A one-second health check retries after the

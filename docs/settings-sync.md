@@ -10,12 +10,16 @@ Macs; Spotter itself uses no network service or CloudKit container. The Settings
 the selected item is an iCloud ubiquitous item and allows synchronization to be paused or disconnected
 without deleting the file.
 
-Coverage is deliberately complete for *configuration*: general settings, every bound hotkey
-(including all plugin actions, keyed `<plugin-id>.<action-id>` so new plugins sync automatically),
-custom commands, favorites, visibility, plugin enable states, the OpenRouter key and per-action
-models, per-plugin preferences (Change Case, Kill Process, Image Modification), World Clock's saved
-cities, and Text Replacement's prefix and rules. Content and learned state stay local by design:
-clipboard history, calculator history, notes, learned launcher ranking and frequent emoji.
+Coverage is deliberately complete for *configuration*: general settings (including
+`lockInputToEnglish` and `remembersPalettePosition`), every bound hotkey (including all plugin
+actions, keyed `<plugin-id>.<action-id>` so new plugins sync automatically), custom commands,
+favorites, visibility, plugin enable states, the OpenRouter key and per-action models, per-plugin
+preferences (Change Case, Kill Process, Image Modification, Caffeinate, Window Management, Mole's
+binary path), Quicklinks, World Clock's saved cities, and Text Replacement's prefix and rules.
+Content and learned state stay local by design: clipboard history, calculator history, notes,
+learned launcher ranking and frequent emoji. Two consent flags are deliberately excluded so an
+import can never grant network access: Currency Conversion's network consent (via
+`exportsEnabledState: false`) and the auto-update check consent on `UpdateStore`.
 
 ## Live pipeline
 

@@ -22,8 +22,9 @@ SwiftUI, and its parsers must stay pure. The harness never executes Mole.
 ## Finding the binary
 
 `/opt/homebrew/bin/mole`, `/usr/local/bin/mole`, then the `mo` aliases — or an explicit path saved
-under `mole.binary-path` in Settings. With nothing found, every screen reports it rather than failing
-silently.
+under `mole.binary-path` in Settings (synced through `SettingsBackup.PluginPrefs.Mole`; harmless on a
+machine where the path isn't executable, since the locator falls back to the search list). With
+nothing found, every screen reports it rather than failing silently.
 
 ## Screens
 
@@ -39,7 +40,7 @@ shortcut. The section header names the screen, and the placeholder changes with 
 | **Optimize** | `mole optimize --dry-run` | A run row, then every maintenance item |
 | **Purge** | `mole purge --dry-run` | A run row, then every build-artifact directory with its size |
 | **Uninstall** | `mole uninstall --list` | Every installed app with its icon, path and size |
-| **Analyze Disk** | `mole analyze -json <dir>` | Folder contents by size; ↵ descends, a Back row climbs out |
+| **Analyze Disk** | `mole analyze -json <dir>` | Folder contents by size; ↵ descends, a Back row climbs out. Roots at the home folder on every open |
 | **Cleanup History** | `mole history --json` | Past sessions with item counts and reclaimed size |
 
 Every read-only pass runs with stdin on `/dev/null` and stdout on a pipe, which is what makes Mole
@@ -54,15 +55,21 @@ keystrokes, so it can't be rendered; it ships hidden from the launcher and opens
 `uninstall(name:permanent:)`. Everything funnels through `AppCore.runMoleAction`, so no path can skip
 the confirmation:
 
-- The dialog names the action and says exactly what it removes.
-- On the irreversible ones — Purge, and Delete Permanently — **Return is bound to Cancel**, because a
-  destructive row is one ↵ away in the palette and a reflexive second ↵ must not wipe a build folder.
+- The confirmation is the shared **in-palette card**, never a system dialog. It names the action,
+  says exactly what it removes, and its highlight starts on Cancel — a destructive row is one ↵ away
+  in the palette, and a reflexive second ↵ must not wipe a build folder.
 - Uninstall moves the app to the Trash by default; **Delete Permanently** is a separate ⌘K entry.
 - Admin-only system caches are skipped: Mole asks for sudo on a TTY, and there isn't one.
 
 The palette deliberately stays open while a run is in flight. The run row reports progress, and the
 preview underneath re-reads itself when the run finishes so what's left is what's shown. Closing the
 palette cancels a *preview* but never a run — a half-cleaned machine is worse than a wasted read.
+A run that finishes while its screen isn't visible (palette closed, or parked elsewhere) reports its
+closing summary through the command HUD instead, via `MoleManager.onRunFinished`.
+
+Beyond the per-row actions, every screen's ⌘K menu carries Refresh (⌘R), All Mole Commands, and Mole
+Settings…; app rows add Move to Trash / Delete Permanently / Reveal in Finder / Copy Bundle ID, and
+path-backed rows add Reveal in Finder / Copy Path.
 
 ## Launcher hand-off
 

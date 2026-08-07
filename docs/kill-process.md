@@ -8,10 +8,12 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
 
 ## Behavior
 
-- Sort by CPU or resident memory; filter by name, app name, executable path or PID.
+- Sort by CPU or resident memory; filter by name and app name, plus PID (on by default) and
+  executable path (off by default) — both toggles in Settings, and both synced through
+  `SettingsBackup.PluginPrefs.KillProcess` with the other six preferences.
 - Optionally group helpers that share an outer `.app` bundle and aggregate their CPU/memory totals.
-- Terminate with `SIGTERM`, force-terminate with `SIGKILL`, restart an app/binary, or target every
-  process with the same executable name. A force action retries permission-denied targets through the
+- Terminate with `SIGTERM`, force-terminate with `SIGKILL`, restart an app/binary (with a force
+  variant), or target every process with the same executable name — force-kill-all included. A force action retries permission-denied targets through the
   standard macOS administrator prompt (`osascript … with administrator privileges`). That prompt is
   per-action credential entry, not a TCC grant, so Kill Process deliberately declares no
   `PluginPermission` and does not appear in System → Permissions; the Settings pane carries a callout

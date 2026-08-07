@@ -4,10 +4,11 @@ Selection Tools is one native plugin with three independently bindable actions a
 commands:
 
 - **Search Selected Text** builds a Google Search URL and hands it to the default browser.
-- **Translate Selected Text** uses the macOS Translation framework and displays the result in the
+- **Translate Selected Text** sends the capture to OpenRouter and displays the translation in the
   shared Spotter palette.
-- **Check Selected Text Grammar** uses the local macOS spelling and grammar service and displays the
-  corrected text plus each reported issue in the shared palette.
+- **Check Selected Text Grammar** sends the capture to OpenRouter and displays the corrected text
+  plus each reported issue in the shared palette. There is no on-device fallback for either — the
+  OpenRouter API key is the gate, and without one both actions report that a key is needed.
 
 The actions use stable `selection-tools.search`, `selection-tools.translate` and
 `selection-tools.grammar` IDs. The repository has no default plugin-shortcut seeding mechanism, so all

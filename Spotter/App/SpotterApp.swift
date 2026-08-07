@@ -6,7 +6,7 @@ struct SpotterApp: App {
     // `@AppStorage` republishes only when the value changes, avoiding a scene ⇄ binding feedback loop.
     @AppStorage(SettingsKey.showInMenuBar) private var showInMenuBar = true
 
-    // Channel-aware: "Spotter", "Spotter Dev", or "Spotter Beta".
+    // Channel-aware: "Spotter" or "Spotter Beta".
     private let appName = Bundle.main.appDisplayName
 
     var body: some Scene {

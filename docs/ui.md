@@ -36,7 +36,7 @@ These are the things that quietly break the look if changed. Preserve them unles
 - **No grays, no opaque fills on the surface.** Reach for `Theme.Colors.*` instead of `.gray`, `NSColor.windowBackground`, etc. In AppKit, prefer the semantic `NSColor`s (`.labelColor`, `.textColor`) over literals.
 - **Rasterized art is the one exception.** A symbol tile from `IconCache` is a baked bitmap, so it can't follow the appearance the way a live view does: the appearance is part of its cache key and `AppIconView` re-decodes when the scheme flips. Anything else drawn into an `NSImage` needs the same treatment.
 - **No hard dividers between the list and the bars.** The header and bottom bar are `safeAreaInset` overlays with no background; separation comes from `edgeDissolve()`, nothing else. (One deliberate exception: the vertical hairline between the clipboard list and its preview pane.)
-- **The panel corner is clipped once, at the root.** `RootPaletteView.body` ends with `.background(black 40%) → .background(VisualEffectView()) → .clipShape(RoundedRectangle(26, .continuous))`. Keep that order; the scrim goes _over_ the vibrancy, and the clip is last.
+- **The panel corner is clipped once, at the root.** `RootPaletteView.body` ends with `.background(panelScrim) → .background(VisualEffectView()) → .clipShape(RoundedRectangle(26, .continuous))`. Keep that order; the scrim goes _over_ the vibrancy, and the clip is last.
 - **Don't use the native scroll edge effect.** Inside a transparent panel it renders a hard-bounded rectangle. Use `edgeDissolve()`.
 - **Test over a light desktop, in both appearances.** Transparency and corner masking bugs only show over bright wallpaper. Dark wallpaper hides them.
 
@@ -49,7 +49,7 @@ Add a token rather than a magic number when introducing a new value.
 
 ### Spacing (`Theme.Spacing`)
 
-`xxs 2` · `xs 4` · `sm 6` · `md 8` · `lg 10` · `xl 12` · `xxl 20`
+`xxs 2` · `xs 4` · `sm 6` · `md 8` · `lg 10` · `xl 12` · `xxl 20` · `xxxl 28` (calculator card)
 
 `xxs` is the tight gap between adjacent keycap chips (used everywhere keycaps sit side by side).
 
@@ -70,8 +70,8 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 ### Size (`Theme.Size`)
 
 `panelWidth 750` · `panelHeight 475` · `headerHeight 44` · `bottomBarHeight 52` · `rowIcon 24` ·
-`keyCap 18` · `recorderKeyCap 16` · `menuButton 36` · `clipboardListWidth 290` · `menuWidth 276` · `menuIcon 16` ·
-`settingsSidebar 184` · `settingsRowIcon 20`
+`keyCap 18` · `recorderKeyCap 16` · `menuButton 36` · `clipboardListWidth 290` · `menuWidth 276` · `menuIcon 20` ·
+`settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
 
@@ -112,9 +112,9 @@ appearances.
 
 ## Panel structure — `Core/PalettePanel.swift`, `Features/RootPaletteView.swift`
 
-- **`PalettePanel`** is a borderless `NSPanel`: `isOpaque = false`, `backgroundColor = .clear`, `.floating` level, `hasShadow`, `animationBehavior = .none`. It hosts SwiftUI via `NSHostingView`. `PaletteWindowController` centers it slightly above screen center (`+8%`) and dismisses it on `windowDidResignKey`.
+- **`PalettePanel`** is a borderless `NSPanel`: `isOpaque = false`, `backgroundColor = .clear`, `.floating` level, `hasShadow`, `animationBehavior = .none`, `.fullSizeContentView`, drag-movable by its background. It hosts SwiftUI via `NSHostingView`. `PaletteWindowController` anchors its **top edge** at `paletteTopMarginFraction` (0.18) of the visible height, resolved once per summon so the window grows downward, and dismisses it on `windowDidResignKey`.
 - **The results layer fills the whole panel.** The header and bottom bar attach via `.safeAreaInset(edge: .top/.bottom)` as transparent overlays that float _over_ the list. The list underlaps them and dissolves at the edges.
-- **Header** (`headerHeight 44`): a back-chevron _or_ mode glyph, then the plain `TextField` (no border/background). Sub-screens (Clipboard, Calculator History) show the back chevron; the launcher shows a magnifying glass. The search icon aligns horizontally with row content.
+- **Header** (`headerHeight 44`): a back-chevron _or_ mode glyph, then the plain `TextField` (no border/background). Every non-launcher mode (Clipboard, Calculator History, Emoji, plugin screens) shows the back chevron; the launcher shows a magnifying glass. The search icon aligns horizontally with row content.
 - **Compact keyboard entry:** pressing `↓` in the collapsed launcher expands the results and selects the first row without replacing or defocusing the shared search field.
 - **Bottom bar** (`bottomBarHeight 52`): a menu circle on the left, the action group on the right — both floating glass, no bar background. The action group is one glass `Capsule` holding the primary-action pill (label + `↵`) and the Actions toggle (`⌘K`).
 
@@ -145,7 +145,7 @@ All lists share one row grammar so launcher and clipboard look identical:
 
 ### Section headers
 
-All four palette lists (App Launcher, Clipboard, Emoji, Calculator History) render category labels
+All five palette lists (App Launcher, Clipboard, Emoji, Calculator History, and every plugin screen via `PluginPaletteList`) render category labels
 through one shared **`SectionHeader`** (`.subheadline.medium`, secondary — `Features/Launcher/LauncherView.swift`).
 The launcher shows a single "Results" header over search matches, and per-kind sections
 (Favorites / Applications / System Settings / Commands) for the empty query; clipboard/history use
@@ -185,7 +185,17 @@ reported. Centered horizontally, `hudBottomMargin` (120) above the visible frame
 clears the Dock — the placement macOS uses for its own volume HUD. It picks the screen under the
 cursor, holds for 1.4s, then fades over 0.22s; a second command mid-fade resets it to full opacity
 rather than resuming the dissolve. Same glass as `PopoverMenu` (`menuPanel` radius, no hand shadow).
-A no-op's glyph is `.secondary` — it reports that nothing happened.
+A no-op's glyph is `.secondary` — it reports that nothing happened. Beyond system commands, any
+subsystem can call `hud.show(title:symbol:)`; Mole uses it for a run finishing off-screen.
+
+## Confirmation card — `Features/ConfirmationCard.swift`
+
+The in-palette yes/no: a centered glass card (`confirmationWidth 380`, `menuPanel` radius, no hand
+shadow) over a `panelScrim` dim layer, presented by `AppCore.confirmInPalette` through
+`PaletteViewModel.confirmation`. Two `row`-radius buttons — Cancel and the action, the action red
+when destructive — with `selection`-fill highlight; ←/→/Tab move it, ↵ activates, Esc and the dim
+layer cancel. The highlight always starts on Cancel. Typing freezes through the same channel as an
+open footer menu.
 
 ## Scrollbars — `Core/ThinScrollbar.swift`
 
@@ -195,7 +205,7 @@ style; `.thinScrollbar()` on the scroll view draws a hairline thumb (`Color.prim
 appearance on its own, at alpha 0.30 rest →
 0.42 hover → 0.5 drag) that fattens on hover, with a faint rail revealed only while hovering/dragging.
 
-Routing: the palette lists (App Launcher, Clipboard history, Emoji, Calculator history) use
+Routing: the palette lists (App Launcher, Clipboard history, Emoji, Calculator history, plugin screens) use
 `.thinScrollbar()` + `.hideNativeScrollers()`; the Clipboard preview (right pane) and every Settings
 pane use the native `.overlayScroller()`. Don't reintroduce native scrollers on the palette lists.
 

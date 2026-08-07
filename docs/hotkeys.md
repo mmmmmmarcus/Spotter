@@ -1,12 +1,23 @@
 # Hotkeys (in-house, zero dependencies)
 
+Persistence keys are rename-stable by design: a plugin's display name may change while its
+`PluginID` raw value must not — Caffeinate still binds under
+`KeyboardShortcuts_plugin.coffee.<action>` because the id stayed `coffee` through the rename.
+
 `Core/HotKey/` holds:
 
 - `KeyShortcut` — Sendable model, Carbon keycode + modifiers, layout-aware glyphs via `UCKeyTranslate`.
+- `HotKeyBinding` — the persisted binding enum; a `.combo` case encodes as the bare `KeyShortcut`
+  record so every pre-double-tap binding and backup still reads.
 - `HotKeyCenter` — the Carbon `RegisterEventHotKey` layer, pausable.
-
-- `DoubleTapDetector` — pure, clock-injected recognition of "tap a lone modifier twice".
+- `DoubleTapDetector` / `DoubleTapModifier` — pure, clock-injected recognition of "tap a lone
+  modifier twice" (both compile into `Tools/hotkey-test.swift`).
 - `DoubleTapMonitor` — the listen-only event tap that feeds it, installed only while something is bound.
+- `HyperKey` / `HyperKeyTap` — the Hyper Key: an HID-level Caps Lock remap owned by
+  `AppCore.hyperKeyTap`, released in `applicationWillTerminate`, configured in General Settings and
+  synced as four settings fields (`hyperKey`, `hyperKeyIncludesShift`, `hyperKeyQuickPress`,
+  `hyperKeyReplacesGlyph`). It deliberately keeps running while the recorder pauses Carbon, because
+  the recorder relies on the tap's rewritten flags to capture Hyper shortcuts.
 
 `HotKeyManager` owns them all: persistence, conflict lookup, and dispatch.
 

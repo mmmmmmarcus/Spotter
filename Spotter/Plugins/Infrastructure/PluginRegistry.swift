@@ -33,6 +33,8 @@ struct PluginPaletteScreenRegistration {
     let placeholder: String
     /// Overrides `placeholder` while the screen is open, for a step-by-step flow whose prompt changes (Quicklinks' argument entry). Returning nil falls back to the static one.
     var livePlaceholder: (() -> String?)?
+    /// Set by a screen whose rows represent instants (World Clock): ←/→ scrub by ±1 hour while the query is empty.
+    var adjustHours: ((Int) -> Void)?
     let snapshot: (_ query: String) -> PluginPaletteSnapshot
     let performPrimaryAction: (_ itemID: String) -> Void
     let actions: (_ itemID: String) -> PopoverMenuContent?
@@ -177,6 +179,11 @@ final class PluginRegistry: ObservableObject {
         guard isEnabled(id) else { return nil }
         guard let screen = registrations[id]?.paletteScreen else { return nil }
         return screen.livePlaceholder?() ?? screen.placeholder
+    }
+
+    func paletteHourAdjustment(for id: PluginID) -> ((Int) -> Void)? {
+        guard isEnabled(id) else { return nil }
+        return registrations[id]?.paletteScreen?.adjustHours
     }
 
     func paletteSnapshot(for id: PluginID, query: String) -> PluginPaletteSnapshot? {

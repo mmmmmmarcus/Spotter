@@ -83,14 +83,21 @@ the last and keeps only what it looked at, so uninstalled apps fall out instead 
 ## Commands
 
 `CustomCommandStore` supplies user-authored entries to `AppIndex` without joining the off-main
-application scan. `PluginRegistry` supplies commands from enabled native plugins. Core, plugin and
-custom commands are alphabetized into the same final section, so they reuse fuzzy ranking, favorites,
-visibility, keycap rendering and the launcher's flat selection. Toggling a plugin rebuilds only this
-in-memory command slice; it does not rescan applications.
+application scan. `PluginRegistry` supplies commands from enabled native plugins — a static slice
+per registration plus a runtime-varying one from `dynamicLauncherCommands` (a user's saved
+quicklinks), republished by `reloadDynamicCommands(for:)` whenever the owning store changes. Core,
+plugin and custom commands are alphabetized into the same final section, so they reuse fuzzy
+ranking, favorites, visibility, keycap rendering and the launcher's flat selection; the registry's
+entries win over a `CommandRegistry` id they republish (quit-all). Toggling a plugin rebuilds only
+this in-memory command slice; it does not rescan applications.
+
+A command row normally draws an SF Symbol tile, but `AppEntry.iconFilePath` lets it borrow a real
+bundle's icon — a quicklink shows the icon of the app that will open it.
 
 A registration may mark a secondary command `defaultVisible: false`. `AppCore.start()` seeds that
 visibility exactly once, after which the normal visibility store and System → Shortcuts own the user
-choice. Change Case uses this for its 21 direct transformations so the default command list stays
+choice. Change Case uses this for its 21 direct transformations, Window Management for 20 of its 30
+commands, and Mole for the Terminal-only installer selector so the default command list stays
 compact.
 
 Only the display name is indexed. Activation resolves the stable UUID through the store and dispatches
@@ -124,11 +131,16 @@ running dot and the availability of the quit actions:
   `AppLauncher.quit(bundleID:)` terminates every instance of the bundle and reports whether
   anything was running; the palette only dismisses when something was, and it restores focus unless
   the app it just quit *was* `previousApp`.
-- **Quit All Applications** — a `CommandRegistry` command. `AppLauncher.quitAllTargets()` is the
-  policy (every `.regular` app except Finder — `terminate()` only relaunches it — and Spotter,
-  excluded by PID because About/Settings temporarily flips it to `.regular`). `AppCore.quitAllApps()`
-  resolves that list **once**, confirms it with an `NSAlert`, then terminates exactly what was
-  confirmed. The palette hides before the alert — it is a floating panel and would sit above it.
+- **Quit All Applications** — normally the System Commands plugin's command (`AppCore.runCommand`
+  dispatches `plugins.performCommand` first, and `AppIndex.publishEntries` drops the registry's
+  duplicate id while the plugin publishes it). With that plugin disabled, the `CommandRegistry`
+  fallback runs `AppCore.quitAllApps()`: `AppLauncher.quitAllTargets()` is the policy (every
+  `.regular` app except Finder — `terminate()` only relaunches it — and Spotter, excluded by PID
+  because About/Settings temporarily flips it to `.regular`), the list resolves **once**, the
+  in-palette confirmation card asks, and exactly what was confirmed terminates.
+- **Uninstall with Mole** — appended to an application row's ⌘K menu when the Mole plugin is enabled
+  and the CLI installed (never for Spotter itself). It funnels through the confirmed `MoleAction`
+  path and lands on the Mole uninstall screen ([mole.md](mole.md)).
 
 Both quits are graceful `NSRunningApplication.terminate()`, so an app with unsaved work still puts up
 its own save sheet.

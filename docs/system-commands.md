@@ -1,7 +1,7 @@
 # System Commands plugin
 
 30 everyday macOS actions in the launcher — ported from Tinycast #107 and adapted to the plugin
-contract. Ships **disabled**.
+contract. Ships **enabled**.
 
 ## What's covered
 
@@ -21,9 +21,14 @@ have. The five presets plus up/down cover the same ground without importing that
 
 Restart, Shut Down, Log Out, Empty Trash and Quit All Applications are `confirmation: .required`.
 The gate lives in `AppCore.runSystemCommand`, the single funnel both palette activation and the
-global shortcut reach, so no path can skip it. **Return is bound to Cancel** — a destructive command
-is one ↵ away in the palette, and a reflexive second ↵ must not restart the Mac. A re-entrancy flag
-stops a held shortcut stacking dialogs.
+global shortcut reach, so no path can skip it. The confirmation is the shared **in-palette card**
+(`ConfirmationCard`), never a system dialog, and its highlight starts on Cancel — a destructive
+command is one ↵ away in the palette, and a reflexive second ↵ must not restart the Mac. A hotkey
+fired with the palette closed shows the palette first. Commands whose effect is otherwise invisible
+("Trash Emptied", "No Disks to Eject") report through the command HUD when they finish.
+
+All 30 commands ship visible in the launcher — unlike Window Management and Change Case, nothing here
+uses `defaultVisible: false`.
 
 ## Permissions
 

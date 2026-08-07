@@ -90,7 +90,10 @@ cd /; rm -rf "$D"
 If you ever lose the secrets, just re-run this section — as long as the `Spotter Self-Signed`
 identity is still in your keychain, the exported identity is the same, so users are unaffected. If you
 lose the identity entirely, recreate it (step 1) and re-do this; existing users will re-grant
-Accessibility once on their next update, then it's stable again.
+Accessibility once on their next update, then it's stable again — but note the in-app updater
+verifies each downloaded bundle against the *running* app's designated requirement before
+installing (`Core/UpdateStore.swift`), so a rotated identity also breaks in-app updates for every
+already-installed copy: those users must download the new build manually once.
 
 ## Quarantine (separate from signing)
 

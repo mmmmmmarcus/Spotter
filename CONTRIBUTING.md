@@ -61,7 +61,8 @@ Match the surrounding code.
 - Views stay declarative; logic lives in models and managers.
 - Swift 6 isolation — heavy work off the main actor.
 - [`Core/Theme.swift`](Spotter/Core/Theme.swift) tokens only. Read [`docs/ui.md`](docs/ui.md) before
-  any new view or restyle. Dark only — no light-mode styling.
+  any new view or restyle. The app follows the system appearance; every color token carries both a
+  dark and a light stop, and views never branch on `colorScheme`.
 - New long-lived state goes on `AppCore`, wired in `start()`.
 - Built-in features live in `Spotter/Plugins/<Name>/`; do not add runtime-loaded code or a second
   plugin registry.

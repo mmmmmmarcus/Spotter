@@ -3,19 +3,21 @@
 How Spotter is wired together. See the per-subsystem docs for internals:
 [palette](palette.md), [launcher](launcher.md), [calculator](calculator.md),
 [clipboard](clipboard.md), [plugins](plugins.md), [custom commands](custom-commands.md),
-[hotkeys](hotkeys.md), [ui](ui.md).
+[hotkeys](hotkeys.md), [ui](ui.md), [settings-sync](settings-sync.md), [signing](signing.md),
+plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools,
+image-modification, quicktime, notes, text-replacement, quicklinks, window-management,
+system-commands, mole, coffee).
 
 ## Single-owner core
 
 `AppCore.shared` (`Core/AppCore.swift`) is a `@MainActor` singleton that owns every long-lived
-manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `AppSettings`,
-`FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
-`CalculatorHistoryStore`,
-`CurrencyRateStore`, `RunningAppsMonitor`, `WorldClockStore`, `KillProcessManager`, `ChangeCaseStore`,
+manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `HyperKeyTap`,
+`AppSettings`, `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
+`CalculatorHistoryStore`, `CurrencyRateStore`, `EmojiIndex`, `FrequentEmojiStore`,
+`RunningAppsMonitor`, `WorldClockStore`, `KillProcessManager`, `ChangeCaseStore`,
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
-`MoleManager`, `CoffeeManager`, `UpdateStore`,
-`TextReplacementManager`, `NoteStore`,
-`SettingsSyncManager`,
+`TextReplacementManager`, `NoteStore`, `QuicklinkStore`, `QuicklinkManager`, `WindowMover`,
+`MoleManager`, `CoffeeManager`, `UpdateStore`, `CommandHUD`, `SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry` — plus the window
 controllers. The registry owns capability registrations, not feature managers: registration closures
 refer back to managers on `AppCore`, so it does not weaken the single-owner rule.
@@ -46,8 +48,9 @@ imperatively from AppKit.
   full launcher by resizing the window. `PaletteWindowController` solely owns the frame (resolved once
   per show to a top-left anchor so it grows downward), and the hosting view sets `sizingOptions = []`
   so SwiftUI never drives the window size — without that the hosting view resizes the panel to fit
-  content and the top edge drifts on the compact↔expanded swap. The panel auto-dismisses on
-  `windowDidResignKey`.
+  content and the top edge drifts on the compact↔expanded swap. The panel is drag-movable by its
+  background; a drag re-anchors the session, and with **Remember position** on it persists across
+  summons. The panel auto-dismisses on `windowDidResignKey`.
 - **Settings / About** — plain `NSWindow`s via `AuxWindowController` (in
   `Features/About/AboutView.swift`). SwiftUI `Settings` / `Window` scenes are unreliable for accessory
   apps, so this is deliberate.
@@ -57,14 +60,19 @@ imperatively from AppKit.
   workspace into transparency, resizing and floating window level. Notes uses all three and requests
   content-driven height changes through `AppCore`, including its temporary list expansion, leaving
   frame ownership and activation routing centralized.
+- **Command HUD** — a second borderless panel (`Core/CommandHUD.swift`), owned directly by `AppCore`,
+  that briefly confirms otherwise-invisible command results ("Trash Emptied"). Non-activating and
+  mouse-ignoring by design: the command just acted on the app the user came from, and taking focus
+  back to report on it would undo the thing being reported.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
   Selection Tools uses this route for asynchronous AI translation and grammar states after it
   snapshots the frontmost app's Accessibility selection, before Spotter activates.
 
-The app forces `.darkAqua` appearance globally; the Liquid Glass material is tuned for a dark surface
-only.
+The app follows the system appearance. Every color token lives in `Core/Theme.swift` as an
+`adaptive(dark:light:)` pair resolved through `NSColor`'s dynamic provider, so views never branch on
+`colorScheme`; `Tools/theme-test.swift` pins both stops of every token.
 
 ## Concurrency
 
