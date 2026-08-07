@@ -205,13 +205,17 @@ private struct AppRow: View {
 /// Row icon that decodes off the main thread (mirrors `ImageThumbnail`), so surfacing new apps while typing never rasterizes on-main during render. Warm icons seed synchronously so there's no placeholder flash on re-open.
 struct AppIconView: View {
     let app: AppEntry
+    /// A symbol tile is a rasterized bitmap, so unlike a live `Image(systemName:)` it can't follow
+    /// the appearance on its own — the scheme joins the task id so a system flip redraws it.
+    @Environment(\.colorScheme) private var scheme
     @State private var image: NSImage?
 
     init(app: AppEntry) {
         self.app = app
         _image = State(
             initialValue: app.isSymbolIcon
-                ? IconCache.cachedSymbol(named: app.symbolIconName)
+                ? IconCache.cachedSymbol(
+                    named: app.symbolIconName, dark: NSApp.effectiveAppearance.isDark)
                 : IconCache.cached(forFile: app.iconPath))
     }
 
@@ -221,16 +225,23 @@ struct AppIconView: View {
                 Image(nsImage: image).resizable()
             } else {
                 RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(Theme.Colors.surfaceGlow)
             }
         }
-        .task(id: app.id) {
-            guard image == nil else { return }
+        .task(id: Reload(id: app.id, dark: scheme == .dark)) {
+            // An app icon is appearance-independent, so only a symbol tile re-decodes on a flip.
+            guard image == nil || app.isSymbolIcon else { return }
             image =
                 app.isSymbolIcon
-                ? await IconCache.loadSymbolAsync(named: app.symbolIconName)
+                ? await IconCache.loadSymbolAsync(
+                    named: app.symbolIconName, dark: scheme == .dark)
                 : await IconCache.loadAsync(forFile: app.iconPath)
         }
+    }
+
+    private struct Reload: Equatable {
+        let id: String
+        let dark: Bool
     }
 }
 
@@ -278,6 +289,14 @@ enum AppActionsMenu {
                     isDestructive: true
                 ) {
                     core.quit(app)
+                })
+        }
+        if core.canUninstallWithMole(app) {
+            items.append(
+                PopoverMenuItem(
+                    title: "Uninstall with Mole", systemImage: "trash", isDestructive: true
+                ) {
+                    core.uninstallWithMole(app)
                 })
         }
         return PopoverMenuContent(header: app.name, items: items)

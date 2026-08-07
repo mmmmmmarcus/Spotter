@@ -85,7 +85,8 @@ struct AppEntry: Identifiable, Hashable, Sendable {
 
     var icon: NSImage {
         isSymbolIcon
-            ? IconCache.symbolIcon(named: symbolIconName) : IconCache.icon(forFile: iconPath)
+            ? IconCache.symbolIcon(named: symbolIconName, dark: NSApp.effectiveAppearance.isDark)
+            : IconCache.icon(forFile: iconPath)
     }
 }
 
@@ -105,8 +106,15 @@ enum IconCache {
 
     /// Cache-only lookups (never decode) so a row can paint an already-warm icon on the same frame.
     static func cached(forFile path: String) -> NSImage? { cache.object(forKey: path as NSString) }
-    static func cachedSymbol(named name: String) -> NSImage? {
-        cache.object(forKey: ("symbol:" + name) as NSString)
+    static func cachedSymbol(named name: String, dark: Bool) -> NSImage? {
+        cache.object(forKey: symbolKey(name, dark: dark))
+    }
+
+    /// A symbol tile is rasterized, so its colors can't follow the appearance the way a live view's
+    /// can — the appearance is part of the key instead, and a system flip simply draws a new one.
+    /// Passed in rather than read from `NSApp`, since the decode runs off the main actor.
+    private static func symbolKey(_ name: String, dark: Bool) -> NSString {
+        (dark ? "symbol:dark:" : "symbol:light:") + name as NSString
     }
 
     /// A freshly-decoded, thereafter-immutable `NSImage` is safe to move across the actor boundary.
@@ -120,10 +128,10 @@ enum IconCache {
             return Decoded(image: icon(forFile: path))
         }.value.image
     }
-    static func loadSymbolAsync(named name: String) async -> NSImage? {
-        if let cached = cachedSymbol(named: name) { return cached }
+    static func loadSymbolAsync(named name: String, dark: Bool) async -> NSImage? {
+        if let cached = cachedSymbol(named: name, dark: dark) { return cached }
         return await Task.detached(priority: .userInitiated) {
-            Decoded(image: symbolIcon(named: name))
+            Decoded(image: symbolIcon(named: name, dark: dark))
         }.value.image
     }
 
@@ -136,19 +144,20 @@ enum IconCache {
     }
 
     /// Command "icons": an SF Symbol on a rounded tile, in the same bitmap shape as app icons so rows treat every entry identically.
-    static func symbolIcon(named name: String) -> NSImage {
-        let key = "symbol:" + name as NSString
+    static func symbolIcon(named name: String, dark: Bool) -> NSImage {
+        let key = symbolKey(name, dark: dark)
         if let cached = cache.object(forKey: key) { return cached }
+        let ink: NSColor = dark ? .white : .black
 
         let side = displayPixel
         let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
             // Tile inset mirrors the margin macOS app icons carry inside their canvas.
             let tile = NSRect(x: 0, y: 0, width: side, height: side).insetBy(dx: 4, dy: 4)
-            NSColor.white.withAlphaComponent(0.09).setFill()
+            ink.withAlphaComponent(0.09).setFill()
             NSBezierPath(roundedRect: tile, xRadius: 9, yRadius: 9).fill()
 
             let config = NSImage.SymbolConfiguration(pointSize: 21, weight: .medium)
-                .applying(.init(paletteColors: [.white.withAlphaComponent(0.85)]))
+                .applying(.init(paletteColors: [ink.withAlphaComponent(0.85)]))
             guard
                 let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
                     .withSymbolConfiguration(config)

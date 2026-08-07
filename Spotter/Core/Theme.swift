@@ -1,6 +1,8 @@
+import AppKit
 import SwiftUI
 
-/// Central design tokens for the palette UI (dark design system per `docs/ui.md`; the app forces `.darkAqua`, so colors are literal white/black alphas).
+/// Central design tokens for the palette UI (see `docs/ui.md`). Colors are a single alpha ramp
+/// mirrored per appearance, so the app follows the system between light and dark.
 enum Theme {
     enum Animation {
         static let quick: TimeInterval = 0.14
@@ -73,6 +75,8 @@ enum Theme {
         static let noteToolbarTitleInset: CGFloat = 112
         /// Little state indicator dot next to a settings row title (Hyper Key active/needs-permission).
         static let statusDot: CGFloat = 6
+        /// Gap between the bottom of the visible screen and the command HUD, clearing the Dock.
+        static let hudBottomMargin: CGFloat = 120
     }
 
     /// System text styles (not hardcoded sizes) so the UI honors Dynamic Type.
@@ -91,29 +95,46 @@ enum Theme {
         static let menuIcon = Font.body
     }
 
+    /// One alpha ramp, mirrored per appearance: white over the dark surface, black over the light one.
+    /// Black at the same alpha reads heavier than white, so the light stops are not a straight flip.
     enum Colors {
-        /// Black opacity of the panel's surface tint over the behind-window material.
-        static let panelDimming: CGFloat = 0.4
+        /// The scrim laid over the behind-window material to make the panel surface. Dark dims it;
+        /// light brightens it, so both keep the desktop showing through rather than turning opaque.
+        static let panelScrim = adaptive(dark: .black.opacity(0.40), light: .white.opacity(0.55))
         /// Selection fill: a soft neutral translucent layer shared by launcher and clipboard so both lists look identical.
-        static let selection = Color.white.opacity(0.10)
+        static let selection = adaptive(dark: .white.opacity(0.10), light: .black.opacity(0.08))
         /// Mouse hover — a fainter layer that follows the cursor, visually distinct from selection.
-        static let rowHover = Color.white.opacity(0.05)
-        static let menuHover = Color.white.opacity(0.10)
-        static let separator = Color.white.opacity(0.10)
+        static let rowHover = adaptive(dark: .white.opacity(0.05), light: .black.opacity(0.04))
+        static let menuHover = adaptive(dark: .white.opacity(0.10), light: .black.opacity(0.08))
+        static let separator = adaptive(dark: .white.opacity(0.10), light: .black.opacity(0.12))
         /// Small control surfaces: kbd chips, glyph tiles.
-        static let controlSurface = Color.white.opacity(0.10)
+        static let controlSurface = adaptive(dark: .white.opacity(0.10), light: .black.opacity(0.08))
         /// Control borders: outlined kbd chips.
-        static let border = Color.white.opacity(0.20)
-        static let textSecondary = Color.white.opacity(0.60)
-        static let textTertiary = Color.white.opacity(0.40)
+        static let border = adaptive(dark: .white.opacity(0.20), light: .black.opacity(0.18))
+        static let textSecondary = adaptive(dark: .white.opacity(0.60), light: .black.opacity(0.62))
+        static let textTertiary = adaptive(dark: .white.opacity(0.40), light: .black.opacity(0.42))
         /// Settings grouped "card": a faint raised surface whose hairline border doubles as the inset row divider.
-        static let cardFill = Color.white.opacity(0.05)
-        static let cardStroke = Color.white.opacity(0.10)
-        /// Whitish tint layered into the Liquid Glass floating controls (action group + menu circle) so the glass reads frosted rather than clear.
-        static let glassFrost = Color.white.opacity(0.05)
-        /// The violet of the app mark. The one non-white hue in the system, used only to tint the About support callout.
+        static let cardFill = adaptive(dark: .white.opacity(0.05), light: .black.opacity(0.035))
+        static let cardStroke = adaptive(dark: .white.opacity(0.10), light: .black.opacity(0.10))
+        /// Placeholder tile held while a row's icon decodes, and the Onboarding surface glow.
+        static let surfaceGlow = adaptive(dark: .white.opacity(0.06), light: .black.opacity(0.05))
+        /// Tint layered into the Liquid Glass floating controls (action group + menu circle) so the
+        /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
+        /// and a dark tint over light glass would read as a shadow instead of frost.
+        static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
+        /// The violet of the app mark. The one hue in the system, used only to tint the About support callout.
         static let brand = Color(red: 0.525, green: 0.231, blue: 1.0)
+
+        /// Resolved per appearance by AppKit, so every call site stays a plain `Color` and the whole
+        /// app follows the system without a single `colorScheme` check in a view body.
+        private static func adaptive(dark: Color, light: Color) -> Color {
+            Color(nsColor: NSColor(name: nil) { NSColor($0.isDark ? dark : light) })
+        }
     }
+}
+
+extension NSAppearance {
+    var isDark: Bool { bestMatch(from: [.aqua, .darkAqua]) == .darkAqua }
 }
 
 /// A single keycap chip: `.outline` for hotkey hints on rows, `.filled` for footer shortcuts.

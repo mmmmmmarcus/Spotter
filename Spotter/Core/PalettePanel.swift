@@ -22,7 +22,7 @@ final class PalettePanel: NSPanel {
     /// Hide/show the caret on SwiftUI's *own* live field editor (the current first responder) without replacing it — SwiftUI force-casts the field editor to a private subclass, so vending our own crashes; we can only tune the existing one. The field never resigns first responder, so its text/placeholder never reflows.
     private func setSearchCaretHidden(_ hidden: Bool) {
         guard let editor = firstResponder as? NSTextView else { return }
-        editor.insertionPointColor = hidden ? .clear : .white
+        editor.insertionPointColor = hidden ? .clear : .textColor
         // Force an immediate redraw so the caret vanishes/returns on the menu toggle instead of waiting out the blink timer.
         editor.updateInsertionPointStateAndRestartTimer(!hidden)
     }

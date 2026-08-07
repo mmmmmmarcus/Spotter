@@ -28,7 +28,7 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             LinearGradient(
-                colors: [Color.white.opacity(0.04), Color.clear],
+                colors: [Theme.Colors.surfaceGlow, Color.clear],
                 startPoint: .top, endPoint: .center)
         )
         // Extend under the transparent titlebar (top padding clears the traffic lights) so the window height equals the fixed content height.

@@ -35,7 +35,7 @@ struct NoteView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.easeOut(duration: Theme.Animation.quick), value: showsNoteList)
         .ignoresSafeArea(edges: .top)
-        .background(Color.black.opacity(Theme.Colors.panelDimming))
+        .background(Theme.Colors.panelScrim)
         .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
     }

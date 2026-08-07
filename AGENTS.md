@@ -62,8 +62,12 @@ Never break these without an explicit task to do so.
 - **`PaletteWindowController` solely owns the palette frame.** The hosting view sets
   `sizingOptions = []` so SwiftUI never drives the window size — otherwise the top edge drifts on the
   compact↔expanded swap.
-- **The app is locked to `.darkAqua` globally.** The Liquid Glass material is tuned for a dark surface
-  only; do not add light-mode styling.
+- **The app follows the system appearance, and appearance lives only in `Core/Theme.swift`.** Every
+  color token is built by `Theme.Colors.adaptive(dark:light:)`; views never branch on `colorScheme`
+  and never hardcode a literal white/black (use the semantic `NSColor`s in AppKit code). The dark
+  stops are the original design and must not drift — `Tools/theme-test.swift` pins both stops of
+  every token. Rasterized art is the one exception: an `IconCache` symbol tile bakes its colors, so
+  the appearance is part of its cache key and the view re-decodes on a flip.
 - **The flat `selection` index must match the visible row order exactly**, including the inline
   calculator card at index 0 when present. Selection is the single source of truth for highlight /
   activation.

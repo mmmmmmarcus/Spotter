@@ -53,7 +53,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         textView.layoutManager?.delegate = context.coordinator
         textView.string = text
         textView.drawsBackground = false
-        textView.textColor = .white
+        textView.textColor = .labelColor
         textView.font = .preferredFont(forTextStyle: .body)
         textView.isRichText = false
         textView.allowsUndo = true
