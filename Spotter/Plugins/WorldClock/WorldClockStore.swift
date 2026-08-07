@@ -58,8 +58,17 @@ final class WorldClockStore: ObservableObject {
         persist()
     }
 
+    /// Hour offset the palette screen's ←/→ scrubbing applies to every row; preview-only state.
+    @Published private(set) var previewOffsetHours = 0
+
+    func adjustPreview(byHours delta: Int) {
+        previewOffsetHours += delta
+    }
+
     func start() {
         guard clockTask == nil else { return }
+        // Every open starts at the real present; the scrub offset is a per-visit preview.
+        previewOffsetHours = 0
         now = nowProvider()
         clockTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -80,7 +89,8 @@ final class WorldClockStore: ObservableObject {
     ) -> WorldClockResult? {
         guard let city = WorldClockEngine.city(id: cityID) else { return nil }
         return WorldClockEngine.result(
-            for: city, now: now, calendar: calendar, locale: locale,
+            for: city, now: now.addingTimeInterval(TimeInterval(previewOffsetHours) * 3_600),
+            calendar: calendar, locale: locale,
             localTimeZone: .autoupdatingCurrent)
     }
 

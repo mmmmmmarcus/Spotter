@@ -12,6 +12,8 @@ enum WorldClockPlugin {
         let open: () -> Void = { [weak core] in core?.openWorldClock() }
         let screen = PluginPaletteScreenRegistration(
             placeholder: "Search saved cities, or type any city to add it…",
+            // ←/→ scrub every row by an hour while the query is empty; each open resets to now.
+            adjustHours: { [weak core] delta in core?.worldClock.adjustPreview(byHours: delta) },
             snapshot: { [weak core] query in
                 guard let core else {
                     return PluginPaletteSnapshot(
@@ -116,8 +118,11 @@ enum WorldClockPlugin {
                     primaryActionTitle: "Add City")
             }
         }
+        // The scrubbed offset is part of the section header so a shifted list can't read as now.
+        let offset = store.previewOffsetHours
+        let title = offset == 0 ? "Cities" : String(format: "Cities · %+d h", offset)
         return PluginPaletteSnapshot(
-            sectionTitle: "Cities", items: items,
+            sectionTitle: title, items: items,
             emptyMessage: trimmed.isEmpty
                 ? "No cities added — type a city name to add one."
                 : "No city matches that name.")
