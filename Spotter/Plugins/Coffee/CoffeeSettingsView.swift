@@ -6,12 +6,12 @@ struct CoffeeSettingsView: View {
 
     var body: some View {
         SettingsPane(
-            title: "Coffee",
+            title: "Caffeinate",
             subtitle: "Keep your Mac awake without changing Energy Saver."
         ) {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
-                    title: "Coffee",
+                    title: "Caffeinate",
                     subtitle: coffee.state.summary,
                     systemImage: "cup.and.saucer", tint: .orange,
                     statusDot: coffee.isOn ? .green : nil
@@ -48,8 +48,6 @@ struct CoffeeSettingsView: View {
             }
 
             SettingsCard(header: "Shortcuts") {
-                shortcutRow("Toggle Caffeination", "cup.and.saucer", .coffeeToggle)
-                SettingsDivider()
                 shortcutRow("Caffeinate", "cup.and.saucer.fill", .coffeeStart)
                 SettingsDivider()
                 shortcutRow("Decaffeinate", "moon.zzz", .coffeeStop)

@@ -4,8 +4,8 @@ A launcher front end for the [Mole](https://github.com/tw93/mole) CLI (`mole` / 
 command that can run without a terminal runs inside Spotter's palette — reading, previewing and
 executing — so the loop closes in the launcher instead of handing off to Terminal.
 
-Disabled by default; the plugin does nothing until Mole is installed and it is switched on. Files
-live in `Spotter/Plugins/Mole/`.
+Enabled by default, but idle until the Mole CLI is actually installed — every screen reports the
+missing binary rather than failing silently. Files live in `Spotter/Plugins/Mole/`.
 
 ## Files
 
@@ -63,6 +63,12 @@ the confirmation:
 The palette deliberately stays open while a run is in flight. The run row reports progress, and the
 preview underneath re-reads itself when the run finishes so what's left is what's shown. Closing the
 palette cancels a *preview* but never a run — a half-cleaned machine is worse than a wasted read.
+
+## Launcher hand-off
+
+An app row's ⌘K menu in the launcher offers **Uninstall with Mole** (apps only, never Spotter
+itself, only while Mole is installed and the plugin enabled). It funnels through the same
+`runMoleAction` confirmation and lands on the Mole uninstall screen so the run row reports progress.
 
 ## Parsing
 

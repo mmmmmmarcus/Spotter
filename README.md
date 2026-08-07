@@ -30,7 +30,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **Quicklinks** — save links, files and deep links as launcher entries, with `{argument}`
   placeholders Spotter asks you to fill before opening.
 - **Emoji & symbols** — find and insert emoji from a fast native grid.
-- **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer.
+- **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer,
+  and manage your saved city list right in the launcher.
 - **Kill process** — inspect CPU and memory use, group app helpers, then terminate or restart safely.
 - **Change case** — transform selected or copied text through 21 cases, then copy or paste it.
 - **Selection tools** — search, translate, or grammar-check text selected in any app via your own
@@ -45,7 +46,7 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **System commands** — lock, sleep, volume, Bluetooth, trash and more, straight from the launcher.
 - **Mole** — drive the Mole CLI without leaving the launcher: health, cleanup, optimize, purge,
   uninstall and disk analysis, each previewed before it runs.
-- **Coffee** — keep your Mac awake indefinitely, for a set time, or while an app runs.
+- **Caffeinate** — keep your Mac awake indefinitely, for a set time, or while an app runs.
 - **QuickTime recording** — start a screen, audio, or movie recording directly from the launcher.
 - **Native plugins** — independently organized, individually enabled feature modules with shared
   settings, permissions, commands and shortcuts, compiled directly into the app for native speed.
@@ -82,7 +83,8 @@ QuickTime Player, and Image Modification can read Finder's current selection. Ma
 
 1. Open **Settings → General** and record a global shortcut to summon Spotter.
 2. Press it anywhere → the palette floats in. Type to filter, **↵** to launch.
-3. **Tab** switches between Apps and Clipboard; **↑/↓** move, **Esc** dismisses.
+3. **Tab** switches between Apps and Clipboard; **↑/↓** move. **Esc** backs out one layer —
+   sub-screen to launcher, typed query to empty — and dismisses from the empty root.
 4. **Settings → Shortcuts** — search an app or custom command and record a global shortcut.
 
 ## Building from source

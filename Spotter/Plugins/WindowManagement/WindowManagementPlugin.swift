@@ -20,7 +20,7 @@ enum WindowManagementPlugin {
                 summary: "Halves, quarters, thirds, sizing and display moves for the frontmost window.",
                 systemImage: "macwindow.on.rectangle",
                 tint: .blue),
-            defaultEnabled: false,
+            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: WindowCommandCatalog.all.map { command in
                 PluginActionRegistration(key: .windowCommand(command.id)) {

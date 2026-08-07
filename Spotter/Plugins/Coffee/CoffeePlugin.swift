@@ -3,8 +3,6 @@ import Combine
 import SwiftUI
 
 extension PluginActionKey {
-    static let coffeeToggle = standard(
-        pluginID: .coffee, actionID: "toggle", title: "Toggle Caffeination")
     static let coffeeStart = standard(pluginID: .coffee, actionID: "start", title: "Caffeinate")
     static let coffeeStop = standard(pluginID: .coffee, actionID: "stop", title: "Decaffeinate")
     static let coffeeFor = standard(
@@ -21,7 +19,7 @@ enum CoffeePlugin {
             snapshot: { [weak core] query in
                 guard let core else {
                     return PluginPaletteSnapshot(
-                        sectionTitle: "Coffee", items: [], emptyMessage: "Plugin unavailable")
+                        sectionTitle: "Caffeinate", items: [], emptyMessage: "Plugin unavailable")
                 }
                 return CoffeeResults.snapshot(core: core, query: query)
             },
@@ -43,32 +41,29 @@ enum CoffeePlugin {
                             core.hidePalette(restoreFocus: false)
                         })
                 }
-                return PopoverMenuContent(header: "Coffee", items: items)
+                return PopoverMenuContent(header: "Caffeinate", items: items)
             },
             observeChanges: { [weak core] invalidate in
                 core?.coffee.objectWillChange.sink { invalidate() } ?? AnyCancellable {}
             })
 
         return PluginRegistration(
+            // Display-renamed from "Coffee"; the id keeps its raw value so persisted enable state
+            // and `KeyboardShortcuts_plugin.coffee.*` bindings survive the rename.
             metadata: PluginMetadata(
                 id: .coffee,
-                name: "Coffee",
+                name: "Caffeinate",
                 summary: "Keep your Mac awake — indefinitely, for a set time, or while an app runs.",
                 systemImage: "cup.and.saucer",
                 tint: .orange),
-            defaultEnabled: false,
+            defaultEnabled: true,
             shortcutActions: [
-                PluginActionRegistration(key: .coffeeToggle) { core.toggleCoffee() },
                 PluginActionRegistration(key: .coffeeStart) { core.startCoffee() },
                 PluginActionRegistration(key: .coffeeStop) { core.stopCoffee() },
                 PluginActionRegistration(key: .coffeeFor) { core.openCoffeeScreen(.duration) },
                 PluginActionRegistration(key: .coffeeWhile) { core.openCoffeeScreen(.app) },
             ],
             launcherCommands: [
-                PluginCommandRegistration(
-                    id: "command:coffee:toggle", name: "Toggle Caffeination",
-                    systemImage: "cup.and.saucer", actionKey: .coffeeToggle
-                ) { core.toggleCoffee() },
                 PluginCommandRegistration(
                     id: "command:coffee:start", name: "Caffeinate",
                     systemImage: "cup.and.saucer.fill", actionKey: .coffeeStart
@@ -125,7 +120,7 @@ enum CoffeeResults {
                     primaryActionTitle: coffee.isOn ? "Decaffeinate" : "Caffeinate")
             ]
             return PluginPaletteSnapshot(
-                sectionTitle: "Coffee", items: filtered(items, query: query),
+                sectionTitle: "Caffeinate", items: filtered(items, query: query),
                 emptyMessage: "No matching result")
         case .duration:
             let items = CoffeeDuration.allCases.map { duration in

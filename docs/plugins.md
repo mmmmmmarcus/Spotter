@@ -218,11 +218,13 @@ shell-command feature; do not use shell commands as an internal plugin API.
 
 ## Current plugins
 
-- **Currency Conversion** (`Spotter/Plugins/CurrencyConversion/`) — disabled by default;
+- **Currency Conversion** (`Spotter/Plugins/CurrencyConversion/`) — the one plugin still disabled
+  by default: its enable switch is the network-consent gate, so shipping it on would grant network
+  access without consent;
   `CurrencyRateStore` owns consent and daily rates.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — enabled by default; disabling stops pasteboard
   polling while preserving history.
-- **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — disabled by default; expands
+- **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — enabled by default; expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
   event tap without storing typing history or using the clipboard.
 - **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local notes in a translucent,
@@ -246,16 +248,19 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins.
-- **Window Management** (`Spotter/Plugins/WindowManagement/`) — disabled by default; 30 commands
+- **Window Management** (`Spotter/Plugins/WindowManagement/`) — enabled by default; 30 commands
   covering halves, quarters, thirds, sizing, display moves and fullscreen, on a pure geometry engine
   with an AX mover.
-- **System Commands** (`Spotter/Plugins/SystemCommands/`) — disabled by default; 30 macOS actions
+- **System Commands** (`Spotter/Plugins/SystemCommands/`) — enabled by default; 30 macOS actions
   with confirmation on the destructive ones.
-- **Mole** (`Spotter/Plugins/Mole/`) — disabled by default; a launcher front end for the Mole CLI.
+- **Mole** (`Spotter/Plugins/Mole/`) — enabled by default (idle until the CLI is installed); a
+  launcher front end for the Mole CLI. Launcher app rows offer **Uninstall with Mole** through the
+  same confirmed funnel.
   Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
   off a menu hub; state-changing runs preview first and go through one confirmed funnel. Only the
   installer selector, which needs a real TTY, hands off to Terminal.
-- **Coffee** (`Spotter/Plugins/Coffee/`) — disabled by default; keeps the Mac awake indefinitely,
+- **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
+  persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
 - **QuickTime Recording** (`Spotter/Plugins/QuickTime/`) — three on-demand AppleScript actions for
   screen, audio and movie recording; requires Automation only when a command runs.
@@ -263,5 +268,5 @@ shell-command feature; do not use shell commands as an internal plugin API.
 Detailed internals: [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md),
 [Window Management](window-management.md), [System Commands](system-commands.md),
-[Mole](mole.md), [Coffee](coffee.md), [Quicklinks](quicklinks.md), and
+[Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), and
 [Notes](notes.md), plus [Text Replacement](text-replacement.md).

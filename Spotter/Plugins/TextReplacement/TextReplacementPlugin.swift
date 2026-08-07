@@ -10,7 +10,7 @@ enum TextReplacementPlugin {
                 summary: "Expand short triggers into reusable text in any app.",
                 systemImage: "text.badge.plus",
                 tint: .teal),
-            defaultEnabled: false,
+            defaultEnabled: true,
             permissions: [.accessibility],
             onEnable: { [weak core] in core?.textReplacementManager.start() },
             onDisable: { [weak core] in core?.textReplacementManager.stop() },

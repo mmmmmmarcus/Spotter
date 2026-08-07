@@ -1,7 +1,11 @@
-# Coffee plugin
+# Caffeinate plugin (directory `Coffee/`)
 
 Keeps the Mac awake without touching Energy Saver, mirroring the
-[Raycast Coffee extension](https://www.raycast.com/mooxl/coffee)'s command set. Ships **disabled**.
+[Raycast Coffee extension](https://www.raycast.com/mooxl/coffee)'s command set. Ships **enabled**.
+Display-renamed from Coffee (Aug 2026); `PluginID` stays `coffee` and the source directory stays
+`Plugins/Coffee/` so persisted enable state and `KeyboardShortcuts_plugin.coffee.*` bindings survive.
+The Toggle Caffeination command was dropped — Caffeinate / Decaffeinate are the pair, and the status
+row's primary action still toggles.
 
 ## Commands
 

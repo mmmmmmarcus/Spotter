@@ -51,7 +51,7 @@ enum MolePlugin {
                     "Drive the Mole CLI from the launcher: health, cleanup, optimize, purge, uninstall and disk analysis, all rendered in the palette.",
                 systemImage: "chart.pie",
                 tint: .green),
-            defaultEnabled: false,
+            defaultEnabled: true,
             shortcutActions: [
                 PluginActionRegistration(key: .openMoleMenu) { core.openMole(.menu) },
                 PluginActionRegistration(key: .openMoleStatus) { core.openMole(.status) },
@@ -481,6 +481,20 @@ extension AppCore {
     }
 
     /// The one funnel every state-changing Mole run passes through, so no path skips the confirmation.
+    /// Whether an app row can offer the Mole hand-off: real apps only, never Spotter itself.
+    func canUninstallWithMole(_ app: AppEntry) -> Bool {
+        plugins.isEnabled(.mole) && mole.isInstalled && app.kind == .application
+            && app.bundleID != Bundle.main.bundleIdentifier
+    }
+
+    /// Launcher app rows hand their uninstall to Mole: the same confirmed funnel, landing on the
+    /// Mole uninstall screen so the run row reports progress and what's left after.
+    func uninstallWithMole(_ app: AppEntry) {
+        guard canUninstallWithMole(app) else { return }
+        mole.open(.uninstall)
+        runMoleAction(.uninstall(name: app.name, permanent: false))
+    }
+
     func runMoleAction(_ action: MoleAction) {
         guard plugins.isEnabled(.mole), !mole.isRunning else { return }
         guard MolePresenter.confirm(action) else { return }
