@@ -21,6 +21,10 @@ First-run defaults are London, Shanghai and San Francisco, in that order. The sc
 clock every 30 seconds while visible, filters only the saved cities and copies a row's time on Return.
 
 `WorldClockStore`, owned by `AppCore`, persists the ordered city IDs in bundle-scoped `UserDefaults`.
+The palette screen manages the list in place: saved cities lead, and a non-empty query also surfaces
+up to eight catalog matches as **Add City** rows (`add:<id>`) — ↵ adds and clears the query so the
+grown list shows; ⌘K on a saved city offers Remove City.
+
 The plugin Settings pane searches the macOS city catalog, adds or removes cities and restores the
 three defaults. Disabling the plugin stops its visible-only clock task and exits an active World Clock
 palette screen.

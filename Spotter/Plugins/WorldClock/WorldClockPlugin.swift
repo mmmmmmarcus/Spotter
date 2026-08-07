@@ -11,7 +11,7 @@ enum WorldClockPlugin {
     static func registration(core: AppCore) -> PluginRegistration {
         let open: () -> Void = { [weak core] in core?.openWorldClock() }
         let screen = PluginPaletteScreenRegistration(
-            placeholder: "Filter saved cities…",
+            placeholder: "Search saved cities, or type any city to add it…",
             snapshot: { [weak core] query in
                 guard let core else {
                     return PluginPaletteSnapshot(
@@ -19,21 +19,37 @@ enum WorldClockPlugin {
                 }
                 return snapshot(store: core.worldClock, query: query)
             },
-            performPrimaryAction: { [weak core] cityID in
-                core?.copyWorldClockTime(cityID: cityID)
+            performPrimaryAction: { [weak core] itemID in
+                if itemID.hasPrefix("add:") {
+                    core?.addWorldClockCity(id: String(itemID.dropFirst("add:".count)))
+                } else {
+                    core?.copyWorldClockTime(cityID: itemID)
+                }
             },
-            actions: { [weak core] cityID in
-                guard let core, let result = core.worldClock.result(for: cityID) else { return nil }
+            actions: { [weak core] itemID in
+                guard let core else { return nil }
+                if itemID.hasPrefix("add:") {
+                    let cityID = String(itemID.dropFirst("add:".count))
+                    guard let city = WorldClockEngine.city(id: cityID) else { return nil }
+                    return PopoverMenuContent(
+                        header: city.name,
+                        items: [
+                            PopoverMenuItem(
+                                title: "Add City", systemImage: "plus.circle", shortcut: "↵"
+                            ) { core.addWorldClockCity(id: cityID) }
+                        ])
+                }
+                guard let result = core.worldClock.result(for: itemID) else { return nil }
                 return PopoverMenuContent(
                     header: result.city,
                     items: [
                         PopoverMenuItem(
                             title: "Copy Time", systemImage: "doc.on.doc", shortcut: "↵"
-                        ) { core.copyWorldClockTime(cityID: cityID) },
+                        ) { core.copyWorldClockTime(cityID: itemID) },
                         PopoverMenuItem(
                             title: "Remove City", systemImage: "minus.circle",
                             isDestructive: true
-                        ) { core.worldClock.remove(id: cityID) },
+                        ) { core.worldClock.remove(id: itemID) },
                     ])
             },
             onOpen: { [weak core] in core?.worldClock.start() },
@@ -67,6 +83,8 @@ enum WorldClockPlugin {
             settingsView: { AnyView(WorldClockSettingsView(store: core.worldClock)) })
     }
 
+    /// Saved cities lead; a non-empty query also surfaces catalog matches as "Add City" rows, so
+    /// the list is managed right here without a trip to Settings.
     private static func snapshot(
         store: WorldClockStore, query: String
     ) -> PluginPaletteSnapshot {
@@ -76,7 +94,7 @@ enum WorldClockPlugin {
                 || city.name.localizedCaseInsensitiveContains(trimmed)
                 || city.timeZoneIdentifier.localizedCaseInsensitiveContains(trimmed)
         }
-        let items = cities.compactMap { city -> PluginPaletteItem? in
+        var items = cities.compactMap { city -> PluginPaletteItem? in
             guard let result = store.result(for: city.id) else { return nil }
             return PluginPaletteItem(
                 id: city.id,
@@ -88,9 +106,21 @@ enum WorldClockPlugin {
                 ],
                 primaryActionTitle: "Copy Time")
         }
+        if !trimmed.isEmpty {
+            items += store.availableCities(matching: trimmed).prefix(8).map { city in
+                PluginPaletteItem(
+                    id: "add:" + city.id,
+                    title: city.name,
+                    subtitle: city.timeZoneIdentifier,
+                    icon: .symbol("plus.circle"),
+                    primaryActionTitle: "Add City")
+            }
+        }
         return PluginPaletteSnapshot(
             sectionTitle: "Cities", items: items,
-            emptyMessage: trimmed.isEmpty ? "No cities added" : "No matching cities")
+            emptyMessage: trimmed.isEmpty
+                ? "No cities added — type a city name to add one."
+                : "No city matches that name.")
     }
 }
 
@@ -105,5 +135,15 @@ extension AppCore {
         else { return }
         hidePalette(restoreFocus: false)
         Paster.copyPlainText(result.time)
+    }
+
+    /// Adds a catalog city from its "Add City" row, clearing the query so the grown list shows.
+    func addWorldClockCity(id: String) {
+        guard plugins.isEnabled(.worldClock), let city = WorldClockEngine.city(id: id) else {
+            return
+        }
+        worldClock.add(city)
+        palette.query = ""
+        palette.selection = 0
     }
 }
