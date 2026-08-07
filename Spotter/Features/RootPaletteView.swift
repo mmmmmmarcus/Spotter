@@ -304,7 +304,7 @@ struct RootPaletteView: View {
         }
         // The window's own frame (driven by `PaletteWindowController`) is the size source of truth; filling it keeps the glass background and corner clip matched to the current compact/expanded window height.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.black.opacity(Theme.Colors.panelDimming))
+        .background(Theme.Colors.panelScrim)
         .background(VisualEffectView())
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
     }
@@ -460,6 +460,17 @@ struct RootPaletteView: View {
                 closeMenus()
                 return .handled
             }
+            // Esc backs out one layer, matching Raycast: sub-screen → launcher, typed query →
+            // cleared; only Esc at the empty launcher root dismisses the palette.
+            if vm.mode != .launcher {
+                exitToLauncher()
+                return .handled
+            }
+            if !vm.query.isEmpty {
+                vm.query = ""
+                vm.selection = 0
+                return .handled
+            }
             core.hidePalette()
             return .handled
         }
@@ -568,7 +579,7 @@ struct RootPaletteView: View {
         )
         .textFieldStyle(.plain)
         .font(Theme.Typography.searchField)
-        .tint(.white)
+        .tint(.primary)
         .focused($searchFocused)
         .onSubmit(activateSelection)
     }

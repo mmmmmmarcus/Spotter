@@ -17,6 +17,11 @@ UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its con
 Clipboard and Calculator History are sub-screens reached from the launcher (Tab, a command, or a
 hotkey) and back out to it.
 
+**Esc backs out one layer, matching Raycast.** An open footer menu closes first; then a sub-screen
+(clipboard, history, emoji, any plugin screen) pops to a fresh launcher root; then a typed query
+clears; only Esc at the empty launcher root hides the palette. Backspace in an already-empty search
+is the same back gesture for sub-screens.
+
 Plugin palette screens reuse the same header search field, flat selection, keyboard navigation,
 section/row grammar, edge dissolve, bottom action group and ⌘K overlay. The plugin supplies immutable
 row snapshots plus primary/menu actions; it does not supply a view. Registry observation invalidates
