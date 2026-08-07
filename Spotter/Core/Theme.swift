@@ -36,6 +36,8 @@ enum Theme {
         static let keyCap: CGFloat = 6
         /// Settings shortcut-recorder keycap — smaller than the palette's `keyCap` chip.
         static let recorderKeyCap: CGFloat = 4
+        /// The user chat bubble — rounder than a row, iMessage-adjacent.
+        static let chatBubble: CGFloat = 14
     }
 
     enum Size {
@@ -79,6 +81,8 @@ enum Theme {
         static let hudBottomMargin: CGFloat = 120
         /// The in-palette confirmation card's width cap.
         static let confirmationWidth: CGFloat = 380
+        /// Minimum empty space to a user chat bubble's left, so it reads as a bubble, not a bar.
+        static let chatBubbleInset: CGFloat = 120
     }
 
     /// System text styles (not hardcoded sizes) so the UI honors Dynamic Type.

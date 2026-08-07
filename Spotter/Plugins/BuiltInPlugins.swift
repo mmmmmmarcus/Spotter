@@ -8,6 +8,7 @@ enum BuiltInPlugins {
             TextReplacementPlugin.registration(core: core),
             NotePlugin.registration(core: core),
             QuicklinksPlugin.registration(core: core),
+            AIChatPlugin.registration(core: core),
             EmojiSymbolsPlugin.registration(core: core),
             WorldClockPlugin.registration(core: core),
             KillProcessPlugin.registration(core: core),

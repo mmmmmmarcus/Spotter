@@ -133,6 +133,8 @@ swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift Tools/mole-test.swi
     -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
+swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift Tools/ai-chat-test.swift \
+    -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # chat transcript windowing
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \

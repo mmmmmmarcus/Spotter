@@ -18,8 +18,11 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `QuicklinkStore`, `QuicklinkManager`, `WindowMover`,
 `MoleManager`, `CoffeeManager`, `UpdateStore`, `CommandHUD`, `SettingsSyncManager`,
-`PaletteViewModel`, `PluginRegistry` — plus the window
-controllers. The registry owns capability registrations, not feature managers: registration closures
+`PaletteViewModel`, `PluginRegistry`, `AIChatStore` — plus the window
+controllers. One deliberate singleton lives outside this rule: `AppLog.shared`
+(`Core/AppLog.swift`), the diagnostics sink every subsystem reaches — infrastructure like
+`NotificationCenter.default`, not feature state. It mirrors entries into `os.Logger`, keeps a
+ring buffer for Settings → Diagnostics, and writes a size-capped rotated file. The registry owns capability registrations, not feature managers: registration closures
 refer back to managers on `AppCore`, so it does not weaken the single-owner rule.
 `AppDelegate.applicationDidFinishLaunching` calls
 `AppCore.shared.start()` and nothing else; that is the single wiring point. All palette / paste /

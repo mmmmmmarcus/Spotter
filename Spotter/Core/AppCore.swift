@@ -6,6 +6,7 @@ enum PaletteMode: Equatable, Identifiable {
     case clipboard
     case calculatorHistory
     case emoji
+    case aiChat
     case plugin(PluginID)
 
     var id: String {
@@ -14,6 +15,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "clipboard"
         case .calculatorHistory: return "calculator-history"
         case .emoji: return "emoji"
+        case .aiChat: return "ai-chat"
         case .plugin(let id): return "plugin:" + id.rawValue
         }
     }
@@ -27,6 +29,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "Clipboard"
         case .calculatorHistory: return "Calculator History"
         case .emoji: return "Emoji & Symbols"
+        case .aiChat: return "AI Chat"
         case .plugin: return "Plugin"
         }
     }
@@ -36,6 +39,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "doc.on.doc"
         case .calculatorHistory: return "plus.forwardslash.minus"
         case .emoji: return "face.smiling"
+        case .aiChat: return "sparkles"
         case .plugin: return "puzzlepiece.extension"
         }
     }
@@ -45,6 +49,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "Type to filter entries…"
         case .calculatorHistory: return "Do math, convert units, or search your past calculations…"
         case .emoji: return "Search emoji and symbols…"
+        case .aiChat: return "Ask anything, then press ↵…"
         case .plugin: return "Search plugin results…"
         }
     }
@@ -152,6 +157,7 @@ final class AppCore: ObservableObject {
     let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
+    let aiChat: AIChatStore
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()
@@ -175,6 +181,7 @@ final class AppCore: ObservableObject {
         self.textReplacements = textReplacements
         textReplacementManager = TextReplacementManager(store: textReplacements)
         selectionTools = SelectionToolsManager(openRouter: openRouter)
+        aiChat = AIChatStore(openRouter: openRouter)
         quicklinkManager = QuicklinkManager(store: quicklinks)
         for registration in BuiltInPlugins.registrations(core: self) {
             plugins.register(registration)
@@ -200,6 +207,15 @@ final class AppCore: ObservableObject {
             guard !UserDefaults.standard.bool(forKey: key) else { continue }
             visibility.setItemVisible(false, for: entry)
             UserDefaults.standard.set(true, forKey: key)
+        }
+        // One-time unhide: the installer command shipped hidden while it was a Terminal hand-off;
+        // now that it renders in-palette, installs that carry the old seed get the new default once.
+        let installerMigration = "plugin.command.visibility-migrated.command:mole:installer"
+        if !UserDefaults.standard.bool(forKey: installerMigration),
+            let entry = plugins.launcherCommands.first(where: { $0.id == "command:mole:installer" })
+        {
+            visibility.setItemVisible(true, for: entry)
+            UserDefaults.standard.set(true, forKey: installerMigration)
         }
         appIndex.setPluginCommands(plugins.launcherCommands)
         customCommands.onChange = { [weak self] commands in
@@ -505,6 +521,7 @@ final class AppCore: ObservableObject {
             let outcome = await ShellCommandRunner.run(
                 command.command, loadingShellEnvironment: command.loadsShellEnvironment)
             guard outcome != .success else { return }
+            AppLog.error("custom-commands", "“\(command.name)” failed: \(outcome)")
             self.presentCustomCommandFailure(command: command, outcome: outcome)
         }
     }

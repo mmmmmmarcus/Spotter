@@ -26,6 +26,7 @@ Spotter/Plugins/
 ├── TextReplacement/
 ├── Note/
 ├── Quicklinks/
+├── AIChat/
 ├── EmojiSymbols/
 ├── WorldClock/
 ├── KillProcess/
@@ -249,6 +250,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — enabled by default; user-saved links, files and
   deep links published as launcher entries through `dynamicLauncherCommands`, with `{argument}`
   placeholders collected one step at a time on a palette screen using `livePlaceholder`.
+- **AI Chat** (`Spotter/Plugins/AIChat/`) — enabled by default, inert without the shared OpenRouter
+  key; in-memory conversation sessions rendered by the core `PaletteMode.aiChat` (the emoji-grid
+  precedent for a custom-body mode). Tab from the launcher always opens a fresh session and sends
+  any typed query immediately; the bottom-left menu is the session list in this mode.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
@@ -270,8 +275,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **System Commands** (`Spotter/Plugins/SystemCommands/`) — enabled by default; 30 macOS actions
   with confirmation on the destructive ones.
 - **Mole** (`Spotter/Plugins/Mole/`) — enabled by default (idle until the CLI is installed); a
-  launcher front end for the Mole CLI. Launcher app rows offer **Uninstall with Mole** through the
-  same confirmed funnel.
+  launcher front end for the Mole CLI with no Terminal hand-off — the installer screen is Spotter's
+  own scan and native Trash. Launcher app rows offer **Uninstall with Mole** through the same
+  confirmed funnel.
   Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
   off a menu hub; state-changing runs preview first and go through one confirmed funnel. Only the
   installer selector, which needs a real TTY, hands off to Terminal.
@@ -284,5 +290,5 @@ shell-command feature; do not use shell commands as an internal plugin API.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md),
 [Window Management](window-management.md), [System Commands](system-commands.md),
-[Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), and
+[Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md), and
 [Notes](notes.md), plus [Text Replacement](text-replacement.md).

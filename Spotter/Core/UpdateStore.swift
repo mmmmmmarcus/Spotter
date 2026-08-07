@@ -124,6 +124,7 @@ final class UpdateStore: ObservableObject {
             return true
         } catch {
             status = .failed(UpdateError.badFeed.localizedDescription)
+            AppLog.error("updates", "Feed check failed: \(error.localizedDescription)")
             return false
         }
     }
@@ -143,8 +144,10 @@ final class UpdateStore: ObservableObject {
             terminateForRelaunch?()
         } catch let error as UpdateError {
             status = .failed(error.localizedDescription)
+            AppLog.error("updates", "Install failed: \(error.localizedDescription)")
         } catch {
             status = .failed(UpdateError.installFailed(error.localizedDescription).localizedDescription)
+            AppLog.error("updates", "Install failed: \(error.localizedDescription)")
         }
     }
 

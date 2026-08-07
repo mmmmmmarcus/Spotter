@@ -42,12 +42,18 @@ shortcut. The section header names the screen, and the placeholder changes with 
 | **Uninstall** | `mole uninstall --list` | Every installed app with its icon, path and size |
 | **Analyze Disk** | `mole analyze -json <dir>` | Folder contents by size; ↵ descends, a Back row climbs out. Roots at the home folder on every open |
 | **Cleanup History** | `mole history --json` | Past sessions with item counts and reclaimed size |
+| **Installer Files** | nothing — Spotter's own scan | Every installer file with icon, folder and size; ↵ moves it to the Trash |
 
 Every read-only pass runs with stdin on `/dev/null` and stdout on a pipe, which is what makes Mole
-take its non-interactive path: no TUI, no sudo prompt, nothing waiting on a keystroke.
+take its non-interactive path: no TUI, no sudo prompt, nothing waiting on a keystroke. Nothing hands
+off to Terminal — the whole plugin lives in the launcher.
 
-**Remove Installers is the one exception.** It always draws a full-screen selector and reads raw
-keystrokes, so it can't be rendered; it ships hidden from the launcher and opens in Terminal.
+**Installer Files never invokes Mole at all.** Mole's selector is TUI-only (and truncates long
+names), so `MoleManager` walks the same folders with the same rules — `MoleInstallerScan` mirrors
+`INSTALLER_SCAN_PATHS`, the depth-2 limit, the `.dmg/.pkg/.mpkg/.iso/.xip` extensions, and the
+"a zip counts only when its `zipinfo` listing contains an installer" test. Deleting one is a native
+`FileManager.trashItem` — recoverable, confirmed in-palette, reported through the HUD — and it
+works even with the Mole binary missing.
 
 ## Running commands
 

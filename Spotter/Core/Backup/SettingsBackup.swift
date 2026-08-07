@@ -37,6 +37,8 @@ struct SettingsBackup: Codable {
         var openRouterAPIKey: String?
         var openRouterTranslationModel: String?
         var openRouterGrammarModel: String?
+        var openRouterChatModel: String?
+        var openRouterChatWebSearch: Bool?
     }
 
     struct HotkeyBackup: Codable {
@@ -142,7 +144,9 @@ extension SettingsBackup {
             lockInputToEnglish: s.lockInputToEnglish,
             openRouterAPIKey: core.openRouter.apiKey.isEmpty ? nil : core.openRouter.apiKey,
             openRouterTranslationModel: core.openRouter.translationModel,
-            openRouterGrammarModel: core.openRouter.grammarModel)
+            openRouterGrammarModel: core.openRouter.grammarModel,
+            openRouterChatModel: core.openRouter.chatModel,
+            openRouterChatWebSearch: core.openRouter.chatWebSearch)
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -408,6 +412,14 @@ extension SettingsBackup {
         }
         if let model = s.openRouterGrammarModel {
             core.openRouter.setGrammarModel(model)
+            count += 1
+        }
+        if let model = s.openRouterChatModel {
+            core.openRouter.setChatModel(model)
+            count += 1
+        }
+        if let webSearch = s.openRouterChatWebSearch {
+            core.openRouter.setChatWebSearch(webSearch)
             count += 1
         }
         return count

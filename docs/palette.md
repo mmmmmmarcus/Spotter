@@ -13,10 +13,13 @@ UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its con
 - `.clipboard` → `ClipboardList` + preview
 - `.calculatorHistory` → `CalculatorHistoryList`
 - `.emoji` → the emoji grid
+- `.aiChat` → the AI Chat transcript ([ai-chat.md](ai-chat.md)); the shared search field is the composer
 - `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
-Clipboard and Calculator History are sub-screens reached from the launcher (Tab, a command, or a
-hotkey) and back out to it.
+**Tab cycles the root surfaces** — Apps → AI Chat → Clipboard, skipping disabled plugins — and the
+query survives the hop, so a typed launcher query lands in the chat composer. Every other mode
+(Calculator History, Emoji, plugin screens) is a sub-screen reached from the launcher (a command or
+a hotkey); Tab from one exits back to the launcher rather than joining the cycle.
 
 **Esc backs out one layer, matching Raycast.** An open confirmation cancels first, then an open
 footer menu closes; then a sub-screen

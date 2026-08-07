@@ -87,7 +87,7 @@ struct RootPaletteView: View {
         switch vm.mode {
         case .launcher: return launcherInlineResult
         case .calculatorHistory: return calcResult.map(PaletteInlineResult.calculator)
-        case .clipboard, .emoji, .plugin: return nil
+        case .clipboard, .emoji, .aiChat, .plugin: return nil
         }
     }
 
@@ -99,6 +99,7 @@ struct RootPaletteView: View {
         case .clipboard: return clipResults.count
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
+        case .aiChat: return 0
         case .plugin: return pluginResults.count
         }
     }
@@ -186,15 +187,18 @@ struct RootPaletteView: View {
                     entry: emoji, core: core, target: vm.pasteTarget)
             }
             return nil
+        case .aiChat:
+            return AIChatActionsMenu.content(core: core)
         case .plugin(let id):
             guard let item = selectedPluginItem else { return nil }
             return plugins.paletteActions(pluginID: id, itemID: item.id)
         }
     }
 
-    /// The bottom-left app menu content (About / Settings).
+    /// The bottom-left menu: About/Settings everywhere, the session list in chat mode.
     private var appMenuContent: PopoverMenuContent {
-        PopoverMenuContent(items: [
+        if vm.mode == .aiChat { return AIChatSessionsMenu.content(core: core) }
+        return PopoverMenuContent(items: [
             PopoverMenuItem(title: "About Spotter", systemImage: "info.circle") {
                 core.showAbout()
             },
@@ -240,7 +244,8 @@ struct RootPaletteView: View {
         let pillLabel = actionPillLabel(
             selectedApp: selectedApp, selectedPlugin: selectedPlugin,
             inlineActionTitle: inlineActionTitle)
-        let showActionGroup = count > 0 && !(inlineSelected && inlineActionTitle == nil)
+        let showActionGroup =
+            (count > 0 || vm.mode == .aiChat) && !(inlineSelected && inlineActionTitle == nil)
 
         let layout = paletteLayout(
             apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
@@ -492,7 +497,7 @@ struct RootPaletteView: View {
                 guard command, let app = selectedAppEntry, app.canRevealInFinder
                 else { return .ignored }
                 core.showInFinder(app)
-            case .plugin:
+            case .aiChat, .plugin:
                 return .ignored
             }
             return .handled
@@ -539,7 +544,8 @@ struct RootPaletteView: View {
             guard press.modifiers.contains(.command) else { return .ignored }
             // The Actions menu has no anchor in the compact bar (no bottom bar); swallow ⌘K there.
             guard !isCollapsed else { return .handled }
-            guard resultCount > 0 else { return .handled }
+            // Chat has no selectable rows but a fixed menu; every other mode needs a selection.
+            guard resultCount > 0 || vm.mode == .aiChat else { return .handled }
             // An informational inline card can be selected without exposing an empty actions panel.
             if inlineCount > 0, selection == 0, inlineResult?.result.isActionable != true {
                 return .handled
@@ -556,12 +562,22 @@ struct RootPaletteView: View {
                 deleteSelectedClip()
             case .calculatorHistory:
                 deleteSelectedHistoryEntry()
-            case .launcher, .emoji, .plugin:
+            case .launcher, .emoji, .aiChat, .plugin:
                 return .ignored
             }
             return .handled
         }
         // ⌘P pins/unpins the selected clip — mirrors the Actions menu row, and works while that menu is open like the other advertised chords.
+        // ⌘N starts a fresh chat session — the same action as the session menu's top row, and like
+        // the other advertised chords it works while a footer menu is open.
+        .onKeyPress(keys: ["n"], phases: .down) { press in
+            guard press.modifiers.contains(.command), vm.mode == .aiChat else { return .ignored }
+            core.aiChat.startNewSession()
+            vm.query = ""
+            vm.selection = 0
+            closeMenus()
+            return .handled
+        }
         .onKeyPress(keys: ["p"], phases: .down) { press in
             guard press.modifiers.contains(.command), vm.mode == .clipboard,
                 clipResults.indices.contains(selection)
@@ -730,6 +746,8 @@ struct RootPaletteView: View {
                     }
                 )
             }
+        case .aiChat:
+            AIChatView(chat: core.aiChat, scroll: scroll)
         case .emoji:
             if !emojiIndex.isLoaded {
                 EmptyResults(text: "Loading emoji…")
@@ -829,6 +847,8 @@ struct RootPaletteView: View {
         switch vm.mode {
         case .clipboard, .emoji:
             return vm.pasteTarget?.pasteTitle ?? "Paste"
+        case .aiChat:
+            return core.aiChat.phase == .waiting ? "Thinking…" : "Send"
         case .calculatorHistory:
             return "Copy Answer"
         case .launcher:
@@ -944,10 +964,45 @@ struct RootPaletteView: View {
         scroll = ScrollIntent(kind: .follow)
     }
 
-    /// Tab flips launcher↔clipboard; Calculator History (entered via its command) exits back to the launcher rather than joining the cycle.
+    /// Tab cycles the root surfaces — Apps → AI Chat → Clipboard — skipping disabled ones; every
+    /// other mode (Calculator History, Emoji, plugin screens) exits back to the launcher instead of
+    /// joining the cycle. The query survives the hop, so a typed launcher query lands in the chat
+    /// composer — Tab-to-ask.
     private func toggleMode() {
-        guard vm.mode != .launcher || plugins.isEnabled(.clipboard) else { return }
-        vm.mode = vm.mode == .launcher ? .clipboard : .launcher
+        var cycle: [PaletteMode] = [.launcher]
+        if plugins.isEnabled(.aiChat) { cycle.append(.aiChat) }
+        if plugins.isEnabled(.clipboard) { cycle.append(.clipboard) }
+        guard cycle.count > 1 else { return }
+        guard let index = cycle.firstIndex(of: vm.mode) else {
+            vm.mode = .launcher
+            return
+        }
+        let next = cycle[(index + 1) % cycle.count]
+        if next == .aiChat {
+            enterChat()
+        } else {
+            vm.mode = next
+        }
+    }
+
+    /// Tab's chat contract: always a fresh session, and typed content is sent on arrival — type a
+    /// question in the launcher, Tab, and it's already asked. Without a key the text stays in the
+    /// composer next to the add-a-key notice.
+    private func enterChat() {
+        core.aiChat.startNewSession()
+        vm.mode = .aiChat
+        let draft = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !draft.isEmpty, core.aiChat.send(draft) {
+            vm.query = ""
+        }
+    }
+
+    /// The chat composer is the shared search field: ↵ sends what's typed and clears it.
+    private func sendChatMessage() {
+        let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, core.aiChat.phase != .waiting else { return }
+        core.aiChat.send(text)
+        vm.query = ""
     }
 
     /// Back out to a fresh root search — `prepare` is the same reset used when the palette is shown (clears query/selection, bumps focusToken to refocus the field).
@@ -982,6 +1037,8 @@ struct RootPaletteView: View {
         case .emoji:
             guard emojiResults.indices.contains(selection) else { return }
             core.pasteEmoji(emojiResults[selection])
+        case .aiChat:
+            sendChatMessage()
         case .plugin(let id):
             guard pluginResults.indices.contains(selection) else { return }
             plugins.performPalettePrimaryAction(pluginID: id, itemID: pluginResults[selection].id)

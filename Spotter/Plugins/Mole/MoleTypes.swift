@@ -56,9 +56,8 @@ enum MoleCommand: String, CaseIterable, Sendable {
         }
     }
 
-    /// The screen this command opens, or nil for the one command Spotter can't render.
-    /// `installer` always draws a full-screen selector that needs a real TTY, so it stays a hand-off.
-    var screen: MoleScreen? {
+    /// The screen this command opens — every Mole command renders in the palette.
+    var screen: MoleScreen {
         switch self {
         case .menu: .menu
         case .clean: .clean
@@ -68,7 +67,7 @@ enum MoleCommand: String, CaseIterable, Sendable {
         case .status: .status
         case .history: .history
         case .purge: .purge
-        case .installer: nil
+        case .installer: .installer
         }
     }
 
@@ -86,6 +85,7 @@ enum MoleScreen: String, CaseIterable, Sendable {
     case uninstall
     case analyze
     case history
+    case installer
 
     var sectionTitle: String {
         switch self {
@@ -97,6 +97,7 @@ enum MoleScreen: String, CaseIterable, Sendable {
         case .uninstall: "Mole · Uninstall"
         case .analyze: "Mole · Disk"
         case .history: "Mole · Cleanup History"
+        case .installer: "Mole · Installer Files"
         }
     }
 
@@ -105,6 +106,7 @@ enum MoleScreen: String, CaseIterable, Sendable {
         case .menu: "Choose a Mole command…"
         case .uninstall: "Search installed apps…"
         case .analyze: "Filter this folder…"
+        case .installer: "Filter installer files…"
         default: "Filter Mole results…"
         }
     }
@@ -121,6 +123,8 @@ enum MoleScreen: String, CaseIterable, Sendable {
         case .uninstall: ["uninstall", "--list"]
         // Analyze targets a directory chosen at runtime, so the manager builds its arguments.
         case .analyze: nil
+        // Mole's installer selector is TUI-only, so Spotter scans the same paths itself.
+        case .installer: nil
         }
     }
 }
@@ -237,6 +241,60 @@ struct MoleApp: Equatable, Sendable {
     let uninstallName: String
     let path: String
     let size: String
+}
+
+/// One installer file found by Spotter's own scan of Mole's installer paths.
+struct MoleInstallerEntry: Equatable, Sendable {
+    let name: String
+    let path: String
+    /// The containing folder, home-abbreviated, shown as the row subtitle.
+    let folder: String
+    let size: Int64
+}
+
+/// The pure rules of the installer scan, mirroring `mo installer`: the same folders, the same
+/// depth, the same extensions, and the same "a zip counts only if it contains an installer" test.
+/// The filesystem walk itself lives in `MoleManager`.
+enum MoleInstallerScan {
+    static let maxDepth = 2
+    static let directExtensions: Set<String> = ["dmg", "pkg", "mpkg", "iso", "xip"]
+
+    /// Mole's `INSTALLER_SCAN_PATHS`, relative to the given home so the harness can test it.
+    static func roots(home: String) -> [String] {
+        [
+            home + "/Downloads",
+            home + "/Desktop",
+            home + "/Documents",
+            home + "/Public",
+            home + "/Library/Downloads",
+            "/Users/Shared/Downloads",
+            home + "/Library/Caches/Homebrew",
+            home + "/Library/Mobile Documents/com~apple~CloudDocs/Downloads",
+            home + "/Library/Containers/com.apple.mail/Data/Library/Mail Downloads",
+            home + "/Library/Application Support/Telegram Desktop",
+            home + "/Downloads/Telegram Desktop",
+        ]
+    }
+
+    static func isDirectInstaller(_ filename: String) -> Bool {
+        directExtensions.contains((filename as NSString).pathExtension.lowercased())
+    }
+
+    static func isZip(_ filename: String) -> Bool {
+        (filename as NSString).pathExtension.lowercased() == "zip"
+    }
+
+    /// A zip is an installer when any archived path has an installer component — `Foo.app/` counts,
+    /// `notes.txt` doesn't (Mole's `is_installer_zip` awk test).
+    static func zipListingSuggestsInstaller(_ entries: [String]) -> Bool {
+        entries.contains { entry in
+            entry.split(separator: "/").contains { component in
+                let lowered = component.lowercased()
+                return lowered.hasSuffix(".app") || lowered.hasSuffix(".pkg")
+                    || lowered.hasSuffix(".dmg") || lowered.hasSuffix(".xip")
+            }
+        }
+    }
 }
 
 /// One entry of an `analyze -json` listing.

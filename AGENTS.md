@@ -58,7 +58,10 @@ Full detail: [`docs/architecture.md`](docs/architecture.md).
 Never break these without an explicit task to do so.
 
 - **`AppCore` is the sole owner.** New long-lived state belongs on `AppCore`, wired in `start()`; don't
-  create competing singletons or wire managers elsewhere.
+  create competing singletons or wire managers elsewhere. The one deliberate exception is
+  `Core/AppLog.swift` (`AppLog.shared`), the diagnostics sink — infrastructure like
+  `NotificationCenter.default`, reachable from any subsystem and isolation; feature errors should
+  log through it.
 - **`PaletteWindowController` solely owns the palette frame.** The hosting view sets
   `sizingOptions = []` so SwiftUI never drives the window size — otherwise the top edge drifts on the
   compact↔expanded swap.
@@ -93,7 +96,8 @@ Never break these without an explicit task to do so.
   `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
-  `Tools/quicklink-test.swift`, `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
+  `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` stays Foundation-only and pure
+  for `Tools/ai-chat-test.swift`, `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole), `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
@@ -210,7 +214,7 @@ Never break these without an explicit task to do so.
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/selection-tools.md`](docs/selection-tools.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
-  [`docs/custom-commands.md`](docs/custom-commands.md)
+  [`docs/ai-chat.md`](docs/ai-chat.md) · [`docs/custom-commands.md`](docs/custom-commands.md)
   — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·

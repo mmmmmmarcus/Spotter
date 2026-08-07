@@ -96,9 +96,8 @@ bundle's icon — a quicklink shows the icon of the app that will open it.
 
 A registration may mark a secondary command `defaultVisible: false`. `AppCore.start()` seeds that
 visibility exactly once, after which the normal visibility store and System → Shortcuts own the user
-choice. Change Case uses this for its 21 direct transformations, Window Management for 20 of its 30
-commands, and Mole for the Terminal-only installer selector so the default command list stays
-compact.
+choice. Change Case uses this for its 21 direct transformations and Window Management for 20 of its 30
+commands, so the default command list stays compact.
 
 Only the display name is indexed. Activation resolves the stable UUID through the store and dispatches
 to `ShellCommandRunner`; see [custom-commands.md](custom-commands.md) for persistence, hotkeys and

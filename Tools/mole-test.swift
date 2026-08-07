@@ -19,14 +19,12 @@ struct MoleTests {
         check(
             "command ids are unique",
             Set(MoleCommand.allCases.map(\.commandID)).count == MoleCommand.allCases.count)
-        check(
-            "every command but the installer selector renders in the palette",
-            MoleCommand.allCases.filter { $0.screen == nil }.map(\.rawValue) == ["installer"])
         check("clean opens the clean screen", MoleCommand.clean.screen == .clean)
         check("uninstall opens the uninstall screen", MoleCommand.uninstall.screen == .uninstall)
+        check("the installer selector renders in the palette too", MoleCommand.installer.screen == .installer)
         check(
             "every screen is reachable from a command",
-            Set(MoleCommand.allCases.compactMap(\.screen)) == Set(MoleScreen.allCases))
+            Set(MoleCommand.allCases.map(\.screen)) == Set(MoleScreen.allCases))
 
         // Actions — the destructive surface, and how each one is spelled on the command line.
         check("clean runs without --dry-run", MoleAction.clean.arguments == ["clean"])
@@ -55,6 +53,31 @@ struct MoleTests {
         check("uninstall lists apps", MoleScreen.uninstall.previewArguments == ["uninstall", "--list"])
         check("the menu fetches nothing", MoleScreen.menu.previewArguments == nil)
         check("analyze builds its own arguments", MoleScreen.analyze.previewArguments == nil)
+        check("the installer screen never invokes Mole", MoleScreen.installer.previewArguments == nil)
+
+        // Installer scan rules — Mole's own, mirrored exactly.
+        check("dmg is a direct installer", MoleInstallerScan.isDirectInstaller("Foo.dmg"))
+        check("case-insensitive extensions", MoleInstallerScan.isDirectInstaller("Foo.PKG"))
+        check("mpkg, iso and xip count", ["a.mpkg", "b.iso", "c.xip"].allSatisfy(MoleInstallerScan.isDirectInstaller))
+        check("zip is not direct", !MoleInstallerScan.isDirectInstaller("Foo.zip"))
+        check("zip detection", MoleInstallerScan.isZip("Foo.zip") && !MoleInstallerScan.isZip("Foo.dmg"))
+        check("plain files never count", !MoleInstallerScan.isDirectInstaller("notes.txt"))
+        check(
+            "a zip holding an app is an installer",
+            MoleInstallerScan.zipListingSuggestsInstaller(["Foo.app/Contents/Info.plist"]))
+        check(
+            "a zip holding a nested pkg is an installer",
+            MoleInstallerScan.zipListingSuggestsInstaller(["payload/Install Me.pkg"]))
+        check(
+            "a zip of documents is not",
+            !MoleInstallerScan.zipListingSuggestsInstaller(["report.pdf", "images/shot.png"]))
+        check(
+            "an app-named file without the suffix as component is not",
+            !MoleInstallerScan.zipListingSuggestsInstaller(["myapp.txt"]))
+        check("scan depth matches Mole", MoleInstallerScan.maxDepth == 2)
+        let roots = MoleInstallerScan.roots(home: "/Users/x")
+        check("scan roots start at Downloads", roots.first == "/Users/x/Downloads")
+        check("scan roots match Mole's list", roots.count == 11 && roots.contains("/Users/Shared/Downloads"))
         check(
             "no preview mutates anything",
             MoleScreen.allCases.compactMap(\.previewArguments).allSatisfy { arguments in

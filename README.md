@@ -29,6 +29,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **Notes** — capture unlimited local Markdown notes and todos in a floating, keyboard-first window.
 - **Quicklinks** — save links, files and deep links as launcher entries, with `{argument}`
   placeholders Spotter asks you to fill before opening.
+- **AI Chat** — Tab from the launcher into a running conversation, right in the palette, using your
+  own OpenRouter key.
 - **Emoji & symbols** — find and insert emoji from a fast native grid.
 - **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer,
   and manage your saved city list right in the launcher.
@@ -84,7 +86,7 @@ QuickTime Player, and Image Modification can read Finder's current selection. Ma
 
 1. Open **Settings → General** and record a global shortcut to summon Spotter.
 2. Press it anywhere → the palette floats in. Type to filter, **↵** to launch.
-3. **Tab** switches between Apps and Clipboard; **↑/↓** move. **Esc** backs out one layer —
+3. **Tab** cycles Apps → AI Chat → Clipboard; **↑/↓** move. **Esc** backs out one layer —
    sub-screen to launcher, typed query to empty — and dismisses from the empty root.
 4. **Settings → Shortcuts** — search an app or custom command and record a global shortcut.
 

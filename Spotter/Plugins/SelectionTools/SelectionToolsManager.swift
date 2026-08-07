@@ -174,6 +174,7 @@ final class SelectionToolsManager: ObservableObject {
         _ error: SelectionToolsFailure, request: SelectionToolsRequest
     ) {
         guard machine.fail(error, for: request) else { return }
+        AppLog.error("selection-tools", "\(request.action.rawValue) failed: \(error)")
         requestTask = nil
         publishState()
     }

@@ -20,6 +20,10 @@ struct MoleSettingsView: View {
             "Cleanup History", "Open recent Mole sessions in the palette.", "clock.arrow.circlepath",
             .openMoleHistory
         ),
+        (
+            "Remove Installers", "List installer files and move them to the Trash.", "shippingbox",
+            .openMoleInstaller
+        ),
     ]
 
     var body: some View {
@@ -85,11 +89,11 @@ struct MoleSettingsView: View {
             }
 
             SettingsCallout(
-                title: "Remove Installers stays in Terminal.",
+                title: "Everything runs in the launcher.",
                 message:
-                    "It draws a full-screen selector and reads raw keystrokes, so it can't be rendered "
-                    + "in the palette. Every other Mole command runs here.",
-                systemImage: "terminal")
+                    "Installer files are found by Spotter's own scan of the same folders Mole checks, "
+                    + "and deleting one moves it to the Trash — no Terminal, ever.",
+                systemImage: "macwindow")
         }
     }
 

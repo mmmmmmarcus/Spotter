@@ -109,8 +109,11 @@ extension AppCore {
                     hud.show(feedback)
                 }
             } catch let failure as SystemCommandFailure {
+                AppLog.error("system-commands", "\(command.name) failed: \(failure.message)")
                 SystemCommandPresenter.presentFailure(name: command.name, failure: failure)
             } catch {
+                AppLog.error(
+                    "system-commands", "\(command.name) failed: \(error.localizedDescription)")
                 SystemCommandPresenter.presentFailure(
                     name: command.name, failure: SystemCommandFailure(error.localizedDescription))
             }

@@ -106,6 +106,7 @@ final class SettingsSyncManager: ObservableObject {
         } catch {
             isApplyingRemote = false
             errorMessage = "Couldn’t connect: " + error.localizedDescription
+            AppLog.error("settings-sync", "Couldn’t connect: " + error.localizedDescription)
         }
         isWorking = false
     }
@@ -122,6 +123,7 @@ final class SettingsSyncManager: ObservableObject {
             lastSyncedAt = Date()
         } catch {
             errorMessage = "Couldn’t create the sync file: " + error.localizedDescription
+            AppLog.error("settings-sync", "Couldn’t create the sync file: " + error.localizedDescription)
         }
         isWorking = false
     }
@@ -177,6 +179,7 @@ final class SettingsSyncManager: ObservableObject {
         } catch {
             isWorking = false
             errorMessage = "Couldn’t save settings: " + error.localizedDescription
+            AppLog.error("settings-sync", "Couldn’t save settings: " + error.localizedDescription)
         }
     }
 
@@ -211,6 +214,7 @@ final class SettingsSyncManager: ObservableObject {
             isApplyingRemote = false
             isWorking = false
             errorMessage = "Couldn’t read settings: " + error.localizedDescription
+            AppLog.error("settings-sync", "Couldn’t read settings: " + error.localizedDescription)
         }
     }
 

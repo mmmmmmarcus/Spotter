@@ -16,6 +16,8 @@ extension PluginActionKey {
         pluginID: .mole, actionID: "uninstall", title: "Mole Uninstall App")
     static let openMoleAnalyze = standard(
         pluginID: .mole, actionID: "analyze", title: "Mole Analyze Disk")
+    static let openMoleInstaller = standard(
+        pluginID: .mole, actionID: "installer", title: "Mole Remove Installers")
 }
 
 @MainActor
@@ -61,15 +63,14 @@ enum MolePlugin {
                 PluginActionRegistration(key: .openMolePurge) { core.openMole(.purge) },
                 PluginActionRegistration(key: .openMoleUninstall) { core.openMole(.uninstall) },
                 PluginActionRegistration(key: .openMoleAnalyze) { core.openMole(.analyze) },
+                PluginActionRegistration(key: .openMoleInstaller) { core.openMole(.installer) },
             ],
             launcherCommands: MoleCommand.allCases.map { command in
                 PluginCommandRegistration(
                     id: command.commandID,
                     name: command.title,
                     systemImage: command.systemImage,
-                    actionKey: command.shortcutKey,
-                    // The installer selector can only run in a terminal, so it ships hidden.
-                    defaultVisible: command.screen != nil
+                    actionKey: command.shortcutKey
                 ) { core.runMole(command) }
             },
             paletteScreen: screen,
@@ -84,7 +85,7 @@ enum MolePlugin {
 }
 
 extension MoleCommand {
-    var shortcutKey: PluginActionKey? {
+    var shortcutKey: PluginActionKey {
         switch self {
         case .menu: .openMoleMenu
         case .status: .openMoleStatus
@@ -94,7 +95,7 @@ extension MoleCommand {
         case .purge: .openMolePurge
         case .uninstall: .openMoleUninstall
         case .analyze: .openMoleAnalyze
-        case .installer: nil
+        case .installer: .openMoleInstaller
         }
     }
 }
@@ -156,6 +157,12 @@ enum MoleResults {
                 items: ascendRow(manager: manager)
                     + filtered(diskItems(analysis), query: query),
                 emptyMessage: "This folder is empty")
+        case .installers(let entries):
+            return PluginPaletteSnapshot(
+                sectionTitle: section, items: filtered(installerItems(entries), query: query),
+                emptyMessage: entries.isEmpty
+                    ? "No installer files found — Downloads and friends are clean."
+                    : "No matching installer")
         }
     }
 
@@ -163,14 +170,12 @@ enum MoleResults {
 
     private static func menuItems(manager: MoleManager) -> [PluginPaletteItem] {
         MoleCommand.allCases.map { command in
-            let terminalOnly = command.screen == nil
-            return PluginPaletteItem(
+            PluginPaletteItem(
                 id: "menu:" + command.rawValue,
                 title: command.title.replacingOccurrences(of: "Mole ", with: ""),
-                subtitle: terminalOnly
-                    ? command.summary + " · opens in Terminal" : command.summary,
+                subtitle: command.summary,
                 icon: .symbol(command.systemImage),
-                primaryActionTitle: terminalOnly ? "Open in Terminal" : "Open")
+                primaryActionTitle: "Open")
         }
     }
 
@@ -246,6 +251,20 @@ enum MoleResults {
         }
     }
 
+    private static func installerItems(_ entries: [MoleInstallerEntry]) -> [PluginPaletteItem] {
+        entries.enumerated().map { index, entry in
+            PluginPaletteItem(
+                id: "installer:\(index)",
+                title: entry.name,
+                subtitle: entry.folder,
+                icon: .file(path: entry.path),
+                accessories: [
+                    .init(systemImage: "externaldrive", text: MoleParser.bytes(entry.size))
+                ],
+                primaryActionTitle: "Move to Trash")
+        }
+    }
+
     private static func diskItems(_ analysis: MoleAnalysis) -> [PluginPaletteItem] {
         analysis.entries.enumerated().map { index, entry in
             PluginPaletteItem(
@@ -300,6 +319,7 @@ enum MoleResults {
 
     private static func loadingMessage(manager: MoleManager) -> String {
         switch manager.screen {
+        case .installer: "Scanning for installer files…"
         case .clean: "Scanning caches…"
         case .optimize: "Checking system services…"
         case .purge: "Scanning project folders…"
@@ -319,6 +339,12 @@ enum MoleResults {
         let manager = core.mole
         var items: [PopoverMenuItem] = []
 
+        if let installer = installerEntry(manager: manager, itemID: itemID) {
+            items.append(
+                PopoverMenuItem(title: "Move to Trash", systemImage: "trash", isDestructive: true) {
+                    core.trashMoleInstaller(installer)
+                })
+        }
         if let app = app(manager: manager, itemID: itemID) {
             items.append(
                 PopoverMenuItem(title: "Move to Trash", systemImage: "trash") {
@@ -384,6 +410,13 @@ enum MoleResults {
         return apps[index]
     }
 
+    static func installerEntry(manager: MoleManager, itemID: String) -> MoleInstallerEntry? {
+        guard case .installers(let entries) = manager.state, itemID.hasPrefix("installer:"),
+            let index = Int(itemID.dropFirst("installer:".count)), entries.indices.contains(index)
+        else { return nil }
+        return entries[index]
+    }
+
     static func diskEntry(manager: MoleManager, itemID: String) -> MoleDiskEntry? {
         guard case .analysis(let analysis) = manager.state, itemID.hasPrefix("entry:"),
             let index = Int(itemID.dropFirst("entry:".count)),
@@ -392,9 +425,10 @@ enum MoleResults {
         return analysis.entries[index]
     }
 
-    /// Rows that point at something on disk, so the same menu entries work across three screens.
+    /// Rows that point at something on disk, so the same menu entries work across the screens.
     static func revealablePath(manager: MoleManager, itemID: String) -> String? {
         if let entry = diskEntry(manager: manager, itemID: itemID) { return entry.path }
+        if let entry = installerEntry(manager: manager, itemID: itemID) { return entry.path }
         guard case .purge(let entries) = manager.state, itemID.hasPrefix("purge:"),
             let index = Int(itemID.dropFirst("purge:".count)), entries.indices.contains(index)
         else { return nil }
@@ -419,7 +453,7 @@ enum MoleResults {
             return [item.section, item.title, item.detail]
                 .filter { !$0.isEmpty }
                 .joined(separator: " · ")
-        case .idle, .loading, .failed, .purge, .apps, .analysis:
+        case .idle, .loading, .failed, .purge, .apps, .analysis, .installers:
             return nil
         }
     }
@@ -446,13 +480,35 @@ extension AppCore {
 
     func runMole(_ command: MoleCommand) {
         guard plugins.isEnabled(.mole) else { return }
-        guard let screen = command.screen else {
-            // A TUI needs a real terminal; hide first so the palette isn't left floating over it.
-            hidePalette(restoreFocus: false)
-            mole.runInTerminal(command)
-            return
-        }
-        openMole(screen)
+        openMole(command.screen)
+    }
+
+    /// Installer files are plain files, so Spotter trashes them itself — recoverable, confirmed
+    /// in-palette, and the list re-reads so what's left is what's shown.
+    func trashMoleInstaller(_ entry: MoleInstallerEntry) {
+        guard plugins.isEnabled(.mole) else { return }
+        confirmInPalette(
+            PaletteConfirmation(
+                title: "Move “\(entry.name)” to Trash?",
+                message:
+                    "The \(MoleParser.bytes(entry.size)) installer file moves to the Trash. Anything it installed is untouched.",
+                actionTitle: "Move to Trash"
+            ) { [weak self] in
+                guard let self else { return }
+                do {
+                    try FileManager.default.trashItem(
+                        at: URL(fileURLWithPath: entry.path), resultingItemURL: nil)
+                    self.hud.show(
+                        title: "Moved to Trash · \(MoleParser.bytes(entry.size))", symbol: "trash")
+                } catch {
+                    AppLog.error(
+                        "mole", "Trashing \(entry.name) failed: \(error.localizedDescription)")
+                    self.hud.show(
+                        title: "Couldn't move “\(entry.name)” to Trash",
+                        symbol: "exclamationmark.triangle")
+                }
+                self.mole.reload()
+            })
     }
 
     /// The one funnel every state-changing Mole run passes through, so no path skips the confirmation.
@@ -505,6 +561,10 @@ extension AppCore {
         }
         if let entry = MoleResults.diskEntry(manager: mole, itemID: itemID) {
             entry.isDirectory ? mole.descend(into: entry) : revealInFinder(path: entry.path)
+            return
+        }
+        if let installer = MoleResults.installerEntry(manager: mole, itemID: itemID) {
+            trashMoleInstaller(installer)
             return
         }
         if let app = MoleResults.app(manager: mole, itemID: itemID) {

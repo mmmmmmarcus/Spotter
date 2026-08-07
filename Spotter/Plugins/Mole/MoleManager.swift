@@ -19,6 +19,7 @@ final class MoleManager: ObservableObject {
         case purge([MolePurgeEntry])
         case apps([MoleApp])
         case analysis(MoleAnalysis)
+        case installers([MoleInstallerEntry])
         case failed(String)
     }
 
@@ -95,6 +96,18 @@ final class MoleManager: ObservableObject {
             state = .idle
             return
         }
+        // The installer scan is Spotter's own — Mole's selector is TUI-only — so it works even
+        // with no binary installed.
+        if screen == .installer {
+            state = .loading
+            loadTask = Task { [weak self] in
+                let entries = await Self.scanInstallers()
+                guard !Task.isCancelled else { return }
+                guard let self, self.screen == .installer else { return }
+                self.state = .installers(entries)
+            }
+            return
+        }
         guard let path = binaryPath else {
             state = .failed("Mole isn't installed. Get it at mole.fit, or set its path in Settings.")
             return
@@ -164,6 +177,7 @@ final class MoleManager: ObservableObject {
         switch result {
         case .failure(let error):
             lastRunSummary = [error.message]
+            AppLog.error("mole", "\(action.title) failed: \(error.message)")
         case .success(let data):
             let text = String(decoding: data, as: UTF8.self)
             let report = MoleParser.parseReport(text)
@@ -181,6 +195,7 @@ final class MoleManager: ObservableObject {
         switch result {
         case .failure(let error):
             state = .failed(error.message)
+            AppLog.error("mole", "Loading \(screen.rawValue) failed: \(error.message)")
         case .success(let data):
             switch screen {
             case .menu:
@@ -207,6 +222,8 @@ final class MoleManager: ObservableObject {
                     return
                 }
                 state = .analysis(analysis)
+            case .installer:
+                break  // populated by the dedicated scan branch in `reload`
             }
         }
     }
@@ -245,19 +262,62 @@ final class MoleManager: ObservableObject {
         }
     }
 
-    /// The installer selector repaints a full-screen list and reads raw keystrokes, so it is the one
-    /// command Spotter can't render — it runs where the user can actually see and drive it.
-    func runInTerminal(_ command: MoleCommand) {
-        guard let path = binaryPath else { return }
-        let script = """
-            tell application "Terminal"
-                activate
-                do script "\(path) \(command.argument)"
-            end tell
-            """
-        Task.detached {
-            var error: NSDictionary?
-            NSAppleScript(source: script)?.executeAndReturnError(&error)
+    /// Walks Mole's installer paths (depth 2) off-main: direct installer extensions always count,
+    /// a zip only when its listing contains an installer — the same rules `mo installer` applies.
+    private nonisolated static func scanInstallers() async -> [MoleInstallerEntry] {
+        await Task.detached(priority: .userInitiated) { walkInstallerRoots() }.value
+    }
+
+    /// Synchronous walk — `DirectoryEnumerator` iteration isn't available in async contexts.
+    private nonisolated static func walkInstallerRoots() -> [MoleInstallerEntry] {
+        let fm = FileManager.default
+        let home = NSHomeDirectory()
+        var entries: [MoleInstallerEntry] = []
+        var seen = Set<String>()
+        for root in MoleInstallerScan.roots(home: home) {
+            guard let walker = fm.enumerator(
+                at: URL(fileURLWithPath: root),
+                includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])
+            else { continue }
+            for case let url as URL in walker {
+                if walker.level > MoleInstallerScan.maxDepth { walker.skipDescendants() }
+                let name = url.lastPathComponent
+                let direct = MoleInstallerScan.isDirectInstaller(name)
+                guard direct || MoleInstallerScan.isZip(name) else { continue }
+                guard
+                    let values = try? url.resourceValues(
+                        forKeys: [.fileSizeKey, .isRegularFileKey]),
+                    values.isRegularFile == true
+                else { continue }
+                // Roots overlap (Downloads contains Telegram Desktop); one path, one row.
+                guard seen.insert(url.path).inserted else { continue }
+                if !direct, !zipContainsInstaller(at: url.path) { continue }
+                entries.append(
+                    MoleInstallerEntry(
+                        name: name,
+                        path: url.path,
+                        folder: (url.deletingLastPathComponent().path as NSString)
+                            .abbreviatingWithTildeInPath,
+                        size: Int64(values.fileSize ?? 0)))
+            }
         }
+        return entries.sorted { $0.size > $1.size }
+    }
+
+    /// `zipinfo -1` lists archived paths without extraction; a failure reads as "not an installer".
+    private nonisolated static func zipContainsInstaller(at path: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/zipinfo")
+        process.arguments = ["-1", path]
+        let out = Pipe()
+        process.standardOutput = out
+        process.standardError = Pipe()
+        process.standardInput = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let listing = String(decoding: data, as: UTF8.self).split(separator: "\n").map(String.init)
+        return MoleInstallerScan.zipListingSuggestsInstaller(listing)
     }
 }
