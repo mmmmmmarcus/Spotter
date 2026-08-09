@@ -69,7 +69,7 @@ if [ "$PUBLISH" = true ]; then
         echo "✗ Stable publishing requires $DEFAULT_BRANCH; current branch is $CURRENT_BRANCH." >&2
         exit 1
     fi
-    SECRET_NAMES="$(gh secret list --json name --jq '.[].name')"
+    SECRET_NAMES="$(gh secret list | awk '{print $1}')"
     for NAME in DEVELOPER_ID_P12_BASE64 DEVELOPER_ID_P12_PASSWORD APPLE_NOTARY_APPLE_ID APPLE_NOTARY_PASSWORD; do
         if ! grep -Fxq "$NAME" <<< "$SECRET_NAMES"; then
             echo "✗ Missing GitHub Actions secret: $NAME" >&2
