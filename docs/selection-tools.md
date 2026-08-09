@@ -1,26 +1,29 @@
 # Selection Tools plugin
 
-Selection Tools is one native plugin with three independently bindable actions and matching launcher
+Selection Tools is one native plugin with four independently bindable actions and matching launcher
 commands:
 
 - **Search Selected Text** builds a Google Search URL and hands it to the default browser.
 - **Translate Selected Text** sends the capture to OpenRouter and displays the translation in the
   shared Spotter palette.
+- **Define Selected Text** sends a selected word or phrase to OpenRouter and displays a concise
+  English + Simplified Chinese definition in the shared palette.
 - **Check Selected Text Grammar** sends the capture to OpenRouter and displays the corrected text
-  plus each reported issue in the shared palette. There is no on-device fallback for either — the
-  OpenRouter API key is the gate, and without one both actions report that a key is needed.
+  plus each reported issue in the shared palette. There is no on-device fallback for any AI action — the
+  OpenRouter API key is the gate, and without one all three AI actions report that a key is needed.
 
 The actions use stable `selection-tools.search`, `selection-tools.translate` and
-`selection-tools.grammar` IDs. The repository has no default plugin-shortcut seeding mechanism, so all
-three ship unbound. Settings recommends Hyper + S/T/G, but the user records them through the standard
-shortcut recorder and existing Carbon registration path.
+`selection-tools.define` and `selection-tools.grammar` IDs. The repository has no default
+plugin-shortcut seeding mechanism, so all four ship unbound. Settings recommends Hyper + S/T/D/G,
+but the user records them through the standard shortcut recorder and existing Carbon registration
+path.
 
 ## Selection capture
 
 A shortcut action snapshots `NSWorkspace.shared.frontmostApplication` synchronously — before the
 capture's first `await`, so it is always the app the user was in — converts the AppKit object into an
 immutable Sendable source snapshot, and then captures in tiers. Only after a non-empty snapshot exists
-may Search open the browser or Translate/Grammar activate Spotter's palette.
+may Search open the browser or Translate/Define/Grammar activate Spotter's palette.
 
 Capture is tiered, cheapest first:
 
@@ -75,8 +78,8 @@ or failed open switches to the Selection Tools palette error state instead of op
 
 ## AI providers (OpenRouter)
 
-Translate and Check Grammar run exclusively through `Core/OpenRouterStore.swift`; there is no
-on-device fallback (owner decision, Aug 2026) — without an API key both actions fail with an
+Translate, Define and Check Grammar run exclusively through `Core/OpenRouterStore.swift`; there is no
+on-device fallback (owner decision, Aug 2026) — without an API key all three actions fail with an
 explicit palette message pointing at Settings → General → AI. There is likewise deliberately
 **no separate enable toggle**:
 the key is the gate, and entering or syncing one is the consent act. Each action has its own model
@@ -85,41 +88,43 @@ latency, instruction-following and multilingual quality on short interactive sel
 
 The store keeps the rest of `CurrencyRateStore`'s network shape: the key is re-checked on both
 sides of every `await` (clearing it mid-flight discards the response), and requests run on a
-private cacheless `URLSession`. The key and both models mirror into `SettingsBackup`, so a synced
-Mac gets a working AI path immediately.
+private cacheless `URLSession`. The key, all three models and all three editable prompts mirror into
+`SettingsBackup`, so a synced Mac gets the same AI behavior immediately.
 
 `Plugins/SelectionTools/SelectionLLM.swift` is Foundation-only and pure: target-language choice
-(first preferred language; text already in it goes to the next preferred, else English), prompt
-construction, code-fence stripping, and grammar-JSON parsing (corrected text plus issues with
-left-to-right anchored ranges; a non-JSON reply degrades to "the whole reply is the corrected
-text"). `OpenRouterSelectionServices.swift` adapts it to the same
-`SelectionTranslationServing`/`SelectionGrammarChecking` protocols the system services implement, so
-the manager, state machine and palette are identical on both paths. An OpenRouter failure surfaces
-as one explicit palette error naming Settings → General.
+(first preferred language; text already in it goes to the next preferred, else English), default
+prompt templates, the translation template's `{{target_language}}` substitution, code-fence
+stripping, and grammar-JSON parsing (corrected text plus issues with left-to-right anchored ranges;
+a non-JSON reply degrades to "the whole reply is the corrected text"). The effective prompts live on
+`SelectionToolsManager`, persist under bundle-scoped UserDefaults keys, and are editable in the
+plugin's Settings pane with per-prompt Reset to Default controls. An OpenRouter failure surfaces as
+one explicit palette error naming Settings → General.
 
-## Translation and grammar engines
+## AI engines
 
-`OpenRouterSelectionServices.swift` holds both engines. Translation detects the source language
+`OpenRouterSelectionServices.swift` holds all three engines. Translation detects the source language
 locally with `NaturalLanguage`, picks the target from the user's preferred system languages
 (`SelectionLLM.targetLanguage`), and asks the configured translation model for the translation
-alone. Grammar asks the configured grammar model for the corrected text plus a JSON issues list;
+alone. Definition asks for concise English and Simplified Chinese explanations in one plain-text
+response. Grammar asks the configured grammar model for the corrected text plus a JSON issues list;
 `SelectionLLM.parseGrammar` anchors each issue's range left-to-right in the original text and
-degrades a non-JSON reply to "the whole reply is the corrected text". The former on-device
-`TranslationSession`/`NSSpellChecker` services were removed with the fallback path.
+degrades a non-JSON reply to "the whole reply is the corrected text".
 
 ## State and palette
 
 `AppCore` solely owns the `@MainActor SelectionToolsManager`. Its Foundation-only state machine assigns
 a monotonically increasing generation to each request. Starting another action cancels the previous
 Task; completion, failure and cancellation updates must still match the active request, so a stale
-Translate result cannot replace a newer Grammar state.
+Translate result cannot replace a newer Define or Grammar state.
 
-Translate and Grammar set loading before opening `PaletteMode.plugin(.selectionTools)`. The registry's
+Translate, Define and Grammar set loading before opening `PaletteMode.plugin(.selectionTools)`. The registry's
 observer refreshes `PluginPaletteSnapshot` as the manager publishes loading, success or failure. The
-screen uses only `PluginPaletteList`: translated/corrected text is the first row and Enter copies it,
-the original text remains available, and Grammar adds one row per issue with its explanation and first
-suggestion. No plugin window, search field, scrolling model, footer or notification is created.
+screen uses only `PluginPaletteList`: translated/defined/corrected text is the first row and Enter
+copies it, the original text remains available, and Grammar adds one row per issue with its
+explanation and first suggestion. No plugin window, search field, scrolling model, footer or
+notification is created.
 
 Disabling the plugin cancels and resets pending work, removes its commands from the launcher, makes its
-saved shortcuts no-op and returns an active Selection Tools palette to the launcher. It persists no
-content and has no network-consent state.
+saved shortcuts no-op and returns an active Selection Tools palette to the launcher. It persists
+models and prompt preferences, but no selected text or AI result content, and has no separate
+network-consent state.

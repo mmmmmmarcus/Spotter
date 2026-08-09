@@ -103,8 +103,7 @@ Never break these without an explicit task to do so.
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
   `Plugins/ImageModification/ImageModificationTypes.swift` stays
-  Foundation-only so their standalone harnesses compile without app state. `QuickTimeRunner` may use
-  Foundation's `Process`, but its harness must never execute a recording command.
+  Foundation-only so their standalone harnesses compile without app state.
   `Plugins/Clipboard/ClipboardStore.swift` must keep to Foundation + SQLite3 with no other app
   source, so their `Tools/` harnesses can compile them standalone. `Core/LauncherRankingStore.swift`
   is the same deal for `Tools/ranking-test.swift` — Foundation only, with the clock injected via
@@ -136,7 +135,7 @@ Never break these without an explicit task to do so.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
   rather than inventing a second shape. **Deliberate exception (owner decision, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
-  means no request can be made (Selection Tools falls back on-device); entering the key, or syncing
+  means no request can be made (Selection Tools' AI actions stay unavailable); entering the key, or syncing
   a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
   not copy this shape for new networked features without an explicit owner decision.
   `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a
@@ -209,7 +208,7 @@ Never break these without an explicit task to do so.
 - [`docs/architecture.md`](docs/architecture.md) — core ownership, windows, concurrency.
 - [`docs/plugins.md`](docs/plugins.md) — native plugin contract, directory layout and extension flow.
 - [`docs/kill-process.md`](docs/kill-process.md) · [`docs/change-case.md`](docs/change-case.md) ·
-  [`docs/image-modification.md`](docs/image-modification.md) · [`docs/quicktime.md`](docs/quicktime.md) ·
+  [`docs/image-modification.md`](docs/image-modification.md) ·
   [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md) ·
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/selection-tools.md`](docs/selection-tools.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·

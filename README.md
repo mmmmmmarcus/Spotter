@@ -36,8 +36,8 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
   and manage your saved city list right in the launcher.
 - **Kill process** — inspect CPU and memory use, group app helpers, then terminate or restart safely.
 - **Change case** — transform selected or copied text through 21 cases, then copy or paste it.
-- **Selection tools** — search, translate, or grammar-check text selected in any app via your own
-  OpenRouter key.
+- **Selection tools** — search, translate, define bilingually, or grammar-check text selected in any
+  app via your own OpenRouter key, with editable AI prompts.
 - **Text replacement** — expand your own prefix+keyword triggers into saved text as you type.
 - **Settings sync** — keep one JSON settings file (e.g. in iCloud Drive) applied across your Macs.
 - **In-app updates** — check GitHub Releases and update from Settings; signature-verified, and your
@@ -49,7 +49,6 @@ CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there
 - **Mole** — drive the Mole CLI without leaving the launcher: health, cleanup, optimize, purge,
   uninstall and disk analysis, each previewed before it runs.
 - **Caffeinate** — keep your Mac awake indefinitely, for a set time, or while an app runs.
-- **QuickTime recording** — start a screen, audio, or movie recording directly from the launcher.
 - **Native plugins** — independently organized feature modules, all on by default and individually
   toggleable, with shared settings, permissions, commands and shortcuts, compiled directly into the
   app for native speed.
@@ -78,8 +77,8 @@ directly from Releases instead, clear it once: `xattr -dr com.apple.quarantine
 **Accessibility** — used to paste into the app you came from and to read selected text for plugins
 such as Change Case. You're prompted on first use.
 
-**Automation** — used only when a command asks another app to act: QuickTime Recording controls
-QuickTime Player, and Image Modification can read Finder's current selection. Manage both grants in
+**Automation** — used only when a command asks another app to act: Image Modification can read
+Finder's current selection, and some System Commands control macOS apps. Manage these grants in
 **System Settings → Privacy & Security**.
 
 ## Using it

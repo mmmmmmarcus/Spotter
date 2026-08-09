@@ -46,8 +46,8 @@ plugins expose stable `PluginActionKey` values through `PluginRegistry`; new key
 Disabling a plugin makes registry dispatch a no-op while preserving the Carbon registration and saved
 binding. Re-enabling resumes the action without creating plugin-specific branches in `HotKeyManager`.
 Plugins with several commands expose a stable action key per command, so each can be bound directly.
-Selection Tools registers Search, Translate and Grammar as separate actions under the
-`plugin.selection-tools.*` namespace. They intentionally ship unbound; users record Hyper + S/T/G in
+Selection Tools registers Search, Translate, Define and Grammar as separate actions under the
+`plugin.selection-tools.*` namespace. They intentionally ship unbound; users record Hyper + S/T/D/G in
 Settings → Shortcuts, using the same recorder, conflict detection and Carbon registration as every
 other plugin action.
 

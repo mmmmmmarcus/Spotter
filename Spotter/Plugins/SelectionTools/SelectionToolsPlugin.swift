@@ -7,6 +7,8 @@ extension PluginActionKey {
         pluginID: .selectionTools, actionID: "search", title: "Search Selected Text")
     static let translateSelectedText = standard(
         pluginID: .selectionTools, actionID: "translate", title: "Translate Selected Text")
+    static let defineSelectedText = standard(
+        pluginID: .selectionTools, actionID: "define", title: "Define Selected Text")
     static let checkSelectedTextGrammar = standard(
         pluginID: .selectionTools, actionID: "grammar", title: "Check Selected Text Grammar")
 }
@@ -62,7 +64,7 @@ enum SelectionToolsPlugin {
             metadata: PluginMetadata(
                 id: .selectionTools,
                 name: "Selection Tools",
-                summary: "Search, translate, and check grammar for text selected in another app.",
+                summary: "Search, translate, define, and check grammar for selected text.",
                 systemImage: "selection.pin.in.out",
                 tint: .teal),
             defaultEnabled: true,
@@ -70,6 +72,7 @@ enum SelectionToolsPlugin {
             shortcutActions: [
                 PluginActionRegistration(key: .searchSelectedText) { runAction(.search) },
                 PluginActionRegistration(key: .translateSelectedText) { runAction(.translate) },
+                PluginActionRegistration(key: .defineSelectedText) { runAction(.define) },
                 PluginActionRegistration(key: .checkSelectedTextGrammar) { runAction(.grammar) },
             ],
             launcherCommands: [
@@ -85,6 +88,12 @@ enum SelectionToolsPlugin {
                     systemImage: "translate",
                     actionKey: .translateSelectedText
                 ) { runCommand(.translate) },
+                PluginCommandRegistration(
+                    id: "command:selection-tools:define",
+                    name: "Define Selected Text",
+                    systemImage: "character.book.closed",
+                    actionKey: .defineSelectedText
+                ) { runCommand(.define) },
                 PluginCommandRegistration(
                     id: "command:selection-tools:grammar",
                     name: "Check Selected Text Grammar",
@@ -108,6 +117,7 @@ enum SelectionToolsPlugin {
         if itemID == "original" { return "Copy Original" }
         return switch state {
         case .translated: "Copy Translation"
+        case .defined: "Copy Definition"
         case .grammarChecked: "Copy Corrected Text"
         case .idle, .loading, .failed: "Copy Result"
         }
@@ -210,7 +220,8 @@ private extension SelectionToolsFailure {
         case .accessibilityDenied, .focusedControlUnavailable, .selectedTextUnavailable,
             .emptySelection, .invalidSearchURL, .browserOpenFailed,
             .sourceLanguageUnknown, .translationUnavailable,
-            .grammarUnavailable, .llmNotConfigured, .llmRequestFailed, .cancelled:
+            .definitionUnavailable, .grammarUnavailable, .llmNotConfigured, .llmRequestFailed,
+            .cancelled:
             false
         }
     }

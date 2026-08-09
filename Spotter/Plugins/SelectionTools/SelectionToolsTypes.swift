@@ -3,12 +3,14 @@ import Foundation
 enum SelectionToolAction: String, Equatable, Sendable {
     case search
     case translate
+    case define
     case grammar
 
     var title: String {
         switch self {
         case .search: "Search Selected Text"
         case .translate: "Translate Selected Text"
+        case .define: "Define Selected Text"
         case .grammar: "Check Selected Text Grammar"
         }
     }
@@ -17,6 +19,7 @@ enum SelectionToolAction: String, Equatable, Sendable {
         switch self {
         case .search: "Opening Google Search…"
         case .translate: "Translating…"
+        case .define: "Defining…"
         case .grammar: "Checking grammar…"
         }
     }
@@ -39,6 +42,11 @@ struct SelectionTranslationResult: Equatable, Sendable {
     let translatedText: String
     let sourceLanguageIdentifier: String
     let targetLanguageIdentifier: String
+}
+
+struct SelectionDefinitionResult: Equatable, Sendable {
+    let originalText: String
+    let definitionText: String
 }
 
 struct SelectionGrammarIssue: Equatable, Identifiable, Sendable {
@@ -68,6 +76,7 @@ enum SelectionToolsFailure: Error, Equatable, Sendable {
     case browserOpenFailed
     case sourceLanguageUnknown
     case translationUnavailable
+    case definitionUnavailable
     case grammarUnavailable
     case llmNotConfigured
     case llmRequestFailed
@@ -95,10 +104,12 @@ enum SelectionToolsFailure: Error, Equatable, Sendable {
             "The selected text's language could not be identified."
         case .translationUnavailable:
             "The translation request failed."
+        case .definitionUnavailable:
+            "The definition request failed."
         case .grammarUnavailable:
             "The grammar check failed."
         case .llmNotConfigured:
-            "Add an OpenRouter API key in Settings → General → AI to translate and check grammar."
+            "Add an OpenRouter API key in Settings → General → AI to translate, define, and check grammar."
         case .llmRequestFailed:
             "The AI request to OpenRouter failed — check your API key, model and connection in Settings → General."
         case .cancelled:
@@ -117,6 +128,7 @@ enum SelectionToolsState: Equatable, Sendable {
     case idle
     case loading(SelectionToolsRequest)
     case translated(SelectionToolsRequest, SelectionTranslationResult)
+    case defined(SelectionToolsRequest, SelectionDefinitionResult)
     case grammarChecked(SelectionToolsRequest, SelectionGrammarResult)
     case failed(
         action: SelectionToolAction, snapshot: SelectedTextSnapshot?, error: SelectionToolsFailure)
@@ -145,6 +157,16 @@ struct SelectionToolsStateMachine: Sendable {
         guard request == activeRequest, request.action == .translate else { return false }
         activeRequest = nil
         state = .translated(request, result)
+        return true
+    }
+
+    @discardableResult
+    mutating func completeDefinition(
+        _ result: SelectionDefinitionResult, for request: SelectionToolsRequest
+    ) -> Bool {
+        guard request == activeRequest, request.action == .define else { return false }
+        activeRequest = nil
+        state = .defined(request, result)
         return true
     }
 

@@ -114,8 +114,6 @@ swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageI
     Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
     Spotter/Plugins/ImageModification/ImageModificationEngine.swift Tools/image-modification-test.swift \
     -o /tmp/image-modification-test && /tmp/image-modification-test
-swiftc -swift-version 6 Spotter/Plugins/QuickTime/QuickTimeRunner.swift \
-    Tools/quicktime-test.swift -o /tmp/quicktime-test && /tmp/quicktime-test
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \
@@ -156,11 +154,10 @@ formatting and saved-city checks never depend on the wall clock or the user's pr
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Selection Tools tests URLComponents encoding, request
-generation/cancellation and the pure LLM prompt/response logic without opening a browser or sending
-text over the network.
+generation/cancellation, bilingual definition state and the customizable pure LLM prompt/response
+logic without opening a browser or sending text over the network.
 Image Modification creates and resizes real temporary pixels through
-Core Image/ImageIO, then deletes its fixture directory. QuickTime tests only the generated AppleScript
-strings and never opens QuickTime.
+Core Image/ImageIO, then deletes its fixture directory.
 
 The Notes harness compiles the real Foundation-only model, store and Markdown transformer. It validates
 derived titles/previews, UTF-16 selections, formatting toggles and atomic persistence against a

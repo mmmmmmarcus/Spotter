@@ -8,7 +8,7 @@ struct ImageModificationSettingsView: View {
     var body: some View {
         SettingsPane(title: "Image Modification", subtitle: "A native toolbox powered by Core Image, Vision, and ImageIO.") {
             SettingsCard(header: "Plugin") {
-                SettingsRow(title: "Image Modification", subtitle: "Runs locally and starts no background service.", systemImage: "photo.badge.arrow.down", tint: .teal, statusDot: plugins.isEnabled(.imageModification) ? .green : nil) {
+                SettingsRow(title: "Image Modification", subtitle: "Runs locally and starts no background service.", systemImage: "photo.badge.arrow.down", tint: .teal) {
                     Toggle("", isOn: Binding(get: { plugins.isEnabled(.imageModification) }, set: { plugins.setEnabled($0, for: .imageModification) })).labelsHidden().toggleStyle(.switch).controlSize(.small)
                 }
             }
@@ -29,8 +29,6 @@ struct ImageModificationSettingsView: View {
                     }
                 }
             }
-            SettingsCallout(title: "Direct commands", message: "Convert Image opens a searchable format menu before it runs. Other commands use Finder selection first, then copied image files or pixels, and open a file picker only when no input is available. Beside Original opens generated images in Preview and returns copied pixels to the clipboard.", systemImage: "bolt", tint: .teal)
-            SettingsCallout(title: "Native format support", message: "The format picker matches ImageIO's native writable set, including AVIF, HEIC, JPEG 2000, PDF, PSD and texture formats. WebP and SVG can still be selected as inputs when macOS can decode them.", systemImage: "info.circle", tint: .teal)
         }
     }
 }

@@ -15,7 +15,6 @@ enum BuiltInPlugins {
             ChangeCasePlugin.registration(core: core),
             SelectionToolsPlugin.registration(core: core),
             ImageModificationPlugin.registration(core: core),
-            QuickTimePlugin.registration(core: core),
             WindowManagementPlugin.registration(core: core),
             SystemCommandsPlugin.registration(core: core),
             MolePlugin.registration(core: core),

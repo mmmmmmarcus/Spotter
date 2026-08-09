@@ -17,8 +17,7 @@ struct ClipboardSettingsView: View {
                     title: "Clipboard",
                     subtitle: "Capture searchable text and image clipboard history.",
                     systemImage: "doc.on.clipboard",
-                    tint: .orange,
-                    statusDot: plugins.isEnabled(.clipboard) ? .green : nil
+                    tint: .orange
                 ) {
                     Toggle(
                         "",

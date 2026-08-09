@@ -14,8 +14,7 @@ struct AIChatSettingsView: View {
                 SettingsRow(
                     title: "AI Chat",
                     subtitle: "Ask follow-ups in one running conversation, at launcher size.",
-                    systemImage: "sparkles", tint: .purple,
-                    statusDot: openRouter.isReady ? .green : .orange
+                    systemImage: "sparkles", tint: .purple
                 ) {
                     Toggle(
                         "",
@@ -84,13 +83,6 @@ struct AIChatSettingsView: View {
                     ShortcutRecorder(action: .plugin(.openAIChat))
                 }
             }
-
-            SettingsCallout(
-                title: "Conversations stay in this session.",
-                message:
-                    "Nothing is saved to disk: quitting Spotter, or New Conversation in the ⌘K menu, "
-                    + "clears the transcript. Messages go only to OpenRouter, using your own key.",
-                systemImage: "hand.raised")
         }
         .onChange(of: openRouter.chatModel) { modelDraft = openRouter.chatModel }
     }

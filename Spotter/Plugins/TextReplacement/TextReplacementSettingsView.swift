@@ -25,8 +25,7 @@ struct TextReplacementSettingsView: View {
                     title: "Text Replacement",
                     subtitle: "Watch for configured triggers and replace them in the active text field.",
                     systemImage: "text.badge.plus",
-                    tint: .teal,
-                    statusDot: statusDot
+                    tint: .teal
                 ) {
                     Toggle(
                         "",
@@ -50,14 +49,6 @@ struct TextReplacementSettingsView: View {
                     Button("Request Access…") { Permissions.ensureAccessibility() }
                 }
             }
-
-            SettingsCallout(
-                title: "Your typing stays private.",
-                message:
-                    "Spotter keeps only a possible trigger suffix in memory, never stores or logs "
-                    + "what you type, and inserts replacements without using the clipboard.",
-                systemImage: "hand.raised.fill",
-                tint: .teal)
 
             SettingsCard(header: "Trigger") {
                 SettingsRow(
@@ -133,15 +124,6 @@ struct TextReplacementSettingsView: View {
     private var sortedRules: [TextReplacementRule] {
         store.rules.sorted {
             $0.keyword.localizedCaseInsensitiveCompare($1.keyword) == .orderedAscending
-        }
-    }
-
-    private var statusDot: Color? {
-        guard plugins.isEnabled(.textReplacement) else { return nil }
-        switch manager.status {
-        case .active: return .green
-        case .needsAccessibility: return .orange
-        case .off, .idle: return nil
         }
     }
 

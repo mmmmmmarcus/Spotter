@@ -52,11 +52,6 @@ struct WindowManagementSettingsView: View {
                 }
             }
 
-            SettingsCallout(
-                title: "Needs Accessibility",
-                message: "Moving another app's window uses the same Accessibility grant pasting does. You're prompted the first time a command runs.",
-                systemImage: "hand.raised")
-
             ForEach(WindowCommand.Group.allCases, id: \.rawValue) { group in
                 SettingsCard(header: group.title) {
                     let commands = WindowCommandCatalog.all.filter { $0.group == group }

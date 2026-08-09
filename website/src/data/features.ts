@@ -49,11 +49,6 @@ export const features: Feature[] = [
     wide: true,
   },
   {
-    icon: "recording",
-    title: "QuickTime recording",
-    body: "Start native screen, audio, or camera recording from the launcher or a dedicated global shortcut.",
-  },
-  {
     icon: "globe",
     title: "Global hotkey",
     body: "One shortcut summons the palette from anywhere — over any app, full-screen or not.",

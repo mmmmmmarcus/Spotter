@@ -35,8 +35,7 @@ struct MoleSettingsView: View {
                 SettingsRow(
                     title: "Mole",
                     subtitle: "Health, cleanup, optimize, purge, uninstall and disk analysis, all rendered in the palette.",
-                    systemImage: "chart.pie", tint: .green,
-                    statusDot: mole.isInstalled ? .green : .orange
+                    systemImage: "chart.pie", tint: .green
                 ) {
                     Toggle("", isOn: enabledBinding)
                         .labelsHidden()

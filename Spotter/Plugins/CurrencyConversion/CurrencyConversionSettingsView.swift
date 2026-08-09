@@ -17,8 +17,7 @@ struct CurrencyConversionSettingsView: View {
                     title: "Currency Conversion",
                     subtitle: conversionStatus,
                     systemImage: "dollarsign.arrow.circlepath",
-                    tint: .green,
-                    statusDot: plugins.isEnabled(.currencyConversion) ? .green : nil
+                    tint: .green
                 ) {
                     Toggle(
                         "",

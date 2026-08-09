@@ -19,10 +19,6 @@ struct KillProcessSettingsView: View {
             SettingsCard(header: "Plugin") {
                 toggleRow("Kill Process", "List processes by CPU or memory usage.", "xmark.octagon", pluginsEnabled)
             }
-            SettingsCallout(
-                title: "Administrator prompt",
-                message: "Force-terminating a process Spotter may not signal asks for administrator credentials through the standard macOS prompt. Nothing runs elevated without that per-action approval.",
-                systemImage: "lock.shield")
             SettingsCard(header: "Process List") {
                 SettingsRow(
                     title: "Sort By", subtitle: "Order the process results in the palette.",

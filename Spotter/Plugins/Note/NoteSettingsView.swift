@@ -13,8 +13,7 @@ struct NoteSettingsView: View {
                 SettingsRow(
                     title: "Notes",
                     subtitle: "Includes unlimited local notes, Markdown formatting, and todos.",
-                    systemImage: "note.text", tint: .yellow,
-                    statusDot: plugins.isEnabled(.note) ? .green : nil
+                    systemImage: "note.text", tint: .yellow
                 ) {
                     Toggle(
                         "",

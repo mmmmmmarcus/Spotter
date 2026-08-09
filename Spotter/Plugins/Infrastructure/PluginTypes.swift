@@ -18,7 +18,6 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let changeCase = PluginID(rawValue: "change-case")
     static let selectionTools = PluginID(rawValue: "selection-tools")
     static let imageModification = PluginID(rawValue: "image-modification")
-    static let quickTimeRecording = PluginID(rawValue: "quicktime-recording")
     static let note = PluginID(rawValue: "note")
     static let quicklinks = PluginID(rawValue: "quicklinks")
     static let aiChat = PluginID(rawValue: "ai-chat")

@@ -20,8 +20,7 @@ struct WorldClockSettingsView: View {
                     title: "World Clock",
                     subtitle: "Uses the time-zone data built into macOS. No network access.",
                     systemImage: "globe.americas",
-                    tint: .blue,
-                    statusDot: plugins.isEnabled(.worldClock) ? .green : nil
+                    tint: .blue
                 ) {
                     Toggle(
                         "",
@@ -97,15 +96,6 @@ struct WorldClockSettingsView: View {
                             .controlSize(.small)
                     }
                 }
-            }
-
-            SettingsCard(header: "Query") {
-                SettingsRow(
-                    title: "time in London",
-                    subtitle: "The result compares London with local system time; ←/→ adjusts one hour back or forward.",
-                    systemImage: "text.magnifyingglass",
-                    tint: .blue
-                ) { EmptyView() }
             }
 
             SettingsCard(header: "Shortcut") {

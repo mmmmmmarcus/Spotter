@@ -317,7 +317,7 @@ private struct OpenRouterSettingsCard: View {
     private var keySubtitle: String {
         switch store.validation {
         case .unknown:
-            "Required for Selection Tools' AI translate and grammar. "
+            "Required for Selection Tools' AI translate, define and grammar. "
                 + "Included in settings backups and sync."
         case .checking: "Checking key with \(OpenRouterStore.provider)…"
         case .valid(let detail): detail

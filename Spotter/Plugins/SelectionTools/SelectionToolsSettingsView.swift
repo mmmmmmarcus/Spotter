@@ -3,7 +3,9 @@ import SwiftUI
 struct SelectionToolsSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var openRouter = AppCore.shared.openRouter
+    @ObservedObject private var selectionTools = AppCore.shared.selectionTools
     @State private var translationModelDraft = AppCore.shared.openRouter.translationModel
+    @State private var definitionModelDraft = AppCore.shared.openRouter.definitionModel
     @State private var grammarModelDraft = AppCore.shared.openRouter.grammarModel
 
     var body: some View {
@@ -14,9 +16,8 @@ struct SelectionToolsSettingsView: View {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
                     title: "Selection Tools",
-                    subtitle: "Search, translate, and check grammar from one native plugin.",
-                    systemImage: "selection.pin.in.out", tint: .teal,
-                    statusDot: plugins.isEnabled(.selectionTools) ? .green : nil
+                    subtitle: "Search, translate, define, and check grammar from one native plugin.",
+                    systemImage: "selection.pin.in.out", tint: .teal
                 ) {
                     Toggle("", isOn: enabledBinding)
                         .labelsHidden()
@@ -44,6 +45,21 @@ struct SelectionToolsSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
+                    title: "Definition Model",
+                    subtitle: aiSubtitle(
+                        "Any OpenRouter model id; used by Define Selected Text."),
+                    systemImage: "character.book.closed", tint: .purple
+                ) {
+                    TextField(OpenRouterStore.defaultDefinitionModel, text: $definitionModelDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                        .onSubmit { openRouter.setDefinitionModel(definitionModelDraft) }
+                        .onChange(of: definitionModelDraft) {
+                            openRouter.setDefinitionModel(definitionModelDraft)
+                        }
+                }
+                SettingsDivider()
+                SettingsRow(
                     title: "Grammar Model",
                     subtitle: aiSubtitle(
                         "Any OpenRouter model id; used by Check Selected Text Grammar."),
@@ -64,10 +80,35 @@ struct SelectionToolsSettingsView: View {
                     translationModelDraft = openRouter.translationModel
                 }
             }
+            .onChange(of: openRouter.definitionModel) {
+                if openRouter.definitionModel != definitionModelDraft {
+                    definitionModelDraft = openRouter.definitionModel
+                }
+            }
             .onChange(of: openRouter.grammarModel) {
                 if openRouter.grammarModel != grammarModelDraft {
                     grammarModelDraft = openRouter.grammarModel
                 }
+            }
+
+            SettingsCard(header: "AI Prompts") {
+                SelectionPromptEditor(
+                    title: "Translation Prompt",
+                    systemImage: "translate",
+                    prompt: translationPromptBinding,
+                    defaultPrompt: SelectionLLM.defaultTranslationSystemPrompt)
+                SettingsDivider()
+                SelectionPromptEditor(
+                    title: "Definition Prompt",
+                    systemImage: "character.book.closed",
+                    prompt: definitionPromptBinding,
+                    defaultPrompt: SelectionLLM.defaultDefinitionSystemPrompt)
+                SettingsDivider()
+                SelectionPromptEditor(
+                    title: "Grammar Prompt",
+                    systemImage: "text.badge.checkmark",
+                    prompt: grammarPromptBinding,
+                    defaultPrompt: SelectionLLM.defaultGrammarSystemPrompt)
             }
 
             SettingsCard(header: "Shortcuts") {
@@ -84,6 +125,12 @@ struct SelectionToolsSettingsView: View {
                     action: .translateSelectedText)
                 SettingsDivider()
                 shortcutRow(
+                    title: "Define Selected Text",
+                    subtitle: "Recommended: Hyper + D",
+                    symbol: "character.book.closed",
+                    action: .defineSelectedText)
+                SettingsDivider()
+                shortcutRow(
                     title: "Check Selected Text Grammar",
                     subtitle: "Recommended: Hyper + G",
                     symbol: "text.badge.checkmark",
@@ -96,6 +143,24 @@ struct SelectionToolsSettingsView: View {
         Binding(
             get: { plugins.isEnabled(.selectionTools) },
             set: { plugins.setEnabled($0, for: .selectionTools) })
+    }
+
+    private var translationPromptBinding: Binding<String> {
+        Binding(
+            get: { selectionTools.translationPrompt },
+            set: { selectionTools.setTranslationPrompt($0) })
+    }
+
+    private var definitionPromptBinding: Binding<String> {
+        Binding(
+            get: { selectionTools.definitionPrompt },
+            set: { selectionTools.setDefinitionPrompt($0) })
+    }
+
+    private var grammarPromptBinding: Binding<String> {
+        Binding(
+            get: { selectionTools.grammarPrompt },
+            set: { selectionTools.setGrammarPrompt($0) })
     }
 
     private func aiSubtitle(_ base: String) -> String {
@@ -112,5 +177,43 @@ struct SelectionToolsSettingsView: View {
         ) {
             ShortcutRecorder(action: .plugin(action))
         }
+    }
+}
+
+private struct SelectionPromptEditor: View {
+    let title: String
+    let systemImage: String
+    @Binding var prompt: String
+    let defaultPrompt: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.lg) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.purple)
+                    .frame(width: Theme.Size.settingsRowIcon)
+                Text(title)
+                    .font(.body)
+                Spacer()
+                Button("Reset to Default") { prompt = defaultPrompt }
+                    .controlSize(.small)
+            }
+            TextEditor(text: $prompt)
+                .font(.system(.caption, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .padding(Theme.Spacing.sm)
+                .frame(maxWidth: .infinity, minHeight: 112)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
+                        .fill(Theme.Colors.controlSurface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
+                        .strokeBorder(Theme.Colors.cardStroke, lineWidth: 1)
+                )
+        }
+        .padding(.horizontal, Theme.Spacing.xl)
+        .padding(.vertical, Theme.Spacing.lg)
     }
 }

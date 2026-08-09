@@ -14,8 +14,7 @@ struct EmojiSettingsView: View {
                     title: "Emoji & Symbols",
                     subtitle: "Search and paste emoji and symbols into any app.",
                     systemImage: "face.smiling",
-                    tint: .yellow,
-                    statusDot: plugins.isEnabled(.emoji) ? .green : nil
+                    tint: .yellow
                 ) {
                     Toggle(
                         "",

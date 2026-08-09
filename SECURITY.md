@@ -27,7 +27,7 @@ Of particular interest:
   actions must remain explicit and confirmation-gated by default.
 - **Image writes** — replacing source files must require confirmation; temporary image output stays
   inside the bundle-identifier-scoped cache directory.
-- **Automation** — Apple Events are sent only after a user invokes the relevant QuickTime or Finder
+- **Automation** — Apple Events are sent only after a user invokes the relevant Finder or System
   command. No background automation is allowed.
 - **Hotkeys** — the in-house hotkey stack and the Input Monitoring grant.
 - **Signing and distribution** — the DMG and Homebrew cask chain.

@@ -25,7 +25,7 @@ enum OpenRouterError: LocalizedError, Equatable {
 
 /// API key, per-action model choices and the one chat-completion call for LLM-backed features.
 /// The key is the gate (owner decision, Aug 2026): no key means no request can be made and the
-/// on-device services serve instead; entering — or syncing — a key is the consent act. Requests run
+/// AI features stay inert; entering — or syncing — a key is the consent act. Requests run
 /// on a private cacheless session, re-checked for a key on both sides of every `await`. The key and
 /// models mirror into `SettingsBackup` so they sync between Macs.
 @MainActor
@@ -34,6 +34,7 @@ final class OpenRouterStore: ObservableObject {
     static let providerURL = URL(string: "https://openrouter.ai")!
     /// Fast, strong instruction-following and multilingual quality — the right class for short interactive selections.
     static let defaultTranslationModel = "anthropic/claude-haiku-4.5"
+    static let defaultDefinitionModel = "anthropic/claude-haiku-4.5"
     static let defaultGrammarModel = "anthropic/claude-haiku-4.5"
     /// Chat carries multi-turn reasoning, so it defaults a class up from the quick selection actions.
     static let defaultChatModel = "anthropic/claude-sonnet-5"
@@ -51,6 +52,7 @@ final class OpenRouterStore: ObservableObject {
 
     @Published private(set) var apiKey: String
     @Published private(set) var translationModel: String
+    @Published private(set) var definitionModel: String
     @Published private(set) var grammarModel: String
     @Published private(set) var chatModel: String
     /// Lets chat requests search the web through OpenRouter's Exa-backed plugin. Off by default —
@@ -61,6 +63,7 @@ final class OpenRouterStore: ObservableObject {
     private static let keyKey = "openrouter.api-key"
     private static let legacyModelKey = "openrouter.model"
     private static let translationModelKey = "openrouter.translation-model"
+    private static let definitionModelKey = "openrouter.definition-model"
     private static let grammarModelKey = "openrouter.grammar-model"
     private static let chatModelKey = "openrouter.chat-model"
     private static let chatWebSearchKey = "openrouter.chat-web-search"
@@ -68,18 +71,21 @@ final class OpenRouterStore: ObservableObject {
 
     init() {
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
-        // One release carried a single shared model key; seed both per-action models from it once.
+        // One release carried a single shared model key; seed every selection-action model from it once.
         let legacy = defaults.string(forKey: Self.legacyModelKey)
         translationModel =
             defaults.string(forKey: Self.translationModelKey) ?? legacy
             ?? Self.defaultTranslationModel
+        definitionModel =
+            defaults.string(forKey: Self.definitionModelKey) ?? legacy
+            ?? Self.defaultDefinitionModel
         grammarModel =
             defaults.string(forKey: Self.grammarModelKey) ?? legacy ?? Self.defaultGrammarModel
         chatModel = defaults.string(forKey: Self.chatModelKey) ?? Self.defaultChatModel
         chatWebSearch = defaults.bool(forKey: Self.chatWebSearchKey)
     }
 
-    /// A key is present — LLM-backed features prefer this path; without one they fall back on-device.
+    /// A key is present, so LLM-backed features are allowed to make a request.
     var isReady: Bool {
         !apiKey.isEmpty
     }
@@ -97,6 +103,13 @@ final class OpenRouterStore: ObservableObject {
         guard resolved != translationModel else { return }
         translationModel = resolved
         defaults.set(resolved, forKey: Self.translationModelKey)
+    }
+
+    func setDefinitionModel(_ newModel: String) {
+        let resolved = Self.resolve(newModel, default: Self.defaultDefinitionModel)
+        guard resolved != definitionModel else { return }
+        definitionModel = resolved
+        defaults.set(resolved, forKey: Self.definitionModelKey)
     }
 
     func setGrammarModel(_ newModel: String) {

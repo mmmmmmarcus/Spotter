@@ -5,7 +5,7 @@ How Spotter is wired together. See the per-subsystem docs for internals:
 [clipboard](clipboard.md), [plugins](plugins.md), [custom commands](custom-commands.md),
 [hotkeys](hotkeys.md), [ui](ui.md), [settings-sync](settings-sync.md), [signing](signing.md),
 plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools,
-image-modification, quicktime, notes, text-replacement, quicklinks, window-management,
+image-modification, notes, text-replacement, quicklinks, window-management,
 system-commands, mole, coffee).
 
 ## Single-owner core
@@ -70,7 +70,7 @@ imperatively from AppKit.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
-  Selection Tools uses this route for asynchronous AI translation and grammar states after it
+  Selection Tools uses this route for asynchronous AI translation, bilingual definition and grammar states after it
   snapshots the frontmost app's Accessibility selection, before Spotter activates.
 
 The app follows the system appearance. Every color token lives in `Core/Theme.swift` as an

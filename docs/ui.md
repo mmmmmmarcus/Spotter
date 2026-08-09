@@ -235,8 +235,8 @@ List-oriented plugins do not use a workspace. Register a palette screen and rend
 section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
 Selection Tools is the asynchronous-result reference: loading and failure remain centered shared
-palette states, while successful original/translated/corrected text and grammar issues are ordinary
-`PluginPaletteItem` rows. Result rows may opt out of the default one-line title/subtitle limit so the
+palette states, while successful original/translated/defined/corrected text and grammar issues are
+ordinary `PluginPaletteItem` rows. Result rows may opt out of the default one-line title/subtitle limit so the
 complete selected text remains visible without copying search, scrolling, footer or selection UI.
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,

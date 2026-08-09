@@ -1,8 +1,26 @@
 import Foundation
 
-/// Prompt construction and response parsing for the LLM-backed translate/grammar path.
+/// Prompt construction and response parsing for the LLM-backed selection actions.
 /// Foundation-only and pure so `Tools/selection-tools-test.swift` compiles the real logic.
 enum SelectionLLM {
+    static let targetLanguagePlaceholder = "{{target_language}}"
+    static let defaultTranslationSystemPrompt =
+        "You are a translator. Translate the user's text into {{target_language}}. "
+        + "Preserve meaning, tone, formatting and line breaks. "
+        + "Reply with the translation only — no quotes, no commentary."
+    static let defaultDefinitionSystemPrompt =
+        "You are a bilingual dictionary and language tutor. Define and explain the user's selected "
+        + "word or phrase in both English and Simplified Chinese. Start with ‘English:’ and then "
+        + "‘中文：’. Include the part of speech when relevant, keep both explanations concise, and "
+        + "list up to three common senses only when the text is ambiguous. Reply with plain text "
+        + "only — no Markdown fences."
+    static let defaultGrammarSystemPrompt =
+        "You are a proofreader. Fix grammar, spelling and punctuation in the user's text without "
+        + "changing its meaning, tone, language or formatting. Reply with only a JSON object: "
+        + #"{"corrected": "<full corrected text>", "issues": [{"original": "<exact fragment "#
+        + #"from the text>", "message": "<short explanation>", "suggestion": "<replacement>"}]}. "#
+        + "Use an empty issues array when the text is already correct. No other output."
+
     /// Translate into the user's first preferred language; text already in it goes to the next preferred language, falling back to English.
     static func targetLanguage(preferred: [String], detectedSource: String?) -> String {
         let bases = preferred.map(baseCode).filter { !$0.isEmpty }
@@ -13,21 +31,28 @@ enum SelectionLLM {
         return source == "en" ? first : "en"
     }
 
-    static func translationSystemPrompt(targetLanguageName: String) -> String {
-        "You are a translator. Translate the user's text into \(targetLanguageName). "
-            + "Preserve meaning, tone, formatting and line breaks. "
-            + "Reply with the translation only — no quotes, no commentary."
+    static func translationSystemPrompt(
+        targetLanguageName: String, template: String = defaultTranslationSystemPrompt
+    ) -> String {
+        template.replacingOccurrences(
+            of: targetLanguagePlaceholder, with: targetLanguageName)
     }
 
-    static func grammarSystemPrompt() -> String {
-        "You are a proofreader. Fix grammar, spelling and punctuation in the user's text without "
-            + "changing its meaning, tone, language or formatting. Reply with only a JSON object: "
-            + #"{"corrected": "<full corrected text>", "issues": [{"original": "<exact fragment "#
-            + #"from the text>", "message": "<short explanation>", "suggestion": "<replacement>"}]}. "#
-            + "Use an empty issues array when the text is already correct. No other output."
+    static func definitionSystemPrompt(
+        template: String = defaultDefinitionSystemPrompt
+    ) -> String {
+        template
+    }
+
+    static func grammarSystemPrompt(template: String = defaultGrammarSystemPrompt) -> String {
+        template
     }
 
     static func parseTranslation(_ raw: String) -> String {
+        stripCodeFence(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func parseDefinition(_ raw: String) -> String {
         stripCodeFence(raw).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

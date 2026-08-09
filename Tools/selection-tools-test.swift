@@ -65,6 +65,17 @@ struct SelectionToolsTests {
         check("current grammar result completes", machine.completeGrammar(grammarResult, for: grammarRequest))
         check("grammar completion publishes result", machine.state == .grammarChecked(grammarRequest, grammarResult))
 
+        let definitionRequest = machine.begin(action: .define, snapshot: snapshot)
+        let definitionResult = SelectionDefinitionResult(
+            originalText: snapshot.text,
+            definitionText: "English: A sample.\n中文：一个示例。")
+        check(
+            "current definition result completes",
+            machine.completeDefinition(definitionResult, for: definitionRequest))
+        check(
+            "definition completion publishes result",
+            machine.state == .defined(definitionRequest, definitionResult))
+
         let nextRequest = machine.begin(action: .translate, snapshot: snapshot)
         check("active request cancels", machine.cancelActive())
         check(
@@ -94,8 +105,25 @@ struct SelectionToolsTests {
             "LLM translation prompt names the target",
             SelectionLLM.translationSystemPrompt(targetLanguageName: "French").contains("French"))
         check(
+            "custom translation prompt expands target token",
+            SelectionLLM.translationSystemPrompt(
+                targetLanguageName: "Japanese", template: "Use {{target_language}} only.")
+                == "Use Japanese only.")
+        check(
             "LLM translation parse strips fences",
             SelectionLLM.parseTranslation("```\nBonjour\n```") == "Bonjour")
+        check(
+            "default definition prompt requires bilingual output",
+            SelectionLLM.defaultDefinitionSystemPrompt.contains("English")
+                && SelectionLLM.defaultDefinitionSystemPrompt.contains("Simplified Chinese"))
+        check(
+            "LLM definition parse strips fences",
+            SelectionLLM.parseDefinition("```\nEnglish: Example.\n中文：示例。\n```")
+                == "English: Example.\n中文：示例。")
+        check(
+            "custom grammar prompt is used verbatim",
+            SelectionLLM.grammarSystemPrompt(template: "Return corrected text.")
+                == "Return corrected text.")
 
         let grammarJSON = #"""
         ```json

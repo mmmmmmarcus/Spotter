@@ -14,7 +14,7 @@ struct ChangeCaseSettingsView: View {
     var body: some View {
         SettingsPane(title: "Change Case", subtitle: "Transform selected or copied text with native, offline commands.") {
             SettingsCard(header: "Plugin") {
-                SettingsRow(title: "Change Case", subtitle: "Includes the browser and 21 direct commands.", systemImage: "textformat", tint: .purple, statusDot: plugins.isEnabled(.changeCase) ? .green : nil) {
+                SettingsRow(title: "Change Case", subtitle: "Includes the browser and 21 direct commands.", systemImage: "textformat", tint: .purple) {
                     Toggle("", isOn: Binding(get: { plugins.isEnabled(.changeCase) }, set: { plugins.setEnabled($0, for: .changeCase) })).labelsHidden().toggleStyle(.switch).controlSize(.small)
                 }
             }

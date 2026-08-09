@@ -33,7 +33,6 @@ Spotter/Plugins/
 ├── ChangeCase/
 ├── SelectionTools/
 ├── ImageModification/
-├── QuickTime/
 ├── WindowManagement/
 ├── SystemCommands/
 ├── Mole/
@@ -263,9 +262,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
-- **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — enabled by default; three independent selected-text actions:
-  Google Search in the default browser, plus AI translation and grammar checking (OpenRouter)
-  presented through one asynchronous shared palette screen.
+- **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — enabled by default; four independent selected-text actions:
+  Google Search in the default browser, plus AI translation, bilingual definition and grammar
+  checking (OpenRouter) presented through one asynchronous shared palette screen. Each AI action's
+  model and prompt are user-configurable.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — enabled by default; local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins.
@@ -284,11 +284,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
-- **QuickTime Recording** (`Spotter/Plugins/QuickTime/`) — enabled by default; three on-demand AppleScript actions for
-  screen, audio and movie recording; requires Automation only when a command runs.
-
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
-[Selection Tools](selection-tools.md), [Image Modification](image-modification.md), [QuickTime Recording](quicktime.md),
+[Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [System Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md), and
 [Notes](notes.md), plus [Text Replacement](text-replacement.md).

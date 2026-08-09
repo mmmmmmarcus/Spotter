@@ -36,6 +36,7 @@ struct SettingsBackup: Codable {
         // The key is the OpenRouter gate (owner decision): importing or syncing a file that carries one activates the AI path on this Mac.
         var openRouterAPIKey: String?
         var openRouterTranslationModel: String?
+        var openRouterDefinitionModel: String?
         var openRouterGrammarModel: String?
         var openRouterChatModel: String?
         var openRouterChatWebSearch: Bool?
@@ -81,6 +82,11 @@ struct SettingsBackup: Codable {
             var output: String?
             var format: String?
         }
+        struct SelectionTools: Codable {
+            var translationPrompt: String?
+            var definitionPrompt: String?
+            var grammarPrompt: String?
+        }
         struct Caffeinate: Codable {
             var keepsDisplayAwake: Bool?
             var keepsDiskAwake: Bool?
@@ -96,6 +102,7 @@ struct SettingsBackup: Codable {
         var changeCase: ChangeCase?
         var killProcess: KillProcess?
         var imageModification: ImageModification?
+        var selectionTools: SelectionTools?
         var caffeinate: Caffeinate?
         var windowManagement: WindowManagement?
         var mole: Mole?
@@ -144,6 +151,7 @@ extension SettingsBackup {
             lockInputToEnglish: s.lockInputToEnglish,
             openRouterAPIKey: core.openRouter.apiKey.isEmpty ? nil : core.openRouter.apiKey,
             openRouterTranslationModel: core.openRouter.translationModel,
+            openRouterDefinitionModel: core.openRouter.definitionModel,
             openRouterGrammarModel: core.openRouter.grammarModel,
             openRouterChatModel: core.openRouter.chatModel,
             openRouterChatWebSearch: core.openRouter.chatWebSearch)
@@ -177,7 +185,7 @@ extension SettingsBackup {
         backup.hiddenLauncherItems = core.visibility.hiddenItemKeys.sorted()
         backup.hiddenLauncherKinds = core.visibility.hiddenKinds.sorted()
         backup.pluginStates = core.plugins.exportedEnabledStates()
-        backup.pluginPrefs = gatherPluginPrefs()
+        backup.pluginPrefs = gatherPluginPrefs(from: core)
         backup.worldClockCities = core.worldClock.cityIDs
         backup.quicklinks = core.quicklinks.sorted
         backup.textReplacement = TextReplacementBackup(
@@ -187,7 +195,7 @@ extension SettingsBackup {
     }
 
     /// Effective values, resolved with the same defaults their settings views use, so an export never carries "unset" holes.
-    private static func gatherPluginPrefs() -> PluginPrefs {
+    private static func gatherPluginPrefs(from core: AppCore) -> PluginPrefs {
         let d = UserDefaults.standard
         var prefs = PluginPrefs()
         prefs.changeCase = PluginPrefs.ChangeCase(
@@ -223,6 +231,10 @@ extension SettingsBackup {
             output: d.string(forKey: "image-modification.output")
                 ?? ImageOutputLocation.alongside.rawValue,
             format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
+        prefs.selectionTools = PluginPrefs.SelectionTools(
+            translationPrompt: core.selectionTools.translationPrompt,
+            definitionPrompt: core.selectionTools.definitionPrompt,
+            grammarPrompt: core.selectionTools.grammarPrompt)
         prefs.caffeinate = PluginPrefs.Caffeinate(
             keepsDisplayAwake: d.object(forKey: "coffee.keeps-display-awake") == nil
                 || d.bool(forKey: "coffee.keeps-display-awake"),
@@ -309,6 +321,20 @@ extension SettingsBackup {
         if let i = prefs.imageModification {
             set(i.output, "image-modification.output")
             set(i.format, "image-modification.format")
+        }
+        if let selection = prefs.selectionTools {
+            if let prompt = selection.translationPrompt {
+                core.selectionTools.setTranslationPrompt(prompt)
+                count += 1
+            }
+            if let prompt = selection.definitionPrompt {
+                core.selectionTools.setDefinitionPrompt(prompt)
+                count += 1
+            }
+            if let prompt = selection.grammarPrompt {
+                core.selectionTools.setGrammarPrompt(prompt)
+                count += 1
+            }
         }
         if let c = prefs.caffeinate {
             // Through the manager, not raw defaults: options are cached `@Published` state, and a
@@ -408,6 +434,10 @@ extension SettingsBackup {
         }
         if let model = s.openRouterTranslationModel {
             core.openRouter.setTranslationModel(model)
+            count += 1
+        }
+        if let model = s.openRouterDefinitionModel {
+            core.openRouter.setDefinitionModel(model)
             count += 1
         }
         if let model = s.openRouterGrammarModel {

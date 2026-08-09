@@ -9,7 +9,6 @@ import {
   Search,
   Smile,
   Sparkles,
-  Video,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -28,7 +27,6 @@ export const featureIcons = {
   process: Activity,
   case: CaseUpper,
   image: Image,
-  recording: Video,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof featureIcons;

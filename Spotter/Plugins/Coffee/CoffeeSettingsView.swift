@@ -13,8 +13,7 @@ struct CoffeeSettingsView: View {
                 SettingsRow(
                     title: "Caffeinate",
                     subtitle: coffee.state.summary,
-                    systemImage: "cup.and.saucer", tint: .orange,
-                    statusDot: coffee.isOn ? .green : nil
+                    systemImage: "cup.and.saucer", tint: .orange
                 ) {
                     Toggle("", isOn: enabledBinding)
                         .labelsHidden()

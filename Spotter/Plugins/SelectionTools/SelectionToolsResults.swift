@@ -17,6 +17,8 @@ enum SelectionToolsResults {
                 emptyMessage: request.action.loadingMessage)
         case .translated(let request, let result):
             return resultSnapshot(request: request, result: result, query: query)
+        case .defined(let request, let result):
+            return definitionSnapshot(request: request, result: result, query: query)
         case .grammarChecked(let request, let result):
             return grammarSnapshot(request: request, result: result, query: query)
         case .failed(_, _, let error):
@@ -31,6 +33,8 @@ enum SelectionToolsResults {
         switch state {
         case .translated(let request, let result):
             return itemID == "original" ? request.snapshot.text : result.translatedText
+        case .defined(let request, let result):
+            return itemID == "original" ? request.snapshot.text : result.definitionText
         case .grammarChecked(let request, let result):
             return itemID == "original" ? request.snapshot.text : result.correctedText
         case .idle, .loading, .failed:
@@ -63,6 +67,31 @@ enum SelectionToolsResults {
             sectionTitle: "Translation",
             items: filtered(items, query: query),
             emptyMessage: "No matching translation result")
+    }
+
+    private static func definitionSnapshot(
+        request: SelectionToolsRequest, result: SelectionDefinitionResult, query: String
+    ) -> PluginPaletteSnapshot {
+        let items = [
+            PluginPaletteItem(
+                id: "definition",
+                title: result.definitionText,
+                subtitle: "English + 中文 · Selected in " + request.snapshot.source.appName,
+                icon: .symbol("character.book.closed"),
+                titleLineLimit: nil,
+                primaryActionTitle: "Copy Definition"),
+            PluginPaletteItem(
+                id: "original",
+                title: result.originalText,
+                subtitle: "Original text · \(request.snapshot.source.appName)",
+                icon: .symbol("selection.pin.in.out"),
+                titleLineLimit: nil,
+                primaryActionTitle: "Copy Original"),
+        ]
+        return PluginPaletteSnapshot(
+            sectionTitle: "Definition",
+            items: filtered(items, query: query),
+            emptyMessage: "No matching definition result")
     }
 
     private static func grammarSnapshot(
