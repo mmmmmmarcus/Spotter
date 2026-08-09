@@ -211,7 +211,6 @@ final class AppIndex: ObservableObject {
 
     private var discoveredEntries: [AppEntry] = []
     private var spotlightCache = SpotlightNames.Cache()
-    private var customCommandEntries: [AppEntry] = []
     private var pluginCommandEntries: [AppEntry] = []
     private var isRefreshing = false
     /// Set when a refresh is requested mid-scan, so a scope edit landing during an in-flight scan isn't silently dropped.
@@ -222,20 +221,6 @@ final class AppIndex: ObservableObject {
 
     init(ranking: LauncherRankingStore) {
         self.ranking = ranking
-    }
-
-    /// Replaces the user-authored command slice without rescanning disk so Settings edits reach launcher search immediately.
-    func setCustomCommands(_ commands: [CustomCommand]) {
-        let entries = commands.map { command in
-            AppEntry(
-                id: command.entryID, name: command.name,
-                url: URL(string: "spotter://custom-command/" + command.id.uuidString)!,
-                bundleID: nil, kind: .command, symbolImage: "terminal")
-        }
-        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        guard entries != customCommandEntries else { return }
-        customCommandEntries = entries
-        publishEntries()
     }
 
     /// Replaces the enabled plugin-command slice without rescanning disk.
@@ -322,11 +307,11 @@ final class AppIndex: ObservableObject {
     }
 
     private func publishEntries() {
-        // The System Commands plugin republishes the legacy quit-all id; the plugin's entry wins so
-        // the row follows its enable state, and the registry fallback only shows when it's off.
+        // Commands republishes the legacy quit-all id as a read-only built-in; its entry wins so the
+        // row follows the plugin's enable state, and the registry fallback only shows when it's off.
         let pluginIDs = Set(pluginCommandEntries.map(\.id))
         let builtIns = CommandRegistry.all.filter { !pluginIDs.contains($0.id) }
-        let commands = (builtIns + pluginCommandEntries + customCommandEntries).sorted {
+        let commands = (builtIns + pluginCommandEntries).sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
         let updated = discoveredEntries + commands

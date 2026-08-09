@@ -1,6 +1,6 @@
 import { ArrowUpRight, Check, Copy, Terminal } from "lucide-react";
 import { useState } from "react";
-import { channels, quarantineCommand, site } from "../data/site";
+import { channels, site } from "../data/site";
 import { cn } from "../lib/cn";
 import { Button } from "./ui/button";
 import { Reveal } from "./ui/reveal";
@@ -51,7 +51,7 @@ export function Install() {
       id="install"
       eyebrow="Get it"
       title="Install with Homebrew."
-      intro="One command and you're running. Pick a channel — each installs as its own app, so a pre-release can live next to stable."
+      intro="One command and you're running. Every release is signed with Developer ID and notarized by Apple."
     >
       <Reveal className="mx-auto max-w-4xl">
         {/* Channel picker */}
@@ -80,21 +80,6 @@ export function Install() {
         </div>
 
         <CopyCommand command={channel.command} />
-
-        {/* The one manual step, stated plainly rather than hidden. */}
-        <div className="mt-8 rounded-2xl border border-border p-4 sm:p-6">
-          <h3 className="text-body-lg font-medium">
-            One-time: clear the quarantine flag
-          </h3>
-          <p className="mt-2 text-body text-ash">
-            Spotter isn't notarized — there's no paid Developer ID behind it —
-            so macOS quarantines it on first launch. Run this once to let it
-            open:
-          </p>
-          <div className="mt-4">
-            <CopyCommand command={quarantineCommand} />
-          </div>
-        </div>
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Button

@@ -232,9 +232,9 @@ extension SettingsBackup {
                 ?? ImageOutputLocation.alongside.rawValue,
             format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
         prefs.selectionTools = PluginPrefs.SelectionTools(
-            translationPrompt: core.selectionTools.translationPrompt,
-            definitionPrompt: core.selectionTools.definitionPrompt,
-            grammarPrompt: core.selectionTools.grammarPrompt)
+            translationPrompt: core.aiChat.translationPrompt,
+            definitionPrompt: core.aiChat.definitionPrompt,
+            grammarPrompt: core.aiChat.grammarPrompt)
         prefs.caffeinate = PluginPrefs.Caffeinate(
             keepsDisplayAwake: d.object(forKey: "coffee.keeps-display-awake") == nil
                 || d.bool(forKey: "coffee.keeps-display-awake"),
@@ -324,15 +324,15 @@ extension SettingsBackup {
         }
         if let selection = prefs.selectionTools {
             if let prompt = selection.translationPrompt {
-                core.selectionTools.setTranslationPrompt(prompt)
+                core.aiChat.setTranslationPrompt(prompt)
                 count += 1
             }
             if let prompt = selection.definitionPrompt {
-                core.selectionTools.setDefinitionPrompt(prompt)
+                core.aiChat.setDefinitionPrompt(prompt)
                 count += 1
             }
             if let prompt = selection.grammarPrompt {
-                core.selectionTools.setGrammarPrompt(prompt)
+                core.aiChat.setGrammarPrompt(prompt)
                 count += 1
             }
         }
@@ -471,7 +471,20 @@ extension SettingsBackup {
         if let pluginActions = hotkeys.pluginActions {
             // Resolve through the registry so a binding only lands on an action this build actually has.
             for key in core.plugins.shortcutActions {
-                if let s = pluginActions["\(key.pluginID.rawValue).\(key.actionID)"] {
+                let currentID = "\(key.pluginID.rawValue).\(key.actionID)"
+                let legacyID: String?
+                if key.pluginID == .aiChat,
+                    ["translate", "define", "grammar"].contains(key.actionID)
+                {
+                    legacyID = "selection-tools.\(key.actionID)"
+                } else if key.pluginID == .commands, key.actionID.hasPrefix("system.") {
+                    legacyID =
+                        "system-commands."
+                        + String(key.actionID.dropFirst("system.".count))
+                } else {
+                    legacyID = nil
+                }
+                if let s = pluginActions[currentID] ?? legacyID.flatMap({ pluginActions[$0] }) {
                     apply(s, .plugin(key))
                 }
             }

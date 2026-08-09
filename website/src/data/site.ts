@@ -5,7 +5,7 @@ export const site = {
   name: "Spotter",
   tagline: "The essentials, without the bloat.",
   repo: "https://github.com/mmmmmmarcus/Spotter",
-  version: "v0.1.0",
+  version: "v1.4.0",
   platform: "macOS 26+",
   license: "AGPL-3.0",
   licenseUrl: "https://github.com/mmmmmmarcus/Spotter/blob/main/LICENSE",
@@ -47,11 +47,6 @@ export const channels = [
     note: "Side-by-side",
   },
 ] as const;
-
-// The one manual step: Spotter isn't notarized (no $99/yr Developer ID), so
-// macOS quarantines it. Clearing the flag once is expected.
-export const quarantineCommand =
-  'xattr -dr com.apple.quarantine "/Applications/Spotter.app"';
 
 // Headline numbers for the "why it's tiny" band. Kept honest, from the README.
 export const stats = [

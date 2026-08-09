@@ -6,7 +6,7 @@ How Spotter is wired together. See the per-subsystem docs for internals:
 [hotkeys](hotkeys.md), [ui](ui.md), [settings-sync](settings-sync.md), [signing](signing.md),
 plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools,
 image-modification, notes, text-replacement, quicklinks, window-management,
-system-commands, mole, coffee).
+commands (including built-in system commands), mole, coffee).
 
 ## Single-owner core
 
@@ -36,10 +36,12 @@ Native feature modules live under `Spotter/Plugins/<Name>/` and register through
 plugin's own directory. These are source-level modules in the main target, so they retain direct native
 calls and compile-time checking without framework or runtime-loader overhead.
 
-The registry generates the Plugins Settings group, persists safe enable states, routes plugin launcher
-commands and shortcut actions, declares permission use, keeps a precomputed enabled query-provider
-list, and hosts plugin palette-screen registrations. See [plugins.md](plugins.md) for the contract,
-directory rules, `$spotter-plugin` project skill and plugin lifecycle checklists.
+The registry generates the Features and Plugins Settings groups, persists safe enable states, routes
+launcher commands and shortcut actions, declares permission use, keeps a precomputed enabled
+query-provider list, and hosts plugin palette-screen registrations. AI Chat is an always-available
+application feature that reuses this wiring; Commands is a disableable plugin. See
+[plugins.md](plugins.md) for the contract, directory rules, `$spotter-plugin` project skill and plugin
+lifecycle checklists.
 
 ## Entry points and windows
 
@@ -70,8 +72,8 @@ imperatively from AppKit.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
-  Selection Tools uses this route for asynchronous AI translation, bilingual definition and grammar states after it
-  snapshots the frontmost app's Accessibility selection, before Spotter activates.
+  Selection Tools uses this route only for explicit browser-search failures. AI Chat owns selected-text
+  translation, bilingual definition and grammar checking as ordinary follow-up-ready chat sessions.
 
 The app follows the system appearance. Every color token lives in `Core/Theme.swift` as an
 `adaptive(dark:light:)` pair resolved through `NSColor`'s dynamic provider, so views never branch on

@@ -87,17 +87,17 @@ Never break these without an explicit task to do so.
   `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar/
   local time zone while `Plugins/WorldClock/WorldClockStore.swift` stays Foundation + Combine,
   `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
-  Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift`,
-  `Plugins/SelectionTools/SearchURLBuilder.swift` and `Plugins/SelectionTools/SelectionLLM.swift`
-  stay Foundation-only and pure,
+  Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift` and
+  `Plugins/SelectionTools/SearchURLBuilder.swift` stay Foundation-only and pure,
   `Plugins/TextReplacement/TextReplacementEngine.swift` stays
   Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
   Foundation + Combine, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
   `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
-  `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` stays Foundation-only and pure
-  for `Tools/ai-chat-test.swift`, `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
+  `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` and
+  `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
+  `Tools/ai-chat-test.swift`, `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole), `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
@@ -135,7 +135,7 @@ Never break these without an explicit task to do so.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
   rather than inventing a second shape. **Deliberate exception (owner decision, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
-  means no request can be made (Selection Tools' AI actions stay unavailable); entering the key, or syncing
+  means no request can be made (AI Chat and its selected-text actions stay unavailable); entering the key, or syncing
   a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
   not copy this shape for new networked features without an explicit owner decision.
   `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a
@@ -147,12 +147,16 @@ Never break these without an explicit task to do so.
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
   [`docs/plugins.md`](docs/plugins.md) and use the tracked `$spotter-plugin` skill.
+- **AI Chat is an application feature; Commands is a plugin.** AI Chat reuses registry wiring with
+  `settingsPlacement: .application` but is always enabled and never exports an enable state. Commands
+  owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
+  data and bindings while hiding entries and making their hotkeys no-op.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
   registered `PluginPaletteScreenRegistration` and the shared `PluginPaletteList`; they must not
   create a separate window, search field, list chrome or footer. Dedicated plugin windows are limited
   to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
   and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
-- **Confirmations are in-palette.** Every destructive palette flow (Mole actions, System Commands,
+- **Confirmations are in-palette.** Every destructive palette flow (Mole actions, built-in Commands,
   custom commands, Quit All) asks through `AppCore.confirmInPalette` / `ConfirmationCard`, never an
   `NSAlert`, and the card's highlight always starts on Cancel — a reflexive second ↵ must never be
   the confirmation. The one deliberate exception is Image Modification's Replace Original alert,

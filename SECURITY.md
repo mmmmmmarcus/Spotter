@@ -32,6 +32,7 @@ Of particular interest:
 - **Hotkeys** — the in-house hotkey stack and the Input Monitoring grant.
 - **Signing and distribution** — the DMG and Homebrew cask chain.
 
-Out of scope: builds being self-signed rather than notarized (known, see
-[`docs/signing.md`](docs/signing.md)), and anything needing existing code execution or admin rights on
-the machine.
+Local Debug builds are intentionally self-signed and are out of scope. Public releases are expected
+to carry the documented Developer ID signature and Apple notarization ticket; report any published
+artifact that does not. Anything needing existing code execution or admin rights is also out of
+scope.

@@ -174,13 +174,6 @@ final class OpenRouterStore: ObservableObject {
         }
     }
 
-    /// The single-turn convenience the selection actions use.
-    func chat(system: String, user: String, model: String) async throws -> String {
-        try await chat(
-            messages: [(role: "system", content: system), (role: "user", content: user)],
-            model: model)
-    }
-
     /// One chat completion against the given model, any number of turns. The key is re-checked on both sides of the request: it can be cleared from Settings while a reply is in flight, and a late response must not be surfaced.
     func chat(
         messages: [(role: String, content: String)], model: String, webSearch: Bool = false

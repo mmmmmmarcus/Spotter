@@ -1,35 +1,74 @@
 import AppKit
+import NaturalLanguage
 import SwiftUI
 
 extension PluginActionKey {
     static let openAIChat = standard(pluginID: .aiChat, actionID: "open", title: "AI Chat")
+    // Preserve the original defaults keys so existing Selection Tools bindings survive the move.
+    static let translateSelectedText = PluginActionKey(
+        pluginID: .aiChat, actionID: "translate", title: "Translate Selected Text",
+        defaultsKey: "KeyboardShortcuts_plugin.selection-tools.translate")
+    static let defineSelectedText = PluginActionKey(
+        pluginID: .aiChat, actionID: "define", title: "Define Selected Text",
+        defaultsKey: "KeyboardShortcuts_plugin.selection-tools.define")
+    static let checkSelectedTextGrammar = PluginActionKey(
+        pluginID: .aiChat, actionID: "grammar", title: "Check Selected Text Grammar",
+        defaultsKey: "KeyboardShortcuts_plugin.selection-tools.grammar")
 }
 
 @MainActor
 enum AIChatPlugin {
     static func registration(core: AppCore) -> PluginRegistration {
         let open: () -> Void = { [weak core] in core?.openAIChat() }
+        let runAction: (AIChatSelectionAction) -> Void = { [weak core] action in
+            core?.runAIChatSelectionAction(action)
+        }
+        let runCommand: (AIChatSelectionAction) -> Void = { [weak core] action in
+            core?.runAIChatSelectionActionFromLauncher(action)
+        }
         return PluginRegistration(
             metadata: PluginMetadata(
                 id: .aiChat,
                 name: "AI Chat",
                 summary:
-                    "Chat with an AI right in the palette — Tab from the launcher, ask, and keep the conversation going. Uses your OpenRouter key.",
+                    "Chat, translate, define, and proofread selected text in one follow-up-ready conversation. Uses your OpenRouter key.",
                 systemImage: "sparkles",
-                tint: .purple),
+                tint: .purple,
+                settingsPlacement: .application),
             defaultEnabled: true,
-            shortcutActions: [PluginActionRegistration(key: .openAIChat, perform: open)],
+            canDisable: false,
+            exportsEnabledState: false,
+            permissions: [.accessibility],
+            shortcutActions: [
+                PluginActionRegistration(key: .openAIChat, perform: open),
+                PluginActionRegistration(key: .translateSelectedText) { runAction(.translate) },
+                PluginActionRegistration(key: .defineSelectedText) { runAction(.define) },
+                PluginActionRegistration(key: .checkSelectedTextGrammar) { runAction(.grammar) },
+            ],
             launcherCommands: [
                 PluginCommandRegistration(
                     id: "command:ai-chat", name: "AI Chat", systemImage: "sparkles",
-                    actionKey: .openAIChat, perform: open)
+                    actionKey: .openAIChat, perform: open),
+                PluginCommandRegistration(
+                    id: "command:selection-tools:translate",
+                    name: "Translate Selected Text",
+                    systemImage: "translate",
+                    actionKey: .translateSelectedText
+                ) { runCommand(.translate) },
+                PluginCommandRegistration(
+                    id: "command:selection-tools:define",
+                    name: "Define Selected Text",
+                    systemImage: "character.book.closed",
+                    actionKey: .defineSelectedText
+                ) { runCommand(.define) },
+                PluginCommandRegistration(
+                    id: "command:selection-tools:grammar",
+                    name: "Check Selected Text Grammar",
+                    systemImage: "text.badge.checkmark",
+                    actionKey: .checkSelectedTextGrammar
+                ) { runCommand(.grammar) },
             ],
-            onDisable: { [weak core] in
-                core?.aiChat.stop()
-                if core?.palette.mode == .aiChat {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
+            readEnabled: { true },
             settingsView: { AnyView(AIChatSettingsView()) })
     }
 }
@@ -104,7 +143,64 @@ enum AIChatSessionsMenu {
 
 extension AppCore {
     func openAIChat() {
-        guard plugins.isEnabled(.aiChat) else { return }
+        showPalette(mode: .aiChat)
+    }
+
+    func runAIChatSelectionAction(_ action: AIChatSelectionAction) {
+        guard openRouter.isReady else {
+            showAIChatSelectionFailure(
+                action: action,
+                message: "Add an OpenRouter API key in Settings → General → AI to use this action.")
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            presentAIChatSelection(action, capture: await selectedTextCapture.capture())
+        }
+    }
+
+    func runAIChatSelectionActionFromLauncher(_ action: AIChatSelectionAction) {
+        guard openRouter.isReady else {
+            showAIChatSelectionFailure(
+                action: action,
+                message: "Add an OpenRouter API key in Settings → General → AI to use this action.")
+            return
+        }
+        guard palette.mode == .launcher else {
+            runAIChatSelectionAction(action)
+            return
+        }
+        hidePalette()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            presentAIChatSelection(
+                action, capture: await selectedTextCapture.captureAfterRestoringFocus())
+        }
+    }
+
+    private func presentAIChatSelection(
+        _ action: AIChatSelectionAction,
+        capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
+    ) {
+        switch capture {
+        case .failure(let error):
+            aiChat.showSelectionFailure(action: action, message: error.message)
+        case .success(let snapshot):
+            let detectedLanguage = action == .translate
+                ? NLLanguageRecognizer.dominantLanguage(for: snapshot.text)?.rawValue : nil
+            aiChat.startSelectionConversation(
+                action: action, text: snapshot.text,
+                detectedSourceLanguage: detectedLanguage)
+        }
+        palette.prepare(mode: .aiChat)
+        showPalette(mode: .aiChat)
+    }
+
+    private func showAIChatSelectionFailure(
+        action: AIChatSelectionAction, message: String
+    ) {
+        aiChat.showSelectionFailure(action: action, message: message)
+        palette.prepare(mode: .aiChat)
         showPalette(mode: .aiChat)
     }
 }

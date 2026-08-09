@@ -21,10 +21,10 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let note = PluginID(rawValue: "note")
     static let quicklinks = PluginID(rawValue: "quicklinks")
     static let aiChat = PluginID(rawValue: "ai-chat")
+    static let commands = PluginID(rawValue: "commands")
     static let mole = PluginID(rawValue: "mole")
     static let coffee = PluginID(rawValue: "coffee")
     static let windowManagement = PluginID(rawValue: "window-management")
-    static let systemCommands = PluginID(rawValue: "system-commands")
 }
 
 /// The small fixed palette Settings uses for plugin sidebar icon tiles.
@@ -45,6 +45,12 @@ struct PluginMetadata: Identifiable, Sendable {
     let summary: String
     let systemImage: String
     let tint: PluginTint
+    var settingsPlacement: PluginSettingsPlacement = .plugin
+}
+
+enum PluginSettingsPlacement: Equatable, Sendable {
+    case application
+    case plugin
 }
 
 /// A plugin-owned action that may be assigned a global shortcut.

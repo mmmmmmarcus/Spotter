@@ -216,10 +216,11 @@ pane use the native `.overlayScroller()`. Don't reintroduce native scrollers on 
 Settings runs in its own `NSWindow` (the SwiftUI `Settings` scene is unreliable for accessory apps) but
 shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not the palette:
 
-- The sidebar has scrollable **System** and **Plugins** groups. System panes have a fixed order;
-  plugin rows and their settings views are generated from `PluginRegistry`, so adding a plugin does
-  not add a `SettingsTab` case or a view switch branch. Each plugin owns its Settings view in
-  `Spotter/Plugins/<Name>/`; shared Settings components remain here.
+- The sidebar has scrollable **System**, **Features** and **Plugins** groups. System panes have a fixed
+  order; application-feature and plugin rows are generated from `PluginRegistry`, so adding either
+  does not add a `SettingsTab` case or a view switch branch. `metadata.settingsPlacement` selects the
+  group. Each registration owns its Settings view in `Spotter/Plugins/<Name>/`; shared Settings
+  components remain here.
 
 - **`SettingsPane`**: bold `.title2` title + secondary subtitle header, then scrollable content, `xxl` inset all around, the same thin scrollbar.
 - **`SettingsCard`**: rounded `card 10` container, `cardFill` fill, `cardStroke` hairline border. Rows inside are split by `SettingsDivider` — an inset hairline aligned under the row title (past the icon).
@@ -234,10 +235,10 @@ List-oriented plugins do not use a workspace. Register a palette screen and rend
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
 section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
-Selection Tools is the asynchronous-result reference: loading and failure remain centered shared
-palette states, while successful original/translated/defined/corrected text and grammar issues are
-ordinary `PluginPaletteItem` rows. Result rows may opt out of the default one-line title/subtitle limit so the
-complete selected text remains visible without copying search, scrolling, footer or selection UI.
+AI Chat is the asynchronous selected-text surface: translation, definition and grammar actions render
+the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
+shared composer for follow-ups. Selection Tools retains a palette screen only for explicit browser-search
+failures.
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the

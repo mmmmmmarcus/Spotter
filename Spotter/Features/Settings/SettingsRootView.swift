@@ -7,7 +7,7 @@ extension Notification.Name {
 }
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, permissions, shortcuts, customCommands, backup, diagnostics, about
+    case general, permissions, shortcuts, backup, diagnostics, about
     var id: String { rawValue }
 
     var title: String {
@@ -15,7 +15,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return "General"
         case .permissions: return "Permissions"
         case .shortcuts: return "Shortcuts"
-        case .customCommands: return "Commands"
         case .backup: return "Backup"
         case .diagnostics: return "Diagnostics"
         case .about: return "About"
@@ -27,7 +26,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return "switch.2"
         case .permissions: return "lock.shield"
         case .shortcuts: return "keyboard"
-        case .customCommands: return "terminal"
         case .backup: return "arrow.up.arrow.down.circle"
         case .diagnostics: return "stethoscope"
         case .about: return "info.circle"
@@ -39,7 +37,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return .gray
         case .permissions: return .blue
         case .shortcuts: return .indigo
-        case .customCommands: return .green
         case .backup: return .teal
         case .diagnostics: return .orange
         case .about: return .pink
@@ -69,7 +66,6 @@ struct SettingsRootView: View {
                 case .system(.general): GeneralSettingsView()
                 case .system(.permissions): PermissionsSettingsView()
                 case .system(.shortcuts): ShortcutsSettingsView()
-                case .system(.customCommands): CustomCommandsSettingsView()
                 case .system(.backup): BackupSettingsView()
                 case .system(.diagnostics): DiagnosticsSettingsView()
                 case .system(.about): AboutView()
@@ -98,6 +94,18 @@ struct SettingsRootView: View {
                     sidebarRow(
                         title: item.title, systemImage: item.systemImage, tint: item.tint,
                         destination: .system(item))
+                }
+
+                if !plugins.applicationFeatures.isEmpty {
+                    sidebarHeader("Features")
+                        .padding(.top, Theme.Spacing.md)
+                    ForEach(plugins.applicationFeatures) { feature in
+                        sidebarRow(
+                            title: feature.name,
+                            systemImage: feature.systemImage,
+                            tint: feature.tint.color,
+                            destination: .plugin(feature.id))
+                    }
                 }
 
                 sidebarHeader("Plugins")

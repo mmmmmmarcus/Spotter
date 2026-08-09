@@ -964,13 +964,13 @@ struct RootPaletteView: View {
         scroll = ScrollIntent(kind: .follow)
     }
 
-    /// Tab cycles the root surfaces — Apps → AI Chat → Clipboard — skipping disabled ones; every
+    /// Tab cycles Apps → AI Chat → Clipboard, skipping Clipboard when its plugin is disabled; every
     /// other mode (Calculator History, Emoji, plugin screens) exits back to the launcher instead of
     /// joining the cycle. The query survives the hop, so a typed launcher query lands in the chat
     /// composer — Tab-to-ask.
     private func toggleMode() {
         var cycle: [PaletteMode] = [.launcher]
-        if plugins.isEnabled(.aiChat) { cycle.append(.aiChat) }
+        cycle.append(.aiChat)
         if plugins.isEnabled(.clipboard) { cycle.append(.clipboard) }
         guard cycle.count > 1 else { return }
         guard let index = cycle.firstIndex(of: vm.mode) else {

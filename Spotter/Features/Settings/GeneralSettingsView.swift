@@ -281,8 +281,8 @@ struct GeneralSettingsView: View {
     }
 }
 
-/// OpenRouter credential card. The key is the gate: present means Selection Tools' AI path is
-/// active, absent means fully on-device. Key and models sync through settings backups.
+/// OpenRouter credential card. The key is the gate: present means AI Chat may make requests;
+/// absent means fully on-device. Key and models sync through settings backups.
 private struct OpenRouterSettingsCard: View {
     @ObservedObject private var store = AppCore.shared.openRouter
     @State private var keyDraft = AppCore.shared.openRouter.apiKey
@@ -317,7 +317,7 @@ private struct OpenRouterSettingsCard: View {
     private var keySubtitle: String {
         switch store.validation {
         case .unknown:
-            "Required for Selection Tools' AI translate, define and grammar. "
+            "Required for AI Chat, including selected-text translation, definition and grammar. "
                 + "Included in settings backups and sync."
         case .checking: "Checking key with \(OpenRouterStore.provider)…"
         case .valid(let detail): detail

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CustomCommandsSettingsView: View {
+    @EnvironmentObject private var plugins: PluginRegistry
     @EnvironmentObject private var store: CustomCommandStore
     @State private var editor: EditorTarget?
     @State private var pendingDeletion: CustomCommand?
@@ -10,6 +11,58 @@ struct CustomCommandsSettingsView: View {
             title: "Commands",
             subtitle: "Run your own shell commands from the launcher or a global shortcut."
         ) {
+            SettingsCard(header: "Plugin") {
+                SettingsRow(
+                    title: "Commands",
+                    subtitle: "Built-in macOS actions and your saved shell commands.",
+                    systemImage: "terminal",
+                    tint: .green
+                ) {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { plugins.isEnabled(.commands) },
+                            set: { plugins.setEnabled($0, for: .commands) })
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+            }
+
+            SettingsCallout(
+                title: "Built-in commands are read-only",
+                message:
+                    "Spotter maintains these macOS actions. You can assign shortcuts, but their "
+                    + "names and behavior cannot be edited or deleted.",
+                systemImage: "checkmark.shield",
+                tint: .green
+            )
+
+            SettingsCard(header: "Built-in Commands") {
+                ForEach(Array(SystemCommandCatalog.all.enumerated()), id: \.element.id.rawValue) {
+                    index, command in
+                    if index > 0 { SettingsDivider() }
+                    SettingsRow(
+                        title: command.name,
+                        subtitle: command.confirmation == .required
+                            ? "Built in · Asks before running" : "Built in",
+                        systemImage: command.sfSymbol,
+                        tint: .green
+                    ) {
+                        ShortcutRecorder(action: .plugin(.systemCommand(command.id)))
+                    }
+                }
+            }
+
+            SettingsCallout(
+                title: "Destructive built-in commands always confirm",
+                message:
+                    "Restart, Shut Down, Log Out, Empty Trash and Quit All Applications require "
+                    + "confirmation, with Return initially bound to Cancel.",
+                systemImage: "exclamationmark.shield"
+            )
+
             SettingsCallout(
                 title: "Commands run with your user account.",
                 message:
@@ -20,7 +73,7 @@ struct CustomCommandsSettingsView: View {
                 tint: .green
             )
 
-            SettingsCard(header: "Commands") {
+            SettingsCard(header: "Custom Commands") {
                 if store.commands.isEmpty {
                     SettingsRow(
                         title: "No custom commands",

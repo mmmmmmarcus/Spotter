@@ -82,11 +82,10 @@ the last and keeps only what it looked at, so uninstalled apps fall out instead 
 
 ## Commands
 
-`CustomCommandStore` supplies user-authored entries to `AppIndex` without joining the off-main
-application scan. `PluginRegistry` supplies commands from enabled native plugins — a static slice
-per registration plus a runtime-varying one from `dynamicLauncherCommands` (a user's saved
-quicklinks), republished by `reloadDynamicCommands(for:)` whenever the owning store changes. Core,
-plugin and custom commands are alphabetized into the same final section, so they reuse fuzzy
+`PluginRegistry` supplies commands from enabled native plugins — a static slice per registration plus
+a runtime-varying one from `dynamicLauncherCommands` (a user's saved quicklinks or shell commands),
+republished by `reloadDynamicCommands(for:)` whenever the owning store changes. Core and plugin
+commands are alphabetized into the same final section, so they reuse fuzzy
 ranking, favorites, visibility, keycap rendering and the launcher's flat selection; the registry's
 entries win over a `CommandRegistry` id they republish (quit-all). Toggling a plugin rebuilds only
 this in-memory command slice; it does not rescan applications.
@@ -99,9 +98,9 @@ visibility exactly once, after which the normal visibility store and System → 
 choice. Change Case uses this for its 21 direct transformations and Window Management for 20 of its 30
 commands, so the default command list stays compact.
 
-Only the display name is indexed. Activation resolves the stable UUID through the store and dispatches
-to `ShellCommandRunner`; see [custom-commands.md](custom-commands.md) for persistence, hotkeys and
-execution semantics.
+For the Commands plugin, only the display name is indexed. Activation resolves the stable UUID through
+the store and dispatches to `ShellCommandRunner`; see [custom-commands.md](custom-commands.md) for
+persistence, toggling, hotkeys and execution semantics.
 
 Plugin command activation routes through the registration's in-process closure; see
 [plugins.md](plugins.md). It never goes through the custom shell-command runner.
@@ -130,9 +129,9 @@ running dot and the availability of the quit actions:
   `AppLauncher.quit(bundleID:)` terminates every instance of the bundle and reports whether
   anything was running; the palette only dismisses when something was, and it restores focus unless
   the app it just quit *was* `previousApp`.
-- **Quit All Applications** — normally the System Commands plugin's command (`AppCore.runCommand`
+- **Quit All Applications** — normally the Commands plugin's read-only built-in (`AppCore.runCommand`
   dispatches `plugins.performCommand` first, and `AppIndex.publishEntries` drops the registry's
-  duplicate id while the plugin publishes it). With that plugin disabled, the `CommandRegistry`
+  duplicate id while Commands publishes it). With Commands disabled, the `CommandRegistry`
   fallback runs `AppCore.quitAllApps()`: `AppLauncher.quitAllTargets()` is the policy (every
   `.regular` app except Finder — `terminate()` only relaunches it — and Spotter, excluded by PID
   because About/Settings temporarily flips it to `.regular`), the list resolves **once**, the

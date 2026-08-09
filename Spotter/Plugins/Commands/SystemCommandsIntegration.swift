@@ -1,45 +1,7 @@
 import AppKit
 import SwiftUI
 
-extension PluginActionKey {
-    static func systemCommand(_ id: SystemCommand.ID) -> PluginActionKey {
-        standard(
-            pluginID: .systemCommands, actionID: id.rawValue,
-            title: SystemCommandCatalog.all.first { $0.id == id }?.name ?? id.rawValue)
-    }
-}
-
-@MainActor
-enum SystemCommandsPlugin {
-    static func registration(core: AppCore) -> PluginRegistration {
-        PluginRegistration(
-            metadata: PluginMetadata(
-                id: .systemCommands,
-                name: "System Commands",
-                summary: "macOS actions in the launcher: lock, sleep, volume, Bluetooth, trash and more.",
-                systemImage: "switch.2",
-                tint: .teal),
-            defaultEnabled: true,
-            // Media keys and Dismiss Notifications drive the Accessibility API; the AppleScript commands prompt for Automation on first use.
-            permissions: [.accessibility, .automation],
-            shortcutActions: SystemCommandCatalog.all.map { command in
-                PluginActionRegistration(key: .systemCommand(command.id)) {
-                    core.runSystemCommand(command.id)
-                }
-            },
-            launcherCommands: SystemCommandCatalog.all.map { command in
-                PluginCommandRegistration(
-                    id: command.entryID,
-                    name: command.name,
-                    systemImage: command.sfSymbol,
-                    actionKey: .systemCommand(command.id)
-                ) { core.runSystemCommand(command.id) }
-            },
-            settingsView: { AnyView(SystemCommandsSettingsView()) })
-    }
-}
-
-/// Confirmation and failure UI for system commands. Kept beside the plugin rather than in `AppCore`, so the destructive-command gate lives with the commands it guards.
+/// Confirmation and failure UI for built-ins. Kept inside Commands rather than `AppCore`, so the destructive-command gate lives with the commands it guards.
 @MainActor
 enum SystemCommandPresenter {
     static func presentFailure(name: String, failure: SystemCommandFailure) {
@@ -77,7 +39,7 @@ enum SystemCommandPresenter {
 extension AppCore {
     /// The one funnel both palette activation and the global shortcut reach, so no path can skip the confirmation.
     func runSystemCommand(_ id: SystemCommand.ID) {
-        guard plugins.isEnabled(.systemCommands),
+        guard plugins.isEnabled(.commands),
             let command = SystemCommandCatalog.all.first(where: { $0.id == id })
         else { return }
         if command.confirmation == .required {

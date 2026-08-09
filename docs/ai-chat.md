@@ -12,9 +12,11 @@ blanks. Earlier conversations live in the **session menu**: the bottom-left pale
 mode lists sessions newest-first (titled by their first user turn, the Notes derive-don't-ask rule)
 plus New Session (also **⌘N** anywhere in chat), and the ⌘K menu adds Delete Session.
 
-Enabled by default, but inert without an OpenRouter API key — the key is the gate, shared with
-Selection Tools and entered there once (the same owner decision: entering or syncing a key is the
-consent act). Files live in `Spotter/Plugins/AIChat/`.
+AI Chat is an always-available application feature shown in Settings → Features, but remains inert
+without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
+or syncing a key is the consent act). AI Chat also owns Translate, Define and Check Grammar for
+selected text. Its implementation lives in `Spotter/Plugins/AIChat/` so it can reuse the registry's
+Settings, command, permission and shortcut plumbing without being presented as an optional plugin.
 
 ## Files
 
@@ -22,20 +24,22 @@ consent act). Files live in `Spotter/Plugins/AIChat/`.
 | --- | --- |
 | `AIChatTypes.swift` | Foundation-only, pure: the message model, the system prompt, transcript windowing. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
+| `AIChatSelectionPrompts.swift` | Foundation-only target-language and follow-up-aware prompt construction. |
 | `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
 | `AIChatView.swift` | The transcript body, in the palette's own list chrome. |
-| `AIChatSettingsView.swift` | Enable switch, chat model, shortcut, privacy callout. |
+| `AIChatSettingsView.swift` | Models, prompts, shortcuts and web-search setting. |
 
-`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift` standalone, so it must stay free of AppKit
-and SwiftUI. The network lives in `OpenRouterStore`, never here.
+`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift` and `AIChatSelectionPrompts.swift`
+standalone, so both stay free of AppKit and SwiftUI. The network lives in `OpenRouterStore`, never
+in either pure source.
 
 ## Interaction
 
 - **↵ sends** whatever is typed and clears the field; the reply appends when it lands. While a reply
   is in flight the footer pill reads "Thinking…" and a pulsing status row sits under the transcript.
 - The transcript keeps the newest content pinned to the bottom, user turns render as right-aligned
-  bubbles (`chatBubble` radius, `controlSurface` fill), assistant turns as plain leading result
-  text, and everything is text-selectable.
+  bubbles (`chatBubble` radius, `controlSurface` fill), assistant turns as unadorned leading result
+  text without an icon, and everything is text-selectable.
 - **⌘K**: Stop Waiting (while in flight), Copy Last Reply, Copy Conversation, New Session, Delete
   Session, a Web Search on/off toggle, and AI Chat Settings…
 - **Esc** backs out to the launcher (the standard ladder); the conversation survives, and re-entering
@@ -44,6 +48,27 @@ and SwiftUI. The network lives in `OpenRouterStore`, never here.
   conversation flow is not a filter-a-list interaction, and the emoji grid is the precedent for a
   mode with its own body view while the plugin carries enable state, the launcher command and the
   shortcut.
+
+## Selected-text conversations
+
+AI Chat registers Translate Selected Text, Define Selected Text and Check Selected Text Grammar. The
+actions retain their old `KeyboardShortcuts_plugin.selection-tools.*` defaults keys and launcher
+command IDs, so existing shortcut bindings and launcher visibility survive the ownership move. New
+backup exports identify them under AI Chat; imports also accept the former Selection Tools IDs.
+
+Both global shortcuts and launcher commands use the `AppCore`-owned `SelectedTextCapture`. A
+successful capture creates a new titled chat session, renders the selected text as its first user
+bubble and sends it immediately. Translation locally detects the source language and targets the
+first different preferred system language; definition remains English + Simplified Chinese; grammar
+returns corrected text followed by concise explanations. The first reply uses the action-specific
+model, while later composer messages use the chat model and retain the action's system prompt. This
+keeps the existing quick first answer and makes follow-up questions part of the same context.
+
+The three models and prompts are configured in Settings → Features → AI Chat. Prompt persistence keeps
+the former `selection-tools.*-prompt` keys and backup fields so customizations migrate without a data
+rewrite. The new defaults explicitly distinguish the first selected-text turn from later follow-ups.
+Capture and missing-key failures render as chat status rows instead of opening the former Selection
+Tools result list.
 
 ## Requests
 
@@ -61,7 +86,7 @@ Settings → Diagnostics.
 
 ## Web search
 
-An optional per-chat capability, off by default: when enabled (Settings → AI Chat, or the ⌘K
+An optional per-chat capability, off by default: when enabled (Settings → Features → AI Chat, or the ⌘K
 toggle), requests carry OpenRouter's Exa-backed `web` plugin (`plugins: [{id: "web"}]`, 5 results),
 letting replies cite current information. It rides the same key and the same consented request to
 the same provider — no new network surface — but each search adds a small per-message cost, which is

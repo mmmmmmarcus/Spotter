@@ -83,6 +83,29 @@ struct AIChatTests {
             AIChatMessage.Role.user.rawValue == "user"
                 && AIChatMessage.Role.assistant.rawValue == "assistant")
 
+        check(
+            "selection translation targets the first preferred language",
+            AIChatSelectionPrompts.targetLanguage(
+                preferred: ["zh-Hans-CN", "en-US"], detectedSource: "en") == "zh")
+        check(
+            "selection translation skips the source language",
+            AIChatSelectionPrompts.targetLanguage(
+                preferred: ["zh-Hans-CN", "en-US"], detectedSource: "zh") == "en")
+        check(
+            "selection translation falls back to English",
+            AIChatSelectionPrompts.targetLanguage(
+                preferred: ["fr-FR"], detectedSource: "fr") == "en")
+        check(
+            "translation prompt expands the target language",
+            AIChatSelectionPrompts.translation(
+                template: "Use {{target_language}} only.", targetLanguageName: "Japanese")
+                == "Use Japanese only.")
+        check(
+            "selected-text prompts invite follow-ups",
+            AIChatSelectionPrompts.defaultTranslation.contains("later messages")
+                && AIChatSelectionPrompts.defaultDefinition.contains("follow-up")
+                && AIChatSelectionPrompts.defaultGrammar.contains("later messages"))
+
         print(failures == 0 ? "\nAI Chat: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

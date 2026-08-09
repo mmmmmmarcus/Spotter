@@ -1,7 +1,7 @@
-# System Commands plugin
+# Built-in system commands
 
-30 everyday macOS actions in the launcher — ported from Tinycast #107 and adapted to the plugin
-contract. Ships **enabled**.
+The Commands plugin includes 30 read-only everyday macOS actions — ported from Tinycast #107 and
+adapted to the plugin contract. Users can assign shortcuts, but cannot edit or delete these built-ins.
 
 ## What's covered
 
@@ -32,16 +32,32 @@ uses `defaultVisible: false`.
 
 ## Permissions
 
-The registration declares both `.accessibility` (media keys, Dismiss Notifications) and
-`.automation` (the System Events / Finder AppleScripts), so System → Permissions lists the plugin
-under each. A denial comes back as a typed `SystemCommandFailure.settings`, and the failure alert
-offers the matching Settings pane rather than just reporting the error.
+Commands declares both `.accessibility` (media keys, Dismiss Notifications) and `.automation` (the
+System Events / Finder AppleScripts), so System → Permissions lists Commands under each. A denial
+comes back as a typed `SystemCommandFailure.settings`, and the failure alert offers the matching
+Settings pane rather than just reporting the error.
 
 ## Layout
 
-- `SystemCommand.swift` — Foundation-only catalog: IDs, names, symbols, confirmation policy. Quit
+- `Commands/SystemCommand.swift` — Foundation-only catalog: IDs, names, symbols, confirmation policy. Quit
   All keeps its legacy `command:quit-all-apps` entry ID so existing favorites, visibility and
   learned ranking survive.
-- `SystemCommandRunner.swift` — every platform side effect, off the main actor where it blocks.
-- `SystemCommandsPlugin.swift` — registration, the confirmation/failure presenter, `AppCore` funnel.
-- `SystemCommandsSettingsView.swift` — enable switch plus a shortcut recorder per command.
+- `Commands/SystemCommandRunner.swift` — every platform side effect, off the main actor where it blocks.
+- `Commands/SystemCommandsIntegration.swift` — confirmation/failure presentation and the `AppCore` funnel.
+- `Commands/CommandsPlugin.swift` — one registration for built-ins and dynamic custom commands.
+- `Commands/CustomCommandsSettingsView.swift` — read-only built-in rows plus editable custom commands.
+
+The shortcut action now belongs to the Commands plugin, but deliberately retains its old
+`KeyboardShortcuts_plugin.system-commands.*` defaults key so an upgrade never drops an existing
+binding. Backup import likewise accepts the former `system-commands.<action>` identifier.
+
+## Testing
+
+```sh
+swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
+    Spotter/Plugins/Commands/SystemCommand.swift Tools/commands-test.swift \
+    -o /tmp/commands-test && /tmp/commands-test
+```
+
+The harness pins the built-in count, stable launcher IDs, mandatory confirmation set, Commands
+ownership and legacy shortcut-storage keys without executing a system action.

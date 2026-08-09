@@ -83,7 +83,21 @@ final class PluginRegistry: ObservableObject {
     }
 
     var plugins: [PluginMetadata] {
-        orderedIDs.compactMap { registrations[$0]?.metadata }
+        orderedIDs.compactMap { id in
+            guard let metadata = registrations[id]?.metadata,
+                metadata.settingsPlacement == .plugin
+            else { return nil }
+            return metadata
+        }
+    }
+
+    var applicationFeatures: [PluginMetadata] {
+        orderedIDs.compactMap { id in
+            guard let metadata = registrations[id]?.metadata,
+                metadata.settingsPlacement == .application
+            else { return nil }
+            return metadata
+        }
     }
 
     var shortcutActions: [PluginActionKey] {

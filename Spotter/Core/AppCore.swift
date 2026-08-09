@@ -154,6 +154,7 @@ final class AppCore: ObservableObject {
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
     let openRouter = OpenRouterStore()
+    let selectedTextCapture = SelectedTextCapture()
     let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
@@ -180,7 +181,7 @@ final class AppCore: ObservableObject {
         let textReplacements = TextReplacementStore()
         self.textReplacements = textReplacements
         textReplacementManager = TextReplacementManager(store: textReplacements)
-        selectionTools = SelectionToolsManager(openRouter: openRouter)
+        selectionTools = SelectionToolsManager()
         aiChat = AIChatStore(openRouter: openRouter)
         quicklinkManager = QuicklinkManager(store: quicklinks)
         for registration in BuiltInPlugins.registrations(core: self) {
@@ -218,10 +219,9 @@ final class AppCore: ObservableObject {
             UserDefaults.standard.set(true, forKey: installerMigration)
         }
         appIndex.setPluginCommands(plugins.launcherCommands)
-        customCommands.onChange = { [weak self] commands in
-            self?.appIndex.setCustomCommands(commands)
+        customCommands.onChange = { [weak self] _ in
+            self?.plugins.reloadDynamicCommands(for: .commands)
         }
-        appIndex.setCustomCommands(customCommands.commands)
         quicklinks.onChange = { [weak self] in
             QuicklinkManager.invalidateOpenerCache()
             self?.plugins.reloadDynamicCommands(for: .quicklinks)
@@ -235,11 +235,11 @@ final class AppCore: ObservableObject {
         plugins.start()
         settingsSync.start(core: self)
 
-        // Selection Tools' ⌘C fallback borrows the pasteboard briefly; pause history capture around it so the transient copy and restore never enter clipboard history.
-        selectionTools.suspendClipboardCapture = { [weak self] in
+        // Selected-text actions borrow the pasteboard only as a last resort; keep that transient copy and restore out of history.
+        selectedTextCapture.suspendClipboardCapture = { [weak self] in
             self?.clipboardManager.beginSuppressingCapture()
         }
-        selectionTools.resumeClipboardCapture = { [weak self] in
+        selectedTextCapture.resumeClipboardCapture = { [weak self] in
             self?.clipboardManager.endSuppressingCapture()
         }
 
@@ -498,7 +498,9 @@ final class AppCore: ObservableObject {
 
     /// The one funnel for both palette activation and the command's global hotkey, so the confirmation gate can't be bypassed by either.
     func runCustomCommand(id: UUID) {
-        guard let command = customCommands.command(id: id) else { return }
+        guard plugins.isEnabled(.commands),
+            let command = customCommands.command(id: id)
+        else { return }
         if command.requiresConfirmation {
             confirmInPalette(
                 PaletteConfirmation(
@@ -567,7 +569,7 @@ final class AppCore: ObservableObject {
         alert.addButton(withTitle: "OK")
         if suggestsShellEnvironment { alert.addButton(withTitle: "Open Settings…") }
         guard alert.runModal() == .alertSecondButtonReturn else { return }
-        showSettings(tab: .customCommands)
+        showSettings(plugin: .commands)
     }
 
     /// Quits the app behind an entry; a no-op (palette stays put) when it isn't running.

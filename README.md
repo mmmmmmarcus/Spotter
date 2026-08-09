@@ -67,10 +67,8 @@ brew install --cask spotter@beta     # beta  (installs side-by-side)
 Each channel is a separate app (`Spotter.app`, `Spotter Beta.app`) with its own settings and
 permissions, so you can run stable next to the beta.
 
-Spotter is self-signed. Installing via Homebrew clears the macOS quarantine flag for you
-automatically on every install and update, so there's nothing to run. (If you download the DMG
-directly from Releases instead, clear it once: `xattr -dr com.apple.quarantine
-"/Applications/Spotter.app"`.)
+Public releases are signed with Developer ID and notarized by Apple. Both Homebrew installs and DMGs
+downloaded directly from Releases pass Gatekeeper without clearing quarantine attributes.
 
 ## Permissions
 
@@ -78,7 +76,7 @@ directly from Releases instead, clear it once: `xattr -dr com.apple.quarantine
 such as Change Case. You're prompted on first use.
 
 **Automation** — used only when a command asks another app to act: Image Modification can read
-Finder's current selection, and some System Commands control macOS apps. Manage these grants in
+Finder's current selection, and some built-in Commands control macOS apps. Manage these grants in
 **System Settings → Privacy & Security**.
 
 ## Using it

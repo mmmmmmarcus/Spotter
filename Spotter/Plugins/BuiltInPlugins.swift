@@ -8,6 +8,7 @@ enum BuiltInPlugins {
             TextReplacementPlugin.registration(core: core),
             NotePlugin.registration(core: core),
             QuicklinksPlugin.registration(core: core),
+            CommandsPlugin.registration(core: core),
             AIChatPlugin.registration(core: core),
             EmojiSymbolsPlugin.registration(core: core),
             WorldClockPlugin.registration(core: core),
@@ -16,7 +17,6 @@ enum BuiltInPlugins {
             SelectionToolsPlugin.registration(core: core),
             ImageModificationPlugin.registration(core: core),
             WindowManagementPlugin.registration(core: core),
-            SystemCommandsPlugin.registration(core: core),
             MolePlugin.registration(core: core),
             CoffeePlugin.registration(core: core),
         ]

@@ -217,7 +217,7 @@ final class UpdateStore: ObservableObject {
         }
     }
 
-    /// The trust anchor: the new bundle must satisfy the running app's designated requirement — the same `Spotter Self-Signed` certificate — or it is not installed. A hijacked release asset fails here.
+    /// The trust anchor: the new bundle must satisfy the running app's designated requirement or it is not installed.
     private nonisolated static func verifySignature(of newApp: URL, matching current: URL) throws {
         var currentCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(current as CFURL, [], &currentCode) == errSecSuccess,

@@ -26,6 +26,7 @@ Spotter/Plugins/
 ├── TextReplacement/
 ├── Note/
 ├── Quicklinks/
+├── Commands/
 ├── AIChat/
 ├── EmojiSymbols/
 ├── WorldClock/
@@ -34,7 +35,6 @@ Spotter/Plugins/
 ├── SelectionTools/
 ├── ImageModification/
 ├── WindowManagement/
-├── SystemCommands/
 ├── Mole/
 └── Coffee/
 ```
@@ -62,8 +62,8 @@ The shared integration points are:
 - `Spotter/Plugins/Infrastructure/PluginRegistry.swift` — ordered registration, persisted enable
   state, lifecycle, settings factories, command routing and the enabled query-provider cache.
 - `Spotter/Plugins/BuiltInPlugins.swift` — one ordered entry per compiled plugin.
-- `Spotter/Features/Settings/SettingsRootView.swift` — System and Plugins sidebar groups generated
-  from the registry.
+- `Spotter/Features/Settings/SettingsRootView.swift` — the fixed System group plus registry-generated
+  Features and Plugins groups.
 
 Catalog order is user-visible in Settings and also determines query priority: the first enabled
 provider that claims a query wins. Choose the order deliberately and make providers reject unrelated
@@ -87,11 +87,15 @@ is optional:
 - `launcherCommands.iconFilePath` points a command row at a bundle to draw its icon from, instead of
   the SF Symbol tile commands normally get. A quicklink uses it to show the icon of the app that
   opens it.
-- `dynamicLauncherCommands` contributes entries that change at runtime — a user's saved quicklinks —
-  and is re-read on every rebuild instead of captured once. Call
+- `dynamicLauncherCommands` contributes entries that change at runtime — such as a user's saved
+  quicklinks or shell commands — and is re-read on every rebuild instead of captured once. Call
   `PluginRegistry.reloadDynamicCommands(for:)` whenever the underlying store changes; registration
   seeds the routing table so entries restored from disk are launchable before any change fires.
-- `canDisable` (default true) pins a plugin on; nothing currently sets it false.
+- `metadata.settingsPlacement` places a registration under Settings → Features or Settings → Plugins.
+  Application features may reuse the registry's command, shortcut and Settings routing without being
+  presented as optional plugins.
+- `canDisable` (default true) pins a registration on. AI Chat sets it false because it is an
+  application feature rather than an optional plugin.
 - `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
   renders the recorded keycap.
 - `queryProvider` contributes a synchronous inline result provider.
@@ -229,8 +233,17 @@ enum ExamplePlugin {
 }
 ```
 
-Plugin commands are signed application actions. System → Commands remains the user-authored
+Plugin commands are signed application actions. The Commands plugin is the user-authored
 shell-command feature; do not use shell commands as an internal plugin API.
+
+## Application features
+
+- **AI Chat** (`Spotter/Plugins/AIChat/`) — an always-available application feature shown under
+  Settings → Features. It reuses plugin infrastructure for Settings routing, commands, permissions
+  and shortcuts, but cannot be disabled and does not export an enable state. It remains inert without
+  the shared OpenRouter key. Tab from the launcher always opens a fresh session and sends any typed
+  query immediately; selected-text translation, definition and grammar checks start follow-up-ready
+  conversations.
 
 ## Current plugins
 
@@ -249,10 +262,11 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — enabled by default; user-saved links, files and
   deep links published as launcher entries through `dynamicLauncherCommands`, with `{argument}`
   placeholders collected one step at a time on a palette screen using `livePlaceholder`.
-- **AI Chat** (`Spotter/Plugins/AIChat/`) — enabled by default, inert without the shared OpenRouter
-  key; in-memory conversation sessions rendered by the core `PaletteMode.aiChat` (the emoji-grid
-  precedent for a custom-body mode). Tab from the launcher always opens a fresh session and sends
-  any typed query immediately; the bottom-left menu is the session list in this mode.
+- **Commands** (`Spotter/Plugins/Commands/`) — enabled by default; provides 30 read-only built-in
+  macOS actions and publishes the user's editable persisted shell commands through
+  `dynamicLauncherCommands`. Disabling it preserves custom commands and every binding, removes both
+  command sources from the launcher, and makes their global shortcuts no-op; a custom command already
+  running is not terminated.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
@@ -262,18 +276,14 @@ shell-command feature; do not use shell commands as an internal plugin API.
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
-- **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — enabled by default; four independent selected-text actions:
-  Google Search in the default browser, plus AI translation, bilingual definition and grammar
-  checking (OpenRouter) presented through one asynchronous shared palette screen. Each AI action's
-  model and prompt are user-configurable.
+- **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — enabled by default; captures selected
+  text and opens a Google Search in the default browser. Its former AI actions now belong to AI Chat.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — enabled by default; local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins.
 - **Window Management** (`Spotter/Plugins/WindowManagement/`) — enabled by default; 30 commands
   covering halves, quarters, thirds, sizing, display moves and fullscreen, on a pure geometry engine
   with an AX mover.
-- **System Commands** (`Spotter/Plugins/SystemCommands/`) — enabled by default; 30 macOS actions
-  with confirmation on the destructive ones.
 - **Mole** (`Spotter/Plugins/Mole/`) — enabled by default (idle until the CLI is installed); a
   launcher front end for the Mole CLI with no Terminal hand-off — the installer screen is Spotter's
   own scan and native Trash. Launcher app rows offer **Uninstall with Mole** through the same
@@ -286,6 +296,6 @@ shell-command feature; do not use shell commands as an internal plugin API.
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
-[Window Management](window-management.md), [System Commands](system-commands.md),
+[Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md), and
 [Notes](notes.md), plus [Text Replacement](text-replacement.md).

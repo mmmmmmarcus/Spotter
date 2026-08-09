@@ -1,8 +1,12 @@
-# Custom commands
+# Commands plugin
 
-Custom commands let users add a searchable name and a shell command in **Settings → Custom
-Commands**. They appear in the launcher's Commands section, share the normal fuzzy ranking, and run
-from Return, a favorite slot, or an optional global shortcut.
+Commands combines two command sources in **Settings → Plugins → Commands**:
+
+- 30 read-only built-in macOS actions maintained by Spotter, each with an optional shortcut.
+- User-authored shell commands that can be added, edited and deleted.
+
+Both appear in the launcher's Commands section and share normal fuzzy ranking. Built-ins execute
+through native system-command routes; only user-authored commands reach the shell runner.
 
 ## Ownership and persistence
 
@@ -16,16 +20,23 @@ goes through `AppCore`, which unregisters the hotkey and clears those references
 command. Native settings backups include both commands and bindings; import warns before accepting
 executable content.
 
+`CommandsPlugin` owns the feature registration and Settings view. Disabling it withdraws both the
+built-in and custom launcher entries and makes their hotkeys no-op. It leaves the custom-command
+store, UUIDs, favorites, visibility, hotkeys and backup data intact. Re-enabling republishes the same
+entries. A custom process that was already launched continues under the existing no-timeout
+execution contract.
+
 ## Launcher integration
 
-`AppIndex` combines three sources: applications/System Settings discovered off-main, signed in-process
-commands from `CommandRegistry` and enabled plugins, and user-authored custom command entries supplied
-on the main actor. It publishes one alphabetized command slice after discovered apps. This keeps the
-visible row order identical to the flat palette selection while allowing plugin toggles or command
-edits to invalidate fuzzy results without rescanning disk.
+`AppIndex` combines applications/System Settings discovered off-main with signed in-process commands
+from `CommandRegistry` and enabled registrations. Commands publishes user-authored entries through
+`dynamicLauncherCommands`, then calls `reloadDynamicCommands(for: .commands)` when the store changes.
+The index publishes one alphabetized command slice after discovered apps. This keeps the visible row
+order identical to the flat palette selection while allowing plugin toggles or command edits to
+invalidate fuzzy results without rescanning disk.
 
-Plugin commands are native closures registered through `PluginRegistry`; only user-authored Custom
-Commands reach `ShellCommandRunner`.
+Built-in commands are native closures registered through `PluginRegistry`; only user-authored custom
+commands reach `ShellCommandRunner`.
 
 The command text is deliberately not searchable. Only the user-facing name enters fuzzy matching.
 
@@ -82,7 +93,7 @@ hotkeys keep firing, so a re-entrancy flag stops a held shortcut stacking alerts
 Spotter dismisses an open palette before starting a custom command. A zero exit status is silent; a
 launch failure or non-zero status activates Spotter and shows the bounded error detail. When the
 status is 127 and **Load shell environment** is off, the alert adds a one-line hint and an **Open
-Settings…** button that lands on the Commands pane — the hint is gated on the status alone, not
+Settings…** button that lands on the Commands plugin pane — the hint is gated on the status alone, not
 on grepping stderr, since 127 is equally a plain typo. The command string itself is never logged.
 
 ### Manual checks

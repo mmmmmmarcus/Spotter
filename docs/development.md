@@ -98,6 +98,9 @@ swiftc -swift-version 6 Spotter/Core/CustomCommand.swift \
     Spotter/Core/ShellCommandRunner.swift Tools/custom-command-test.swift \
     -o /tmp/custom-command-test && /tmp/custom-command-test        # custom command store + runner
 swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
+    Spotter/Plugins/Commands/SystemCommand.swift Tools/commands-test.swift \
+    -o /tmp/commands-test && /tmp/commands-test                    # built-in command catalog + compatibility
+swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
     Spotter/Plugins/WorldClock/WorldClockEngine.swift \
     Spotter/Plugins/WorldClock/WorldClockStore.swift Tools/world-clock-test.swift \
     -o /tmp/world-clock-test && /tmp/world-clock-test              # world-clock engine + store
@@ -106,9 +109,8 @@ swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
 swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
     Tools/change-case-test.swift -o /tmp/change-case-test && /tmp/change-case-test
 swiftc -swift-version 6 \
-    Spotter/Plugins/SelectionTools/SelectionToolsTypes.swift \
     Spotter/Plugins/SelectionTools/SearchURLBuilder.swift \
-    Spotter/Plugins/SelectionTools/SelectionLLM.swift Tools/selection-tools-test.swift \
+    Tools/selection-tools-test.swift \
     -o /tmp/selection-tools-test && /tmp/selection-tools-test
 swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageIO -framework Vision \
     Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
@@ -131,7 +133,8 @@ swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift Tools/mole-test.swi
     -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
-swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift Tools/ai-chat-test.swift \
+swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
+    Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Tools/ai-chat-test.swift \
     -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # chat transcript windowing
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
@@ -153,9 +156,9 @@ injects a fixed date, calendar, local time zone and isolated `UserDefaults` suit
 formatting and saved-city checks never depend on the wall clock or the user's preferences.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
-real Foundation-only transformer. Selection Tools tests URLComponents encoding, request
-generation/cancellation, bilingual definition state and the customizable pure LLM prompt/response
-logic without opening a browser or sending text over the network.
+real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a
+browser; AI Chat tests transcript windowing plus the selected-text target-language and prompt logic
+without sending text over the network.
 Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory.
 
@@ -213,47 +216,55 @@ source.
 
 ## Packaging a DMG
 
-For a local signed DMG:
+For a local Developer ID-signed and Apple-notarized DMG, first import the Release identity and store
+the `spotter-notary` credentials described in [signing.md](signing.md), then run:
 
 ```sh
 ./build-dmg.sh            # -> build/Spotter-<version>.dmg (version from project.yml)
-./build-dmg.sh 0.5.7      # -> build/Spotter-0.5.7.dmg
 ```
 
-It builds a Release `Spotter.app` signed with `Spotter Self-Signed` and packs it (with an
-`/Applications` symlink). Official per-channel releases (beta/stable) are built by CI — see
-below and [`.github/workflows/release.yml`](../.github/workflows/release.yml).
+It builds a Release `Spotter.app`, verifies its Developer ID signature and Hardened Runtime,
+notarizes and staples the app, then signs, notarizes and staples a DMG containing the app and an
+`/Applications` symlink. Official per-channel releases (beta/stable) are built by CI — see below and
+[`.github/workflows/release.yml`](../.github/workflows/release.yml).
 
 ## Signing & Gatekeeper
 
-Both local builds and CI releases sign with the same stable `Spotter Self-Signed` identity (not an
-Apple Developer ID), so macOS quarantines a directly-downloaded DMG — the Homebrew cask strips that
-automatically, and direct downloaders run `xattr -dr com.apple.quarantine "…/Spotter.app"` once.
-Full details in [signing.md](signing.md).
+Debug builds retain the stable `Spotter Self-Signed` identity so contributors can build locally and
+keep TCC grants across rebuilds. Release builds use the company Developer ID identity, Hardened
+Runtime, a secure timestamp and Apple notarization, so directly downloaded DMGs pass Gatekeeper.
+Full credential setup, verification and migration details are in [signing.md](signing.md).
 
 ## In-app updates
 
 `Core/UpdateStore.swift` checks the GitHub Releases feed (daily behind an explicit consent toggle;
 Check for Updates in Settings → General is itself the user action) and installs in place: download
 the release's `Spotter-<version>.zip`, unpack with `ditto`, verify the new bundle satisfies the
-running app's **designated requirement** (the `Spotter Self-Signed` certificate — a hijacked asset
-fails here), stage beside `/Applications/Spotter.app`, remove-and-rename, relaunch. The working
-install is never deleted before its replacement is fully staged. `URLSession` downloads carry no
-quarantine flag, so an updated app launches without a Gatekeeper prompt. Releases published before
-the zip asset existed fall back to a "View release" button. `Core/UpdateFeed.swift` (semver +
-feed selection) is Foundation-only and pure for `Tools/update-test.swift`.
+running app's **designated requirement**, stage beside `/Applications/Spotter.app`,
+remove-and-rename, relaunch. The working install is never deleted before its replacement is fully
+staged. The first Developer ID release requires a manual install for users migrating from the old
+self-signed identity; subsequent releases share the Developer ID requirement and update normally.
+`URLSession` downloads carry no quarantine flag, and the zip contains the same notarized, stapled app
+as the DMG. Releases published before the zip asset existed fall back to a "View release" button.
+`Core/UpdateFeed.swift` (semver + feed selection) is Foundation-only and pure for
+`Tools/update-test.swift`.
 
 ## CI releases
 
 `.github/workflows/release.yml` builds and publishes a DMG from GitHub Actions — no local machine
-needed. Run it from the **Actions** tab (`Release` → **Run workflow**) and pick:
+needed. `MARKETING_VERSION` in `project.yml` is the release version's single source of truth. Change
+it, run `xcodegen generate`, commit both files, and run the repository's `$spotter-release` skill to
+perform the release preflight. Then use the **Actions** tab (`Release` → **Run workflow**) and pick:
 
 - **channel** — `beta` or `stable`. Beta builds `Spotter Beta.app` with its own bundle id so it can
   run beside stable; stable builds the same `Spotter.app` / `com.spotter.app` identity a local
   Debug build produces (there is no separate dev app — see "Local builds install as the one
   Spotter.app" above). Beta gets an auto-incrementing `-beta.N` suffix (`N` = the Actions run
   number) so re-running never collides; stable ships the version as-is.
-- **version** — base semver, e.g. `0.2.0`.
+
+Stable releases are accepted only from the default branch. The workflow reads and validates the
+numeric `x.y.z` version from `project.yml` and stops if its target tag already exists. The website's
+offline fallback version is kept in sync by the release preflight.
 
 It builds on a `macos-26` runner with Xcode 26 and publishes a GitHub Release tagged
 `v<full-version>` with two assets: the DMG (`Spotter-<full-version>.dmg`) and the zip
@@ -261,6 +272,10 @@ It builds on a `macos-26` runner with Xcode 26 and publishes a GitHub Release ta
 On success it also bumps the matching cask in the tap (below, gated on `HOMEBREW_TAP_TOKEN`) and
 posts a Discord announcement (gated on `DISCORD_WEBHOOK_URL`); both steps skip with a warning when
 their secret is unset.
+
+Before a release, configure the Developer ID `.p12` and App Store Connect notarization secrets listed
+in [signing.md](signing.md). The workflow fails before publishing unless both the app and DMG pass
+signature, Hardened Runtime, notarization, stapling and Gatekeeper checks.
 
 ### Homebrew tap automation
 

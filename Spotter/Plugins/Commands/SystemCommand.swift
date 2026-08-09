@@ -139,3 +139,14 @@ enum SystemCommandCatalog {
         }
     }
 }
+
+extension PluginActionKey {
+    static func systemCommand(_ id: SystemCommand.ID) -> PluginActionKey {
+        PluginActionKey(
+            pluginID: .commands,
+            actionID: "system." + id.rawValue,
+            title: SystemCommandCatalog.all.first { $0.id == id }?.name ?? id.rawValue,
+            // Keep the old key verbatim so existing system-command shortcuts survive the merge.
+            defaultsKey: "KeyboardShortcuts_plugin.system-commands." + id.rawValue)
+    }
+}

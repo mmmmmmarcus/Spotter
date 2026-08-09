@@ -12,8 +12,8 @@ struct AIChatView: View {
     var body: some View {
         if !chat.isReady {
             EmptyResults(
-                text: "AI Chat needs an OpenRouter API key — add one in Settings → Selection Tools.")
-        } else if chat.messages.isEmpty {
+                text: "AI Chat needs an OpenRouter API key — add one in Settings → General → AI.")
+        } else if chat.messages.isEmpty && chat.phase == .idle {
             EmptyResults(text: "Ask anything — the conversation lasts until you clear it or quit.")
         } else {
             transcript
@@ -80,19 +80,11 @@ private struct AIChatRow: View {
             }
             .padding(.horizontal, Theme.Spacing.md)
         } else {
-            HStack(alignment: .top, spacing: Theme.Spacing.lg) {
-                Image(systemName: "sparkles")
-                    .font(Theme.Typography.rowTrailing)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
-                    .frame(width: Theme.Size.rowIcon, alignment: .center)
-                    .padding(.top, 1)
-                Text(message.text)
-                    .font(Theme.Typography.rowTitle)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text(message.text)
+                .font(Theme.Typography.rowTitle)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.sm)
         }
