@@ -12,6 +12,7 @@ missing binary rather than failing silently. Files live in `Spotter/Plugins/Mole
 | File | Role |
 | --- | --- |
 | `MoleTypes.swift` | Foundation-only, pure: the command catalog, screens, actions, and every output parser. |
+| `MoleProcessRunner.swift` | Foundation process runner: applies preview-only environment and propagates task cancellation to Mole. |
 | `MoleManager.swift` | Locates the binary, runs Mole off-main, owns screen state and the Analyze navigation trail. |
 | `MolePlugin.swift` | Registration, palette snapshots, ⌘K menus, the confirmation dialog, and the `AppCore` entry points. |
 | `MoleSettingsView.swift` | Enable switch, binary path override, per-screen shortcuts. |
@@ -44,9 +45,18 @@ shortcut. The section header names the screen, and the placeholder changes with 
 | **Cleanup History** | `mole history --json` | Past sessions with item counts and reclaimed size |
 | **Installer Files** | nothing — Spotter's own scan | Every installer file with icon, folder and size; ↵ moves it to the Trash |
 
-Every read-only pass runs with stdin on `/dev/null` and stdout on a pipe, which is what makes Mole
-take its non-interactive path: no TUI, no sudo prompt, nothing waiting on a keystroke. Nothing hands
-off to Terminal — the whole plugin lives in the launcher.
+Every read-only pass runs with stdin on `/dev/null`, stdout on a pipe and `MO_NO_OPLOG=1`. This makes
+Mole take its non-interactive path without turning a preview into thousands of operation-log writes:
+no TUI, no sudo prompt, nothing waiting on a keystroke. Nothing hands off to Terminal — the whole
+plugin lives in the launcher.
+
+Clean is an intrinsically broad disk scan in Mole. Spotter keeps it from multiplying that cost:
+cancelling, closing or refreshing interrupts the old subprocess; reopening the same completed screen
+within 30 seconds reuses its preview; a real run never overlaps another preview; and a run that
+finishes while the palette is hidden does not start a second scan in the background. Refresh remains
+an explicit way to discard the short-lived preview and scan again. During the first full scan,
+completed Clean sections stream into the palette immediately; the run row remains disabled and shows
+the partial item count until the preview is complete.
 
 **Installer Files never invokes Mole at all.** Mole's selector is TUI-only (and truncates long
 names), so `MoleManager` walks the same folders with the same rules — `MoleInstallerScan` mirrors
@@ -68,8 +78,9 @@ the confirmation:
 - Admin-only system caches are skipped: Mole asks for sudo on a TTY, and there isn't one.
 
 The palette deliberately stays open while a run is in flight. The run row reports progress, and the
-preview underneath re-reads itself when the run finishes so what's left is what's shown. Closing the
-palette cancels a *preview* but never a run — a half-cleaned machine is worse than a wasted read.
+preview underneath re-reads itself when a visible run finishes so what's left is what's shown. Closing
+the palette cancels and interrupts a *preview* but never a run — a half-cleaned machine is worse than
+a wasted read. An off-screen run reports its summary without launching a hidden follow-up scan.
 A run that finishes while its screen isn't visible (palette closed, or parked elsewhere) reports its
 closing summary through the command HUD instead, via `MoleManager.onRunFinished`.
 

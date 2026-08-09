@@ -92,7 +92,7 @@ struct AboutView: View {
         SettingsCallout(
             title: "Open Source",
             message:
-                "Spotter is free and open source under AGPL-3.0. Issues, ideas and pull requests are welcome on GitHub, or come say hello on Discord.",
+                "Spotter is free and open source under AGPL-3.0. Issues, ideas and pull requests are welcome on GitHub.",
             systemImage: "bolt.fill",
             tint: Theme.Colors.brand
         )
@@ -113,7 +113,7 @@ struct AboutView: View {
 private struct AboutLink: Identifiable {
     enum Glyph {
         case symbol(String)
-        /// A brand mark from `Assets.xcassets` (template SVG) — SF Symbols ships no GitHub/Discord/X logo.
+        /// A brand mark from `Assets.xcassets` (template SVG) — SF Symbols ships no GitHub logo.
         case brand(String)
     }
 
@@ -132,10 +132,6 @@ private struct AboutLink: Identifiable {
             id: "github", glyph: .brand("BrandGitHub"), title: "GitHub",
             detail: "github.com/mmmmmmarcus/Spotter",
             url: URL(string: "https://github.com/mmmmmmarcus/Spotter")!),
-        AboutLink(
-            id: "discord", glyph: .brand("BrandDiscord"), title: "Discord",
-            detail: "Join the Spotter community",
-            url: URL(string: "https://discord.gg/v2Eeb4QQy3")!),
         AboutLink(
             id: "upstream", glyph: .brand("BrandGitHub"), title: "Based on Tinycast",
             detail: "github.com/abue-ammar/tinycast",

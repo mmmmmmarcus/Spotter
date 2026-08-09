@@ -282,6 +282,23 @@ enum MoleResults {
     /// The one row that turns a preview into an action, pinned above the list it describes.
     private static func runRow(manager: MoleManager) -> [PluginPaletteItem] {
         guard let action = pendingAction(for: manager.screen) else { return [] }
+        if manager.isLoadingPreview {
+            let count: Int
+            if case .report(let report) = manager.state {
+                count = report.items.count
+            } else {
+                count = 0
+            }
+            return [
+                PluginPaletteItem(
+                    id: "run",
+                    title: "Still scanning caches…",
+                    subtitle: count == 0 ? "Mole is building the preview."
+                        : "Found \(count) reclaimable \(count == 1 ? "item" : "items") so far.",
+                    icon: .symbol("hourglass"),
+                    primaryActionTitle: "Scanning…")
+            ]
+        }
         let running = manager.runningAction != nil
         let summary = manager.lastRunSummary.joined(separator: " · ")
         return [
@@ -375,7 +392,9 @@ enum MoleResults {
                 })
         }
 
-        if let action = pendingAction(for: manager.screen), !manager.isRunning {
+        if let action = pendingAction(for: manager.screen), !manager.isRunning,
+            !manager.isLoadingPreview
+        {
             items.append(
                 PopoverMenuItem(
                     title: action.title, systemImage: "play.circle",
@@ -551,6 +570,7 @@ extension AppCore {
             return
         }
         if itemID == "run" {
+            guard !mole.isLoadingPreview else { return }
             guard let action = MoleResults.pendingAction(for: mole.screen) else { return }
             runMoleAction(action)
             return

@@ -1,10 +1,9 @@
 import { site } from "../data/site";
-import { DiscordLogo, GitHubLogo, Logo } from "./ui/icon";
+import { GitHubLogo, Logo } from "./ui/icon";
 import { MetaStrip } from "./ui/meta-strip";
 
 export function Footer() {
   const repoPath = site.repo.replace("https://", "");
-  const hasDiscord = site.community.discord.startsWith("http");
 
   return (
     <footer className="border-t border-border/50">
@@ -33,15 +32,6 @@ export function Footer() {
           >
             <GitHubLogo size={16} />
             {repoPath}
-          </a>
-          <a
-            href={site.community.discord}
-            target={hasDiscord ? "_blank" : undefined}
-            rel={hasDiscord ? "noreferrer" : undefined}
-            className="flex items-center gap-2 text-small text-ash transition-colors hover:text-white"
-          >
-            <DiscordLogo size={16} />
-            Join the Discord
           </a>
         </div>
       </div>

@@ -11,7 +11,9 @@ We'll respond as quickly as we can and keep you posted.
 
 ## Supported Versions
 
-Current stable and beta only. Update (`brew upgrade --cask spotter`) before reporting.
+Current stable and beta only. Install the newest DMG from
+[GitHub Releases](https://github.com/mmmmmmarcus/Spotter/releases) or use **Settings → General →
+Check for Updates** before reporting.
 
 ## Scope
 
@@ -30,7 +32,7 @@ Of particular interest:
 - **Automation** — Apple Events are sent only after a user invokes the relevant Finder or System
   command. No background automation is allowed.
 - **Hotkeys** — the in-house hotkey stack and the Input Monitoring grant.
-- **Signing and distribution** — the DMG and Homebrew cask chain.
+- **Signing and distribution** — the GitHub Release DMG, updater zip and in-app verification chain.
 
 Local Debug builds are intentionally self-signed and are out of scope. Public releases are expected
 to carry the documented Developer ID signature and Apple notarization ticket; report any published

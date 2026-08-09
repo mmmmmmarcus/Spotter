@@ -48,11 +48,10 @@ jobs:
             echo "::error::Stable releases must run from the default branch."
             exit 1
           fi
-          # Each channel is a distinct, side-by-side app: its own display name + bundle id,
-          # and its own Homebrew cask in the mmmmmmarcus/homebrew-spotter tap.
+          # Each channel is a distinct, side-by-side app with its own display name and bundle id.
           case "$CHANNEL" in
-            beta)   SUFFIX="-beta.${GITHUB_RUN_NUMBER}";  DISPLAY="Spotter Beta";  BUNDLE="com.spotter.app.beta";  CASK="spotter@beta";  PRERELEASE=true ;;
-            stable) SUFFIX="";                            DISPLAY="Spotter";       BUNDLE="com.spotter.app";       CASK="spotter";       PRERELEASE=false ;;
+            beta)   SUFFIX="-beta.${GITHUB_RUN_NUMBER}";  DISPLAY="Spotter Beta";  BUNDLE="com.spotter.app.beta";  PRERELEASE=true ;;
+            stable) SUFFIX="";                            DISPLAY="Spotter";       BUNDLE="com.spotter.app";       PRERELEASE=false ;;
           esac
           FULL="${BASE_VERSION}${SUFFIX}"
           if git ls-remote --exit-code --tags origin "refs/tags/v${FULL}" >/dev/null 2>&1; then
@@ -63,7 +62,6 @@ jobs:
             echo "full_version=${FULL}"
             echo "display_name=${DISPLAY}"
             echo "bundle_id=${BUNDLE}"
-            echo "cask_name=${CASK}"
             echo "dmg_file=Spotter-${FULL}.dmg"
             echo "prerelease=${PRERELEASE}"
           } >> "$GITHUB_OUTPUT"
@@ -202,84 +200,5 @@ jobs:
           **Bundle ID:** \`${{ steps.meta.outputs.bundle_id }}\`
           Built from ${{ github.sha }}.
 
-          **Install via Homebrew:**
-          \`\`\`sh
-          brew install --cask mmmmmmarcus/spotter/${{ steps.meta.outputs.cask_name }}
-          \`\`\`
-          This build is signed with Developer ID and notarized by Apple, so the DMG can also be opened directly without clearing quarantine attributes." \
+          Download the DMG below and drag Spotter to Applications. This build is signed with Developer ID and notarized by Apple, so it opens directly without clearing quarantine attributes." \
             $PRERELEASE_FLAG
-
-      - name: Update Homebrew cask
-        env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          CASK: ${{ steps.meta.outputs.cask_name }}
-          VERSION: ${{ steps.meta.outputs.full_version }}
-          DMG_FILE: ${{ steps.meta.outputs.dmg_file }}
-        run: |
-          if [ -z "${TAP_TOKEN}" ]; then
-            echo "::warning::HOMEBREW_TAP_TOKEN secret not set — skipping cask bump. Add it to enable auto-updates of the tap."
-            exit 0
-          fi
-          SHA="$(shasum -a 256 "dist/${DMG_FILE}" | awk '{print $1}')"
-          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/mmmmmmarcus/homebrew-spotter.git" tap
-          CASK_FILE="tap/Casks/${CASK}.rb"
-          if [ ! -f "$CASK_FILE" ]; then
-            echo "::error::$CASK_FILE not found in tap."
-            exit 1
-          fi
-          sed -i '' -E "s|^  version \".*\"|  version \"${VERSION}\"|" "$CASK_FILE"
-          sed -i '' -E "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" "$CASK_FILE"
-          cd tap
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "Casks/${CASK}.rb"
-          if git diff --cached --quiet; then
-            echo "No cask changes to commit."
-          else
-            git commit -m "${CASK} ${VERSION}"
-            git push
-          fi
-
-      # Announce the release in the Discord release channel. A Components V2 (flags 32768) card:
-      # channel-tinted container, title + right-aligned Download button, Homebrew install block.
-      # No-ops with a warning if the webhook secret isn't set.
-      - name: Announce on Discord
-        if: success()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          CHANNEL: ${{ inputs.channel }}
-          DISPLAY_NAME: ${{ steps.meta.outputs.display_name }}
-          VERSION: ${{ steps.meta.outputs.full_version }}
-          CASK: ${{ steps.meta.outputs.cask_name }}
-          TAG: v${{ steps.meta.outputs.full_version }}
-        run: |
-          if [ -z "${DISCORD_WEBHOOK_URL}" ]; then
-            echo "::warning::DISCORD_WEBHOOK_URL secret not set — skipping Discord announcement."
-            exit 0
-          fi
-          if [ "${CHANNEL}" = "stable" ]; then COLOR=3066993; else COLOR=15844367; fi
-          RELEASE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
-          INSTALL="brew install --cask mmmmmmarcus/spotter/${CASK}"
-          # Build with jq so backticks stay literal (printf in single quotes escaped them,
-          # which Discord rendered as verbatim backticks instead of a code block).
-          jq -n \
-            --argjson color "${COLOR}" \
-            --arg heading "## 🚀 ${DISPLAY_NAME} ${VERSION}" \
-            --arg sub "Now available on the **${CHANNEL}** channel." \
-            --arg install "${INSTALL}" \
-            --arg url "${RELEASE_URL}" \
-            '{
-              flags: 32768,
-              components: [
-                { type: 17, accent_color: $color, components: [
-                  { type: 9,
-                    components: [ { type: 10, content: ($heading + "\n" + $sub) } ],
-                    accessory: { type: 2, style: 5, label: "Download", url: $url }
-                  },
-                  { type: 14 },
-                  { type: 10, content: ("**Install / update via Homebrew**\n```\n" + $install + "\n```") }
-                ] }
-              ]
-            }' > payload.json
-          curl -fsS -X POST -H "Content-Type: application/json" -d @payload.json \
-            "${DISCORD_WEBHOOK_URL}?with_components=true"

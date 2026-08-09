@@ -60,10 +60,10 @@ cannot run side-by-side — replace, don't fork.
 ### Editor (VS Code) code-intelligence
 
 Autocomplete / go-to-definition come from SourceKit-LSP driven by a `buildServer.json`. Generate it
-once (it's machine-specific and git-ignored):
+once (it's machine-specific and git-ignored) after installing `xcode-build-server` by your preferred
+method:
 
 ```sh
-brew install xcode-build-server
 xcode-build-server config -project Spotter.xcodeproj -scheme Spotter \
     --build_root "$PWD/build/DerivedData"
 ```
@@ -129,7 +129,8 @@ swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
     Spotter/Plugins/WindowManagement/WindowLayout.swift \
     Spotter/Plugins/WindowManagement/WindowActionMemory.swift Tools/window-command-test.swift \
     -o /tmp/window-command-test && /tmp/window-command-test   # window geometry + cycling
-swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift Tools/mole-test.swift \
+swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
+    Spotter/Plugins/Mole/MoleProcessRunner.swift Tools/mole-test.swift \
     -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
@@ -237,24 +238,23 @@ Full credential setup, verification and migration details are in [signing.md](si
 
 ## In-app updates
 
-`Core/UpdateStore.swift` checks the GitHub Releases feed (daily behind an explicit consent toggle;
-Check for Updates in Settings → General is itself the user action) and installs in place: download
-the release's `Spotter-<version>.zip`, unpack with `ditto`, verify the new bundle satisfies the
-running app's **designated requirement**, stage beside `/Applications/Spotter.app`,
-remove-and-rename, relaunch. The working install is never deleted before its replacement is fully
-staged. The first Developer ID release requires a manual install for users migrating from the old
-self-signed identity; subsequent releases share the Developer ID requirement and update normally.
-`URLSession` downloads carry no quarantine flag, and the zip contains the same notarized, stapled app
-as the DMG. Releases published before the zip asset existed fall back to a "View release" button.
-`Core/UpdateFeed.swift` (semver + feed selection) is Foundation-only and pure for
-`Tools/update-test.swift`.
+`Core/UpdateStore.swift` checks GitHub Releases and installs a verified update in place. Stable and
+beta builds stay on their own channels, automatic checks require explicit consent and re-check it
+after the network request, and installation always requires a click. The complete feed, trust,
+replacement and failure contracts are documented in [updates.md](updates.md).
 
 ## CI releases
 
 `.github/workflows/release.yml` builds and publishes a DMG from GitHub Actions — no local machine
 needed. `MARKETING_VERSION` in `project.yml` is the release version's single source of truth. Change
 it, run `xcodegen generate`, commit both files, and run the repository's `$spotter-release` skill to
-perform the release preflight. Then use the **Actions** tab (`Release` → **Run workflow**) and pick:
+perform the release preflight. Its checked-in entry point is:
+
+```sh
+scripts/release-preflight.sh --expected <x.y.z>
+```
+
+Then use the **Actions** tab (`Release` → **Run workflow**) and pick:
 
 - **channel** — `beta` or `stable`. Beta builds `Spotter Beta.app` with its own bundle id so it can
   run beside stable; stable builds the same `Spotter.app` / `com.spotter.app` identity a local
@@ -269,21 +269,12 @@ offline fallback version is kept in sync by the release preflight.
 It builds on a `macos-26` runner with Xcode 26 and publishes a GitHub Release tagged
 `v<full-version>` with two assets: the DMG (`Spotter-<full-version>.dmg`) and the zip
 (`Spotter-<full-version>.zip`) that the in-app updater downloads, both marked prerelease for beta.
-On success it also bumps the matching cask in the tap (below, gated on `HOMEBREW_TAP_TOKEN`) and
-posts a Discord announcement (gated on `DISCORD_WEBHOOK_URL`); both steps skip with a warning when
-their secret is unset.
+The GitHub Release is the sole public distribution channel; the workflow does not mutate another
+repository or post release announcements to an external service.
 
 Before a release, configure the Developer ID `.p12` and App Store Connect notarization secrets listed
 in [signing.md](signing.md). The workflow fails before publishing unless both the app and DMG pass
 signature, Hardened Runtime, notarization, stapling and Gatekeeper checks.
-
-### Homebrew tap automation
-
-The release job's final step rewrites the `version` + `sha256` of the channel's cask (`spotter`
-or `spotter@beta`) in the
-[`homebrew-spotter`](https://github.com/mmmmmmarcus/homebrew-spotter) tap and pushes. It needs a
-`HOMEBREW_TAP_TOKEN` repo secret — a fine-grained PAT with **Contents: read/write** on the tap
-repo. Without the secret the step logs a warning and skips (the release still publishes).
 
 ## Website
 

@@ -126,13 +126,13 @@ xcrun stapler validate "/Applications/Spotter.app"
 The detailed signature must show `TeamIdentifier=SM96W8VVK9` and the `runtime` flag. Gatekeeper must
 report an accepted Developer ID origin, and `stapler` must validate the attached ticket.
 
-## Migrating existing self-signed installations
+## Migrating installations older than 1.4.0
 
-The first Developer ID release changes Spotter's code-signing designated requirement. Existing
-self-signed copies therefore cannot install it through the current in-app updater, which correctly
-rejects a bundle signed by a different identity. Those users must install the first Developer ID
-release manually and may need to grant Accessibility and Input Monitoring once more. Subsequent
-Developer ID releases keep the same Team ID and update normally.
+Spotter 1.4.0 is the first Developer ID release. Older self-signed copies cannot install it through
+the in-app updater, which correctly rejects a bundle signed by a different identity. Those users
+must install 1.4.0 or later from the DMG and may need to grant Accessibility and Input Monitoring
+once more. After that one-time migration, releases with the same bundle identifier and Developer ID
+designated requirement update normally.
 
 Unlike the old self-signed release, a Developer ID-signed and notarized DMG passes Gatekeeper when
 downloaded directly. Users must not be instructed to remove quarantine attributes.

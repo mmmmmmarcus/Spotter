@@ -26,7 +26,7 @@ struct AppLogEntry: Identifiable, Equatable, Sendable {
         "\(Self.stamp.string(from: date)) [\(level.rawValue.uppercased())] \(subsystem): \(message)"
     }
 
-    private nonisolated(unsafe) static let stamp: DateFormatter = {
+    private static let stamp: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter

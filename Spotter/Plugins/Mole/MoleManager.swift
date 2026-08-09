@@ -1,11 +1,6 @@
 import AppKit
 import Combine
 
-/// Carries the user-facing reason a Mole invocation failed across the actor boundary.
-struct MoleRunError: Error, Sendable {
-    let message: String
-}
-
 /// Owns the Mole plugin's live state: locating the binary, reading every screen off-main, and
 /// running the state-changing commands Spotter drives itself. `AppCore` owns the single instance.
 @MainActor
@@ -25,6 +20,7 @@ final class MoleManager: ObservableObject {
 
     @Published private(set) var state: LoadState = .idle
     @Published private(set) var screen: MoleScreen = .menu
+    @Published private(set) var isLoadingPreview = false
     /// Set while a state-changing command runs; the palette shows it and blocks a second start.
     @Published private(set) var runningAction: MoleAction?
     /// The last run's closing lines, shown above the refreshed list until the screen changes.
@@ -43,6 +39,10 @@ final class MoleManager: ObservableObject {
 
     private var loadTask: Task<Void, Never>?
     private var runTask: Task<Void, Never>?
+    private var loadGeneration = 0
+    private var screenVisible = false
+    private var lastSuccessfulLoad: (screen: MoleScreen, date: Date)?
+    private static let previewReuseInterval: TimeInterval = 30
     private static let overrideKey = "mole.binary-path"
     /// Homebrew on Apple silicon, Homebrew on Intel, then a manual install.
     private static let searchPaths = [
@@ -84,14 +84,24 @@ final class MoleManager: ObservableObject {
     // MARK: - Screens
 
     func open(_ screen: MoleScreen) {
-        if screen != self.screen { lastRunSummary = [] }
+        let changed = screen != self.screen
+        if changed { lastRunSummary = [] }
         self.screen = screen
+        screenVisible = true
         if screen == .analyze { resetAnalyzeRoot() }
+        if !changed, canReuseCurrentPreview { return }
+        if runningAction?.screen == screen { return }
         reload()
     }
 
     func reload() {
+        guard runningAction?.screen != screen else { return }
         loadTask?.cancel()
+        loadTask = nil
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        isLoadingPreview = false
+        lastSuccessfulLoad = nil
         guard screen != .menu else {
             state = .idle
             return
@@ -100,15 +110,22 @@ final class MoleManager: ObservableObject {
         // with no binary installed.
         if screen == .installer {
             state = .loading
+            isLoadingPreview = true
             loadTask = Task { [weak self] in
                 let entries = await Self.scanInstallers()
                 guard !Task.isCancelled else { return }
-                guard let self, self.screen == .installer else { return }
+                guard let self, self.screen == .installer, self.loadGeneration == generation else {
+                    return
+                }
+                self.loadTask = nil
+                self.isLoadingPreview = false
                 self.state = .installers(entries)
+                self.markSuccessfulLoad(for: .installer)
             }
             return
         }
         guard let path = binaryPath else {
+            isLoadingPreview = false
             state = .failed("Mole isn't installed. Get it at mole.fit, or set its path in Settings.")
             return
         }
@@ -119,8 +136,19 @@ final class MoleManager: ObservableObject {
             return
         }
         state = .loading
+        isLoadingPreview = true
+        let onOutput: (@Sendable (Data) -> Void)?
+        if screen == .clean {
+            onOutput = { [weak self] data in
+                self?.enqueueCleanProgress(data, for: screen, generation: generation)
+            }
+        } else {
+            onOutput = nil
+        }
         loadTask = Task { [weak self] in
-            let result = await Self.capture(path: path, arguments: arguments)
+            let result = await MoleProcessRunner.capture(
+                path: path, arguments: arguments, environment: ["MO_NO_OPLOG": "1"],
+                onOutput: onOutput)
             guard !Task.isCancelled else { return }
             self?.apply(result, for: screen)
         }
@@ -129,10 +157,14 @@ final class MoleManager: ObservableObject {
     /// Cancels only the read-only pass; a state-changing run keeps going so closing the palette
     /// mid-clean can't leave the machine half-cleaned.
     func stop() {
+        screenVisible = false
+        let wasLoading = isLoadingPreview
         loadTask?.cancel()
         loadTask = nil
+        loadGeneration &+= 1
+        isLoadingPreview = false
         guard !isRunning else { return }
-        state = .idle
+        if wasLoading { state = .idle }
     }
 
     // MARK: - Analyze navigation
@@ -162,11 +194,16 @@ final class MoleManager: ObservableObject {
     /// Starts a state-changing command. `AppCore` owns the confirmation, so this executes directly.
     func run(_ action: MoleAction) {
         guard let path = binaryPath, !isRunning else { return }
+        loadTask?.cancel()
+        loadTask = nil
+        loadGeneration &+= 1
+        isLoadingPreview = false
         runTask?.cancel()
         runningAction = action
+        lastSuccessfulLoad = nil
         lastRunSummary = []
         runTask = Task { [weak self] in
-            let result = await Self.capture(path: path, arguments: action.arguments)
+            let result = await MoleProcessRunner.capture(path: path, arguments: action.arguments)
             guard let self else { return }
             self.finish(result, for: action)
         }
@@ -174,6 +211,7 @@ final class MoleManager: ObservableObject {
 
     private func finish(_ result: Result<Data, MoleRunError>, for action: MoleAction) {
         runningAction = nil
+        runTask = nil
         switch result {
         case .failure(let error):
             lastRunSummary = [error.message]
@@ -184,14 +222,18 @@ final class MoleManager: ObservableObject {
             lastRunSummary =
                 report.summary.isEmpty ? ["\(action.title) finished."] : report.summary
         }
-        // The list is now stale — re-read it so what's left is what's shown.
-        if screen == action.screen { reload() }
+        // A hidden palette should not launch another expensive preview after the real run.
+        if screen == action.screen {
+            if screenVisible { reload() } else { state = .idle }
+        }
         onRunFinished?(action, lastRunSummary)
     }
 
     private func apply(_ result: Result<Data, MoleRunError>, for screen: MoleScreen) {
         // A screen switch mid-flight must not have its result overwritten by the older request.
         guard screen == self.screen else { return }
+        loadTask = nil
+        isLoadingPreview = false
         switch result {
         case .failure(let error):
             state = .failed(error.message)
@@ -225,41 +267,39 @@ final class MoleManager: ObservableObject {
             case .installer:
                 break  // populated by the dedicated scan branch in `reload`
             }
+            if case .failed = state {} else { markSuccessfulLoad(for: screen) }
         }
     }
 
-    /// Off-main; only plain values cross back. stdin is `/dev/null` and stdout a pipe, so Mole takes
-    /// its non-interactive path — no TUI, no sudo prompt, nothing waiting on a keystroke.
-    private nonisolated static func capture(path: String, arguments: [String]) async -> Result<
-        Data, MoleRunError
-    > {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: path)
-                process.arguments = arguments
-                let out = Pipe()
-                process.standardOutput = out
-                process.standardError = Pipe()
-                process.standardInput = FileHandle.nullDevice
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(
-                        returning: .failure(
-                            MoleRunError(message: "Couldn't run Mole: \(error.localizedDescription)")))
-                    return
-                }
-                let data = out.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                guard !data.isEmpty else {
-                    continuation.resume(
-                        returning: .failure(MoleRunError(message: "Mole returned no output.")))
-                    return
-                }
-                continuation.resume(returning: .success(data))
-            }
+    private var canReuseCurrentPreview: Bool {
+        guard let loaded = lastSuccessfulLoad, loaded.screen == screen,
+            Date().timeIntervalSince(loaded.date) < Self.previewReuseInterval
+        else { return false }
+        return switch state {
+        case .status, .history, .report, .purge, .apps, .analysis, .installers: true
+        case .idle, .loading, .failed: false
         }
+    }
+
+    private func markSuccessfulLoad(for screen: MoleScreen) {
+        lastSuccessfulLoad = (screen, Date())
+    }
+
+    private nonisolated func enqueueCleanProgress(
+        _ data: Data, for screen: MoleScreen, generation: Int
+    ) {
+        Task { @MainActor [weak self] in
+            self?.applyCleanProgress(data, for: screen, generation: generation)
+        }
+    }
+
+    private func applyCleanProgress(_ data: Data, for screen: MoleScreen, generation: Int) {
+        guard screen == .clean, self.screen == screen, screenVisible, isLoadingPreview,
+            runningAction == nil, generation == loadGeneration
+        else { return }
+        let report = MoleParser.parseReport(String(decoding: data, as: UTF8.self))
+        guard !report.isEmpty else { return }
+        state = .report(report)
     }
 
     /// Walks Mole's installer paths (depth 2) off-main: direct installer extensions always count,

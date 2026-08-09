@@ -3,7 +3,7 @@ import { useState } from "react";
 import { nav, site } from "../data/site";
 import { cn } from "../lib/cn";
 import { Button } from "./ui/button";
-import { AppleLogo, DiscordLogo, Logo } from "./ui/icon";
+import { AppleLogo, Logo } from "./ui/icon";
 
 function navLinkProps(href: string) {
   return href.startsWith("http")
@@ -14,8 +14,6 @@ function navLinkProps(href: string) {
 export function Nav() {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
-  const discord = site.community.discord;
-  const hasDiscord = discord.startsWith("http");
 
   return (
     <header className="fixed inset-x-0 top-4 z-50">
@@ -45,15 +43,6 @@ export function Nav() {
             </div>
 
             <div className="hidden items-center gap-2 md:flex">
-              <a
-                href={discord}
-                {...(hasDiscord ? navLinkProps(discord) : {})}
-                aria-label="Join the Discord"
-                title="Join the Discord"
-                className="flex size-8 items-center justify-center rounded-md text-ash transition-colors hover:bg-white/5 hover:text-white"
-              >
-                <DiscordLogo size={18} />
-              </a>
               <Button href="#install" size="sm" className="gap-1">
                 <AppleLogo size={20} />
                 Download
@@ -107,15 +96,6 @@ export function Nav() {
                     {item.label}
                   </a>
                 ))}
-                <a
-                  href={discord}
-                  {...(hasDiscord ? navLinkProps(discord) : {})}
-                  onClick={close}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-body font-medium text-ash transition-colors hover:bg-white/5 hover:text-white"
-                >
-                  <DiscordLogo size={16} />
-                  Join the Discord
-                </a>
                 <Button
                   href="#install"
                   size="sm"

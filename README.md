@@ -3,117 +3,118 @@
 A tiny, fully native macOS launcher — the essentials, without the bloat.
 
 <p align="center">
-  <a href="https://discord.gg/v2Eeb4QQy3">
-    <img alt="Join the Spotter Discord"
-         src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=flat&logo=discord&logoColor=white"></a>
+  <a href="https://github.com/mmmmmmarcus/Spotter/releases/latest">
+    <img alt="Latest release"
+         src="https://img.shields.io/github/v/release/mmmmmmarcus/Spotter?display_name=tag&sort=semver"></a>
+  <img alt="macOS 26 or later"
+       src="https://img.shields.io/badge/macOS-26%2B-111111?logo=apple">
   <a href="LICENSE">
     <img alt="License: AGPL-3.0"
          src="https://img.shields.io/badge/License-AGPL--3.0-3DA639?style=flat"></a>
 </p>
 
-<!-- Screenshot placeholder — drop the real image at docs/screenshot.png -->
 <p align="center">
   <img src="docs/screenshot.png" alt="Spotter command palette" width="720">
 </p>
 
-Around **3 MB on disk** and **under 100 MB of RAM** — no Electron, no telemetry, no background
-CPU churn. Just SwiftUI + AppKit with zero dependencies. It's fast because there's nothing to it.
-
-## Features
-
-- **App launcher** — fuzzy-search and launch anything, pin favorites, see what's running, quit an app
-  or every app at once.
-- **Custom commands** — run named shell commands through fuzzy search or their own global hotkeys.
-- **Calculator** — do math, unit and live currency conversions inline, right in the palette.
-- **Clipboard history** — text and images, searchable, pasted back into the app you were using.
-- **Notes** — capture unlimited local Markdown notes and todos in a floating, keyboard-first window.
-- **Quicklinks** — save links, files and deep links as launcher entries, with `{argument}`
-  placeholders Spotter asks you to fill before opening.
-- **AI Chat** — Tab from the launcher into a running conversation, right in the palette, using your
-  own OpenRouter key.
-- **Emoji & symbols** — find and insert emoji from a fast native grid.
-- **World clock** — type queries such as `SF time now` or `time in Tokyo` for an inline answer,
-  and manage your saved city list right in the launcher.
-- **Kill process** — inspect CPU and memory use, group app helpers, then terminate or restart safely.
-- **Change case** — transform selected or copied text through 21 cases, then copy or paste it.
-- **Selection tools** — search, translate, define bilingually, or grammar-check text selected in any
-  app via your own OpenRouter key, with editable AI prompts.
-- **Text replacement** — expand your own prefix+keyword triggers into saved text as you type.
-- **Settings sync** — keep one JSON settings file (e.g. in iCloud Drive) applied across your Macs.
-- **In-app updates** — check GitHub Releases and update from Settings; signature-verified, and your
-  permissions survive.
-- **Image modification** — batch-convert, resize, filter, optimize, pad, rotate, remove backgrounds,
-  and clear metadata with native macOS frameworks.
-- **Window management** — halves, quarters, thirds, sizing and display moves for any window.
-- **System commands** — lock, sleep, volume, Bluetooth, trash and more, straight from the launcher.
-- **Mole** — drive the Mole CLI without leaving the launcher: health, cleanup, optimize, purge,
-  uninstall and disk analysis, each previewed before it runs.
-- **Caffeinate** — keep your Mac awake indefinitely, for a set time, or while an app runs.
-- **Native plugins** — independently organized feature modules, all on by default and individually
-  toggleable, with shared settings, permissions, commands and shortcuts, compiled directly into the
-  app for native speed.
-- **Global hotkey** — one shortcut summons the palette from anywhere.
-- **Per-app hotkeys** — bind a key to an app; press it to toggle (focus/hide).
+Spotter is a keyboard-first launcher that lives in the menu bar. It is built with SwiftUI and
+AppKit, uses around **3 MB on disk** and **under 100 MB of RAM**, and has no Electron runtime,
+telemetry or idle background CPU churn. Networked features are optional; the app is offline by
+default.
 
 ## Install
 
-```sh
-brew trust --tap mmmmmmarcus/spotter   # required for third-party taps
-brew tap mmmmmmarcus/spotter
-brew install --cask spotter          # stable
-brew install --cask spotter@beta     # beta  (installs side-by-side)
-```
+1. Download the latest `Spotter-<version>.dmg` from
+   **[GitHub Releases](https://github.com/mmmmmmarcus/Spotter/releases/latest)**.
+2. Open the DMG and drag **Spotter.app** to **Applications**.
+3. Launch Spotter and grant Accessibility or Automation only when a feature asks for it.
 
-Each channel is a separate app (`Spotter.app`, `Spotter Beta.app`) with its own settings and
-permissions, so you can run stable next to the beta.
+Public releases are signed with Developer ID, notarized by Apple and checked by Gatekeeper. Do not
+remove quarantine attributes or bypass macOS security prompts.
 
-Public releases are signed with Developer ID and notarized by Apple. Both Homebrew installs and DMGs
-downloaded directly from Releases pass Gatekeeper without clearing quarantine attributes.
+Spotter requires **macOS 26 or later**.
 
-## Permissions
+## What it does
 
-**Accessibility** — used to paste into the app you came from and to read selected text for plugins
-such as Change Case. You're prompted on first use.
+### Launch and act
 
-**Automation** — used only when a command asks another app to act: Image Modification can read
-Finder's current selection, and some built-in Commands control macOS apps. Manage these grants in
-**System Settings → Privacy & Security**.
+- Fuzzy-search apps, pin favorites, see running state, and quit one app or all apps.
+- Assign one global launcher shortcut and per-app toggle shortcuts.
+- Run built-in macOS actions and your own shell commands from the same command palette.
+- Save parameterized Quicklinks for websites, files and deep links.
 
-## Using it
+### Work with text and content
 
-1. Open **Settings → General** and record a global shortcut to summon Spotter.
-2. Press it anywhere → the palette floats in. Type to filter, **↵** to launch.
-3. **Tab** cycles Apps → AI Chat → Clipboard; **↑/↓** move. **Esc** backs out one layer —
-   sub-screen to launcher, typed query to empty — and dismisses from the empty root.
-4. **Settings → Shortcuts** — search an app or custom command and record a global shortcut.
+- Search and paste text or image clipboard history back into the app you were using.
+- Keep unlimited local Markdown notes and todos in a keyboard-first floating workspace.
+- Expand personal text-replacement triggers without recording arbitrary typing.
+- Transform selected text, search it, translate it, define it bilingually or check its grammar.
+- Find and insert emoji and symbols from a native grid.
 
-## Building from source
+### Calculate and look things up
 
-See **[docs/development.md](docs/development.md)** for the toolchain, build, packaging, release,
-and website workflows, **[docs/plugins.md](docs/plugins.md)** for the built-in plugin architecture,
-and **[docs/ui.md](docs/ui.md)** for the UI design system. The repository also ships the
-`$spotter-plugin` Codex skill under `.codex/skills/` for creating, modifying, or removing native
-plugin modules.
+- Evaluate arithmetic, units and opt-in live currency conversions inline.
+- Query world clocks with phrases such as `time in Tokyo`.
+- Use AI Chat and selected-text AI actions with your own OpenRouter API key.
+
+### Control the Mac
+
+- Move and resize windows into halves, quarters, thirds and other layouts.
+- Inspect, terminate or restart processes while excluding protected system processes and Spotter.
+- Convert, resize, optimize, rotate, pad or remove metadata and backgrounds from images.
+- Keep the Mac awake indefinitely, for a duration or while another app runs.
+- Use the optional Mole integration for previewed cleanup, health, uninstall and disk analysis.
+
+### Keep it yours
+
+- Enable or disable native built-in plugins independently.
+- Synchronize settings through a JSON file you control, including one stored in iCloud Drive.
+- Check GitHub Releases manually or opt in to a daily check; installation always requires a click
+  and the downloaded app must match Spotter's code-signing identity.
+
+## Getting started
+
+1. Open **Settings → General** and record the global shortcut used to summon Spotter.
+2. Press it anywhere, type to filter, and press **Return** to run the selected result.
+3. Press **Tab** to cycle Apps → AI Chat → Clipboard, **↑/↓** to move, and **Esc** to back out.
+4. Open **Settings → Shortcuts** to bind apps, built-in actions or custom commands globally.
+
+## Permissions and privacy
+
+- **Accessibility** restores focus and pastes into the previous app, reads selected text only when an
+  invoked action needs it, and supports window management and text replacement.
+- **Automation** is requested only by commands that ask Finder or another macOS app to act.
+- **Network access** is off by default. Currency conversion and automatic update checks require
+  explicit opt-in. OpenRouter requests require your own API key, which is the consent gate.
+
+Manage macOS grants under **System Settings → Privacy & Security**. Spotter has no account system,
+analytics or telemetry.
+
+## Documentation
+
+- **[Development](docs/development.md)** — toolchain, tests, builds, packaging and releases.
+- **[Architecture](docs/architecture.md)** — core ownership, windows and concurrency boundaries.
+- **[Plugins](docs/plugins.md)** — built-in module contract and lifecycle.
+- **[Updates](docs/updates.md)** — channels, consent, release-feed contract and install safety.
+- **[Signing](docs/signing.md)** — Developer ID, notarization and Gatekeeper verification.
+- **[UI system](docs/ui.md)** — design tokens, surfaces and interaction rules.
+
+The repository includes `$spotter-plugin` and `$spotter-release` under `.codex/skills/` for
+repeatable plugin and release work.
 
 ## Contributing
 
 > [!IMPORTANT]
-> **Open an issue before you write code — this is mandatory.** Get the bug or the feature agreed on
-> first; discussing it in the issue (or on [Discord](https://discord.gg/v2Eeb4QQy3)) is strongly
-> encouraged. A PR with no agreed issue behind it gets closed however good the patch is, and the
-> work is wasted. Typo and docs-only fixes are the one exception.
+> **Open an issue before writing code.** Agree on the bug or feature first; pull requests without an
+> agreed issue are closed. Typo and documentation-only fixes are the exception.
 
-Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first — it covers the memory budget every PR is held to,
-the before/after video requirement for visual changes, and why features get declined. Every PR fills
-in the **[pull request template](.github/PULL_REQUEST_TEMPLATE.md)**. Security issues go through
-[SECURITY.md](SECURITY.md), not the issue tracker.
-
-Questions, ideas, or just want to follow along? **[Join the Discord](https://discord.gg/v2Eeb4QQy3)**.
+Read **[CONTRIBUTING.md](CONTRIBUTING.md)** before starting. It covers the memory budget, visual
+change evidence and pull-request requirements. Security reports go through
+**[SECURITY.md](SECURITY.md)** rather than the public issue tracker.
 
 ## Contributors
 
-Thank you to everyone who has put time into Spotter — every fix and idea shows up in something
-people use every day.
+Thank you to everyone who has contributed fixes, ideas and testing.
 
 <p align="center">
   <a href="https://github.com/mmmmmmarcus/Spotter/graphs/contributors">
@@ -125,10 +126,9 @@ people use every day.
 ## Credits
 
 Spotter began as a fork of **[Tinycast](https://github.com/abue-ammar/tinycast)** by
-[Abue Ammar](https://github.com/abue-ammar), and its launcher, palette, calculator and clipboard
-foundations come from that work. Spotter has since developed independently — native plugin
-architecture, Notes, Selection Tools, settings sync, in-app updates — but the original copyright
-stands and this project stays under the same license.
+[Abue Ammar](https://github.com/abue-ammar). Its launcher, palette, calculator and clipboard
+foundations came from that work; Spotter has since developed independently while retaining the
+original copyright and license.
 
 ## License
 

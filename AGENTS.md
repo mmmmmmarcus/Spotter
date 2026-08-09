@@ -140,9 +140,10 @@ Never break these without an explicit task to do so.
   not copy this shape for new networked features without an explicit owner decision.
   `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a
   consent dialog (never synced); the manual Check for Updates click is itself the consent for that
-  one request, and installs only happen on an explicit click after the new bundle passes
-  designated-requirement signature verification. `Core/UpdateFeed.swift` stays Foundation-only and
-  pure for `Tools/update-test.swift`.
+  one request. Stable and beta feeds stay channel-isolated, and installs only happen on an explicit
+  click after the new bundle passes designated-requirement signature verification. See
+  [`docs/updates.md`](docs/updates.md). `Core/UpdateFeed.swift` stays Foundation-only and pure for
+  `Tools/update-test.swift`.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
@@ -204,7 +205,9 @@ Never break these without an explicit task to do so.
   `Settings/`, `About/`, `Onboarding/`, plus shared `PopoverMenu`.
 - `Spotter/App/` — `@main` app + delegate.
 - `Tools/` — standalone test harnesses and the emoji generator.
+- `scripts/release-preflight.sh` — version-mirror and publication prerequisite validation.
 - `.codex/skills/spotter-plugin/` — tracked project skill for all built-in plugin lifecycle work.
+- `.codex/skills/spotter-release/` — tracked release preparation, publication and audit workflow.
 - `.github/workflows/release.yml` — the entire release pipeline (see `docs/development.md`).
 
 ## Additional Documentation
@@ -227,3 +230,4 @@ Never break these without an explicit task to do so.
 - [`docs/ui.md`](docs/ui.md) — the full visual design system, tokens, scrollbars, section headers.
 - [`docs/development.md`](docs/development.md) — build, test, package, release.
 - [`docs/signing.md`](docs/signing.md) — signing model and Gatekeeper.
+- [`docs/updates.md`](docs/updates.md) — updater channels, consent, trust and installation flow.

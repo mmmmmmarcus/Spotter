@@ -1,6 +1,6 @@
 ---
 name: spotter-release
-description: Prepare, validate, build, sign, notarize, publish, and verify Spotter beta or stable releases. Use when bumping Spotter's version, preparing release commits, producing Developer ID DMGs, running the GitHub Release workflow, checking release credentials, updating Homebrew release metadata, or auditing a published Spotter release.
+description: Prepare, validate, build, sign, notarize, publish, and verify Spotter beta or stable releases. Use when bumping Spotter's version, preparing release commits, producing Developer ID DMGs, running the GitHub Release workflow, checking release credentials, or auditing a published Spotter release.
 ---
 
 # Spotter Release
@@ -14,8 +14,8 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
 2. Inspect the branch, remote, tags, latest GitHub release, worktree, signing identities, and only
    the names of configured GitHub Actions secrets. Never print or request secret values in chat.
 3. Distinguish a preparation request from authorization to publish. Building locally, dispatching a
-   workflow, creating a GitHub Release, updating a tap, and announcing externally are separate
-   state-changing actions; perform only those the user requested.
+   workflow and creating a GitHub Release are separate state-changing actions; perform only those
+   the user requested.
 
 ## Manage the version
 
@@ -50,9 +50,8 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
    reads the base version from `project.yml`; never create the release or tag separately.
 4. Watch the workflow through completion. If it fails, inspect logs, fix the source/configuration,
    and create a new commit; do not manually publish partially verified artifacts.
-5. Verify the GitHub Release tag, prerelease flag, DMG and updater zip names, checksums, downloadable
-   signature/notarization status, Homebrew cask result, and optional Discord step. Report skipped
-   integrations when their optional secrets are absent.
+5. Verify the GitHub Release tag, prerelease flag, DMG and updater zip names, checksums, and the
+   downloadable assets' signature and notarization status.
 
 ## Audit an existing release
 

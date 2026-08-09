@@ -1,9 +1,22 @@
-// Compile: swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift Tools/mole-test.swift -o /tmp/mole-test && /tmp/mole-test
+// Compile with `MoleTypes.swift` and `MoleProcessRunner.swift`; see docs/development.md.
 import Foundation
+
+private final class MoleOutputRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String] = []
+
+    func append(_ data: Data) {
+        lock.withLock { values.append(String(decoding: data, as: UTF8.self)) }
+    }
+
+    var snapshots: [String] {
+        lock.withLock { values }
+    }
+}
 
 @main
 struct MoleTests {
-    static func main() {
+    static func main() async {
         var failures = 0
         func check(_ message: String, _ condition: @autoclosure () -> Bool) {
             if condition() {
@@ -260,7 +273,41 @@ struct MoleTests {
         check("percent clamps above 100", MoleParser.percent(140) == "100%")
         check("percent clamps below zero", MoleParser.percent(-5) == "0%")
 
+        // Process runner — cancellation must stop an expensive preview instead of orphaning it.
+        let start = ContinuousClock.now
+        let scan = Task {
+            await MoleProcessRunner.capture(path: "/bin/sleep", arguments: ["10"])
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        scan.cancel()
+        let cancelled = await scan.value
+        check(
+            "cancelling a preview interrupts the process",
+            ifCaseFailure(cancelled) && start.duration(to: .now) < .seconds(2))
+
+        let environment = await MoleProcessRunner.capture(
+            path: "/bin/sh", arguments: ["-c", "printf %s \"$MO_NO_OPLOG\""],
+            environment: ["MO_NO_OPLOG": "1"])
+        check("preview environment reaches Mole", successText(environment) == "1")
+
+        let output = MoleOutputRecorder()
+        _ = await MoleProcessRunner.capture(
+            path: "/bin/sh", arguments: ["-c", "printf first; sleep 0.3; printf second"],
+            onOutput: { output.append($0) })
+        check("preview output streams before completion", output.snapshots.first == "first")
+        check("the final streamed snapshot is complete", output.snapshots.last == "firstsecond")
+
         print(failures == 0 ? "\nMole: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    private static func ifCaseFailure(_ result: Result<Data, MoleRunError>) -> Bool {
+        if case .failure = result { return true }
+        return false
+    }
+
+    private static func successText(_ result: Result<Data, MoleRunError>) -> String? {
+        guard case .success(let data) = result else { return nil }
+        return String(decoding: data, as: UTF8.self)
     }
 }

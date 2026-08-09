@@ -40,7 +40,7 @@ Spotter reads as a dark power-tool cockpit: an almost-black canvas (#040506) wit
 - **OpenType features:** `'calt', 'kern', 'liga', 'ss03'`
 - **Role:** Primary interface typeface — body text at 16px/400, nav and card labels at 13–14px/500, subheadings at 18–22px/400, section headings at 32–56px in the 400–600 range, and display at 64px/600. Inter's neutral geometry carries the developer-tool seriousness; weight 400 at the 56px hero headline is an anti-convention choice — most brands shout with 700, Spotter whispers with regular weight and lets the size do the work
 
-### GeistMono — Monospace for version strings, technical micro-labels, terminal-style text — appears in footer metadata (v1.104.21), command-line hints, and 10px uppercase eyebrow tags. Geist Mono's compact, slightly geometric forms make the tiny labels feel engineered rather than decorative · `--font-geistmono`
+### GeistMono — Monospace for version strings, technical micro-labels, and 10px uppercase eyebrow tags. Geist Mono's compact, slightly geometric forms make the tiny labels feel engineered rather than decorative · `--font-geistmono`
 
 - **Substitute:** 'JetBrains Mono', Menlo, Monaco, Courier, monospace
 - **Weights:** 300, 400, 500
@@ -48,7 +48,7 @@ Spotter reads as a dark power-tool cockpit: an almost-black canvas (#040506) wit
 - **Line height:** 1.00–1.60
 - **Letter spacing:** 0.0170em at 12px, 0.0500em at 10px (uppercase)
 - **OpenType features:** `'calt', 'kern', 'liga', 'ss03', 'ss09'`
-- **Role:** Monospace for version strings, technical micro-labels, terminal-style text — appears in footer metadata (v1.104.21), command-line hints, and 10px uppercase eyebrow tags. Geist Mono's compact, slightly geometric forms make the tiny labels feel engineered rather than decorative
+- **Role:** Monospace for release metadata, technical micro-labels, and 10px uppercase eyebrow tags. Geist Mono's compact, slightly geometric forms make the tiny labels feel engineered rather than decorative
 
 ### SF Pro Text — System font used for icon glyphs and numeric stat callouts at 24–32px/500. Falls back to SF Pro on macOS for native feel — reinforces the 'this is a Mac app' identity · `--font-sf-pro-text`
 
@@ -153,7 +153,7 @@ Floating pill-shaped bar with backdrop-blur(48px), 1px solid border at #363739, 
 
 **Role:** Primary download and action button
 
-Light Mist (#e6e6e6) fill, Iron (#454647) text at 13–14px/500, 8px radius, 8px 12px padding. Sometimes paired with a small black/dark icon (Apple, Windows logo) at 15px. This is the only filled action surface in the system — deliberately neutral rather than chromatic, letting the dark page do the contrasting.
+Light Mist (#e6e6e6) fill, Iron (#454647) text at 13–14px/500, 8px radius, 8px 12px padding. Sometimes paired with a small black/dark Apple or download icon at 15px. This is the only filled action surface in the system — deliberately neutral rather than chromatic, letting the dark page do the contrasting.
 
 ### Ghost Nav Link
 
@@ -201,7 +201,7 @@ Full-bleed dramatic composition using the red/blue gradient geometry: the radial
 
 **Role:** Version, platform, and installation info
 
-Centered row of Geist Mono 12px/400 text in Ash, separated by vertical pipe characters. Contains version string (v1.104.21), platform requirement (macOS 13+), and install command. Sits below the download buttons with 8px gap — the monospace treatment signals 'this is technical metadata' without needing a label.
+Centered row of Geist Mono 12px/400 text in Ash, separated by vertical pipe characters. Contains the current version, macOS 26+ requirement, and AGPL-3.0 license. Sits below the download buttons with 8px gap — the monospace treatment signals 'this is technical metadata' without needing a label.
 
 ### App Window Mockup
 
@@ -271,15 +271,15 @@ Quick Color Reference:
 
 Example Component Prompts:
 
-1. Glass Navigation Bar: Floating pill nav with backdrop-filter blur(48px), 1px solid #363739 border, 8px radius, transparent dark fill. Left: red diamond logo (#ff6363) + 'Spotter' wordmark in #ffffff at 13px Inter 500. Center: ghost nav links in #9c9c9d at 13px Inter 500 (Store, Pro, AI, iOS, Windows, Teams, Enterprise, Blog, Pricing) with no padding. Right: neutral filled button — Mist #e6e6e6 fill, Iron #454647 text 'Download' at 13px/500, 8px radius, 8px 12px padding, with a 15px Apple icon.
+1. Glass Navigation Bar: Floating pill nav with backdrop-filter blur(48px), 1px solid #363739 border, 8px radius, transparent dark fill. Left: coral Spotter logo + wordmark in #ffffff at 13px Inter 500. Center: ghost links for Gallery, Features, Compare, Why tiny, and Install. Right: neutral filled Download button with a 15px Apple icon.
 
-2. Hero Section: Full-bleed dark (#040506) background. Centered headline 'Your shortcut to everything.' at 56px Inter 400, #ffffff, letter-spacing 0.22px. Subheadline at 16px Inter 400, #9c9c9d, max-width ~480px. Behind the text: large abstract red/blue gradient composition — diagonal coral (#ff6363 with 40px blur) bars cutting across, blue radial gradient wash (rgba(4,63,150,0.7) to rgba(6,18,37,0.25)) at 50% 26%. Below: two neutral filled buttons side by side (Mist fill, Iron text) with Apple/Windows icons, then a Geist Mono 12px footer line: 'v1.104.21 | macOS 13+ | Install via homebrew' in #6a6b6c.
+2. Hero Section: Full-bleed dark (#040506) background. Centered headline 'Everything on your Mac. One keystroke away.' at 56px Inter 400, #ffffff, letter-spacing 0.22px. Behind the text: large abstract red/blue gradient composition — diagonal coral (#ff6363 with 40px blur) bars cutting across, blue radial gradient wash (rgba(4,63,150,0.7) to rgba(6,18,37,0.25)) at 50% 26%. The primary action scrolls to the direct GitHub Release download instructions.
 
 3. Feature Card: 16px radius, transparent fill on #07080a card surface, 24px padding. Apply the 'key' shadow stack: rgba(255,255,255,0.05) 0px 1px 0px 0px inset, rgba(255,255,255,0.25) 0px 0px 0px 1px, rgba(0,0,0,0.2) 0px -1px 0px 0px inset. Inside: 99999px-radius circular icon container (20px padding, dark fill) with a 24px SF Pro Text glyph in #e6e6e6, then a 20px Inter 500 subheading in #ffffff, then 16px Inter 400 body in #9c9c9d.
 
 4. Extension Tile: 8px radius, 8px padding, 1px solid #363739 border. Circular icon container (99999px) with extension icon, extension name in 14px Inter 500 #ffffff, category in 12px Inter 400 #6a6b6c. Tight 8px gap between tiles in a grid.
 
-5. Download Button Group: Two neutral filled buttons side by side with 8px gap. Each: Mist #e6e6e6 fill, Iron #454647 text at 13px Inter 500, 8px radius, 8px 12px padding. Left button: 15px black Apple icon + 'Download for Mac'. Right button: 15px Windows icon + 'Download for Windows (beta)'. Below: Geist Mono 12px version metadata in #6a6b6c, centered.
+5. Download Button Group: Two buttons side by side with 8px gap. The filled action opens the latest GitHub Release; the ghost action opens all releases and betas. Below: Geist Mono 12px metadata for macOS 26+, Developer ID signing, and Apple notarization.
 
 ## Similar Brands
 

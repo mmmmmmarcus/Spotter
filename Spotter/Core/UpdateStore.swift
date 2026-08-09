@@ -96,7 +96,7 @@ final class UpdateStore: ObservableObject {
                     try? await Task.sleep(for: .seconds(Self.checkInterval - age))
                     continue
                 }
-                let ok = await self.check()
+                let ok = await self.check(requiresAutoConsent: true)
                 try? await Task.sleep(for: .seconds(ok ? Self.checkInterval : Self.retryInterval))
             }
         }
@@ -104,17 +104,22 @@ final class UpdateStore: ObservableObject {
 
     /// Manual Check for Updates — the click is the consent for this one request.
     func checkNow() async {
-        _ = await check()
+        _ = await check(requiresAutoConsent: false)
     }
 
     @discardableResult
-    private func check() async -> Bool {
+    private func check(requiresAutoConsent: Bool) async -> Bool {
+        guard !requiresAutoConsent || autoCheckEnabled else { return false }
         // An install in flight must not have its state stomped by a background tick.
         if case .installing = status { return true }
         guard let current = currentVersion else { return false }
         status = .checking
         do {
             let data = try await Self.fetchFeed()
+            guard !requiresAutoConsent || autoCheckEnabled else {
+                status = .idle
+                return false
+            }
             defaults.set(Date(), forKey: Self.lastCheckKey)
             if let release = UpdateFeed.latestUpdate(in: data, channel: channel, current: current) {
                 status = .available(release)
@@ -123,6 +128,10 @@ final class UpdateStore: ObservableObject {
             }
             return true
         } catch {
+            if Task.isCancelled || (requiresAutoConsent && !autoCheckEnabled) {
+                status = .idle
+                return false
+            }
             status = .failed(UpdateError.badFeed.localizedDescription)
             AppLog.error("updates", "Feed check failed: \(error.localizedDescription)")
             return false

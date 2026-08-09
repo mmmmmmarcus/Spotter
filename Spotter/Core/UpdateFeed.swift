@@ -93,7 +93,7 @@ enum UpdateFeed {
         }
     }
 
-    /// Decodes a GitHub releases-list response and returns the newest release that is strictly newer than `current` for the channel, or nil when up to date. Stable ignores prereleases; beta takes both, so a beta user still lands on a newer stable.
+    /// Decodes a GitHub releases-list response and returns the newest release that is strictly newer than `current` for the same channel, or nil when up to date.
     static func latestUpdate(
         in data: Data, channel: UpdateChannel, current: SemanticVersion
     ) -> UpdateRelease? {
@@ -108,7 +108,11 @@ enum UpdateFeed {
     ) -> UpdateRelease? {
         let candidates: [(GitHubRelease, SemanticVersion)] = releases.compactMap { release in
             guard !release.draft else { return nil }
-            if channel == .stable, release.prerelease { return nil }
+            switch channel {
+            case .stable where release.prerelease: return nil
+            case .beta where !release.prerelease: return nil
+            default: break
+            }
             guard let version = SemanticVersion(release.tagName) else { return nil }
             return (release, version)
         }

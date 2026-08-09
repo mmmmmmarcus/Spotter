@@ -78,6 +78,28 @@ struct UpdateTests {
             UpdateFeed.latestUpdate(in: feed, channel: .beta, current: v("0.6.0-beta.9"))?.version
                 == v("0.7.0-beta.2"))
 
+        let mixedChannels = """
+        [
+          {"tag_name": "v1.1.0", "prerelease": false, "draft": false,
+           "html_url": "https://github.com/x/y/releases/tag/v1.1.0",
+           "assets": [{"name": "Spotter-1.1.0.zip",
+                       "browser_download_url": "https://example.com/stable-1.1.zip"}]},
+          {"tag_name": "v1.0.0-beta.8", "prerelease": true, "draft": false,
+           "html_url": "https://github.com/x/y/releases/tag/v1.0.0-beta.8",
+           "assets": [{"name": "Spotter-1.0.0-beta.8.zip",
+                       "browser_download_url": "https://example.com/beta-1.0.zip"}]}
+        ]
+        """.data(using: .utf8)!
+        check(
+            "beta ignores newer stable releases with a different bundle identity",
+            UpdateFeed.latestUpdate(
+                in: mixedChannels, channel: .beta, current: v("0.9.0-beta.1"))?.version
+                == v("1.0.0-beta.8"))
+        check(
+            "stable ignores beta releases",
+            UpdateFeed.latestUpdate(in: mixedChannels, channel: .stable, current: v("1.0.0"))?.version
+                == v("1.1.0"))
+
         let dmgOnly = """
         [{"tag_name": "v0.9.0", "prerelease": false, "draft": false,
           "html_url": "https://github.com/x/y/releases/tag/v0.9.0",
