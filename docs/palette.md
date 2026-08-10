@@ -46,6 +46,11 @@ hook (←/→ hour scrubbing on an empty query — World Clock, whose screen als
 in place). Registry observation invalidates
 the palette when the plugin's `AppCore`-owned manager changes. Kill Process is the reference screen.
 
+The empty-query launcher can also host the single registered `launcherDashboard`. It appears above
+the normal launcher sections inside the same scroll view, has no selectable rows, and disappears as
+soon as the user types or enters another palette mode. Its visible lifecycle controls any refresh
+work, so closing the palette leaves no minute timer or EventKit fetch running.
+
 The flat `selection` index is the single source of truth for highlight / activation and **must always
 match the visible row order**, including the inline calculator card at index 0 when present (see
 [calculator.md](calculator.md)).

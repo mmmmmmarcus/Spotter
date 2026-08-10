@@ -9,6 +9,8 @@ struct LauncherList: View {
     let scroll: ScrollIntent
     /// Inline calculator/plugin answer; occupies flat selection index 0 when present.
     var inline: PaletteInlineResult?
+    /// Non-selectable plugin dashboard shown only for an empty launcher query.
+    var dashboard: AnyView?
     var inlineSelected = false
     var onActivateInline: () -> Void = {}
     var onInlineActions: () -> Void = {}
@@ -67,12 +69,16 @@ struct LauncherList: View {
     var body: some View {
         let rows = rows
         return Group {
-            if results.isEmpty && inline == nil {
+            if results.isEmpty && inline == nil && dashboard == nil {
                 EmptyResults(text: "No apps found")
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
+                            if let dashboard {
+                                dashboard
+                                    .padding(.bottom, Theme.Spacing.md)
+                            }
                             ForEach(rows) { row in
                                 switch row {
                                 case .header(let title):

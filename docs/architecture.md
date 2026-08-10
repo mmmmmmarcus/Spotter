@@ -14,7 +14,7 @@ commands (including built-in system commands), mole, coffee).
 manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `HyperKeyTap`,
 `AppSettings`, `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`, `CurrencyRateStore`, `EmojiIndex`, `FrequentEmojiStore`,
-`RunningAppsMonitor`, `WorldClockStore`, `KillProcessManager`, `ChangeCaseStore`,
+`RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`, `ChangeCaseStore`,
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `QuicklinkStore`, `QuicklinkManager`, `WindowMover`,
 `ChatGPTLauncherCoordinator`, `MoleManager`, `CoffeeManager`, `UpdateStore`, `CommandHUD`,
@@ -78,6 +78,10 @@ imperatively from AppKit.
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
   Selection Tools uses this route only for explicit browser-search failures. AI Chat owns selected-text
   translation, bilingual definition and grammar checking as ordinary follow-up-ready chat sessions.
+- **Launcher dashboard** — the enabled plugin that owns `launcherDashboard` contributes one
+  non-selectable view above the empty-query launcher sections. `RootPaletteView` keeps the dashboard
+  inside the palette's existing scroll view and selection model; the plugin owns only its local data
+  and card content, never a window or a second search field.
 
 The app follows the system appearance. Every color token lives in `Core/Theme.swift` as an
 `adaptive(dark:light:)` pair resolved through `NSColor`'s dynamic provider, so views never branch on

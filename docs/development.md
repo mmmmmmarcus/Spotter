@@ -140,6 +140,9 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
 swiftc -swift-version 6 Spotter/Plugins/ChatGPTLauncher/ChatGPTLauncherTypes.swift \
     Tools/chatgpt-launcher-test.swift \
     -o /tmp/chatgpt-launcher-test && /tmp/chatgpt-launcher-test   # deep-link + Chat-mode verification
+swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
+    Tools/dashboard-widgets-test.swift \
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # calendar grid + local usage parsing
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
@@ -158,6 +161,10 @@ sources, which is why `Spotter/Core/Calculator/` and the parser/data sources in
 The World Clock harness compiles the real Foundation-only engine and Foundation + Combine store. It
 injects a fixed date, calendar, local time zone and isolated `UserDefaults` suite, so daylight-saving,
 formatting and saved-city checks never depend on the wall clock or the user's preferences.
+
+The Dashboard Widgets harness compiles the real Foundation-only engine. It pins month-grid geometry,
+event markers and the local Codex/CodexBar usage-cache decoders without touching EventKit or the
+user's files.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a

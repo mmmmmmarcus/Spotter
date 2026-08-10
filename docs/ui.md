@@ -157,6 +157,10 @@ Spacing lives in `Theme.Spacing`: `sectionHeaderBottom` (header → first row) a
 padding). Each list passes `isFirst: row.id == <rows>.first?.id` so only the very first row skips the
 leading gap. Headers are non-selectable display rows, so selection (keyed by id) is unaffected.
 
+The empty-query launcher may place the Dashboard Widgets strip before its first section header. It
+uses the same `cardFill`/`cardStroke` language as calculator cards, but it remains a zero-row,
+non-selectable surface: keyboard selection still starts at the first visible launcher result.
+
 ---
 
 ## Liquid Glass — `Theme.frosted(in:)`, `Features/PopoverMenu.swift`

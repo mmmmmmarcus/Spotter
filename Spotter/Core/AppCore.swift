@@ -156,6 +156,7 @@ final class AppCore: ObservableObject {
     let palette = PaletteViewModel()
     let plugins = PluginRegistry()
     let worldClock = WorldClockStore()
+    let dashboardWidgets = DashboardWidgetsStore()
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
     let openRouter = OpenRouterStore()

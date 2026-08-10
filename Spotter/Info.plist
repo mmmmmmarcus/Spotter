@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Spotter uses Apple Events only when you run a plugin command that controls another app.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Spotter uses calendar access to show your next event and event days in Dashboard Widgets.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Spotter</string>
 </dict>

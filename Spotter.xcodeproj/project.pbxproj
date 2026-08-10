@@ -51,6 +51,7 @@
 		3410D4A4451ABC6AC439C246 /* MoleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFE492F0D218C431D66FF77 /* MoleManager.swift */; };
 		345EAF1AAF8CCDDCC806E3FF /* QuicklinksSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080980BFAF7DEB7943384341 /* QuicklinksSettingsView.swift */; };
 		353B2022FCC31CC61816623B /* CoffeePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5DFB42EBEFD22C5C9136F8 /* CoffeePlugin.swift */; };
+		36246E0AA712FC57D048E1CB /* DashboardWidgetsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FABAD3BE47CB4272128AAD7 /* DashboardWidgetsEngine.swift */; };
 		3675DCC361B14FE2CA0EBB8B /* QuicklinkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6CBE0957D598ECB37D61A23 /* QuicklinkManager.swift */; };
 		36D643D25D0618895CA8984C /* AIChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ABABC8E43B7EDF8CB7AD55B /* AIChatStore.swift */; };
 		372DD46A0300116AF78632CA /* HyperKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD20F68EEC018BED28E95EA /* HyperKey.swift */; };
@@ -106,6 +107,7 @@
 		90A6A68B13096A72EDCA14CC /* ChangeCaseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AB7F80FD918C4318C2DB52 /* ChangeCaseEngine.swift */; };
 		951BCA3C18064DB55FD90A15 /* QuicklinkTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 421E4FA71B5B224682CAC9F7 /* QuicklinkTypes.swift */; };
 		9701E26CE8794A3BEDB9EB33 /* CalcUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00102833B5166EE72E545325 /* CalcUnits.swift */; };
+		97076BD1FFA1DBFCECADCE5C /* DashboardWidgetsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85927C817E199488DB61F16D /* DashboardWidgetsPlugin.swift */; };
 		9A902E54548EA948D25C22A5 /* Bundle+AppName.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9C9C5A900B9FD315A6D58F /* Bundle+AppName.swift */; };
 		9B90649F3F54F2D036C08214 /* NoteEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153205CD1057E24782EA9A43 /* NoteEngine.swift */; };
 		9D1E9A3F37346DB2A4CEF564 /* RaycastImportSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB5A874A02DFEF5BC50CFA0 /* RaycastImportSelection.swift */; };
@@ -121,6 +123,7 @@
 		A87E2797F6E968857782EFA3 /* ClipboardPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736D5E62B2BCE421896E5B77 /* ClipboardPlugin.swift */; };
 		A8850E043438F18D2B964144 /* PermissionsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08701805E0ADE98D033D586 /* PermissionsSettingsView.swift */; };
 		A91F6DD7724368006F6B7C6D /* BackupActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DDCBC268510C03A9757B22 /* BackupActions.swift */; };
+		AA38B51E42696B407B4DB749 /* DashboardWidgetsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AECE7B47CC7C399897300909 /* DashboardWidgetsSettingsView.swift */; };
 		AA7C368DF075D6F85878A273 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA46DD0B4EB7F47781AEEF99 /* AppDelegate.swift */; };
 		AC81B95B9D1807999E1671C7 /* MoleTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8371E36A600160243AD8A686 /* MoleTypes.swift */; };
 		AD72C2D37BA4F8FCE7E86070 /* TextReplacementSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EFDA506189C9DCA0F620DB2 /* TextReplacementSettingsView.swift */; };
@@ -143,6 +146,7 @@
 		C0E4814FCFE97C56760ECBFC /* WorldClockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = E125CBC3DB4E52844834C201 /* WorldClockPlugin.swift */; };
 		C3756B0A8741BD54CEBF9022 /* CalcEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DA8CAC7504DE8951D8B3BC /* CalcEngine.swift */; };
 		C3C2ADCB8EBD0ED5B3FF0309 /* VisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7A287D22028FC616E9A44 /* VisualEffectView.swift */; };
+		C571D19A755463A8195FE114 /* DashboardWidgetsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914012567311217E2C10C902 /* DashboardWidgetsStore.swift */; };
 		C5A90D2F66912CF0E1FB5A2E /* CalcDateTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E99754BAF150F94F52D70F /* CalcDateTime.swift */; };
 		C906D9881A06EEADC4BD0B32 /* EmojiSymbolsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62B521E8A486B533AF74AC8 /* EmojiSymbolsPlugin.swift */; };
 		C92C7514F90469403D052722 /* DoubleTapDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC621FFFA712909B559E2B3 /* DoubleTapDetector.swift */; };
@@ -152,6 +156,7 @@
 		D06D2F714DB5F13FAFFF1A49 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8FDA359F35C67B15CF90C46 /* FavoritesStore.swift */; };
 		D1407E0293929CCBB47C64F9 /* PalettePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7008824D3AF5652511CB555E /* PalettePanel.swift */; };
 		D373612C89BC71CE6EDF4085 /* Gunzip.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC09D029700E8FB08D7833EA /* Gunzip.swift */; };
+		D4ACE3F5D2C43FAA76ABA9CB /* DashboardWidgetsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A18CE26ED74626325EEAE92 /* DashboardWidgetsView.swift */; };
 		D772C9006C6B07197B04ECCD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2B1D180CB11167DFD22ECF /* OnboardingState.swift */; };
 		D7A6D3EE0D68E59D585C12EE /* ClipboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFE9CB942C341FA21C55E4B /* ClipboardManager.swift */; };
 		DBC0473AD7BAD7330021F19E /* CalcParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2380F1A9DCF790E5C6C0FA61 /* CalcParser.swift */; };
@@ -212,6 +217,7 @@
 		153205CD1057E24782EA9A43 /* NoteEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEngine.swift; sourceTree = "<group>"; };
 		183A61AFFD4D20BA651DBEDF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		18DE144D29BA371F6899CB29 /* ChatGPTLauncherTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTLauncherTypes.swift; sourceTree = "<group>"; };
+		1A18CE26ED74626325EEAE92 /* DashboardWidgetsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsView.swift; sourceTree = "<group>"; };
 		1B00427B2E9D630317430C72 /* CommandRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandRegistry.swift; sourceTree = "<group>"; };
 		1D10E282B83D363D3D9A4FA8 /* SettingsSyncFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSyncFile.swift; sourceTree = "<group>"; };
 		1D58C310CD39C89001E71E53 /* ThinScrollbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinScrollbar.swift; sourceTree = "<group>"; };
@@ -227,6 +233,7 @@
 		2C2B6E0210EE0AAE0B9CB19D /* ShortcutsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsView.swift; sourceTree = "<group>"; };
 		2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayScroller.swift; sourceTree = "<group>"; };
 		2EF4FC36249D2F239DC103AD /* CustomCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommand.swift; sourceTree = "<group>"; };
+		2FABAD3BE47CB4272128AAD7 /* DashboardWidgetsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsEngine.swift; sourceTree = "<group>"; };
 		307535C846A5B39643CCB935 /* UpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateViews.swift; sourceTree = "<group>"; };
 		322BD1E0F51E36F6E499FFC5 /* TextReplacementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementStore.swift; sourceTree = "<group>"; };
 		33E49FE9DA17F3916D19B86D /* WindowActionMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActionMemory.swift; sourceTree = "<group>"; };
@@ -284,6 +291,7 @@
 		80E4DF7799638EECF937F60F /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageModificationTypes.swift; sourceTree = "<group>"; };
 		8371E36A600160243AD8A686 /* MoleTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoleTypes.swift; sourceTree = "<group>"; };
+		85927C817E199488DB61F16D /* DashboardWidgetsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsPlugin.swift; sourceTree = "<group>"; };
 		86AB7F80FD918C4318C2DB52 /* ChangeCaseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCaseEngine.swift; sourceTree = "<group>"; };
 		8ACF532BE2B264ADE83FCBBC /* spotter.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = spotter.icon; sourceTree = "<group>"; };
 		8D580827F82667E578C1D827 /* WorldClockEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockEngine.swift; sourceTree = "<group>"; };
@@ -292,6 +300,7 @@
 		8F1644996CA8B7491C5F3B09 /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
 		8FB5A874A02DFEF5BC50CFA0 /* RaycastImportSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastImportSelection.swift; sourceTree = "<group>"; };
 		9092ABB2DA845D92B8913B0E /* EdgeDissolve.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeDissolve.swift; sourceTree = "<group>"; };
+		914012567311217E2C10C902 /* DashboardWidgetsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsStore.swift; sourceTree = "<group>"; };
 		914090CD864C4A06E091CB49 /* SettingsRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRootView.swift; sourceTree = "<group>"; };
 		91DFC1BD2FC739DA6D944DF0 /* RunningApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningApps.swift; sourceTree = "<group>"; };
 		95A910A72680B85A7291F2AB /* RightClick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightClick.swift; sourceTree = "<group>"; };
@@ -315,6 +324,7 @@
 		A8FDA359F35C67B15CF90C46 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		A97E9B542219C092058C0457 /* DoubleTapMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapMonitor.swift; sourceTree = "<group>"; };
 		ACD8626DE6AD0B451E431936 /* ChangeCasePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCasePlugin.swift; sourceTree = "<group>"; };
+		AECE7B47CC7C399897300909 /* DashboardWidgetsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsSettingsView.swift; sourceTree = "<group>"; };
 		B106F55A48529154846D232B /* AppIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIndex.swift; sourceTree = "<group>"; };
 		B20E554F1050B16540CCBF5D /* SelectedTextReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextReader.swift; sourceTree = "<group>"; };
 		B4ADAAF0E7643B2886D05E41 /* SettingsBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBackup.swift; sourceTree = "<group>"; };
@@ -527,6 +537,18 @@
 			path = ImageModification;
 			sourceTree = "<group>";
 		};
+		841A200113BD0473AE302EF2 /* DashboardWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				2FABAD3BE47CB4272128AAD7 /* DashboardWidgetsEngine.swift */,
+				85927C817E199488DB61F16D /* DashboardWidgetsPlugin.swift */,
+				AECE7B47CC7C399897300909 /* DashboardWidgetsSettingsView.swift */,
+				914012567311217E2C10C902 /* DashboardWidgetsStore.swift */,
+				1A18CE26ED74626325EEAE92 /* DashboardWidgetsView.swift */,
+			);
+			path = DashboardWidgets;
+			sourceTree = "<group>";
+		};
 		85FB3AE480BADDE85B05DFE3 /* Coffee */ = {
 			isa = PBXGroup;
 			children = (
@@ -566,6 +588,7 @@
 				85FB3AE480BADDE85B05DFE3 /* Coffee */,
 				F48D4BE39E806B9201492F94 /* Commands */,
 				533654B2742E7D815805BAFF /* CurrencyConversion */,
+				841A200113BD0473AE302EF2 /* DashboardWidgets */,
 				1FB8F4C8FDA744E5DEE6C6A8 /* EmojiSymbols */,
 				7DF512BF41AF7303E5AC3C17 /* ImageModification */,
 				1D850A325BD1A848921DA235 /* Infrastructure */,
@@ -950,6 +973,11 @@
 				47A4F4B3A29972F313691960 /* CurrencyRateStore.swift in Sources */,
 				13A0645369C0B5377D7251D3 /* CustomCommand.swift in Sources */,
 				E591CD83E6A221D17006D15F /* CustomCommandsSettingsView.swift in Sources */,
+				36246E0AA712FC57D048E1CB /* DashboardWidgetsEngine.swift in Sources */,
+				97076BD1FFA1DBFCECADCE5C /* DashboardWidgetsPlugin.swift in Sources */,
+				AA38B51E42696B407B4DB749 /* DashboardWidgetsSettingsView.swift in Sources */,
+				C571D19A755463A8195FE114 /* DashboardWidgetsStore.swift in Sources */,
+				D4ACE3F5D2C43FAA76ABA9CB /* DashboardWidgetsView.swift in Sources */,
 				6C5EDCAB868EECFAD8EA4265 /* DiagnosticsSettingsView.swift in Sources */,
 				C92C7514F90469403D052722 /* DoubleTapDetector.swift in Sources */,
 				EE340EBD1431B21EC6D4B51B /* DoubleTapModifier.swift in Sources */,
@@ -1129,7 +1157,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.5;
+				MARKETING_VERSION = 1.4.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1201,7 +1229,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.5;
+				MARKETING_VERSION = 1.4.6;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

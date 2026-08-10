@@ -97,7 +97,9 @@ Never break these without an explicit task to do so.
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` and
   `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
-  `Tools/ai-chat-test.swift`, `Plugins/ChatGPTLauncher/ChatGPTLauncherTypes.swift` stays
+  `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift` stays
+  Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
+  `Plugins/ChatGPTLauncher/ChatGPTLauncherTypes.swift` stays
   Foundation-only and pure for `Tools/chatgpt-launcher-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole), `Plugins/Coffee/CoffeeTypes.swift`

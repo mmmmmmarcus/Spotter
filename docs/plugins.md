@@ -109,6 +109,8 @@ is optional:
   Clock).
 - `paletteScreen.observeChanges` wires the screen's manager into the registry's invalidation, so a
   background state change re-snapshots the visible list.
+- `launcherDashboard` contributes one non-selectable view above the empty-query launcher rows. The
+  registry enforces a single owner so the launcher layout and flat selection remain deterministic.
 - `onEnable` and `onDisable` start and stop work. They run once at startup for enabled plugins and on
   later state transitions. Both must be idempotent.
 - `readEnabled` and `writeEnabled` adapt a feature-owned state gate. Currency uses these because
@@ -277,6 +279,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
   IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
   adjustment; its launcher screen shows a user-managed saved-city list.
+- **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — enabled by default; adds local time,
+  next calendar event, Claude Code/Codex quota summaries and a month grid above the empty launcher.
+  Calendar data is permission-gated and usage data is read only from local tool/CodexBar state.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — enabled by default; launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard
@@ -299,7 +304,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
-Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
+Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Dashboard Widgets](dashboard-widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),

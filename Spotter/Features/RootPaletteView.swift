@@ -228,6 +228,8 @@ struct RootPaletteView: View {
         let emojis = emojiSections.flatMap(\.entries)
         let plugin = activePluginID.flatMap { plugins.paletteSnapshot(for: $0, query: vm.query) }
         let pluginItems = plugin?.items ?? []
+        let dashboard = vm.mode == .launcher && isQueryEmpty
+            ? plugins.launcherDashboardView() : nil
         // Newest stored clip + the reorder token: the pair changes only when the store mutates, never when a query filters the list.
         let clipFollow = ClipFollowKey(id: store.items.first?.id, token: vm.followToken)
         // Every count/selection below derives from this one inline/offset pair — the flat selection index must always match the visible row order.
@@ -255,7 +257,7 @@ struct RootPaletteView: View {
 
         let layout = paletteLayout(
             apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
-            plugin: plugin, selection: sel, favoriteCount: favoriteCount,
+            plugin: plugin, dashboard: dashboard, selection: sel, favoriteCount: favoriteCount,
             showSections: showSections, pillLabel: pillLabel,
             showActionGroup: showActionGroup, showActionsButton: showActionsButton
         )
@@ -267,7 +269,7 @@ struct RootPaletteView: View {
     private func paletteLayout(
         apps: [AppEntry], clips: [ClipboardItem], hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
-        plugin: PluginPaletteSnapshot?, selection: Int, favoriteCount: Int,
+        plugin: PluginPaletteSnapshot?, dashboard: AnyView?, selection: Int, favoriteCount: Int,
         showSections: Bool, pillLabel: String, showActionGroup: Bool,
         showActionsButton: Bool
     ) -> some View {
@@ -278,7 +280,7 @@ struct RootPaletteView: View {
             } else {
                 content(
                     apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
-                    plugin: plugin, selection: selection, favoriteCount: favoriteCount,
+                    plugin: plugin, dashboard: dashboard, selection: selection, favoriteCount: favoriteCount,
                     showSections: showSections
                 )
             }
@@ -675,7 +677,7 @@ struct RootPaletteView: View {
     private func content(
         apps: [AppEntry], clips: [ClipboardItem], hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
-        plugin: PluginPaletteSnapshot?,
+        plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
         selection: Int, favoriteCount: Int, showSections: Bool
     ) -> some View {
         switch vm.mode {
@@ -691,6 +693,7 @@ struct RootPaletteView: View {
                 showSections: showSections,
                 scroll: scroll,
                 inline: inline,
+                dashboard: dashboard,
                 inlineSelected: inlineSelected,
                 onActivateInline: {
                     vm.selection = 0

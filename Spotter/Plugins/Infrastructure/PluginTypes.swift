@@ -26,6 +26,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let mole = PluginID(rawValue: "mole")
     static let coffee = PluginID(rawValue: "coffee")
     static let windowManagement = PluginID(rawValue: "window-management")
+    static let dashboardWidgets = PluginID(rawValue: "dashboard-widgets")
 }
 
 /// The small fixed palette Settings uses for plugin sidebar icon tiles.
@@ -37,6 +38,7 @@ enum PluginTint: String, Sendable {
 enum PluginPermission: String, CaseIterable, Sendable {
     case accessibility
     case automation
+    case calendar
 }
 
 /// Display-only metadata. Keeping it free of SwiftUI lets permission and backup code inspect plugins.

@@ -43,6 +43,12 @@ struct PluginPaletteScreenRegistration {
     var observeChanges: ((_ invalidate: @escaping @MainActor () -> Void) -> AnyCancellable)?
 }
 
+/// One non-selectable, at-a-glance surface shown above launcher results while the root query is empty.
+@MainActor
+struct PluginLauncherDashboardRegistration {
+    let content: () -> AnyView
+}
+
 /// A compiled, signed built-in plugin registration that standardizes discovery without runtime loading.
 @MainActor
 struct PluginRegistration {
@@ -57,6 +63,7 @@ struct PluginRegistration {
     /// Launcher entries a plugin owns that change at runtime (a user's saved quicklinks), re-read on every rebuild rather than captured at registration.
     var dynamicLauncherCommands: (() -> [PluginCommandRegistration])?
     var paletteScreen: PluginPaletteScreenRegistration?
+    var launcherDashboard: PluginLauncherDashboardRegistration?
     var readEnabled: (() -> Bool)?
     var writeEnabled: ((Bool) -> Void)?
     var onEnable: () -> Void = {}
@@ -74,6 +81,7 @@ final class PluginRegistry: ObservableObject {
     private var commandOwners: [String: PluginID] = [:]
     private var paletteObservers: [PluginID: AnyCancellable] = [:]
     private var activePaletteScreen: PluginID?
+    private var launcherDashboardOwner: PluginID?
     private var started = false
     var onCommandsChanged: (([AppEntry]) -> Void)?
     var onEnabledStatesChanged: (() -> Void)?
@@ -121,6 +129,12 @@ final class PluginRegistry: ObservableObject {
     func register(_ registration: PluginRegistration) {
         let id = registration.metadata.id
         precondition(registrations[id] == nil, "Duplicate plugin id: \(id.rawValue)")
+        if registration.launcherDashboard != nil {
+            precondition(
+                launcherDashboardOwner == nil,
+                "Only one plugin may own the launcher dashboard")
+            launcherDashboardOwner = id
+        }
         for command in registration.launcherCommands {
             precondition(commandOwners[command.id] == nil, "Duplicate plugin command: \(command.id)")
             commandOwners[command.id] = id
@@ -187,6 +201,11 @@ final class PluginRegistry: ObservableObject {
 
     func settingsView(for id: PluginID) -> AnyView {
         registrations[id]?.settingsView() ?? AnyView(EmptyView())
+    }
+
+    func launcherDashboardView() -> AnyView? {
+        guard let id = launcherDashboardOwner, isEnabled(id) else { return nil }
+        return registrations[id]?.launcherDashboard?.content()
     }
 
     func paletteScreenPlaceholder(for id: PluginID) -> String? {
