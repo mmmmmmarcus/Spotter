@@ -110,7 +110,7 @@ struct SettingsRootView: View {
 
                 sidebarHeader("Plugins")
                     .padding(.top, Theme.Spacing.md)
-                ForEach(plugins.plugins) { plugin in
+                ForEach(sortedPlugins) { plugin in
                     sidebarRow(
                         title: plugin.name,
                         systemImage: plugin.systemImage,
@@ -133,6 +133,15 @@ struct SettingsRootView: View {
             }
             .ignoresSafeArea()
         )
+    }
+
+    private var sortedPlugins: [PluginMetadata] {
+        plugins.plugins.sorted { lhs, rhs in
+            let order = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+            return order == .orderedSame
+                ? lhs.id.rawValue < rhs.id.rawValue
+                : order == .orderedAscending
+        }
     }
 
     private func sidebarHeader(_ title: String) -> some View {

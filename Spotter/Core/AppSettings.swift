@@ -28,6 +28,7 @@ enum PopToRootTimeout: Int, CaseIterable, Identifiable, Sendable {
 final class AppSettings: ObservableObject {
     private let defaults = UserDefaults.standard
     private enum Key {
+        static let showInDock = "\(Bundle.main.bundleIdentifier ?? "com.spotter.app").showInDock"
         static let clipboardRetention = "clipboardRetentionDays"
         static let clipboardDisabledApps = "clipboardDisabledApps"
         static let hyperKey = "hyperKeyPhysicalKey"
@@ -63,6 +64,16 @@ final class AppSettings: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { LaunchAtLogin.set(launchAtLogin) }
     }
+
+    /// Keep Spotter's application icon in the Dock outside the temporary regular-app lifetime used by auxiliary windows.
+    @Published var showInDock: Bool {
+        didSet {
+            defaults.set(showInDock, forKey: Key.showInDock)
+            onDockVisibilityChanged?()
+        }
+    }
+
+    var onDockVisibilityChanged: (() -> Void)?
 
     /// The physical key remapped to the Hyper chord; `HyperKeyTap` reacts via its publisher.
     @Published var hyperKey: HyperKeyPhysicalKey {
@@ -154,6 +165,7 @@ final class AppSettings: ObservableObject {
             defaults.stringArray(forKey: Key.clipboardDisabledApps)
             ?? ["com.apple.keychainaccess", "com.apple.Passwords"]
         launchAtLogin = LaunchAtLogin.isEnabled
+        showInDock = defaults.bool(forKey: Key.showInDock)
         hyperKey =
             defaults.string(forKey: Key.hyperKey).flatMap(HyperKeyPhysicalKey.init) ?? .none
         // The two Bools default to true, so absence must be distinguished from stored `false`.

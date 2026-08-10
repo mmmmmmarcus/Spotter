@@ -28,6 +28,7 @@ Spotter/Plugins/
 ├── Quicklinks/
 ├── Commands/
 ├── AIChat/
+├── ChatGPTLauncher/
 ├── EmojiSymbols/
 ├── WorldClock/
 ├── KillProcess/
@@ -267,6 +268,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
   `dynamicLauncherCommands`. Disabling it preserves custom commands and every binding, removes both
   command sources from the launcher, and makes their global shortcuts no-op; a custom command already
   running is not terminated.
+- **Send to ChatGPT** (`Spotter/Plugins/ChatGPTLauncher/`) — enabled by default; collects a prompt
+  in a shared palette screen, opens the official ChatGPT macOS app through its `codex://new` deep
+  link, and submits only after Accessibility verifies the focused composer contains that exact
+  prompt. A failed verification leaves the prefilled draft unsent.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
@@ -297,5 +302,6 @@ shell-command feature; do not use shell commands as an internal plugin API.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
-[Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md), and
-[Notes](notes.md), plus [Text Replacement](text-replacement.md).
+[Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
+[Send to ChatGPT](chatgpt-launcher.md), and [Notes](notes.md), plus
+[Text Replacement](text-replacement.md).

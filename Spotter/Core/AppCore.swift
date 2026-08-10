@@ -159,6 +159,7 @@ final class AppCore: ObservableObject {
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
     let aiChat: AIChatStore
+    let chatGPTLauncher = ChatGPTLauncherCoordinator()
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()
@@ -171,7 +172,9 @@ final class AppCore: ObservableObject {
     var coffeeScreen: CoffeeScreen = .status
 
     private lazy var windowController = PaletteWindowController(core: self)
-    private let auxWindows = AuxWindowController()
+    private lazy var auxWindows = AuxWindowController { [weak self] in
+        self?.syncActivationPolicy()
+    }
 
     private init() {
         let launcherRanking = LauncherRankingStore()
@@ -191,12 +194,15 @@ final class AppCore: ObservableObject {
             if let id = oldMode.pluginID { self?.plugins.deactivatePaletteScreen(id) }
             if let id = newMode.pluginID { self?.plugins.activatePaletteScreen(id) }
         }
+        settings.onDockVisibilityChanged = { [weak self] in
+            self?.syncActivationPolicy()
+        }
     }
 
     func start() {
         // AppKit's default tooltip delay is ~2–3s; shorten it (in ms) so the compact-bar favorite tooltips appear promptly. Registration domain — never overrides a user default.
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 250])
-        NSApp.setActivationPolicy(.accessory)
+        syncActivationPolicy()
 
         clipboardStore.maxAge = settings.clipboardRetention.maxAge
         appIndex.start(settings: settings)
@@ -348,10 +354,16 @@ final class AppCore: ObservableObject {
         windowController.applyCollapsed(paletteIsCollapsed)
     }
 
-    /// Dock-icon / reopen: focus an open aux window (About/Settings/Onboarding), else summon the launcher. Decoupled from the individual show paths so activation always works.
+    /// Dock-icon / reopen always summons the launcher, even when Settings or another auxiliary window is already open.
     func handleReopen() {
-        if auxWindows.focusExisting() { return }
         showPalette(mode: .launcher, restoreAnyMode: true)
+    }
+
+    /// The Dock preference is the idle policy; auxiliary windows temporarily require regular-app activation for native layering and focus.
+    private func syncActivationPolicy() {
+        let policy: NSApplication.ActivationPolicy =
+            settings.showInDock || auxWindows.hasOpenWindows ? .regular : .accessory
+        NSApp.setActivationPolicy(policy)
     }
 
     /// Settings runs in its own window (the SwiftUI `Settings` scene is unreliable for accessory apps). A fresh window mounts directly on `tab` (no first-frame flicker); an already-open one is switched in place.
@@ -365,7 +377,10 @@ final class AppCore: ObservableObject {
 
     private func showSettings(destination: SettingsDestination) {
         let isNew = auxWindows.show(
-            id: "settings", title: "Settings", size: CGSize(width: 720, height: 550),
+            id: "settings", title: "Settings",
+            size: CGSize(
+                width: Theme.Size.settingsWindowWidth,
+                height: Theme.Size.settingsWindowHeight),
             seamlessTitleBar: true
         ) {
             SettingsRootView(initialDestination: destination)

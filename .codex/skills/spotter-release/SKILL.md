@@ -16,6 +16,8 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
 3. Distinguish a preparation request from authorization to publish. Building locally, dispatching a
    workflow and creating a GitHub Release are separate state-changing actions; perform only those
    the user requested.
+4. Owner convention: an unqualified request to publish means `stable`. Stable versions remain plain
+   numeric `x.y.z` values with no channel label or suffix. Use `beta` only when explicitly requested.
 
 ## Manage the version
 

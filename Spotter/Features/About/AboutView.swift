@@ -196,6 +196,13 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
     private var windows: [String: NSWindow] = [:]
     private var resizeAnimations: [String: Task<Void, Never>] = [:]
     private var resizeAnimationTokens: [String: UUID] = [:]
+    private let onWindowsChanged: () -> Void
+
+    init(onWindowsChanged: @escaping () -> Void) {
+        self.onWindowsChanged = onWindowsChanged
+    }
+
+    var hasOpenWindows: Bool { !windows.isEmpty }
 
     /// Returns `true` when a new window was created, `false` when an existing one was re-raised.
     @discardableResult
@@ -258,8 +265,8 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             window.center()
             windows[id] = window
         }
-        // Promote to a regular app so the window gets a Dock icon and normal layering; demoted back to accessory when the last aux window closes.
-        NSApp.setActivationPolicy(.regular)
+        // Auxiliary windows require regular-app activation for native layering; AppCore decides whether that policy remains after they close.
+        onWindowsChanged()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
 
@@ -312,17 +319,6 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Re-focus an open aux window on reopen (Dock-icon click); returns false when none is open. `windows` only holds live windows (`windowWillClose` prunes them).
-    @discardableResult
-    func focusExisting() -> Bool {
-        guard let window = windows.values.first(where: { $0.isVisible }) ?? windows.values.first
-        else { return false }
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        return true
-    }
-
     /// Close a window programmatically; `windowWillClose` handles the dict/teardown so the SwiftUI tree deallocates.
     func close(id: String) {
         windows[id]?.close()
@@ -336,7 +332,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         resizeAnimations[id] = nil
         resizeAnimationTokens[id] = nil
         windows.removeValue(forKey: id)
-        if windows.isEmpty { NSApp.setActivationPolicy(.accessory) }
+        onWindowsChanged()
     }
 }
 

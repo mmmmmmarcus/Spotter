@@ -210,6 +210,19 @@ struct GeneralSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
+                    title: "Show in Dock",
+                    subtitle:
+                        "Keep the Spotter icon in the Dock. Clicking it opens the app launcher.",
+                    systemImage: "dock.rectangle",
+                    tint: .blue
+                ) {
+                    Toggle("", isOn: $settings.showInDock)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsDivider()
+                SettingsRow(
                     title: "Remember Window Position",
                     subtitle:
                         "Drag the launcher by its background to move it. On, it reopens where you left it; off, it re-centers every time.",

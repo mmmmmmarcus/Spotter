@@ -17,7 +17,8 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `RunningAppsMonitor`, `WorldClockStore`, `KillProcessManager`, `ChangeCaseStore`,
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `QuicklinkStore`, `QuicklinkManager`, `WindowMover`,
-`MoleManager`, `CoffeeManager`, `UpdateStore`, `CommandHUD`, `SettingsSyncManager`,
+`ChatGPTLauncherCoordinator`, `MoleManager`, `CoffeeManager`, `UpdateStore`, `CommandHUD`,
+`SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry`, `AIChatStore` — plus the window
 controllers. One deliberate singleton lives outside this rule: `AppLog.shared`
 (`Core/AppLog.swift`), the diagnostics sink every subsystem reaches — infrastructure like

@@ -26,6 +26,7 @@ struct SettingsBackup: Codable {
         var hyperKeyReplacesGlyph: Bool?
         var emojiSkinTone: String?
         var showInMenuBar: Bool?
+        var showInDock: Bool?
         var popToRootSeconds: Int?
         var compactMode: Bool?
         var showFavoritesInCompactMode: Bool?
@@ -142,6 +143,7 @@ extension SettingsBackup {
             emojiSkinTone: s.emojiSkinTone.rawValue,
             showInMenuBar: UserDefaults.standard.object(forKey: SettingsKey.showInMenuBar) as? Bool
                 ?? true,
+            showInDock: s.showInDock,
             popToRootSeconds: s.popToRootTimeout.rawValue,
             compactMode: s.compactMode,
             showFavoritesInCompactMode: s.showFavoritesInCompactMode,
@@ -398,6 +400,10 @@ extension SettingsBackup {
         }
         if let show = s.showInMenuBar {
             UserDefaults.standard.set(show, forKey: SettingsKey.showInMenuBar)
+            count += 1
+        }
+        if let show = s.showInDock {
+            settings.showInDock = show
             count += 1
         }
         if let secs = s.popToRootSeconds, let timeout = PopToRootTimeout(rawValue: secs) {

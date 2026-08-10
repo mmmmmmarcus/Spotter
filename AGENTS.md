@@ -97,7 +97,9 @@ Never break these without an explicit task to do so.
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` and
   `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
-  `Tools/ai-chat-test.swift`, `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
+  `Tools/ai-chat-test.swift`, `Plugins/ChatGPTLauncher/ChatGPTLauncherTypes.swift` stays
+  Foundation-only and pure for `Tools/chatgpt-launcher-test.swift`,
+  `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole), `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
@@ -220,7 +222,8 @@ Never break these without an explicit task to do so.
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/selection-tools.md`](docs/selection-tools.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
-  [`docs/ai-chat.md`](docs/ai-chat.md) · [`docs/custom-commands.md`](docs/custom-commands.md)
+  [`docs/ai-chat.md`](docs/ai-chat.md) · [`docs/chatgpt-launcher.md`](docs/chatgpt-launcher.md) ·
+  [`docs/custom-commands.md`](docs/custom-commands.md)
   — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·
