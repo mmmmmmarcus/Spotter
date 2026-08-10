@@ -58,28 +58,23 @@ struct PermissionsSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
-                    title: dashboard.calendarAccess == .fullAccess
-                        ? "Manage in System Settings" : "Grant access",
-                    subtitle: "Opens Privacy & Security › Calendars.",
+                    title: calendarActionTitle,
+                    subtitle: calendarActionSubtitle,
                     systemImage: "arrow.up.forward.app",
                     tint: .secondary
                 ) {
-                    Button(dashboard.calendarAccess == .fullAccess ? "Open…" : "Allow…") {
-                        if dashboard.calendarAccess == .notDetermined
-                            || dashboard.calendarAccess == .writeOnly
-                        {
-                            dashboard.requestCalendarAccess()
-                        } else {
-                            Permissions.openCalendarSettings()
-                        }
-                    }
+                    calendarAction
                 }
             }
         }
-        .onAppear { accessibilityTrusted = Permissions.isAccessibilityTrusted() }
+        .onAppear {
+            accessibilityTrusted = Permissions.isAccessibilityTrusted()
+            dashboard.refreshCalendarAuthorization()
+        }
         .onReceive(refreshTimer) { _ in
             let trusted = Permissions.isAccessibilityTrusted()
             if trusted != accessibilityTrusted { accessibilityTrusted = trusted }
+            dashboard.refreshCalendarAuthorization()
         }
     }
 
@@ -116,16 +111,16 @@ struct PermissionsSettingsView: View {
     }
 
     private var calendarStatusBadge: some View {
-        let granted = dashboard.calendarAccess == .fullAccess
+        let status = calendarStatus
         return HStack(spacing: Theme.Spacing.xs + 1) {
-            Image(systemName: granted ? "checkmark.circle.fill" : "calendar.badge.exclamationmark")
-            Text(granted ? "Granted" : "Not granted")
+            Image(systemName: status.symbol)
+            Text(status.label)
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(granted ? Color.green : Color.orange)
+        .foregroundStyle(status.color)
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.xs)
-        .background(Capsule().fill((granted ? Color.green : Color.orange).opacity(0.14)))
+        .background(Capsule().fill(status.color.opacity(0.14)))
     }
 
     private var calendarSubtitle: String {
@@ -133,5 +128,56 @@ struct PermissionsSettingsView: View {
         return names.isEmpty
             ? "No installed plugin currently declares this permission."
             : "Used by \(names) to show upcoming events and mark event days."
+    }
+
+    private var calendarStatus: (label: String, symbol: String, color: Color) {
+        switch dashboard.calendarAccess {
+        case .notDetermined:
+            return ("Not requested", "calendar.badge.exclamationmark", .orange)
+        case .denied:
+            return ("Denied", "xmark.circle.fill", .red)
+        case .restricted:
+            return ("Restricted", "lock.circle.fill", .orange)
+        case .writeOnly:
+            return ("Write only", "pencil.circle.fill", .orange)
+        case .fullAccess:
+            return ("Granted", "checkmark.circle.fill", .green)
+        }
+    }
+
+    private var calendarActionTitle: String {
+        switch dashboard.calendarAccess {
+        case .notDetermined, .writeOnly: "Grant full access"
+        case .denied, .fullAccess: "Manage in System Settings"
+        case .restricted: "Calendar access is restricted"
+        }
+    }
+
+    private var calendarActionSubtitle: String {
+        switch dashboard.calendarAccess {
+        case .notDetermined: "Shows the macOS calendar permission prompt."
+        case .writeOnly: "Upgrade the existing write-only grant to full access."
+        case .denied, .fullAccess: "Opens Privacy & Security › Calendars."
+        case .restricted: "This Mac's policy does not allow Calendar access."
+        }
+    }
+
+    @ViewBuilder
+    private var calendarAction: some View {
+        switch dashboard.calendarAccess {
+        case .notDetermined, .writeOnly:
+            if dashboard.isRequestingCalendarAccess {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button("Allow…") { dashboard.requestCalendarAccess() }
+            }
+        case .denied, .fullAccess:
+            Button("Open Settings…") { Permissions.openCalendarSettings() }
+        case .restricted:
+            Text("Unavailable")
+                .font(.caption)
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
     }
 }

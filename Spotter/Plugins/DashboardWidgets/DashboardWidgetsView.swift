@@ -73,15 +73,27 @@ struct DashboardWidgetsView: View {
             case .notDetermined, .writeOnly:
                 Text("Calendar access is off")
                     .font(.body.weight(.medium))
-                Button("Allow Calendar") { store.requestCalendarAccess() }
-                    .buttonStyle(.link)
-                    .controlSize(.small)
-            case .denied, .restricted:
+                if store.isRequestingCalendarAccess {
+                    Text("Waiting for permission…")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                } else {
+                    Button("Allow Calendar") { store.requestCalendarAccess() }
+                        .buttonStyle(.link)
+                        .controlSize(.small)
+                }
+            case .denied:
                 Text("Calendar unavailable")
                     .font(.body.weight(.medium))
                 Button("Open Settings") { Permissions.openCalendarSettings() }
                     .buttonStyle(.link)
                     .controlSize(.small)
+            case .restricted:
+                Text("Calendar restricted")
+                    .font(.body.weight(.medium))
+                Text("Managed by this Mac's policy.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
             }
             Spacer(minLength: 0)
         }

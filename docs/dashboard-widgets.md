@@ -20,8 +20,9 @@ the flat result index, so the first favorite/application remains selection 0.
 
 Calendar access starts undetermined and is requested only after the user clicks **Allow** in the
 dashboard or Settings. The Info.plist purpose string names the one value Spotter reads: the next
-upcoming event. Denied or restricted access renders an explicit settings affordance instead of an
-empty-event claim.
+upcoming event, and the signed app carries the Calendar personal-information entitlement required by
+EventKit. Denied access renders an explicit System Settings affordance, while a policy-restricted Mac
+shows a non-actionable restricted state instead of an empty-event claim.
 
 After full access is granted, the store queries EventKit from now through one year ahead. The month
 grid marks dates that contain an event in the displayed month; the event card shows the earliest
@@ -44,4 +45,5 @@ shown as unavailable rather than as zero usage.
 The plugin is enabled by default and can be disabled under Settings → Plugins → Dashboard Widgets.
 Disabling it removes the strip and stops refresh work. The permission overview exposes Calendar as a
 global permission because the next-event card depends on it. Usage refreshes occur only while the
-dashboard is visible and can also be triggered from the plugin settings page.
+dashboard is visible and can also be triggered from the plugin settings page. Permission views
+re-check authorization while visible so returning from System Settings updates them without a relaunch.

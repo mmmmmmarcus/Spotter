@@ -20,6 +20,7 @@ final class DashboardWidgetsStore: ObservableObject {
     @Published private(set) var codexUsage: DashboardUsageSnapshot?
     @Published private(set) var claudeUsage: DashboardUsageSnapshot?
     @Published private(set) var lastRefresh: Date?
+    @Published private(set) var isRequestingCalendarAccess = false
 
     private let eventStore = EKEventStore()
     private var refreshTask: Task<Void, Never>?
@@ -56,9 +57,13 @@ final class DashboardWidgetsStore: ObservableObject {
     }
 
     func requestCalendarAccess() {
-        guard calendarAccess == .notDetermined || calendarAccess == .writeOnly else { return }
+        guard !isRequestingCalendarAccess,
+            calendarAccess == .notDetermined || calendarAccess == .writeOnly
+        else { return }
+        isRequestingCalendarAccess = true
         Task { [weak self] in
             guard let self else { return }
+            defer { isRequestingCalendarAccess = false }
             do {
                 _ = try await eventStore.requestFullAccessToEvents()
             } catch {
@@ -66,9 +71,15 @@ final class DashboardWidgetsStore: ObservableObject {
                     "DashboardWidgets",
                     "Calendar access request failed: \(error.localizedDescription)")
             }
-            calendarAccess = Self.currentCalendarAccess()
-            refreshCalendar()
+            refreshCalendarAuthorization()
         }
+    }
+
+    func refreshCalendarAuthorization() {
+        let current = Self.currentCalendarAccess()
+        guard current != calendarAccess else { return }
+        calendarAccess = current
+        refreshCalendar()
     }
 
     private func refreshCalendar(now: Date = Date(), calendar: Calendar = .current) {

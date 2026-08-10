@@ -35,11 +35,20 @@ struct DashboardWidgetsSettingsView: View {
                 ) {
                     switch store.calendarAccess {
                     case .notDetermined, .writeOnly:
-                        Button("Allow…") { store.requestCalendarAccess() }
-                            .controlSize(.small)
-                    case .denied, .restricted:
+                        if store.isRequestingCalendarAccess {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Button("Allow…") { store.requestCalendarAccess() }
+                                .controlSize(.small)
+                        }
+                    case .denied:
                         Button("Open Settings…") { Permissions.openCalendarSettings() }
                             .controlSize(.small)
+                    case .restricted:
+                        Text("Restricted")
+                            .font(.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
                     case .fullAccess:
                         Label("Granted", systemImage: "checkmark.circle.fill")
                             .font(.caption.weight(.semibold))
