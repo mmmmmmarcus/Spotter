@@ -92,11 +92,9 @@ struct UpdatesSettingsCard: View {
     }
 }
 
-/// Focused end-to-end update flow opened by the launcher command.
-struct UpdateWindowView: View {
+/// End-to-end update status rendered inside the shared command palette.
+struct UpdatePaletteView: View {
     @ObservedObject private var store = AppCore.shared.updates
-    @Environment(\.openURL) private var openURL
-    let close: () -> Void
 
     var body: some View {
         VStack(spacing: Theme.Spacing.xxl) {
@@ -115,20 +113,9 @@ struct UpdateWindowView: View {
             }
 
             Spacer(minLength: 0)
-
-            HStack(spacing: Theme.Spacing.lg) {
-                Spacer()
-                Button("Close", action: close)
-                    .keyboardShortcut(.cancelAction)
-                primaryAction
-            }
         }
         .padding(Theme.Spacing.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            VisualEffectView(material: .contentBackground, blending: .behindWindow)
-                .ignoresSafeArea()
-        )
     }
 
     @ViewBuilder
@@ -149,31 +136,6 @@ struct UpdateWindowView: View {
             Image(systemName: "arrow.down.circle.fill")
                 .font(.largeTitle)
                 .foregroundStyle(.blue)
-        }
-    }
-
-    @ViewBuilder
-    private var primaryAction: some View {
-        switch store.status {
-        case .checking, .installing:
-            EmptyView()
-        case .available(let release):
-            if release.zipAssetURL != nil {
-                Button("Install Update") {
-                    Task { await store.installAvailableUpdate() }
-                }
-                .keyboardShortcut(.defaultAction)
-            } else {
-                Button("View Release") {
-                    openURL(release.pageURL)
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-        case .idle, .upToDate, .failed:
-            Button("Check Again") {
-                Task { await store.checkNow() }
-            }
-            .keyboardShortcut(.defaultAction)
         }
     }
 

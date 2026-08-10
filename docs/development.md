@@ -139,7 +139,7 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # chat transcript windowing
 swiftc -swift-version 6 Spotter/Plugins/ChatGPTLauncher/ChatGPTLauncherTypes.swift \
     Tools/chatgpt-launcher-test.swift \
-    -o /tmp/chatgpt-launcher-test && /tmp/chatgpt-launcher-test   # deep-link encoding + draft verification
+    -o /tmp/chatgpt-launcher-test && /tmp/chatgpt-launcher-test   # deep-link + Chat-mode verification
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
@@ -163,8 +163,8 @@ Kill Process tests parse a fixed `ps` fixture and never signal a real process. C
 real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a
 browser; AI Chat tests transcript windowing plus the selected-text target-language and prompt logic
 without sending text over the network.
-Send to ChatGPT tests deep-link round trips and exact draft matching without opening ChatGPT or
-posting a keyboard event.
+Send to ChatGPT tests deep-link round trips, exact draft matching and the structural Chat-mode
+selection rule without opening ChatGPT or posting a keyboard event.
 Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory.
 

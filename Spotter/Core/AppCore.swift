@@ -7,6 +7,7 @@ enum PaletteMode: Equatable, Identifiable {
     case calculatorHistory
     case emoji
     case aiChat
+    case updates
     case plugin(PluginID)
 
     var id: String {
@@ -16,6 +17,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .calculatorHistory: return "calculator-history"
         case .emoji: return "emoji"
         case .aiChat: return "ai-chat"
+        case .updates: return "updates"
         case .plugin(let id): return "plugin:" + id.rawValue
         }
     }
@@ -30,6 +32,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .calculatorHistory: return "Calculator History"
         case .emoji: return "Emoji & Symbols"
         case .aiChat: return "AI Chat"
+        case .updates: return "Software Update"
         case .plugin: return "Plugin"
         }
     }
@@ -40,6 +43,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .calculatorHistory: return "plus.forwardslash.minus"
         case .emoji: return "face.smiling"
         case .aiChat: return "sparkles"
+        case .updates: return "arrow.down.circle"
         case .plugin: return "puzzlepiece.extension"
         }
     }
@@ -50,6 +54,7 @@ enum PaletteMode: Equatable, Identifiable {
         case .calculatorHistory: return "Do math, convert units, or search your past calculations…"
         case .emoji: return "Search emoji and symbols…"
         case .aiChat: return "Ask anything, then press ↵…"
+        case .updates: return "Software Update"
         case .plugin: return "Search plugin results…"
         }
     }
@@ -404,21 +409,23 @@ final class AppCore: ObservableObject {
         showSettings(tab: .about)
     }
 
-    /// Launcher-first update flow: every invocation performs a fresh manual check while the window observes the same store and installer as Settings → General.
+    /// Launcher-first update flow: stay in the shared palette while the same store and installer used by Settings drive every state.
     func showUpdates() {
-        auxWindows.show(
-            id: "updates", title: "Software Update",
-            size: CGSize(
-                width: Theme.Size.updateWindowWidth,
-                height: Theme.Size.updateWindowHeight),
-            seamlessTitleBar: true,
-            closeButtonOnly: true
-        ) {
-            UpdateWindowView {
-                self.auxWindows.close(id: "updates")
-            }
-        }
+        palette.prepare(mode: .updates)
         Task { await updates.checkNow() }
+    }
+
+    func performUpdatePrimaryAction() {
+        switch updates.status {
+        case .available(let release) where release.zipAssetURL != nil:
+            Task { await updates.installAvailableUpdate() }
+        case .available(let release):
+            NSWorkspace.shared.open(release.pageURL)
+        case .idle, .upToDate, .failed:
+            Task { await updates.checkNow() }
+        case .checking, .installing:
+            break
+        }
     }
 
     /// Native plugin workspaces share AppCore's auxiliary-window owner instead of creating plugin-specific window singletons.
@@ -635,7 +642,6 @@ final class AppCore: ObservableObject {
         case .calculatorHistory:
             showPalette(mode: .calculatorHistory)
         case .checkForUpdates:
-            hidePalette(restoreFocus: false)
             showUpdates()
         case .exportSettings:
             hidePalette(restoreFocus: false)

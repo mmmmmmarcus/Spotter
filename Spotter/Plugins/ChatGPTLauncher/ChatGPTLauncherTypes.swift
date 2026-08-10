@@ -27,3 +27,9 @@ enum ChatGPTPrompt {
             .replacingOccurrences(of: "\r", with: "\n")
     }
 }
+
+enum ChatGPTComposerMode {
+    static func isChat(pressedStates: [Bool]) -> Bool {
+        pressedStates == [true, false]
+    }
+}

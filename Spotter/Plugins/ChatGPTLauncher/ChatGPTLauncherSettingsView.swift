@@ -6,7 +6,7 @@ struct ChatGPTLauncherSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "Send to ChatGPT",
-            subtitle: "Hand a prompt from Spotter to a new chat in the ChatGPT desktop app."
+            subtitle: "Hand a prompt from Spotter to a new Chat session in the ChatGPT desktop app."
         ) {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
@@ -30,9 +30,9 @@ struct ChatGPTLauncherSettingsView: View {
             SettingsCallout(
                 title: "Requires the current ChatGPT app for macOS.",
                 message:
-                    "Spotter opens ChatGPT's official codex:// new-chat link, verifies that the "
-                    + "prefilled prompt is focused, and only then presses Return. If verification "
-                    + "fails, the prompt stays as an unsent draft.",
+                    "Spotter first switches the app to Chat, verifies the Chat composer, then opens "
+                    + "ChatGPT's official codex:// new-chat link. Return is pressed only when Chat "
+                    + "mode and the complete prefilled prompt are both verified.",
                 systemImage: "checkmark.shield",
                 tint: .green)
 
@@ -40,7 +40,7 @@ struct ChatGPTLauncherSettingsView: View {
                 SettingsRow(
                     title: "Accessibility",
                     subtitle:
-                        "Used only to inspect the focused ChatGPT composer and send the verified Return key.",
+                        "Used only to switch modes, inspect the focused Chat composer, and send the verified Return key.",
                     systemImage: "hand.raised",
                     tint: .blue
                 ) {

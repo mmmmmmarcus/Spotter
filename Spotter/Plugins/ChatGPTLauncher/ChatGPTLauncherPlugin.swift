@@ -21,7 +21,7 @@ enum ChatGPTLauncherPlugin {
                 id: .chatGPTLauncher,
                 name: "Send to ChatGPT",
                 summary:
-                    "Open a new chat in the ChatGPT desktop app and send the prompt you type in Spotter.",
+                    "Switch the ChatGPT desktop app to Chat, open a new session, and send your prompt.",
                 systemImage: "bubble.left.and.bubble.right",
                 tint: .green),
             defaultEnabled: true,
@@ -57,7 +57,7 @@ enum ChatGPTLauncherPlugin {
                 PluginPaletteItem(
                     id: "prompt",
                     title: prompt,
-                    subtitle: "Open a new chat and send this prompt",
+                    subtitle: "Open a new Chat session and send this prompt",
                     icon: .symbol("arrow.up.message"),
                     titleLineLimit: 2,
                     primaryActionTitle: "Send to ChatGPT")
@@ -100,12 +100,29 @@ extension AppCore {
             switch outcome {
             case .sent:
                 break
-            case .draftReady:
+            case .chatModeUnavailable:
+                AppLog.error(
+                    "chatgpt-launcher",
+                    "ChatGPT Chat mode could not be selected and verified; prompt was not opened.")
                 self?.hud.show(
-                    title: "Draft Ready — Press Return",
-                    symbol: "return", isNoOp: true)
+                    title: "Chat Mode Not Confirmed — Not Sent",
+                    symbol: "exclamationmark.triangle", isNoOp: true)
+            case .deepLinkUnavailable:
+                AppLog.error(
+                    "chatgpt-launcher",
+                    "Chat mode was verified, but the ChatGPT deep link could not be opened.")
+                self?.hud.show(
+                    title: "New Chat Did Not Open — Not Sent",
+                    symbol: "exclamationmark.triangle", isNoOp: true)
+            case .draftNotVerified:
+                AppLog.error(
+                    "chatgpt-launcher",
+                    "Chat mode and the prefilled prompt could not both be verified; Return was not posted.")
+                self?.hud.show(
+                    title: "Draft Not Sent — Check ChatGPT",
+                    symbol: "exclamationmark.triangle", isNoOp: true)
             case .appDidNotLaunch:
-                AppLog.error("chatgpt-launcher", "ChatGPT did not launch after the deep link opened.")
+                AppLog.error("chatgpt-launcher", "ChatGPT did not launch after activation.")
                 self?.hud.show(
                     title: "ChatGPT Did Not Open",
                     symbol: "exclamationmark.triangle", isNoOp: true)

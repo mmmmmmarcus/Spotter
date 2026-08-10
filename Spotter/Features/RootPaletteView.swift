@@ -14,6 +14,7 @@ struct RootPaletteView: View {
     @EnvironmentObject private var emojiIndex: EmojiIndex
     @EnvironmentObject private var frequentEmoji: FrequentEmojiStore
     @EnvironmentObject private var plugins: PluginRegistry
+    @ObservedObject private var updates = AppCore.shared.updates
     /// Observed so a skin tone changed in Settings re-renders the grid glyphs immediately.
     @ObservedObject private var settings = AppCore.shared.settings
     @FocusState private var searchFocused: Bool
@@ -87,7 +88,7 @@ struct RootPaletteView: View {
         switch vm.mode {
         case .launcher: return launcherInlineResult
         case .calculatorHistory: return calcResult.map(PaletteInlineResult.calculator)
-        case .clipboard, .emoji, .aiChat, .plugin: return nil
+        case .clipboard, .emoji, .aiChat, .updates, .plugin: return nil
         }
     }
 
@@ -100,6 +101,7 @@ struct RootPaletteView: View {
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
         case .aiChat: return 0
+        case .updates: return 0
         case .plugin: return pluginResults.count
         }
     }
@@ -189,6 +191,8 @@ struct RootPaletteView: View {
             return nil
         case .aiChat:
             return AIChatActionsMenu.content(core: core)
+        case .updates:
+            return nil
         case .plugin(let id):
             guard let item = selectedPluginItem else { return nil }
             return plugins.paletteActions(pluginID: id, itemID: item.id)
@@ -245,13 +249,15 @@ struct RootPaletteView: View {
             selectedApp: selectedApp, selectedPlugin: selectedPlugin,
             inlineActionTitle: inlineActionTitle)
         let showActionGroup =
-            (count > 0 || vm.mode == .aiChat) && !(inlineSelected && inlineActionTitle == nil)
+            ((count > 0 || vm.mode == .aiChat) && !(inlineSelected && inlineActionTitle == nil))
+            || (vm.mode == .updates && updatePrimaryActionTitle != nil)
+        let showActionsButton = vm.mode != .updates
 
         let layout = paletteLayout(
             apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
             plugin: plugin, selection: sel, favoriteCount: favoriteCount,
             showSections: showSections, pillLabel: pillLabel,
-            showActionGroup: showActionGroup
+            showActionGroup: showActionGroup, showActionsButton: showActionsButton
         )
         let statefulLayout = paletteWithStateHandlers(
             layout, clips: clips, clipFollow: clipFollow)
@@ -262,7 +268,8 @@ struct RootPaletteView: View {
         apps: [AppEntry], clips: [ClipboardItem], hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
         plugin: PluginPaletteSnapshot?, selection: Int, favoriteCount: Int,
-        showSections: Bool, pillLabel: String, showActionGroup: Bool
+        showSections: Bool, pillLabel: String, showActionGroup: Bool,
+        showActionsButton: Bool
     ) -> some View {
         // The `header` (and its single search field) is always attached in the same position via safeAreaInset so its focus survives the compact↔expanded swap — only the results below it toggle. Collapsed shows the bar alone; expanded floats header + action bar over the list with edge-dissolve (see docs/ui.md).
         Group {
@@ -279,7 +286,9 @@ struct RootPaletteView: View {
         .safeAreaInset(edge: .top, spacing: 0) { header }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isCollapsed {
-                bottomBar(pillLabel: pillLabel, showActionGroup: showActionGroup)
+                bottomBar(
+                    pillLabel: pillLabel, showActionGroup: showActionGroup,
+                    showActionsButton: showActionsButton)
             }
         }
         // Menus are in-window overlays anchored to a bottom corner, so they stay clipped inside the panel — never a system popover spilling outside the window.
@@ -338,7 +347,7 @@ struct RootPaletteView: View {
         content
         // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up).
         .onChange(of: vm.focusToken) {
-            searchFocused = true
+            searchFocused = vm.mode != .updates
             showActions = false
             showAppMenu = false
         }
@@ -352,6 +361,7 @@ struct RootPaletteView: View {
             pluginQueryHourOffset = 0
             showActions = false
             scroll = ScrollIntent(kind: .top)
+            searchFocused = vm.mode != .updates
         }
         // Pop-to-root: `prepare` clears query/selection, but if both were already at their defaults the handlers above never fire — this intent guarantees the scroll itself snaps back to the origin.
         .onChange(of: vm.resetToken) {
@@ -391,7 +401,7 @@ struct RootPaletteView: View {
             }
             scroll = ScrollIntent(kind: .follow)
         }
-        .onAppear { searchFocused = true }
+        .onAppear { searchFocused = vm.mode != .updates }
         // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
         .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
     }
@@ -476,6 +486,10 @@ struct RootPaletteView: View {
                 activateMenuItem(menuSelection)
                 return .handled
             }
+            if vm.mode == .updates, !command, !option {
+                activateSelection()
+                return .handled
+            }
             guard command || option else { return .ignored }
             switch vm.mode {
             case .emoji:
@@ -497,7 +511,7 @@ struct RootPaletteView: View {
                 guard command, let app = selectedAppEntry, app.canRevealInFinder
                 else { return .ignored }
                 core.showInFinder(app)
-            case .aiChat, .plugin:
+            case .aiChat, .updates, .plugin:
                 return .ignored
             }
             return .handled
@@ -562,7 +576,7 @@ struct RootPaletteView: View {
                 deleteSelectedClip()
             case .calculatorHistory:
                 deleteSelectedHistoryEntry()
-            case .launcher, .emoji, .aiChat, .plugin:
+            case .launcher, .emoji, .aiChat, .updates, .plugin:
                 return .ignored
             }
             return .handled
@@ -616,7 +630,14 @@ struct RootPaletteView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: Theme.Size.headerIconSlot)
             }
-            searchField
+            if vm.mode == .updates {
+                Text(vm.mode.title)
+                    .font(Theme.Typography.searchField)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                searchField
+            }
             // Compact bar pins favorites to the right of the field; expanded shows them as list rows instead.
             if isCollapsed, settings.showFavoritesInCompactMode {
                 let slots = compactFavoriteSlots
@@ -748,6 +769,8 @@ struct RootPaletteView: View {
             }
         case .aiChat:
             AIChatView(chat: core.aiChat, scroll: scroll)
+        case .updates:
+            UpdatePaletteView()
         case .emoji:
             if !emojiIndex.isLoaded {
                 EmptyResults(text: "Loading emoji…")
@@ -795,12 +818,16 @@ struct RootPaletteView: View {
         }
     }
 
-    private func bottomBar(pillLabel: String, showActionGroup: Bool) -> some View {
+    private func bottomBar(
+        pillLabel: String, showActionGroup: Bool, showActionsButton: Bool
+    ) -> some View {
         // No bar — just floating glass controls over the list; the edge dissolve ghosts rows passing beneath, so the buttons read clearly without a hard-edged strip.
         HStack(spacing: 0) {
             appMenuButton
             Spacer()
-            if showActionGroup { actionGroup(pillLabel: pillLabel) }
+            if showActionGroup {
+                actionGroup(pillLabel: pillLabel, showActionsButton: showActionsButton)
+            }
         }
         .padding(.horizontal, Theme.Spacing.md)
         .frame(height: Theme.Size.bottomBarHeight)
@@ -814,7 +841,7 @@ struct RootPaletteView: View {
     }
 
     /// The footer control group: primary action and the Actions toggle sharing one glass capsule.
-    private func actionGroup(pillLabel: String) -> some View {
+    private func actionGroup(pillLabel: String, showActionsButton: Bool) -> some View {
         HStack(spacing: 2) {
             BarButton(action: activateSelection) {
                 HStack(spacing: Theme.Spacing.sm) {
@@ -824,14 +851,16 @@ struct RootPaletteView: View {
                     KeyCapChip(text: "↵", style: .outline)
                 }
             }
-            BarButton(action: toggleActions) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    Text("Actions")
-                        .font(Theme.Typography.bar)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                    HStack(spacing: Theme.Spacing.xxs) {
-                        KeyCapChip(text: "⌘", style: .outline)
-                        KeyCapChip(text: "K", style: .outline)
+            if showActionsButton {
+                BarButton(action: toggleActions) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Text("Actions")
+                            .font(Theme.Typography.bar)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                        HStack(spacing: Theme.Spacing.xxs) {
+                            KeyCapChip(text: "⌘", style: .outline)
+                            KeyCapChip(text: "K", style: .outline)
+                        }
                     }
                 }
             }
@@ -849,6 +878,8 @@ struct RootPaletteView: View {
             return vm.pasteTarget?.pasteTitle ?? "Paste"
         case .aiChat:
             return core.aiChat.isWaiting ? "Thinking…" : "Send"
+        case .updates:
+            return updatePrimaryActionTitle ?? "Check Again"
         case .calculatorHistory:
             return "Copy Answer"
         case .launcher:
@@ -860,6 +891,16 @@ struct RootPaletteView: View {
             }
         case .plugin:
             return selectedPlugin?.primaryActionTitle ?? "Run Action"
+        }
+    }
+
+    private var updatePrimaryActionTitle: String? {
+        switch updates.status {
+        case .idle: "Check for Updates"
+        case .checking, .installing: nil
+        case .upToDate: "Check Again"
+        case .available(let release): release.zipAssetURL == nil ? "View Release" : "Install Update"
+        case .failed: "Try Again"
         }
     }
 
@@ -1038,6 +1079,8 @@ struct RootPaletteView: View {
             core.pasteEmoji(emojiResults[selection])
         case .aiChat:
             sendChatMessage()
+        case .updates:
+            core.performUpdatePrimaryAction()
         case .plugin(let id):
             guard pluginResults.indices.contains(selection) else { return }
             plugins.performPalettePrimaryAction(pluginID: id, itemID: pluginResults[selection].id)

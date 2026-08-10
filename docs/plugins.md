@@ -269,9 +269,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   command sources from the launcher, and makes their global shortcuts no-op; a custom command already
   running is not terminated.
 - **Send to ChatGPT** (`Spotter/Plugins/ChatGPTLauncher/`) — enabled by default; collects a prompt
-  in a shared palette screen, opens the official ChatGPT macOS app through its `codex://new` deep
-  link, and submits only after Accessibility verifies the focused composer contains that exact
-  prompt. A failed verification leaves the prefilled draft unsent.
+  in a shared palette screen, explicitly switches the official ChatGPT macOS app to Chat, then opens
+  its `codex://new` deep link. Accessibility must verify both the Chat composer mode and the exact
+  prefilled prompt before submission; any ambiguity leaves the prompt unsent.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS

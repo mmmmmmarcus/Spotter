@@ -43,6 +43,17 @@ struct ChatGPTLauncherTests {
         check(
             "different drafts never match",
             !ChatGPTPrompt.matchesDraft("send something else", prompt: "expected prompt"))
+        check(
+            "Chat is the first selected composer mode",
+            ChatGPTComposerMode.isChat(pressedStates: [true, false]))
+        check(
+            "Work is never accepted as Chat",
+            !ChatGPTComposerMode.isChat(pressedStates: [false, true]))
+        check(
+            "ambiguous mode selections are rejected",
+            !ChatGPTComposerMode.isChat(pressedStates: [true, true])
+                && !ChatGPTComposerMode.isChat(pressedStates: [true])
+                && !ChatGPTComposerMode.isChat(pressedStates: []))
 
         print(failures == 0 ? "\nChatGPT Launcher: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)

@@ -60,10 +60,9 @@ imperatively from AppKit.
 - **Settings / About** — plain `NSWindow`s via `AuxWindowController` (in
   `Features/About/AboutView.swift`). SwiftUI `Settings` / `Window` scenes are unreliable for accessory
   apps, so this is deliberate.
-- **Software Update** — a focused `AuxWindowController` window opened by the launcher command. It
-  observes the `AppCore`-owned `UpdateStore`, performs a fresh manual check on every invocation and
-  keeps the complete check/download/verify/install/relaunch flow visible without routing through
-  Settings.
+- **Software Update** — a core command-palette sub-screen opened by the launcher command. It observes
+  the `AppCore`-owned `UpdateStore`, performs a fresh manual check on every invocation and keeps the
+  complete check/download/verify/install/relaunch flow inside the shared palette shell.
 - **Plugin workspaces** — the same `AuxWindowController`, reached only through
   `AppCore.showPluginWindow`. A plugin owns the hosted view and feature manager, while `AppCore`
   retains sole window ownership and closes the workspace from `onDisable`. The helper can opt a

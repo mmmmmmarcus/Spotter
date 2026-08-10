@@ -231,10 +231,10 @@ root declares a minimum content size but never owns an `NSWindow`. Use the nativ
 cards for option groups, and a fixed footer for the primary action. Long-running work displays a
 small progress indicator and leaves the main actor before processing.
 
-The Software Update window is a focused auxiliary surface rather than a plugin workspace. It uses a
-centered system-status glyph/progress indicator, title and explanatory text, followed by native Close
-and primary-action buttons. Every state comes from `UpdateStore`; the view never duplicates network,
-verification or installation logic.
+The Software Update flow is a focused core palette sub-screen. It uses the shared back header and
+bottom primary-action pill around a centered system-status glyph/progress indicator, title and
+explanatory text. Every state comes from `UpdateStore`; the view never duplicates network,
+verification or installation logic or opens an auxiliary window.
 
 List-oriented plugins do not use a workspace. Register a palette screen and render every result via
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
