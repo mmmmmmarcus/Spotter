@@ -82,11 +82,10 @@ is dropped while the actual error survives.
 ### Needs confirmation
 
 `AppCore.runCustomCommand(id:)` is the one funnel both palette activation and the global hotkey reach,
-so the gate lives there and neither path can bypass it. The palette hides before the alert — it is a
-floating panel and would sit above it. The alert shows the command text as well as its name, and ↵ is
-bound to **Cancel**: the command is one ↵ away in the palette, and a reflexive second ↵ must not fire
-something the user asked to be warned about. `NSAlert.runModal` spins a nested run loop where Carbon
-hotkeys keep firing, so a re-entrancy flag stops a held shortcut stacking alerts.
+so the gate lives there and neither path can bypass it. Confirmation uses the shared in-palette card,
+and ↵ initially belongs to **Cancel**: the command is one ↵ away in the palette, and a reflexive second ↵ must not fire
+something the user asked to be warned about. A hotkey invoked while the palette is closed opens that
+same confirmation surface, so there is no separate dialog path to drift.
 
 ### Reporting
 
@@ -98,11 +97,10 @@ on grepping stderr, since 127 is equally a plain typo. The command string itself
 
 ### Manual checks
 
-`requiresConfirmation` lives in `AppCore` (AppKit, `@MainActor`) and so is out of reach of the
+`requiresConfirmation` is enforced in `AppCore` (AppKit, `@MainActor`) and so is out of reach of the
 Foundation-only harness. Verify by hand:
 
-1. Activating a gated command from the palette hides the palette *before* the alert appears.
-2. ↵ at the alert cancels; clicking **Run** runs.
-3. Pressing the command's hotkey while its alert is up does not stack a second alert.
-4. A gated command triggered by hotkey with no palette open still confirms.
-5. An rc-file-only alias with the flag off shows the 127 hint, and **Open Settings…** opens the pane.
+1. Activating a gated command opens the in-palette card without shifting the search field.
+2. ↵ on the card cancels; selecting **Run** and pressing ↵ runs.
+3. A gated command triggered by hotkey with no palette open shows the same card.
+4. An rc-file-only alias with the flag off shows the 127 hint, and **Open Settings…** opens the pane.

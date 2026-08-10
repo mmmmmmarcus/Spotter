@@ -21,6 +21,18 @@ struct QuicklinkTests {
         check(
             "custom scheme is a deeplink", .deeplink,
             QuicklinkDestination.detect("obsidian://open?vault=Notes"))
+        check(
+            "custom scheme does not require slashes", .deeplink,
+            QuicklinkDestination.detect("mailto:hello@example.com"))
+        check(
+            "another slashless app scheme is a deeplink", .deeplink,
+            QuicklinkDestination.detect("things:show?id=today"))
+        check(
+            "localhost with a port stays web", .web,
+            QuicklinkDestination.detect("localhost:8080/path"))
+        check(
+            "a bare domain with a port stays web", .web,
+            QuicklinkDestination.detect("example.com:8443/path"))
         check("absolute path is a file", .file, QuicklinkDestination.detect("/Users/me/Docs"))
         check("tilde path is a file", .file, QuicklinkDestination.detect("~/Downloads"))
         check("file url is a file", .file, QuicklinkDestination.detect("file:///tmp"))

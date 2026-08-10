@@ -41,7 +41,8 @@ in either pure source.
   bubbles (`chatBubble` radius, `controlSurface` fill), assistant turns as unadorned leading result
   text without an icon, and everything is text-selectable.
 - **⌘K**: Stop Waiting (while in flight), Copy Last Reply, Copy Conversation, New Session, Delete
-  Session, a Web Search on/off toggle, and AI Chat Settings…
+  Session, a Web Search on/off toggle, and AI Chat Settings… Delete Session uses the shared
+  in-palette confirmation card with Cancel selected first.
 - **Esc** backs out to the launcher (the standard ladder); the conversation survives, and re-entering
   chat resumes it. ↑/↓ do nothing — the transcript has no row selection.
 - `AIChatMode` is a core `PaletteMode` (like Emoji) rather than a `PluginPaletteList` screen: a
@@ -83,6 +84,13 @@ on both sides of the await, replies are non-streaming in this version, and a fai
 status row carrying OpenRouter's own error message, with the sent turn retained. The reply lands in
 the session that asked, even if the user switched sessions while waiting; failures also log to
 Settings → Diagnostics.
+
+The store permits exactly one request across every session. Switching conversations never makes a
+second send eligible: the footer continues to show Thinking, Actions can stop the owning request,
+and an empty background session explains how to return to it. Replies and failures stay keyed to the
+session that asked, so a background failure is still visible when that session is revisited. A stale
+completion cannot clear a newer request, and rejected sends (busy state or missing key) leave the
+composer text intact.
 
 ## Web search
 

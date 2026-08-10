@@ -14,7 +14,10 @@ struct AIChatView: View {
             EmptyResults(
                 text: "AI Chat needs an OpenRouter API key — add one in Settings → General → AI.")
         } else if chat.messages.isEmpty && chat.phase == .idle {
-            EmptyResults(text: "Ask anything — the conversation lasts until you clear it or quit.")
+            EmptyResults(
+                text: chat.isWaiting
+                    ? "Another session is thinking — switch back from Sessions or stop it in Actions."
+                    : "Ask anything — the conversation lasts until you clear it or quit.")
         } else {
             transcript
         }

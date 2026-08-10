@@ -35,7 +35,7 @@ shortcut. The section header names the screen, and the placeholder changes with 
 
 | Screen | Reads | Rows |
 | --- | --- | --- |
-| **Menu** | nothing | Every Mole command, opening its screen |
+| **Menu** | nothing | Every Mole destination, without a self-referential hub row |
 | **System Status** | `mole status` | Health score, CPU, memory, disks, trash, uptime, hardware |
 | **Clean** | `mole clean --dry-run` | A run row, then every reclaimable cache with its size |
 | **Optimize** | `mole optimize --dry-run` | A run row, then every maintenance item |
@@ -63,7 +63,9 @@ names), so `MoleManager` walks the same folders with the same rules — `MoleIns
 `INSTALLER_SCAN_PATHS`, the depth-2 limit, the `.dmg/.pkg/.mpkg/.iso/.xip` extensions, and the
 "a zip counts only when its `zipinfo` listing contains an installer" test. Deleting one is a native
 `FileManager.trashItem` — recoverable, confirmed in-palette, reported through the HUD — and it
-works even with the Mole binary missing.
+works even with the Mole binary missing. The walk never descends below depth 2 and cancellation is
+propagated to its background task when the screen closes. Large roots stream the folder currently
+being visited and any installer rows already found, so the palette remains informative throughout.
 
 ## Running commands
 
@@ -86,7 +88,8 @@ closing summary through the command HUD instead, via `MoleManager.onRunFinished`
 
 Beyond the per-row actions, every screen's ⌘K menu carries Refresh (⌘R), All Mole Commands, and Mole
 Settings…; app rows add Move to Trash / Delete Permanently / Reveal in Finder / Copy Bundle ID, and
-path-backed rows add Reveal in Finder / Copy Path.
+path-backed rows add Reveal in Finder / Copy Path. All Mole Commands clears the current screen's
+filter before returning to the hub.
 
 ## Launcher hand-off
 

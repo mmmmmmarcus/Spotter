@@ -78,7 +78,7 @@ enum AIChatPlugin {
 enum AIChatActionsMenu {
     static func content(core: AppCore) -> PopoverMenuContent {
         var items: [PopoverMenuItem] = []
-        if core.aiChat.phase == .waiting {
+        if core.aiChat.isWaiting {
             items.append(
                 PopoverMenuItem(title: "Stop Waiting", systemImage: "stop.circle") {
                     core.aiChat.stop()
@@ -104,7 +104,7 @@ enum AIChatActionsMenu {
             items.append(
                 PopoverMenuItem(
                     title: "Delete Session", systemImage: "trash", isDestructive: true
-                ) { core.aiChat.deleteCurrentSession() })
+                ) { core.confirmDeleteAIChatSession() })
         }
         items.append(
             PopoverMenuItem(
@@ -144,6 +144,18 @@ enum AIChatSessionsMenu {
 extension AppCore {
     func openAIChat() {
         showPalette(mode: .aiChat)
+    }
+
+    func confirmDeleteAIChatSession() {
+        let title = aiChat.current.title
+        confirmInPalette(
+            PaletteConfirmation(
+                title: "Delete \(title)?",
+                message: "This conversation is session-only and will be permanently removed.",
+                actionTitle: "Delete"
+            ) { [weak self] in
+                self?.aiChat.deleteCurrentSession()
+            })
     }
 
     func runAIChatSelectionAction(_ action: AIChatSelectionAction) {

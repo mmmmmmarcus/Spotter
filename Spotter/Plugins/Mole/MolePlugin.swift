@@ -107,7 +107,7 @@ enum MoleResults {
         let section = manager.screen.sectionTitle
         if manager.screen == .menu {
             return PluginPaletteSnapshot(
-                sectionTitle: section, items: filtered(menuItems(manager: manager), query: query),
+                sectionTitle: section, items: filtered(menuItems(), query: query),
                 emptyMessage: "No matching command")
         }
         switch manager.state {
@@ -159,7 +159,11 @@ enum MoleResults {
                 emptyMessage: "This folder is empty")
         case .installers(let entries):
             return PluginPaletteSnapshot(
-                sectionTitle: section, items: filtered(installerItems(entries), query: query),
+                sectionTitle: section,
+                items: installerProgressRow(manager: manager, count: entries.count)
+                    + filtered(installerItems(entries), query: query),
+                isLoading: manager.isLoadingPreview,
+                loadingMessage: loadingMessage(manager: manager),
                 emptyMessage: entries.isEmpty
                     ? "No installer files found — Downloads and friends are clean."
                     : "No matching installer")
@@ -168,8 +172,8 @@ enum MoleResults {
 
     // MARK: - Rows
 
-    private static func menuItems(manager: MoleManager) -> [PluginPaletteItem] {
-        MoleCommand.allCases.map { command in
+    private static func menuItems() -> [PluginPaletteItem] {
+        MoleCommand.hubCommands.map { command in
             PluginPaletteItem(
                 id: "menu:" + command.rawValue,
                 title: command.title.replacingOccurrences(of: "Mole ", with: ""),
@@ -263,6 +267,23 @@ enum MoleResults {
                 ],
                 primaryActionTitle: "Move to Trash")
         }
+    }
+
+    private static func installerProgressRow(manager: MoleManager, count: Int)
+        -> [PluginPaletteItem]
+    {
+        guard manager.isLoadingPreview else { return [] }
+        let path = manager.installerScanPath ?? NSHomeDirectory()
+        let folder = (path as NSString).lastPathComponent
+        return [
+            PluginPaletteItem(
+                id: "installer-progress",
+                title: "Scanning \(folder)…",
+                subtitle: "Found \(count) installer \(count == 1 ? "file" : "files") so far · "
+                    + shortPath(path),
+                icon: .symbol("hourglass"),
+                primaryActionTitle: "Scanning…")
+        ]
     }
 
     private static func diskItems(_ analysis: MoleAnalysis) -> [PluginPaletteItem] {
@@ -409,7 +430,7 @@ enum MoleResults {
         if manager.screen != .menu {
             items.append(
                 PopoverMenuItem(title: "All Mole Commands", systemImage: "circle.grid.2x2") {
-                    manager.open(.menu)
+                    core.openMole(.menu)
                 })
         }
         items.append(

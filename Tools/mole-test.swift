@@ -38,6 +38,10 @@ struct MoleTests {
         check(
             "every screen is reachable from a command",
             Set(MoleCommand.allCases.map(\.screen)) == Set(MoleScreen.allCases))
+        check("the hub does not list itself", !MoleCommand.hubCommands.contains(.menu))
+        check(
+            "the hub lists every destination once",
+            MoleCommand.hubCommands.count == MoleCommand.allCases.count - 1)
 
         // Actions — the destructive surface, and how each one is spelled on the command line.
         check("clean runs without --dry-run", MoleAction.clean.arguments == ["clean"])
@@ -88,6 +92,10 @@ struct MoleTests {
             "an app-named file without the suffix as component is not",
             !MoleInstallerScan.zipListingSuggestsInstaller(["myapp.txt"]))
         check("scan depth matches Mole", MoleInstallerScan.maxDepth == 2)
+        check("the installer scan includes depth two", MoleInstallerScan.includes(level: 2))
+        check("the installer scan excludes depth three", !MoleInstallerScan.includes(level: 3))
+        check("the installer scan descends above its limit", MoleInstallerScan.canDescend(from: 1))
+        check("the installer scan stops at its limit", !MoleInstallerScan.canDescend(from: 2))
         let roots = MoleInstallerScan.roots(home: "/Users/x")
         check("scan roots start at Downloads", roots.first == "/Users/x/Downloads")
         check("scan roots match Mole's list", roots.count == 11 && roots.contains("/Users/Shared/Downloads"))
@@ -188,6 +196,9 @@ struct MoleTests {
         check("report assigns the section", report.items.first?.section == "User essentials")
         check("report tracks a section change", report.items.last?.section == "Browsers")
         check("report drops the banner", !report.items.contains { $0.title.contains("DRY RUN") })
+        check(
+            "report drops Mole's marked whitelist status",
+            MoleParser.parseReport("✓ Whitelist: 21 core patterns active").items.isEmpty)
         check("report captures the summary", report.summary.count == 2)
         check(
             "report captures potential space",

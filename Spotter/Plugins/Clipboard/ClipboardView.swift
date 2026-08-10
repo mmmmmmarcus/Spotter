@@ -127,7 +127,7 @@ enum DateBucket: Int {
 @MainActor
 enum ClipboardActionsMenu {
     static func content(
-        item: ClipboardItem, core: AppCore, store: ClipboardStore, target: PasteTarget?
+        item: ClipboardItem, core: AppCore, target: PasteTarget?
     ) -> PopoverMenuContent {
         var items: [PopoverMenuItem] = [
             PopoverMenuItem(
@@ -164,13 +164,13 @@ enum ClipboardActionsMenu {
         }
         items.append(
             PopoverMenuItem(title: "Delete Entry", systemImage: "trash", isDestructive: true) {
-                store.remove(item)
+                core.confirmDeleteClip(item)
             })
         items.append(
             PopoverMenuItem(
                 title: "Delete All Entries", systemImage: "trash.fill", isDestructive: true
             ) {
-                store.clearAll()
+                core.confirmClearClipboardHistory()
             })
         return PopoverMenuContent(header: headerText(item), items: items)
     }

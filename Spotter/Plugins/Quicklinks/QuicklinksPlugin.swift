@@ -18,7 +18,6 @@ enum QuicklinksPlugin {
                     return PluginPaletteSnapshot(
                         sectionTitle: "Quicklinks", items: [], emptyMessage: "Plugin unavailable")
                 }
-                core.quicklinkManager.recordQuery(query)
                 return QuicklinkResults.snapshot(manager: core.quicklinkManager, query: query)
             },
             performPrimaryAction: { [weak core] itemID in
@@ -223,7 +222,7 @@ enum QuicklinkResults {
                     core.showSettings(plugin: .quicklinks)
                 },
                 PopoverMenuItem(title: "Delete", systemImage: "trash", isDestructive: true) {
-                    core.quicklinks.delete(id: quicklink.id)
+                    core.confirmDeleteQuicklink(quicklink)
                 },
             ])
     }
@@ -254,12 +253,15 @@ extension AppCore {
         guard plugins.isEnabled(.quicklinks), let quicklink = quicklinks.quicklink(id: id) else {
             return
         }
-        if quicklinkManager.begin(quicklink) {
+        switch quicklinkManager.begin(quicklink) {
+        case .opened:
             hidePalette(restoreFocus: false)
-            return
+        case .awaitingArguments:
+            // Arguments still to collect: stay on the plugin screen with a fresh prompt.
+            showPalette(mode: .plugin(.quicklinks))
+        case .failed:
+            reportQuicklinkFailure(quicklink)
         }
-        // Arguments still to collect: stay on the plugin screen with a fresh prompt.
-        showPalette(mode: .plugin(.quicklinks))
     }
 
     func performQuicklinkRow(itemID: String) {
@@ -272,8 +274,34 @@ extension AppCore {
             runQuicklink(id: quicklink.id)
         case .arguments:
             guard let value = submittedValue(itemID: itemID) else { return }
-            if quicklinkManager.submit(value) { hidePalette(restoreFocus: false) }
+            let quicklink = quicklinkManager.pending?.quicklink
+            switch quicklinkManager.submit(value) {
+            case .opened:
+                hidePalette(restoreFocus: false)
+            case .awaitingArguments:
+                break
+            case .failed:
+                if let quicklink { reportQuicklinkFailure(quicklink) }
+            }
         }
+    }
+
+    func confirmDeleteQuicklink(_ quicklink: Quicklink) {
+        confirmInPalette(
+            PaletteConfirmation(
+                title: "Delete \(quicklink.name)?",
+                message: "This quicklink and its launcher entry will be permanently deleted.",
+                actionTitle: "Delete"
+            ) { [weak self] in
+                self?.quicklinks.delete(id: quicklink.id)
+            })
+    }
+
+    private func reportQuicklinkFailure(_ quicklink: Quicklink) {
+        AppLog.error("quicklinks", "Could not open quicklink “\(quicklink.name)”.")
+        hud.show(
+            title: "Couldn’t Open \(quicklink.name)",
+            symbol: "exclamationmark.triangle", isNoOp: true)
     }
 
     func stepBackQuicklinkArgument() {

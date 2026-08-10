@@ -100,3 +100,21 @@ enum CoffeeFormatter {
         return "\(seconds)s"
     }
 }
+
+/// Rejects delayed termination callbacks from a process that has already been replaced.
+struct CoffeeSessionTracker: Sendable {
+    private(set) var generation: UInt64 = 0
+
+    mutating func begin() -> UInt64 {
+        generation &+= 1
+        return generation
+    }
+
+    mutating func invalidate() {
+        generation &+= 1
+    }
+
+    func owns(_ token: UInt64) -> Bool {
+        token == generation
+    }
+}

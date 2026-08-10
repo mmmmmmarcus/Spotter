@@ -37,13 +37,17 @@ passed. `-d` (display) is on by default and `-m` (disk) is opt-in, both in Setti
 restarts an active session, since flags only apply to a new process. `-t` implements durations and
 `-w` implements the app-scoped mode — `caffeinate` exits on its own when the watched PID does, and
 the termination handler folds that back into the UI so a finished session never shows a stale "on".
+Each child receives a generation token: a delayed termination callback from the process being
+replaced is ignored instead of stopping the new session, which matters when options change or the
+user stops and starts caffeination quickly.
 
 Disabling the plugin decaffeinates first: leaving the assertion held after the user switched the
 feature off would be a lie about what's running.
 
 ## Layout
 
-- `CoffeeTypes.swift` — durations, options→argument mapping, state and countdown formatting.
+- `CoffeeTypes.swift` — durations, options→argument mapping, state, countdown formatting and the
+  pure process-generation tracker.
   Foundation-only and pure for `Tools/coffee-test.swift`.
 - `CoffeeManager.swift` — the single `AppCore`-owned process owner, with `isolated deinit` teardown.
 - `CoffeePlugin.swift` — registration, the three palette screens, `AppCore` entry points.

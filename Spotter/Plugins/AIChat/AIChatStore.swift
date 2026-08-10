@@ -28,22 +28,12 @@ struct AIChatSession: Identifiable, Equatable, Sendable {
 /// single instance.
 @MainActor
 final class AIChatStore: ObservableObject {
-    enum Phase: Equatable {
-        case idle
-        case waiting
-        case failed(String)
-    }
-
     @Published private(set) var sessions: [AIChatSession]
     @Published private(set) var currentID: UUID
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var requests = AIChatRequestLedger()
     @Published private(set) var translationPrompt: String
     @Published private(set) var definitionPrompt: String
     @Published private(set) var grammarPrompt: String
-    /// Which session the in-flight request belongs to, so a reply lands in the session that asked
-    /// even if the user switched away, and the waiting row only shows where it applies.
-    @Published private(set) var waitingSessionID: UUID?
-
     private let openRouter: OpenRouterStore
     private let defaults: UserDefaults
     private var task: Task<Void, Never>?
@@ -75,6 +65,12 @@ final class AIChatStore: ObservableObject {
 
     var messages: [AIChatMessage] { current.messages }
 
+    var phase: AIChatPhase { requests.phase(for: currentID) }
+
+    var isWaiting: Bool { requests.waitingSessionID != nil }
+
+    var waitingSessionID: UUID? { requests.waitingSessionID }
+
     var lastAssistantReply: String? {
         messages.last { $0.role == .assistant }?.text
     }
@@ -96,7 +92,6 @@ final class AIChatStore: ObservableObject {
     /// reused so cycling through the modes can't pile up blank sessions.
     func startNewSession() {
         if current.messages.isEmpty, current.titleOverride == nil, current.systemPrompt == nil {
-            if waitingSessionID != currentID { phase = .idle }
             return
         }
         replaceEmptySession(with: AIChatSession())
@@ -105,16 +100,15 @@ final class AIChatStore: ObservableObject {
     func switchTo(_ id: UUID) {
         guard sessions.contains(where: { $0.id == id }) else { return }
         currentID = id
-        // The failure banner belongs to the conversation that failed, not whichever is shown.
-        phase = waitingSessionID == id ? .waiting : .idle
     }
 
     func deleteCurrentSession() {
-        stop()
+        let deletedID = currentID
+        if waitingSessionID == deletedID { stop() }
         sessions.removeAll { $0.id == currentID }
+        requests.remove(sessionID: deletedID)
         if sessions.isEmpty { sessions = [AIChatSession()] }
         currentID = orderedSessions[0].id
-        phase = .idle
     }
 
     // MARK: - Sending
@@ -123,11 +117,10 @@ final class AIChatStore: ObservableObject {
     @discardableResult
     func send(_ text: String, model: String? = nil, webSearch: Bool? = nil) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, phase != .waiting, isReady else { return false }
+        guard !trimmed.isEmpty, isReady else { return false }
         let sessionID = currentID
+        guard requests.begin(sessionID: sessionID) else { return false }
         append(AIChatMessage(role: .user, text: trimmed), to: sessionID)
-        phase = .waiting
-        waitingSessionID = sessionID
         let window = AIChatEngine.transcriptWindow(messages)
         let sessionPrompt = current.systemPrompt
         let requestModel = model ?? openRouter.chatModel
@@ -189,7 +182,7 @@ final class AIChatStore: ObservableObject {
     func showSelectionFailure(action: AIChatSelectionAction, message: String) {
         stop()
         replaceEmptySession(with: AIChatSession(titleOverride: action.sessionTitle))
-        phase = .failed(message)
+        requests.setFailure(message, for: currentID)
     }
 
     func setTranslationPrompt(_ prompt: String) {
@@ -220,8 +213,7 @@ final class AIChatStore: ObservableObject {
     func stop() {
         task?.cancel()
         task = nil
-        waitingSessionID = nil
-        if phase == .waiting { phase = .idle }
+        requests.cancel()
     }
 
     private func append(_ message: AIChatMessage, to sessionID: UUID) {
@@ -230,17 +222,16 @@ final class AIChatStore: ObservableObject {
     }
 
     private func finishRequest(for sessionID: UUID, failure: String?) {
-        waitingSessionID = nil
-        // Only surface the outcome where the user is looking; a background session stays quiet.
-        guard currentID == sessionID else { return }
-        phase = failure.map(Phase.failed) ?? .idle
+        guard requests.finish(sessionID: sessionID, failure: failure) else { return }
+        task = nil
     }
 
     private func replaceEmptySession(with session: AIChatSession) {
+        let removedIDs = sessions.filter(\.messages.isEmpty).map(\.id)
         sessions.removeAll { $0.messages.isEmpty }
+        for id in removedIDs { requests.remove(sessionID: id) }
         sessions.append(session)
         currentID = session.id
-        phase = .idle
     }
 
     private func persist(_ prompt: String, key: String, defaultPrompt: String) {

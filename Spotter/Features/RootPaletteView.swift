@@ -167,7 +167,7 @@ struct RootPaletteView: View {
         case .clipboard:
             if let clip = selectedClipItem {
                 return ClipboardActionsMenu.content(
-                    item: clip, core: core, store: store, target: vm.pasteTarget)
+                    item: clip, core: core, target: vm.pasteTarget)
             }
             return nil
         case .calculatorHistory:
@@ -848,7 +848,7 @@ struct RootPaletteView: View {
         case .clipboard, .emoji:
             return vm.pasteTarget?.pasteTitle ?? "Paste"
         case .aiChat:
-            return core.aiChat.phase == .waiting ? "Thinking…" : "Send"
+            return core.aiChat.isWaiting ? "Thinking…" : "Send"
         case .calculatorHistory:
             return "Copy Answer"
         case .launcher:
@@ -899,7 +899,7 @@ struct RootPaletteView: View {
 
     private func deleteSelectedClip() {
         guard clipResults.indices.contains(selection) else { return }
-        store.remove(clipResults[selection])
+        core.confirmDeleteClip(clipResults[selection])
     }
 
     private func deleteSelectedHistoryEntry() {
@@ -1000,9 +1000,8 @@ struct RootPaletteView: View {
     /// The chat composer is the shared search field: ↵ sends what's typed and clears it.
     private func sendChatMessage() {
         let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, core.aiChat.phase != .waiting else { return }
-        core.aiChat.send(text)
-        vm.query = ""
+        guard !text.isEmpty, !core.aiChat.isWaiting else { return }
+        if core.aiChat.send(text) { vm.query = "" }
     }
 
     /// Back out to a fresh root search — `prepare` is the same reset used when the palette is shown (clears query/selection, bumps focusToken to refocus the field).

@@ -6,6 +6,12 @@ import Foundation
 /// Opening the resolved destination is the one side effect; everything else is state.
 @MainActor
 final class QuicklinkManager: ObservableObject {
+    enum RunResult: Equatable {
+        case opened
+        case awaitingArguments
+        case failed
+    }
+
     enum Screen: Equatable {
         case list
         /// Collecting values for `pending`; one argument at a time.
@@ -26,9 +32,6 @@ final class QuicklinkManager: ObservableObject {
 
     @Published private(set) var screen: Screen = .list
     @Published private(set) var pending: PendingRun?
-    /// The palette's live text, captured on every `snapshot(query:)` so the primary action — which
-    /// only receives an item id — can read what the user typed as an argument value.
-    private(set) var liveQuery = ""
 
     let store: QuicklinkStore
     /// Fired when a step completes, so `AppCore` can clear the palette query for the next prompt.
@@ -38,43 +41,38 @@ final class QuicklinkManager: ObservableObject {
         self.store = store
     }
 
-    func recordQuery(_ query: String) {
-        liveQuery = query
-    }
-
     func showList() {
         screen = .list
         pending = nil
     }
 
     /// Opens `quicklink` outright when it takes no arguments; otherwise starts the prompt run.
-    /// Returns true when the destination was opened and the palette should dismiss.
+    /// Reports whether the destination opened, needs argument collection, or could not be resolved.
     @discardableResult
-    func begin(_ quicklink: Quicklink) -> Bool {
+    func begin(_ quicklink: Quicklink) -> RunResult {
         let arguments = QuicklinkTemplate.arguments(in: quicklink.link)
         guard !arguments.isEmpty else {
-            open(quicklink, values: [])
-            return true
+            return open(quicklink, values: []) ? .opened : .failed
         }
         pending = PendingRun(quicklink: quicklink, arguments: arguments)
         screen = .arguments
         onStepAdvanced?()
-        return false
+        return .awaitingArguments
     }
 
-    /// Accepts one argument value. Returns true once the last one lands and the link is opened.
+    /// Accepts one argument value and reports whether another prompt remains.
     @discardableResult
-    func submit(_ value: String) -> Bool {
-        guard var run = pending else { return false }
+    func submit(_ value: String) -> RunResult {
+        guard var run = pending else { return .failed }
         run.values.append(value)
         pending = run
         guard run.isComplete else {
             onStepAdvanced?()
-            return false
+            return .awaitingArguments
         }
-        open(run.quicklink, values: run.values)
+        let opened = open(run.quicklink, values: run.values)
         showList()
-        return true
+        return opened ? .opened : .failed
     }
 
     /// Steps back one argument, or leaves the run entirely when there is nothing to undo.
@@ -95,25 +93,29 @@ final class QuicklinkManager: ObservableObject {
     }
 
     /// Resolves the template and hands the result to the chosen app, or the system default.
-    func open(_ quicklink: Quicklink, values: [String]) {
+    func open(_ quicklink: Quicklink, values: [String]) -> Bool {
         let destination = QuicklinkDestination.detect(quicklink.link)
         let filled = QuicklinkTemplate.fill(
             quicklink.link, values: values, destination: destination)
-        guard let url = Self.url(for: filled, destination: destination) else { return }
+        guard let url = Self.url(for: filled, destination: destination) else { return false }
 
         let configuration = NSWorkspace.OpenConfiguration()
         guard let bundleID = quicklink.openWithBundleID,
             let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
         else {
-            NSWorkspace.shared.open(url)
-            return
+            return NSWorkspace.shared.open(url)
         }
         NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration)
+        return true
     }
 
     /// Memoizes the Launch Services lookup below: the palette re-snapshots on every keystroke, and
     /// resolving a handler per row per keystroke is far more work than the icon is worth.
-    private static var openerCache: [String: String?] = [:]
+    private struct CachedOpener {
+        let path: String?
+    }
+
+    private static var openerCache: [String: CachedOpener] = [:]
 
     /// Dropped when the list changes, so an edited destination re-resolves its icon.
     static func invalidateOpenerCache() {
@@ -124,9 +126,10 @@ final class QuicklinkManager: ObservableObject {
     /// macOS would hand the link to. Nil when nothing claims it, and the caller falls back to a symbol.
     static func openerBundlePath(for quicklink: Quicklink) -> String? {
         let key = (quicklink.openWithBundleID ?? "") + "\u{0}" + quicklink.link
-        if let cached = openerCache[key] { return cached }
+        if let cached = openerCache[key] { return cached.path }
         let resolved = resolveOpenerBundlePath(for: quicklink)
-        openerCache[key] = resolved
+        // A dictionary assignment of nil removes the key, so wrap it to memoize negative lookups.
+        openerCache[key] = CachedOpener(path: resolved)
         return resolved
     }
 
@@ -153,7 +156,7 @@ final class QuicklinkManager: ObservableObject {
             if trimmed.hasPrefix("file:") { return URL(string: trimmed) }
             return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath)
         case .web:
-            if trimmed.contains("://") { return URL(string: trimmed) }
+            if QuicklinkDestination.hasScheme(trimmed) { return URL(string: trimmed) }
             return URL(string: "https://" + trimmed)
         case .deeplink:
             return URL(string: trimmed)

@@ -83,6 +83,29 @@ struct AIChatTests {
             AIChatMessage.Role.user.rawValue == "user"
                 && AIChatMessage.Role.assistant.rawValue == "assistant")
 
+        // One request owns the whole chat store even while the user browses another session.
+        let firstSession = UUID()
+        let secondSession = UUID()
+        var requests = AIChatRequestLedger()
+        check("the first request begins", requests.begin(sessionID: firstSession))
+        check("another session cannot start concurrently", !requests.begin(sessionID: secondSession))
+        check("the owner session shows waiting", requests.phase(for: firstSession) == .waiting)
+        check("a background session stays idle", requests.phase(for: secondSession) == .idle)
+        check(
+            "a stale completion cannot clear the owner",
+            !requests.finish(sessionID: secondSession, failure: nil)
+                && requests.waitingSessionID == firstSession)
+        check(
+            "a failure is stored on the asking session",
+            requests.finish(sessionID: firstSession, failure: "Offline")
+                && requests.phase(for: firstSession) == .failed("Offline"))
+        check("the second session can start after completion", requests.begin(sessionID: secondSession))
+        requests.cancel()
+        check("cancel clears only the active request", requests.waitingSessionID == nil)
+        check("an earlier session's failure survives switching", requests.phase(for: firstSession) == .failed("Offline"))
+        requests.remove(sessionID: firstSession)
+        check("deleting a session drops its failure", requests.phase(for: firstSession) == .idle)
+
         check(
             "selection translation targets the first preferred language",
             AIChatSelectionPrompts.targetLanguage(

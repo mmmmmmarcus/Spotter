@@ -51,7 +51,7 @@ change what kind of destination a link is:
 | Template starts with | Destination | Argument values |
 | --- | --- | --- |
 | `http://`, `https://`, or a bare domain | `.web` | percent-encoded |
-| any other `scheme://` | `.deeplink` | percent-encoded |
+| any other valid `scheme:` (with or without `//`) | `.deeplink` | percent-encoded |
 | `/`, `~`, or `file:` | `.file` | inserted verbatim |
 
 Web and deep-link values are encoded with `urlQueryAllowed` minus `& + = ? #`, so a value containing
@@ -69,8 +69,9 @@ A quicklink has no icon of its own: it borrows the icon of the app that will ope
 Launch Services would hand the link to, with placeholders filled as empty so the scheme or extension
 still resolves. Nothing claiming it falls back to a `link` symbol.
 
-The lookup is memoized per (app, template) pair, since the palette re-snapshots on every keystroke,
-and the cache is dropped whenever the list changes. Launcher entries carry the bundle through
+The lookup — including the absence of a handler — is memoized per (app, template) pair, since the
+palette re-snapshots on every keystroke, and the cache is dropped whenever the list changes. Launcher
+entries carry the bundle through
 `PluginCommandRegistration.iconFilePath`, which is why a command row can draw a real app icon
 instead of an SF Symbol tile.
 
@@ -90,9 +91,12 @@ with a subtitle previewing the resolved link so far. ↵ accepts the step; `AppC
 field so the next prompt starts empty. ⌘K offers **Back** to undo one step. Closing the screen — Esc,
 or switching modes — abandons a half-filled run.
 
-The screen's primary action only receives an item id, so the manager records the live query on every
-`snapshot(query:)` and free-text submission reads `palette.query`.
+The screen's primary action only receives an item id, so free-text submission reads the palette's
+single source of truth, `palette.query`, directly.
 
 Each saved quicklink is also published straight into launcher search through
 `dynamicLauncherCommands`, so it is reachable by name without opening the plugin screen first.
-Selecting one there enters the same flow.
+Selecting one there enters the same flow. An invalid destination or a default-handler refusal keeps
+the current palette available and reports the failure through the non-activating HUD instead of
+silently dismissing it. Deleting a saved link from the palette's Actions menu uses the shared
+in-palette confirmation card; Cancel is selected first.

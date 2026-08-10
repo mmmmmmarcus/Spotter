@@ -213,19 +213,13 @@ extension AppCore {
                     break
                 }
             } catch {
-                Self.presentKillProcessFailure(title, error: error)
+                AppLog.error(
+                    "kill-process", "\(title) failed: \(error.localizedDescription)")
+                hud.show(
+                    title: "\(title) Failed", symbol: "exclamationmark.triangle",
+                    isNoOp: true)
             }
         }
-    }
-
-    private static func presentKillProcessFailure(_ action: String, error: Error) {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "\(action) Failed"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
     }
 }
 

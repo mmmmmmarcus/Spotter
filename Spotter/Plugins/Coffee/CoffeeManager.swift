@@ -20,6 +20,7 @@ final class CoffeeManager: ObservableObject {
     }
 
     private var process: Process?
+    private var sessions = CoffeeSessionTracker()
     private var expiry: Date?
     private var tick: Task<Void, Never>?
     private static let displayKey = "coffee.keeps-display-awake"
@@ -63,6 +64,8 @@ final class CoffeeManager: ObservableObject {
     }
 
     func decaffeinate() {
+        // Invalidate first so `terminate()` cannot let its asynchronous handler tear down a replacement.
+        sessions.invalidate()
         process?.terminate()
         process = nil
         expiry = nil
@@ -78,6 +81,7 @@ final class CoffeeManager: ObservableObject {
     private func start(seconds: Int?, pid: Int32?, state newState: CoffeeState) {
         // One assertion at a time: a second caffeinate would leak the first.
         decaffeinate()
+        let session = sessions.begin()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate")
         process.arguments = options.arguments(seconds: seconds, pid: pid)
@@ -86,13 +90,14 @@ final class CoffeeManager: ObservableObject {
         // The process ends on its own for -t and -w; reflect that in the UI rather than showing a stale "on".
         process.terminationHandler = { _ in
             Task { @MainActor [weak self] in
-                guard let self, self.process != nil else { return }
+                guard let self, self.sessions.owns(session), self.process != nil else { return }
                 self.decaffeinate()
             }
         }
         do {
             try process.run()
         } catch {
+            if sessions.owns(session) { sessions.invalidate() }
             state = .off
             return
         }

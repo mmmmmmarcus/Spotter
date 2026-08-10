@@ -20,6 +20,9 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
   instead.
 - Process actions execute immediately without a confirmation dialog. After completion the palette
   stays open and refreshes its process results in place.
+- A failed signal or restart also leaves the palette and its search focus in place. It reports through
+  the non-activating HUD and records the OS error in Settings → Diagnostics instead of interrupting
+  the process list with a modal alert.
 - Copy an executable path or manually refresh from the shared Actions menu.
 - PID 0, PID 1 and Spotter's own PID are never included.
 

@@ -18,6 +18,55 @@ struct AIChatMessage: Identifiable, Equatable, Sendable {
     }
 }
 
+enum AIChatPhase: Equatable, Sendable {
+    case idle
+    case waiting
+    case failed(String)
+}
+
+/// Pure ownership for the one allowed request plus failures scoped to their conversations.
+struct AIChatRequestLedger: Equatable, Sendable {
+    private(set) var waitingSessionID: UUID?
+    private var failures: [UUID: String] = [:]
+
+    mutating func begin(sessionID: UUID) -> Bool {
+        guard waitingSessionID == nil else { return false }
+        failures.removeValue(forKey: sessionID)
+        waitingSessionID = sessionID
+        return true
+    }
+
+    @discardableResult
+    mutating func finish(sessionID: UUID, failure: String?) -> Bool {
+        guard waitingSessionID == sessionID else { return false }
+        waitingSessionID = nil
+        if let failure {
+            failures[sessionID] = failure
+        } else {
+            failures.removeValue(forKey: sessionID)
+        }
+        return true
+    }
+
+    mutating func cancel() {
+        waitingSessionID = nil
+    }
+
+    mutating func setFailure(_ message: String, for sessionID: UUID) {
+        failures[sessionID] = message
+    }
+
+    mutating func remove(sessionID: UUID) {
+        if waitingSessionID == sessionID { waitingSessionID = nil }
+        failures.removeValue(forKey: sessionID)
+    }
+
+    func phase(for sessionID: UUID) -> AIChatPhase {
+        if waitingSessionID == sessionID { return .waiting }
+        return failures[sessionID].map(AIChatPhase.failed) ?? .idle
+    }
+}
+
 /// The pure half of AI Chat: prompt text and transcript windowing. Foundation-only so
 /// `Tools/ai-chat-test.swift` compiles it standalone; the network lives in `OpenRouterStore`.
 enum AIChatEngine {

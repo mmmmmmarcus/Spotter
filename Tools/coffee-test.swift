@@ -58,6 +58,15 @@ struct CoffeeTests {
         check("seconds only", CoffeeFormatter.remaining(until: now.addingTimeInterval(40), now: now) == "40s")
         check("an elapsed deadline reads zero", CoffeeFormatter.remaining(until: now.addingTimeInterval(-60), now: now) == "0s")
 
+        // Process ownership: an old termination handler may arrive after a replacement starts.
+        var sessions = CoffeeSessionTracker()
+        let first = sessions.begin()
+        check("a new session owns its token", sessions.owns(first))
+        sessions.invalidate()
+        let second = sessions.begin()
+        check("a replacement rejects the old process token", !sessions.owns(first))
+        check("a replacement owns only its new token", sessions.owns(second))
+
         print(failures == 0 ? "\nCoffee: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

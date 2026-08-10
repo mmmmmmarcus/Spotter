@@ -693,6 +693,29 @@ final class AppCore: ObservableObject {
         palette.followToken = UUID()
     }
 
+    func confirmDeleteClip(_ item: ClipboardItem) {
+        confirmInPalette(
+            PaletteConfirmation(
+                title: "Delete Clipboard Entry?",
+                message: "This item will be permanently removed from clipboard history.",
+                actionTitle: "Delete"
+            ) { [weak self] in
+                self?.clipboardStore.remove(item)
+            })
+    }
+
+    func confirmClearClipboardHistory() {
+        guard !clipboardStore.items.isEmpty else { return }
+        confirmInPalette(
+            PaletteConfirmation(
+                title: "Delete All Clipboard Entries?",
+                message: "Pinned entries and the complete clipboard history will be permanently deleted.",
+                actionTitle: "Delete All"
+            ) { [weak self] in
+                self?.clipboardStore.clearAll()
+            })
+    }
+
     /// Put the selection on `item`'s row in the list as currently filtered — pinned rows hold the top, so a row that moved isn't always index 0.
     private func selectClip(_ item: ClipboardItem) {
         palette.selection = clipboardStore.rowIndex(of: item, in: palette.query) ?? 0

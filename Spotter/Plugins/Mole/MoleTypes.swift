@@ -73,6 +73,11 @@ enum MoleCommand: String, CaseIterable, Sendable {
 
     var argument: String { rawValue }
     var commandID: String { "command:mole:" + rawValue }
+
+    /// Commands shown inside the Mole hub. The hub's own launcher entry is not a destination.
+    static var hubCommands: [MoleCommand] {
+        allCases.filter { $0 != .menu }
+    }
 }
 
 /// One rendered Mole screen. `menu` is the hub every other screen is reachable from.
@@ -258,6 +263,14 @@ struct MoleInstallerEntry: Equatable, Sendable {
 enum MoleInstallerScan {
     static let maxDepth = 2
     static let directExtensions: Set<String> = ["dmg", "pkg", "mpkg", "iso", "xip"]
+
+    static func includes(level: Int) -> Bool {
+        level <= maxDepth
+    }
+
+    static func canDescend(from level: Int) -> Bool {
+        level < maxDepth
+    }
 
     /// Mole's `INSTALLER_SCAN_PATHS`, relative to the given home so the harness can test it.
     static func roots(home: String) -> [String] {
@@ -495,6 +508,9 @@ enum MoleParser {
     /// Item markers Mole uses across `clean` and `optimize`: done, applied, and suggested.
     private static let itemMarkers: Set<Character> = ["→", "✓", "⊙"]
 
+    /// Marked setup/status lines introduced by newer Mole releases are not reclaimable items.
+    private static let ignoredItemPrefixes = ["Whitelist:"]
+
     /// `mole clean` and `mole optimize` print section headers followed by marked item lines.
     /// Anything else — banners, whitelist echoes, file-list hints — is noise the palette skips.
     static func parseReport(_ text: String) -> MoleReport {
@@ -520,6 +536,7 @@ enum MoleParser {
             guard let marker = line.first, itemMarkers.contains(marker) else { continue }
             let body = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
             guard !body.isEmpty, !body.hasPrefix("DRY RUN MODE") else { continue }
+            guard !ignoredItemPrefixes.contains(where: body.hasPrefix) else { continue }
             // `·` separates the item from its size/count; a line without one is its own title.
             if let separator = body.range(of: " · ") {
                 items.append(

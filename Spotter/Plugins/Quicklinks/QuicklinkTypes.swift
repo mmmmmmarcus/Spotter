@@ -68,15 +68,37 @@ enum QuicklinkDestination: Equatable, Sendable {
         if trimmed.hasPrefix("/") || trimmed.hasPrefix("~") || trimmed.hasPrefix("file:") {
             return .file
         }
-        guard let schemeEnd = trimmed.range(of: "://") else {
+        guard let scheme = scheme(in: trimmed) else {
             // Bare `example.com/x` reads as web; that's what a user typing a domain means.
             return .web
         }
-        let scheme = trimmed[..<schemeEnd.lowerBound].lowercased()
         return (scheme == "http" || scheme == "https") ? .web : .deeplink
     }
 
     var encodesValues: Bool { self != .file }
+
+    static func hasScheme(_ link: String) -> Bool {
+        scheme(in: link.trimmingCharacters(in: .whitespacesAndNewlines)) != nil
+    }
+
+    /// RFC 3986 schemes do not require `//`: `mailto:`, `things:` and `obsidian:` are all valid.
+    private static func scheme(in value: String) -> String? {
+        guard let colon = value.firstIndex(of: ":"), colon != value.startIndex else { return nil }
+        let candidate = value[..<colon]
+        let remainder = value[value.index(after: colon)...]
+        if remainder.first?.isNumber == true,
+            candidate == "localhost" || candidate.contains(".")
+        {
+            return nil
+        }
+        guard let first = candidate.first, first.isASCII, first.isLetter else { return nil }
+        guard candidate.dropFirst().allSatisfy({ character in
+            character.isASCII
+                && (character.isLetter || character.isNumber || character == "+"
+                    || character == "-" || character == ".")
+        }) else { return nil }
+        return candidate.lowercased()
+    }
 }
 
 /// One `{argument}` in a template.

@@ -29,6 +29,9 @@ final class MoleManager: ObservableObject {
     /// Where Mole was found, or nil when it isn't installed — the settings pane and the palette both read this.
     @Published private(set) var binaryPath: String?
 
+    /// The root currently visited by Spotter's native installer scan, shown while large folders load.
+    @Published private(set) var installerScanPath: String?
+
     /// Fired when a state-changing run finishes, so `AppCore` can surface a HUD if the Mole screen
     /// isn't visible to show it on the run row.
     var onRunFinished: ((MoleAction, [String]) -> Void)?
@@ -101,6 +104,7 @@ final class MoleManager: ObservableObject {
         loadGeneration &+= 1
         let generation = loadGeneration
         isLoadingPreview = false
+        installerScanPath = nil
         lastSuccessfulLoad = nil
         guard screen != .menu else {
             state = .idle
@@ -109,16 +113,20 @@ final class MoleManager: ObservableObject {
         // The installer scan is Spotter's own — Mole's selector is TUI-only — so it works even
         // with no binary installed.
         if screen == .installer {
-            state = .loading
+            state = .installers([])
             isLoadingPreview = true
             loadTask = Task { [weak self] in
-                let entries = await Self.scanInstallers()
+                let entries = await Self.scanInstallers { [weak self] path, entries in
+                    self?.enqueueInstallerProgress(
+                        path: path, entries: entries, generation: generation)
+                }
                 guard !Task.isCancelled else { return }
                 guard let self, self.screen == .installer, self.loadGeneration == generation else {
                     return
                 }
                 self.loadTask = nil
                 self.isLoadingPreview = false
+                self.installerScanPath = nil
                 self.state = .installers(entries)
                 self.markSuccessfulLoad(for: .installer)
             }
@@ -163,6 +171,7 @@ final class MoleManager: ObservableObject {
         loadTask = nil
         loadGeneration &+= 1
         isLoadingPreview = false
+        installerScanPath = nil
         guard !isRunning else { return }
         if wasLoading { state = .idle }
     }
@@ -304,24 +313,41 @@ final class MoleManager: ObservableObject {
 
     /// Walks Mole's installer paths (depth 2) off-main: direct installer extensions always count,
     /// a zip only when its listing contains an installer — the same rules `mo installer` applies.
-    private nonisolated static func scanInstallers() async -> [MoleInstallerEntry] {
-        await Task.detached(priority: .userInitiated) { walkInstallerRoots() }.value
+    private nonisolated static func scanInstallers(
+        onProgress: @escaping @Sendable (String, [MoleInstallerEntry]) -> Void
+    ) async -> [MoleInstallerEntry] {
+        let scan = Task.detached(priority: .userInitiated) {
+            walkInstallerRoots(onProgress: onProgress)
+        }
+        return await withTaskCancellationHandler {
+            await scan.value
+        } onCancel: {
+            scan.cancel()
+        }
     }
 
     /// Synchronous walk — `DirectoryEnumerator` iteration isn't available in async contexts.
-    private nonisolated static func walkInstallerRoots() -> [MoleInstallerEntry] {
+    private nonisolated static func walkInstallerRoots(
+        onProgress: @Sendable (String, [MoleInstallerEntry]) -> Void
+    ) -> [MoleInstallerEntry] {
         let fm = FileManager.default
         let home = NSHomeDirectory()
         var entries: [MoleInstallerEntry] = []
         var seen = Set<String>()
         for root in MoleInstallerScan.roots(home: home) {
+            guard !Task.isCancelled else { return [] }
+            onProgress(root, entries.sorted { $0.size > $1.size })
             guard let walker = fm.enumerator(
                 at: URL(fileURLWithPath: root),
                 includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants])
             else { continue }
             for case let url as URL in walker {
-                if walker.level > MoleInstallerScan.maxDepth { walker.skipDescendants() }
+                guard !Task.isCancelled else { return [] }
+                if !MoleInstallerScan.canDescend(from: walker.level) {
+                    walker.skipDescendants()
+                }
+                guard MoleInstallerScan.includes(level: walker.level) else { continue }
                 let name = url.lastPathComponent
                 let direct = MoleInstallerScan.isDirectInstaller(name)
                 guard direct || MoleInstallerScan.isZip(name) else { continue }
@@ -333,6 +359,7 @@ final class MoleManager: ObservableObject {
                 // Roots overlap (Downloads contains Telegram Desktop); one path, one row.
                 guard seen.insert(url.path).inserted else { continue }
                 if !direct, !zipContainsInstaller(at: url.path) { continue }
+                guard !Task.isCancelled else { return [] }
                 entries.append(
                     MoleInstallerEntry(
                         name: name,
@@ -340,9 +367,23 @@ final class MoleManager: ObservableObject {
                         folder: (url.deletingLastPathComponent().path as NSString)
                             .abbreviatingWithTildeInPath,
                         size: Int64(values.fileSize ?? 0)))
+                onProgress(root, entries.sorted { $0.size > $1.size })
             }
         }
         return entries.sorted { $0.size > $1.size }
+    }
+
+    private nonisolated func enqueueInstallerProgress(
+        path: String, entries: [MoleInstallerEntry], generation: Int
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self, self.screen == .installer, self.screenVisible,
+                self.isLoadingPreview, self.runningAction == nil,
+                generation == self.loadGeneration
+            else { return }
+            self.installerScanPath = path
+            self.state = .installers(entries)
+        }
     }
 
     /// `zipinfo -1` lists archived paths without extraction; a failure reads as "not an installer".
