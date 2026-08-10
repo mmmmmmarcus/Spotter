@@ -74,6 +74,7 @@
 		5F5F4190161FA6569021181C /* EmojiIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B017FD6AEF925DB962DFB5C /* EmojiIndex.swift */; };
 		61D1312CDF6F88E027BFDD8B /* AppIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = B106F55A48529154846D232B /* AppIndex.swift */; };
 		64B05A63190110CCC027E700 /* ImageModificationTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */; };
+		66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 307535C846A5B39643CCB935 /* UpdateViews.swift */; };
 		6780976D52AB15577C5C61BA /* TextReplacementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322BD1E0F51E36F6E499FFC5 /* TextReplacementStore.swift */; };
 		67AF4C032DBB83701E991791 /* CommandHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */; };
 		68AFA52CCCB116233710ECA0 /* PluginTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E593DC8B2FFDB3E7D4E269BC /* PluginTypes.swift */; };
@@ -226,6 +227,7 @@
 		2C2B6E0210EE0AAE0B9CB19D /* ShortcutsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsView.swift; sourceTree = "<group>"; };
 		2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayScroller.swift; sourceTree = "<group>"; };
 		2EF4FC36249D2F239DC103AD /* CustomCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommand.swift; sourceTree = "<group>"; };
+		307535C846A5B39643CCB935 /* UpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateViews.swift; sourceTree = "<group>"; };
 		322BD1E0F51E36F6E499FFC5 /* TextReplacementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementStore.swift; sourceTree = "<group>"; };
 		33E49FE9DA17F3916D19B86D /* WindowActionMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActionMemory.swift; sourceTree = "<group>"; };
 		34AC17A52D175DC67680CADF /* CalculatorCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorCardView.swift; sourceTree = "<group>"; };
@@ -464,6 +466,7 @@
 				8DD0478FC75377C361F17560 /* Launcher */,
 				8984AADFB64E21D8BE9FDF02 /* Onboarding */,
 				C90BDD2D996A1ACA1E2A5B67 /* Settings */,
+				9970D376F9EB8F57EC802707 /* Updates */,
 				9CEE076F5688F414675AC47E /* ConfirmationCard.swift */,
 				F2821459ECF8A3EB12E1D0D5 /* PopoverMenu.swift */,
 				EEC07C3A56248A192651F6D2 /* RootPaletteView.swift */,
@@ -577,6 +580,14 @@
 				054E9477DF5DF415492936A9 /* BuiltInPlugins.swift */,
 			);
 			path = Plugins;
+			sourceTree = "<group>";
+		};
+		9970D376F9EB8F57EC802707 /* Updates */ = {
+			isa = PBXGroup;
+			children = (
+				307535C846A5B39643CCB935 /* UpdateViews.swift */,
+			);
+			path = Updates;
 			sourceTree = "<group>";
 		};
 		A03E7136B6D2D09A9DD3F011 /* ChangeCase */ = {
@@ -1046,6 +1057,7 @@
 				CAB28684B11E838CBAAE63D0 /* ThinScrollbar.swift in Sources */,
 				F91F68FE32440D040FB0FCA6 /* UpdateFeed.swift in Sources */,
 				5D40DCFE0F29E6D10B497D72 /* UpdateStore.swift in Sources */,
+				66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */,
 				4B9A141BD0E6B6B6AE7729EC /* VisibilityStore.swift in Sources */,
 				C3C2ADCB8EBD0ED5B3FF0309 /* VisualEffectView.swift in Sources */,
 				2706A7F2E3214739A77892A4 /* WindowActionMemory.swift in Sources */,
@@ -1117,7 +1129,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1189,7 +1201,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

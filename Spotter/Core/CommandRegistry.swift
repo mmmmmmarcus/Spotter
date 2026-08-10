@@ -3,6 +3,7 @@ import Foundation
 /// Built-in launcher actions surfaced alongside user-authored commands, with dispatch in `AppCore.runCommand`.
 enum CommandID: String, CaseIterable, Sendable {
     case calculatorHistory = "command:calculator-history"
+    case checkForUpdates = "command:check-for-updates"
     case exportSettings = "command:export-settings"
     case importSettings = "command:import-settings"
     case importFromRaycast = "command:import-from-raycast"
@@ -14,6 +15,7 @@ enum CommandID: String, CaseIterable, Sendable {
     var name: String {
         switch self {
         case .calculatorHistory: return "Calculator History"
+        case .checkForUpdates: return "Check for Updates"
         case .exportSettings: return "Export Settings"
         case .importSettings: return "Import Settings"
         case .importFromRaycast: return "Import from Raycast"
@@ -27,6 +29,7 @@ enum CommandID: String, CaseIterable, Sendable {
     var sfSymbol: String {
         switch self {
         case .calculatorHistory: return "plus.forwardslash.minus"
+        case .checkForUpdates: return "arrow.down.circle"
         case .exportSettings: return "square.and.arrow.up"
         case .importSettings: return "square.and.arrow.down"
         case .importFromRaycast: return "arrow.down.doc"

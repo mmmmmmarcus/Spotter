@@ -110,7 +110,8 @@ final class UpdateStore: ObservableObject {
     @discardableResult
     private func check(requiresAutoConsent: Bool) async -> Bool {
         guard !requiresAutoConsent || autoCheckEnabled else { return false }
-        // An install in flight must not have its state stomped by a background tick.
+        // A check or install in flight must not have its state stomped by another entry point.
+        if case .checking = status { return true }
         if case .installing = status { return true }
         guard let current = currentVersion else { return false }
         status = .checking

@@ -1,4 +1,4 @@
 interface:
   display_name: "Spotter Release"
-  short_description: "Prepare signed Spotter beta and stable releases"
-  default_prompt: "Use $spotter-release to prepare and publish the next Spotter release safely."
+  short_description: "Publish verified stable Spotter releases"
+  default_prompt: "Use $spotter-release to prepare, publish, and verify the next stable Spotter release."

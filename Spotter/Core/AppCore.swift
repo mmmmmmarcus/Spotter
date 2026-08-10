@@ -404,6 +404,23 @@ final class AppCore: ObservableObject {
         showSettings(tab: .about)
     }
 
+    /// Launcher-first update flow: every invocation performs a fresh manual check while the window observes the same store and installer as Settings → General.
+    func showUpdates() {
+        auxWindows.show(
+            id: "updates", title: "Software Update",
+            size: CGSize(
+                width: Theme.Size.updateWindowWidth,
+                height: Theme.Size.updateWindowHeight),
+            seamlessTitleBar: true,
+            closeButtonOnly: true
+        ) {
+            UpdateWindowView {
+                self.auxWindows.close(id: "updates")
+            }
+        }
+        Task { await updates.checkNow() }
+    }
+
     /// Native plugin workspaces share AppCore's auxiliary-window owner instead of creating plugin-specific window singletons.
     @discardableResult
     func showPluginWindow<Content: View>(
@@ -617,6 +634,9 @@ final class AppCore: ObservableObject {
         switch CommandRegistry.command(for: entry) {
         case .calculatorHistory:
             showPalette(mode: .calculatorHistory)
+        case .checkForUpdates:
+            hidePalette(restoreFocus: false)
+            showUpdates()
         case .exportSettings:
             hidePalette(restoreFocus: false)
             BackupActions.exportSettings()

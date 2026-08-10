@@ -66,6 +66,9 @@ enum Theme {
         /// Settings window: wider content area keeps descriptive row text readable beside trailing controls.
         static let settingsWindowWidth: CGFloat = 860
         static let settingsWindowHeight: CGFloat = 550
+        /// Focused Software Update flow opened from the launcher command.
+        static let updateWindowWidth: CGFloat = 460
+        static let updateWindowHeight: CGFloat = 300
         /// Settings sidebar column width and the small icon used in setting rows.
         static let settingsSidebar: CGFloat = 184
         static let settingsRowIcon: CGFloat = 20

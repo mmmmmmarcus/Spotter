@@ -93,6 +93,11 @@ this in-memory command slice; it does not rescan applications.
 A command row normally draws an SF Symbol tile, but `AppEntry.iconFilePath` lets it borrow a real
 bundle's icon — a quicklink shows the icon of the app that will open it.
 
+Core application commands remain in `CommandRegistry`. **Check for Updates** opens the focused
+Software Update window and performs a fresh manual check; the window observes the same `UpdateStore`
+used by General Settings and carries the flow through download, signature verification, replacement
+and relaunch.
+
 A registration may mark a secondary command `defaultVisible: false`. `AppCore.start()` seeds that
 visibility exactly once, after which the normal visibility store and System → Shortcuts own the user
 choice. Change Case uses this for its 21 direct transformations and Window Management for 20 of its 30

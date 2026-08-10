@@ -1,6 +1,6 @@
 ---
 name: spotter-release
-description: Prepare, validate, build, sign, notarize, publish, and verify Spotter beta or stable releases. Use when bumping Spotter's version, preparing release commits, producing Developer ID DMGs, running the GitHub Release workflow, checking release credentials, or auditing a published Spotter release.
+description: Prepare, validate, build, sign, notarize, publish, and verify stable Spotter releases end to end. Use when bumping Spotter's version, preparing or publishing a release, producing Developer ID DMGs, running the GitHub Release workflow, checking release credentials, or auditing a published Spotter release.
 ---
 
 # Spotter Release
@@ -13,11 +13,12 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
 1. Read `AGENTS.md`, `docs/development.md`, and `docs/signing.md` completely.
 2. Inspect the branch, remote, tags, latest GitHub release, worktree, signing identities, and only
    the names of configured GitHub Actions secrets. Never print or request secret values in chat.
-3. Distinguish a preparation request from authorization to publish. Building locally, dispatching a
-   workflow and creating a GitHub Release are separate state-changing actions; perform only those
-   the user requested.
-4. Owner convention: an unqualified request to publish means `stable`. Stable versions remain plain
-   numeric `x.y.z` values with no channel label or suffix. Use `beta` only when explicitly requested.
+3. Treat a request to release through this skill as authorization for the complete stable workflow:
+   prepare, validate, commit, push, dispatch and verify. Do not stop to ask whether preparation is
+   sufficient or whether publishing should begin. An explicitly read-only audit, local artifact or
+   prepare-only request remains limited to that scope.
+4. Publish only `stable`. Never ask which channel to use and never dispatch `beta`. Stable versions
+   remain plain numeric `x.y.z` values with no channel label or suffix.
 
 ## Manage the version
 
@@ -25,8 +26,9 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
 2. For a requested bump, update `project.yml` and the offline fallback in
    `website/src/data/site.ts`, then run `xcodegen generate`. Do not hand-edit
    `Spotter.xcodeproj/project.pbxproj`.
-3. Do not invent the next semantic version when compatibility intent is ambiguous. Use the version
-   the user names or ask for the missing decision.
+3. Use a version named by the user. Otherwise, use `project.yml` when it is newer than the latest
+   stable release; if it is not newer, increment the latest stable patch version. Do not ask the user
+   to select a version or channel.
 4. Run `scripts/release-preflight.sh --expected <version>` after regeneration. Treat any mismatch
    as a blocker rather than overriding a version at build time.
 
@@ -44,16 +46,18 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
 
 ## Publish through GitHub Actions
 
-1. Commit and push the prepared source before publishing. Stable releases must use the clean default
-   branch; beta releases may use an explicitly selected branch.
+1. Review the final diff, commit the complete intended release as `Release <version>`, and push it to
+   the default branch. Fetch first and stop on divergence rather than overwriting remote history.
 2. Run `scripts/release-preflight.sh --expected <version> --publish`. It checks branch cleanliness,
    required secret names, version mirrors, and that the stable tag does not already exist.
-3. Dispatch `.github/workflows/release.yml` with only `channel=beta` or `channel=stable`. The workflow
-   reads the base version from `project.yml`; never create the release or tag separately.
+3. Dispatch `.github/workflows/release.yml` with `channel=stable`. The workflow reads the version
+   from `project.yml`; never create the release or tag separately.
 4. Watch the workflow through completion. If it fails, inspect logs, fix the source/configuration,
    and create a new commit; do not manually publish partially verified artifacts.
 5. Verify the GitHub Release tag, prerelease flag, DMG and updater zip names, checksums, and the
    downloadable assets' signature and notarization status.
+6. Do not pause at the preparation, commit, push or dispatch boundaries. Stop only for a genuine
+   blocker that cannot be resolved safely within the release workflow.
 
 ## Audit an existing release
 
