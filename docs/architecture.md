@@ -3,7 +3,8 @@
 How Spotter is wired together. See the per-subsystem docs for internals:
 [palette](palette.md), [launcher](launcher.md), [calculator](calculator.md),
 [clipboard](clipboard.md), [plugins](plugins.md), [custom commands](custom-commands.md),
-[hotkeys](hotkeys.md), [ui](ui.md), [settings-sync](settings-sync.md), [signing](signing.md),
+[hotkeys](hotkeys.md), [background tasks](background-tasks.md), [ui](ui.md),
+[settings-sync](settings-sync.md), [signing](signing.md),
 plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools,
 image-modification, notes, text-replacement, quicklinks, window-management,
 commands (including built-in system commands), mole, coffee).
@@ -17,7 +18,7 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`, `ChangeCaseStore`,
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `QuicklinkStore`, `QuicklinkManager`, `WindowMover`,
-`ChatGPTLauncherCoordinator`, `MoleManager`, `CoffeeManager`, `UpdateStore`, `CommandHUD`,
+`MoleManager`, `CoffeeManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,
 `SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry`, `AIChatStore` — plus the window
 controllers. One deliberate singleton lives outside this rule: `AppLog.shared`
@@ -82,6 +83,9 @@ imperatively from AppKit.
   non-selectable view above the empty-query launcher sections. `RootPaletteView` keeps the dashboard
   inside the palette's existing scroll view and selection model; the plugin owns only its local data
   and card content, never a window or a second search field.
+- **Background tasks** — `BackgroundTaskStore` keeps long-running work visible as the launcher's
+  first selectable rows while each feature manager remains the executor. Finished rows stay until
+  dismissed; see [background-tasks.md](background-tasks.md).
 
 The app follows the system appearance. Every color token lives in `Core/Theme.swift` as an
 `adaptive(dark:light:)` pair resolved through `NSColor`'s dynamic provider, so views never branch on

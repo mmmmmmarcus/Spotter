@@ -28,7 +28,6 @@ Spotter/Plugins/
 ├── Quicklinks/
 ├── Commands/
 ├── AIChat/
-├── ChatGPTLauncher/
 ├── EmojiSymbols/
 ├── WorldClock/
 ├── KillProcess/
@@ -244,9 +243,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **AI Chat** (`Spotter/Plugins/AIChat/`) — an always-available application feature shown under
   Settings → Features. It reuses plugin infrastructure for Settings routing, commands, permissions
   and shortcuts, but cannot be disabled and does not export an enable state. It remains inert without
-  the shared OpenRouter key. Tab from the launcher always opens a fresh session and sends any typed
-  query immediately; selected-text translation, definition and grammar checks start follow-up-ready
-  conversations.
+  the shared OpenRouter key for Spotter-hosted replies. Tab sends a typed query through OpenRouter;
+  Shift-Tab opens the same query at `https://chatgpt.com/?q=…` in the default browser. Selected-text
+  translation, definition and grammar checks start follow-up-ready conversations.
 
 ## Current plugins
 
@@ -270,10 +269,6 @@ shell-command feature; do not use shell commands as an internal plugin API.
   `dynamicLauncherCommands`. Disabling it preserves custom commands and every binding, removes both
   command sources from the launcher, and makes their global shortcuts no-op; a custom command already
   running is not terminated.
-- **Send to ChatGPT** (`Spotter/Plugins/ChatGPTLauncher/`) — enabled by default; collects a prompt
-  in a shared palette screen, explicitly switches the official ChatGPT macOS app to Chat, then opens
-  its `codex://new` deep link. Accessibility must verify both the Chat composer mode and the exact
-  prefilled prompt before submission; any ambiguity leaves the prompt unsent.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
@@ -299,8 +294,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   own scan and native Trash. Launcher app rows offer **Uninstall with Mole** through the same
   confirmed funnel.
   Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
-  off a menu hub; state-changing runs preview first and go through one confirmed funnel. Only the
-  installer selector, which needs a real TTY, hands off to Terminal.
+  off a menu hub; state-changing runs preview first, go through one confirmed funnel, then return to
+  the launcher as persistent background-task rows. Nothing hands off to Terminal.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
@@ -308,5 +303,4 @@ Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
-[Send to ChatGPT](chatgpt-launcher.md), and [Notes](notes.md), plus
-[Text Replacement](text-replacement.md).
+[Notes](notes.md), and [Text Replacement](text-replacement.md).

@@ -558,11 +558,9 @@ extension AppCore {
             && app.bundleID != Bundle.main.bundleIdentifier
     }
 
-    /// Launcher app rows hand their uninstall to Mole: the same confirmed funnel, landing on the
-    /// Mole uninstall screen so the run row reports progress and what's left after.
+    /// Launcher app rows hand their uninstall to the same confirmed background-task funnel.
     func uninstallWithMole(_ app: AppEntry) {
         guard canUninstallWithMole(app) else { return }
-        mole.open(.uninstall)
         runMoleAction(.uninstall(name: app.name, permanent: false))
     }
 
@@ -576,9 +574,16 @@ extension AppCore {
                 isDestructive: action.isPermanent
             ) { [weak self] in
                 guard let self, !self.mole.isRunning else { return }
-                self.mole.run(action)
-                // Deliberately stays open: the run row reports progress and the list refreshes underneath it.
-                self.showPalette(mode: .plugin(.mole), restoreAnyMode: true)
+                let taskID = self.backgroundTasks.begin(
+                    title: action.backgroundTaskTitle,
+                    detail: "Starting \(action.title.lowercased())…",
+                    systemImage: action.systemImage)
+                if !self.mole.run(action, taskID: taskID) {
+                    self.backgroundTasks.fail(id: taskID, detail: "Mole couldn't start this task.")
+                }
+                self.mole.stop()
+                self.palette.prepare(mode: .launcher)
+                self.showPalette(mode: .launcher)
             })
     }
 

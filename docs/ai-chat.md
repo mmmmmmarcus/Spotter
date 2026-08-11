@@ -1,16 +1,18 @@
 # AI Chat
 
-A conversation inside the palette, at launcher size. **Tab** from the launcher enters it (the cycle
-is Apps → AI Chat → Clipboard), the shared header search field is the composer, and the body renders
-the running transcript.
+A conversation inside the palette, at launcher size. The shared header search field is the composer,
+the body renders the running transcript, and the footer exposes two destinations: **Tab** sends
+through Spotter's OpenRouter-backed chat while **Shift-Tab** sends the draft to ChatGPT on the web.
 
-**Tab always opens a fresh session.** With an empty query it lands on a new blank session; with a
-typed query it starts a new session *and sends immediately* — type the question in the launcher,
-Tab, and it's already asked (no key configured, the text stays in the composer beside the
-add-a-key notice). An already-empty current session is reused so cycling modes can't pile up
-blanks. Earlier conversations live in the **session menu**: the bottom-left palette menu in chat
-mode lists sessions newest-first (titled by their first user turn, the Notes derive-don't-ask rule)
-plus New Session (also **⌘N** anywhere in chat), and the ⌘K menu adds Delete Session.
+From the launcher, **Tab** with a typed query starts a fresh AI Chat session and sends immediately;
+without a key, the text stays in the composer beside the add-a-key notice. **Shift-Tab** with a typed
+query instead opens `https://chatgpt.com/?q=…` in the default browser and dismisses Spotter. Inside AI
+Chat, the same keys send the current draft to their respective destinations. With no draft, Tab keeps
+the Apps → AI Chat → Clipboard surface cycle. An already-empty current session is reused so cycling
+modes cannot pile up blanks. Earlier conversations live in the **session menu**: the bottom-left
+palette menu in chat mode lists sessions newest-first (titled by their first user turn, the Notes
+derive-don't-ask rule) plus New Session (also **⌘N** anywhere in chat), and the ⌘K menu adds Delete
+Session.
 
 AI Chat is an always-available application feature shown in Settings → Features, but remains inert
 without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
@@ -22,7 +24,7 @@ Settings, command, permission and shortcut plumbing without being presented as a
 
 | File | Role |
 | --- | --- |
-| `AIChatTypes.swift` | Foundation-only, pure: the message model, the system prompt, transcript windowing. |
+| `AIChatTypes.swift` | Foundation-only, pure: the message model, system prompt, transcript windowing and ChatGPT web URL. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
 | `AIChatSelectionPrompts.swift` | Foundation-only target-language and follow-up-aware prompt construction. |
 | `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
@@ -35,8 +37,12 @@ in either pure source.
 
 ## Interaction
 
-- **↵ sends** whatever is typed and clears the field; the reply appends when it lands. While a reply
-  is in flight the footer pill reads "Thinking…" and a pulsing status row sits under the transcript.
+- **Tab or ↵ sends to Spotter AI** and clears the field after the request is accepted; the reply
+  appends when it lands. While a reply is in flight the footer pill reads "Thinking…" and a pulsing
+  status row sits under the transcript.
+- **Shift-Tab sends to ChatGPT on the web** by opening an encoded `q` query in the default browser.
+  Spotter dismisses without appending the prompt to its own transcript; ChatGPT owns the new web
+  session, account and request.
 - The transcript keeps the newest content pinned to the bottom, user turns render as right-aligned
   bubbles (`chatBubble` radius, `controlSurface` fill), assistant turns as unadorned leading result
   text without an icon, and everything is text-selectable.
@@ -102,5 +108,8 @@ why it ships off. Synced as `openRouterChatWebSearch`.
 
 ## Privacy
 
-Conversations are session-only by design: nothing is persisted, New Conversation or quitting Spotter
-clears the transcript, and messages go only to OpenRouter under the user's own key.
+Spotter conversations are session-only by design: nothing is persisted, New Conversation or quitting
+Spotter clears the transcript, and those messages go only to OpenRouter under the user's own key. A
+Shift-Tab handoff does not call a network API from Spotter; it opens the encoded prompt in the default
+browser, where the URL may be retained by normal browser history and ChatGPT processes it under the
+browser's signed-in account.

@@ -105,4 +105,16 @@ enum AIChatEngine {
         }
         return kept.reversed()
     }
+
+    /// Uses URLComponents because browser handoff prompts may contain spaces, Unicode, newlines and reserved query bytes.
+    static func chatGPTURL(for rawPrompt: String) -> URL? {
+        let prompt = rawPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else { return nil }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "chatgpt.com"
+        components.path = "/"
+        components.queryItems = [URLQueryItem(name: "q", value: prompt)]
+        return components.url
+    }
 }

@@ -31,7 +31,7 @@ enum AIChatPlugin {
                 id: .aiChat,
                 name: "AI Chat",
                 summary:
-                    "Chat, translate, define, and proofread selected text in one follow-up-ready conversation. Uses your OpenRouter key.",
+                    "Chat through OpenRouter or hand a prompt to ChatGPT on the web, plus translate, define, and proofread selected text.",
                 systemImage: "sparkles",
                 tint: .purple,
                 settingsPlacement: .application),
@@ -144,6 +144,19 @@ enum AIChatSessionsMenu {
 extension AppCore {
     func openAIChat() {
         showPalette(mode: .aiChat)
+    }
+
+    @discardableResult
+    func sendAIChatPromptToChatGPT(_ prompt: String) -> Bool {
+        guard let url = AIChatEngine.chatGPTURL(for: prompt) else { return false }
+        guard NSWorkspace.shared.open(url) else {
+            AppLog.error("ai-chat", "The ChatGPT web URL could not be opened.")
+            hud.show(
+                title: "Could Not Open ChatGPT", symbol: "exclamationmark.triangle", isNoOp: true)
+            return false
+        }
+        hidePalette(restoreFocus: false)
+        return true
     }
 
     func confirmDeleteAIChatSession() {

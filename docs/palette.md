@@ -17,11 +17,13 @@ UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its con
 - `.updates` → the Software Update status and install flow
 - `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
-**Tab cycles the root surfaces** — Apps → AI Chat → Clipboard. AI Chat is always included as an
-application feature; Clipboard is skipped when its plugin is disabled. The query survives the hop,
-so a typed launcher query lands in the chat composer. Every other mode
-(Calculator History, Emoji, Software Update, plugin screens) is a sub-screen reached from the launcher (a command or
-a hotkey); Tab from one exits back to the launcher rather than joining the cycle.
+**Tab cycles empty root surfaces** — Apps → AI Chat → Clipboard. AI Chat is always included as an
+application feature; Clipboard is skipped when its plugin is disabled. With a typed launcher query,
+Tab instead enters a fresh AI Chat session and sends through Spotter's OpenRouter-backed default.
+With a typed AI Chat draft, Tab sends in the current Spotter session. Shift-Tab sends a typed draft
+from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the default browser. Every other mode
+(Calculator History, Emoji, Software Update, plugin screens) is a sub-screen reached from the
+launcher (a command or a hotkey); Tab from one exits back to the launcher rather than joining the cycle.
 
 **Esc backs out one layer, matching Raycast.** An open confirmation cancels first, then an open
 footer menu closes; then a sub-screen
@@ -52,12 +54,13 @@ soon as the user types or enters another palette mode. Its visible lifecycle con
 work, so closing the palette leaves no minute timer or EventKit fetch running.
 
 The flat `selection` index is the single source of truth for highlight / activation and **must always
-match the visible row order**, including the inline calculator card at index 0 when present (see
-[calculator.md](calculator.md)).
+match the visible row order**. Launcher background tasks occupy the first indices, followed by the
+optional inline calculator/plugin card, then app and command results. See
+[background-tasks.md](background-tasks.md) and [calculator.md](calculator.md).
 
 In launcher mode an enabled plugin query provider may claim the inline card instead. The registry
 returns the first claim in catalog order; otherwise the calculator is the fallback. There is still at
-most one inline card at flat index 0, preserving the selection invariant. World Clock is the reference
+most one inline card; it follows any background-task rows. World Clock is the reference
 provider (`SF time now`), implemented in `Spotter/Plugins/WorldClock/`. Its result adds a third local
 system-time column. While that card is selected, → advances and ← rewinds the represented instant by
 one hour (taking those keys from the field editor's caret in that state); ↑/↓ keep moving the flat

@@ -32,9 +32,8 @@ final class MoleManager: ObservableObject {
     /// The root currently visited by Spotter's native installer scan, shown while large folders load.
     @Published private(set) var installerScanPath: String?
 
-    /// Fired when a state-changing run finishes, so `AppCore` can surface a HUD if the Mole screen
-    /// isn't visible to show it on the run row.
-    var onRunFinished: ((MoleAction, [String]) -> Void)?
+    var onRunProgress: ((UUID, String, Double?) -> Void)?
+    var onRunFinished: ((UUID, MoleAction, [String], Bool) -> Void)?
 
     /// The directory the Analyze screen is showing, plus the trail back out of it.
     @Published private(set) var analyzePath: String = NSHomeDirectory()
@@ -201,31 +200,46 @@ final class MoleManager: ObservableObject {
     // MARK: - Running
 
     /// Starts a state-changing command. `AppCore` owns the confirmation, so this executes directly.
-    func run(_ action: MoleAction) {
-        guard let path = binaryPath, !isRunning else { return }
+    @discardableResult
+    func run(_ action: MoleAction, taskID: UUID) -> Bool {
+        guard let path = binaryPath, !isRunning else { return false }
+        let expectedItemCount = expectedItemCount(for: action)
         loadTask?.cancel()
         loadTask = nil
         loadGeneration &+= 1
         isLoadingPreview = false
         runTask?.cancel()
         runningAction = action
+        screen = action.screen
         lastSuccessfulLoad = nil
         lastRunSummary = []
         runTask = Task { [weak self] in
-            let result = await MoleProcessRunner.capture(path: path, arguments: action.arguments)
+            let result = await MoleProcessRunner.capture(
+                path: path, arguments: action.arguments,
+                onOutput: { [weak self] data in
+                    self?.enqueueRunProgress(
+                        data, taskID: taskID, action: action,
+                        expectedItemCount: expectedItemCount)
+                })
             guard let self else { return }
-            self.finish(result, for: action)
+            self.finish(result, for: action, taskID: taskID)
         }
+        return true
     }
 
-    private func finish(_ result: Result<Data, MoleRunError>, for action: MoleAction) {
+    private func finish(
+        _ result: Result<Data, MoleRunError>, for action: MoleAction, taskID: UUID
+    ) {
         runningAction = nil
         runTask = nil
+        let succeeded: Bool
         switch result {
         case .failure(let error):
+            succeeded = false
             lastRunSummary = [error.message]
             AppLog.error("mole", "\(action.title) failed: \(error.message)")
         case .success(let data):
+            succeeded = true
             let text = String(decoding: data, as: UTF8.self)
             let report = MoleParser.parseReport(text)
             lastRunSummary =
@@ -235,7 +249,63 @@ final class MoleManager: ObservableObject {
         if screen == action.screen {
             if screenVisible { reload() } else { state = .idle }
         }
-        onRunFinished?(action, lastRunSummary)
+        onRunFinished?(taskID, action, lastRunSummary, succeeded)
+    }
+
+    private func expectedItemCount(for action: MoleAction) -> Int? {
+        switch (action, state) {
+        case (.clean, .report(let report)), (.optimize, .report(let report)):
+            report.items.count
+        case (.purge, .purge(let entries)):
+            entries.count
+        default:
+            nil
+        }
+    }
+
+    private nonisolated func enqueueRunProgress(
+        _ data: Data, taskID: UUID, action: MoleAction, expectedItemCount: Int?
+    ) {
+        let snapshot = Self.runProgress(
+            data, action: action, expectedItemCount: expectedItemCount)
+        Task { @MainActor [weak self] in
+            guard self?.runningAction == action else { return }
+            self?.onRunProgress?(taskID, snapshot.detail, snapshot.progress)
+        }
+    }
+
+    private nonisolated static func runProgress(
+        _ data: Data, action: MoleAction, expectedItemCount: Int?
+    ) -> (detail: String, progress: Double?) {
+        let text = String(decoding: data, as: UTF8.self)
+        let completed: Int
+        let detail: String
+        switch action {
+        case .clean, .optimize:
+            let report = MoleParser.parseReport(text)
+            completed = report.items.count
+            detail = report.items.last?.title ?? latestProgressLine(in: text) ?? "Running…"
+        case .purge:
+            let entries = MoleParser.parsePurge(text)
+            completed = entries.count
+            detail = entries.last.map { ($0.path as NSString).lastPathComponent }
+                ?? latestProgressLine(in: text) ?? "Running…"
+        case .uninstall:
+            completed = 0
+            detail = latestProgressLine(in: text) ?? "Removing the app and its support files…"
+        }
+        let progress = expectedItemCount.flatMap { count in
+            count > 0 ? min(Double(completed) / Double(count), 0.99) : nil
+        }
+        return (detail, progress)
+    }
+
+    private nonisolated static func latestProgressLine(in text: String) -> String? {
+        MoleParser.stripANSI(text)
+            .split(separator: "\n")
+            .reversed()
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
     }
 
     private func apply(_ result: Result<Data, MoleRunError>, for screen: MoleScreen) {

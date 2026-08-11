@@ -83,6 +83,24 @@ struct AIChatTests {
             AIChatMessage.Role.user.rawValue == "user"
                 && AIChatMessage.Role.assistant.rawValue == "assistant")
 
+        check("an empty ChatGPT prompt has no URL", AIChatEngine.chatGPTURL(for: " \n ") == nil)
+        let chatGPTPrompt = "  Explain Swift & Objective-C?\n用中文回答  "
+        let chatGPTURL = AIChatEngine.chatGPTURL(for: chatGPTPrompt)
+        let chatGPTComponents = chatGPTURL.flatMap {
+            URLComponents(url: $0, resolvingAgainstBaseURL: false)
+        }
+        check("ChatGPT handoff uses HTTPS", chatGPTComponents?.scheme == "https")
+        check("ChatGPT handoff targets chatgpt.com", chatGPTComponents?.host == "chatgpt.com")
+        check("ChatGPT handoff targets the root path", chatGPTComponents?.path == "/")
+        check(
+            "ChatGPT handoff uses the q query shape",
+            chatGPTURL?.absoluteString.hasPrefix("https://chatgpt.com/?q=") == true)
+        check(
+            "ChatGPT handoff round-trips Unicode, reserved bytes and newlines",
+            chatGPTComponents?.queryItems == [
+                URLQueryItem(name: "q", value: "Explain Swift & Objective-C?\n用中文回答")
+            ])
+
         // One request owns the whole chat store even while the user browses another session.
         let firstSession = UUID()
         let secondSession = UUID()

@@ -7,11 +7,15 @@ struct LauncherList: View {
     let showSections: Bool
     /// Changes only when the list should scroll (keyboard nav / reset), so mouse selection never yanks the scroll position.
     let scroll: ScrollIntent
-    /// Inline calculator/plugin answer; occupies flat selection index 0 when present.
+    /// Long-running work stays pinned above every launcher result until the user dismisses it.
+    var backgroundTasks: [BackgroundTaskItem] = []
+    /// Inline calculator/plugin answer; follows any background-task rows.
     var inline: PaletteInlineResult?
     /// Non-selectable plugin dashboard shown only for an empty launcher query.
     var dashboard: AnyView?
+    var selectedTaskID: BackgroundTaskItem.ID?
     var inlineSelected = false
+    var onActivateTask: (BackgroundTaskItem) -> Void = { _ in }
     var onActivateInline: () -> Void = {}
     var onInlineActions: () -> Void = {}
     let onActivate: (AppEntry) -> Void
@@ -19,6 +23,10 @@ struct LauncherList: View {
     @EnvironmentObject private var runningApps: RunningAppsMonitor
 
     private nonisolated static let inlineRowID = "inline-card"
+
+    private static func taskRowID(_ id: BackgroundTaskItem.ID) -> String {
+        "background-task:" + id.uuidString
+    }
 
     private enum Row: Identifiable {
         case header(String)
@@ -34,11 +42,15 @@ struct LauncherList: View {
     }
 
     /// Scroll target for the current selection.
-    private var selectedRowID: String? { inlineSelected ? Self.inlineRowID : selectedID }
+    private var selectedRowID: String? {
+        if let selectedTaskID { return Self.taskRowID(selectedTaskID) }
+        return inlineSelected ? Self.inlineRowID : selectedID
+    }
 
-    /// Whether the selection sits on flat index 0 — the calc card when present, else the first result.
+    /// Whether the selection sits on the first selectable row, including a pinned task when present.
     private var firstRowSelected: Bool {
-        inline != nil ? inlineSelected : selectedID != nil && selectedID == results.first?.id
+        if let first = backgroundTasks.first { return selectedTaskID == first.id }
+        return inline != nil ? inlineSelected : selectedID != nil && selectedID == results.first?.id
     }
 
     private var rows: [Row] {
@@ -69,20 +81,33 @@ struct LauncherList: View {
     var body: some View {
         let rows = rows
         return Group {
-            if results.isEmpty && inline == nil && dashboard == nil {
+            if results.isEmpty && backgroundTasks.isEmpty && inline == nil && dashboard == nil {
                 EmptyResults(text: "No apps found")
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
+                            if !backgroundTasks.isEmpty {
+                                SectionHeader(title: "Background Tasks", isFirst: true)
+                                ForEach(backgroundTasks) { task in
+                                    BackgroundTaskRow(
+                                        task: task, selected: task.id == selectedTaskID)
+                                    .id(Self.taskRowID(task.id))
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { onActivateTask(task) }
+                                }
+                            }
                             if let dashboard {
                                 dashboard
+                                    .padding(.top, backgroundTasks.isEmpty ? 0 : Theme.Spacing.sectionSpacing)
                                     .padding(.bottom, Theme.Spacing.md)
                             }
                             ForEach(rows) { row in
                                 switch row {
                                 case .header(let title):
-                                    SectionHeader(title: title, isFirst: row.id == rows.first?.id)
+                                    SectionHeader(
+                                        title: title,
+                                        isFirst: backgroundTasks.isEmpty && row.id == rows.first?.id)
                                 case .inline(let inline):
                                     CalculatorCard(
                                         result: inline.result, selected: inlineSelected,
@@ -127,6 +152,66 @@ struct LauncherList: View {
                 }
             }
         }
+    }
+}
+
+private struct BackgroundTaskRow: View {
+    let task: BackgroundTaskItem
+    let selected: Bool
+    @State private var hovered = false
+
+    private var fill: Color {
+        if selected { return Theme.Colors.selection }
+        if hovered { return Theme.Colors.rowHover }
+        return .clear
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.lg) {
+            Image(systemName: task.state == .running ? task.systemImage : task.state.systemImage)
+                .font(.body)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(task.title)
+                    .font(Theme.Typography.rowTitle)
+                    .lineLimit(1)
+                Text(task.detail)
+                    .font(Theme.Typography.rowTrailing)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if task.state == .running {
+                if let progress = task.progress {
+                    VStack(alignment: .trailing, spacing: Theme.Spacing.xxs) {
+                        Text("\(Int((progress * 100).rounded()))%")
+                            .font(Theme.Typography.rowTrailing)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                        ProgressView(value: progress)
+                            .frame(width: Theme.Size.backgroundTaskProgressWidth)
+                    }
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(task.state.label)
+                        .font(Theme.Typography.rowTrailing)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+            } else {
+                Text(task.state.label)
+                    .font(Theme.Typography.rowTrailing)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
+                .fill(fill)
+        )
+        .armedHover($hovered)
     }
 }
 

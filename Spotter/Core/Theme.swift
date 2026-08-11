@@ -54,6 +54,7 @@ enum Theme {
         static let compactHeight: CGFloat = headerHeight + headerPadding * 2
         static let bottomBarHeight: CGFloat = 52
         static let rowIcon: CGFloat = 24
+        static let backgroundTaskProgressWidth: CGFloat = 96
         static let keyCap: CGFloat = 18
         /// Settings shortcut-recorder keycap — smaller than the palette's `keyCap` chip.
         static let recorderKeyCap: CGFloat = 16

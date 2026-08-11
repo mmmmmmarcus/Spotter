@@ -10,7 +10,6 @@ enum BuiltInPlugins {
             QuicklinksPlugin.registration(core: core),
             CommandsPlugin.registration(core: core),
             AIChatPlugin.registration(core: core),
-            ChatGPTLauncherPlugin.registration(core: core),
             EmojiSymbolsPlugin.registration(core: core),
             WorldClockPlugin.registration(core: core),
             DashboardWidgetsPlugin.registration(core: core),

@@ -153,6 +153,7 @@ final class AppCore: ObservableObject {
     let emojiIndex = EmojiIndex()
     let frequentEmoji = FrequentEmojiStore()
     let runningApps = RunningAppsMonitor()
+    let backgroundTasks = BackgroundTaskStore()
     let palette = PaletteViewModel()
     let plugins = PluginRegistry()
     let worldClock = WorldClockStore()
@@ -165,7 +166,6 @@ final class AppCore: ObservableObject {
     let imageModification = ImageModificationManager()
     let notes = NoteStore()
     let aiChat: AIChatStore
-    let chatGPTLauncher = ChatGPTLauncherCoordinator()
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()
@@ -255,15 +255,17 @@ final class AppCore: ObservableObject {
             self?.clipboardManager.endSuppressingCapture()
         }
 
-        // A run finishing while its screen is up already reports on the run row; anywhere else — palette closed, or parked on another screen — the HUD carries the result.
-        mole.onRunFinished = { [weak self] action, summary in
+        mole.onRunProgress = { [weak self] taskID, detail, progress in
+            self?.backgroundTasks.update(id: taskID, detail: detail, progress: progress)
+        }
+        mole.onRunFinished = { [weak self] taskID, action, summary, succeeded in
             guard let self else { return }
-            let watching = self.windowController.isVisible && self.palette.mode == .plugin(.mole)
-                && self.mole.screen == action.screen
-            guard !watching else { return }
-            self.hud.show(
-                title: summary.first ?? "\(action.title) finished.",
-                symbol: action.isPermanent ? "trash" : "sparkles")
+            let detail = summary.first ?? "\(action.title) finished."
+            if succeeded {
+                self.backgroundTasks.complete(id: taskID, detail: detail)
+            } else {
+                self.backgroundTasks.fail(id: taskID, detail: detail)
+            }
         }
 
         // Terminate through NSApp so applicationWillTerminate still runs (Hyper Key remap cleanup) before the relaunch helper brings the new build up.
@@ -342,9 +344,10 @@ final class AppCore: ObservableObject {
         windowController.hide(restoreFocus: restoreFocus)
     }
 
-    /// True when the palette should render as the slim compact bar: compact mode on, launcher root, empty query, and not force-expanded via the "…" overflow.
+    /// True when the palette should render as the slim compact bar: compact mode on, no background task to show, launcher root, empty query, and not force-expanded via the "…" overflow.
     var paletteIsCollapsed: Bool {
         settings.compactMode
+            && backgroundTasks.tasks.isEmpty
             && !palette.forceExpanded
             && palette.mode == .launcher
             && palette.query.trimmingCharacters(in: .whitespaces).isEmpty

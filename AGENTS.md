@@ -71,9 +71,9 @@ Never break these without an explicit task to do so.
   stops are the original design and must not drift — `Tools/theme-test.swift` pins both stops of
   every token. Rasterized art is the one exception: an `IconCache` symbol tile bakes its colors, so
   the appearance is part of its cache key and the view re-decodes on a flip.
-- **The flat `selection` index must match the visible row order exactly**, including the inline
-  calculator card at index 0 when present. Selection is the single source of truth for highlight /
-  activation.
+- **The flat `selection` index must match the visible row order exactly.** In launcher mode, background
+  tasks come first, then the inline calculator/plugin card when present, then normal results.
+  Selection is the single source of truth for highlight / activation.
 - **While a footer menu is open the palette search field never resigns first responder** — input is
   frozen instead (resigning shifts the text a point or two). See [palette.md](docs/palette.md).
 - **Focus restoration is load-bearing.** Paste targets the recorded `previousApp` and requires the
@@ -99,8 +99,6 @@ Never break these without an explicit task to do so.
   `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
   `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift` stays
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
-  `Plugins/ChatGPTLauncher/ChatGPTLauncherTypes.swift` stays
-  Foundation-only and pure for `Tools/chatgpt-launcher-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole), `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
@@ -224,10 +222,11 @@ Never break these without an explicit task to do so.
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/selection-tools.md`](docs/selection-tools.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
-  [`docs/ai-chat.md`](docs/ai-chat.md) · [`docs/chatgpt-launcher.md`](docs/chatgpt-launcher.md) ·
+  [`docs/ai-chat.md`](docs/ai-chat.md) ·
   [`docs/custom-commands.md`](docs/custom-commands.md)
   — built-in plugin behavior and implementation.
-- [`docs/palette.md`](docs/palette.md) — palette state flow, menu-open freeze, focus restoration.
+- [`docs/palette.md`](docs/palette.md) · [`docs/background-tasks.md`](docs/background-tasks.md) —
+  palette state flow, long-running task rows, menu-open freeze and focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·
   [`docs/clipboard.md`](docs/clipboard.md) · [`docs/emoji.md`](docs/emoji.md) ·
   [`docs/hotkeys.md`](docs/hotkeys.md) · [`docs/text-replacement.md`](docs/text-replacement.md) ·

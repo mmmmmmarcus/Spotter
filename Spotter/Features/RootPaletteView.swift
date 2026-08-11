@@ -15,6 +15,7 @@ struct RootPaletteView: View {
     @EnvironmentObject private var frequentEmoji: FrequentEmojiStore
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var updates = AppCore.shared.updates
+    @ObservedObject private var backgroundTasks = AppCore.shared.backgroundTasks
     /// Observed so a skin tone changed in Settings re-renders the grid glyphs immediately.
     @ObservedObject private var settings = AppCore.shared.settings
     @FocusState private var searchFocused: Bool
@@ -93,10 +94,13 @@ struct RootPaletteView: View {
     }
 
     private var inlineCount: Int { inlineResult == nil ? 0 : 1 }
+    private var launcherTaskCount: Int {
+        vm.mode == .launcher ? backgroundTasks.tasks.count : 0
+    }
 
     private var resultCount: Int {
         switch vm.mode {
-        case .launcher: return appResults.count + inlineCount
+        case .launcher: return appResults.count + launcherTaskCount + inlineCount
         case .clipboard: return clipResults.count
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
@@ -119,11 +123,17 @@ struct RootPaletteView: View {
     // filter here is fine — the same idiom the other rare event handlers use.
 
     private var selectedInlineResult: PaletteInlineResult? {
-        guard inlineCount > 0, selection == 0 else { return nil }
+        guard inlineCount > 0, selection == launcherTaskCount else { return nil }
         return inlineResult
     }
+    private var selectedBackgroundTask: BackgroundTaskItem? {
+        guard vm.mode == .launcher, backgroundTasks.tasks.indices.contains(selection) else {
+            return nil
+        }
+        return backgroundTasks.tasks[selection]
+    }
     private var selectedAppEntry: AppEntry? {
-        let index = selection - inlineCount
+        let index = selection - launcherTaskCount - inlineCount
         return appResults.indices.contains(index) ? appResults[index] : nil
     }
     private var selectedClipItem: ClipboardItem? {
@@ -144,6 +154,7 @@ struct RootPaletteView: View {
     private var actionsContent: PopoverMenuContent? {
         switch vm.mode {
         case .launcher:
+            if selectedBackgroundTask != nil { return nil }
             if let inline = selectedInlineResult {
                 switch inline {
                 case .calculator(let result):
@@ -161,7 +172,7 @@ struct RootPaletteView: View {
                         core.resetRanking(for: app)
                         // Reset can move the item; keep the highlight on the item whose action ran.
                         if let index = appResults.firstIndex(of: app) {
-                            vm.selection = index + inlineCount
+                            vm.selection = index + launcherTaskCount + inlineCount
                         }
                     })
             }
@@ -222,6 +233,7 @@ struct RootPaletteView: View {
     var body: some View {
         // Filter once per render for the active mode only, so the matcher/search doesn't run several times per render (rare event handlers use the computed properties above).
         let apps = vm.mode == .launcher ? appResults : []
+        let tasks = vm.mode == .launcher ? backgroundTasks.tasks : []
         let clips = vm.mode == .clipboard ? clipResults : []
         let hist = vm.mode == .calculatorHistory ? histResults : []
         let emojiSections = vm.mode == .emoji ? emojiSections : []
@@ -232,32 +244,39 @@ struct RootPaletteView: View {
             ? plugins.launcherDashboardView() : nil
         // Newest stored clip + the reorder token: the pair changes only when the store mutates, never when a query filters the list.
         let clipFollow = ClipFollowKey(id: store.items.first?.id, token: vm.followToken)
-        // Every count/selection below derives from this one inline/offset pair — the flat selection index must always match the visible row order.
+        // Every count/selection below derives from the same task/inline offsets, so the flat index always matches the visible row order.
         let inline = inlineResult
-        let offset = inline == nil ? 0 : 1
+        let inlineOffset = inline == nil ? 0 : 1
+        let taskOffset = tasks.count
         // Only the active mode is non-empty.
-        let count = apps.count + offset + clips.count + hist.count + emojis.count + pluginItems.count
+        let count =
+            apps.count + taskOffset + inlineOffset + clips.count + hist.count + emojis.count
+            + pluginItems.count
         let sel = count == 0 ? 0 : min(max(vm.selection, 0), count - 1)
-        let inlineSelected = inline != nil && sel == 0
+        let selectedTask = tasks.indices.contains(sel) ? tasks[sel] : nil
+        let inlineSelected = inline != nil && sel == taskOffset
         let inlineActionTitle = inlineSelected && inline?.result.isActionable == true
             ? inline?.actionTitle : nil
         let showSections = vm.mode == .launcher && isQueryEmpty
         let favoriteCount =
             showSections ? apps.prefix(while: { favorites.isFavorite($0) }).count : 0
-        let selectedApp = apps.indices.contains(sel - offset) ? apps[sel - offset] : nil
+        let appIndex = sel - taskOffset - inlineOffset
+        let selectedApp = apps.indices.contains(appIndex) ? apps[appIndex] : nil
         let selectedPlugin = pluginItems.indices.contains(sel) ? pluginItems[sel] : nil
         // Derive the footer label from the already-resolved selection so `bottomBar` doesn't re-run `appResults` (its filter/sort aren't memoized). The primary/Actions group is hidden when there's nothing to act on: no results in any mode, or an error calc card (selectable but action-less).
         let pillLabel = actionPillLabel(
-            selectedApp: selectedApp, selectedPlugin: selectedPlugin,
+            selectedTask: selectedTask, selectedApp: selectedApp, selectedPlugin: selectedPlugin,
             inlineActionTitle: inlineActionTitle)
-        let showActionGroup =
-            ((count > 0 || vm.mode == .aiChat) && !(inlineSelected && inlineActionTitle == nil))
-            || (vm.mode == .updates && updatePrimaryActionTitle != nil)
-        let showActionsButton = vm.mode != .updates
+        let showActionGroup = selectedTask.map(\.isDismissible)
+            ?? (((count > 0 || vm.mode == .aiChat)
+                && !(inlineSelected && inlineActionTitle == nil))
+                || (vm.mode == .updates && updatePrimaryActionTitle != nil))
+        let showActionsButton = vm.mode != .updates && selectedTask == nil
 
         let layout = paletteLayout(
-            apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
-            plugin: plugin, dashboard: dashboard, selection: sel, favoriteCount: favoriteCount,
+            apps: apps, tasks: tasks, clips: clips, hist: hist, emojiSections: emojiSections,
+            inline: inline, plugin: plugin, dashboard: dashboard, selection: sel,
+            favoriteCount: favoriteCount,
             showSections: showSections, pillLabel: pillLabel,
             showActionGroup: showActionGroup, showActionsButton: showActionsButton
         )
@@ -267,7 +286,8 @@ struct RootPaletteView: View {
     }
 
     private func paletteLayout(
-        apps: [AppEntry], clips: [ClipboardItem], hist: [CalcHistoryEntry],
+        apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
+        hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?, selection: Int, favoriteCount: Int,
         showSections: Bool, pillLabel: String, showActionGroup: Bool,
@@ -279,9 +299,10 @@ struct RootPaletteView: View {
                 Color.clear
             } else {
                 content(
-                    apps: apps, clips: clips, hist: hist, emojiSections: emojiSections, inline: inline,
-                    plugin: plugin, dashboard: dashboard, selection: selection, favoriteCount: favoriteCount,
-                    showSections: showSections
+                    apps: apps, tasks: tasks, clips: clips, hist: hist,
+                    emojiSections: emojiSections, inline: inline, plugin: plugin,
+                    dashboard: dashboard, selection: selection,
+                    favoriteCount: favoriteCount, showSections: showSections
                 )
             }
         }
@@ -541,12 +562,22 @@ struct RootPaletteView: View {
             core.hidePalette()
             return .handled
         }
-        .onKeyPress(.tab) {
+        .onKeyPress(keys: [.tab], phases: .down) { press in
             if confirmOpen {
                 confirmSelection = confirmSelection == 0 ? 1 : 0
                 return .handled
             }
             if menuOpen { return .handled }
+            let hasDraft = !vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let sendsToChatGPT = press.modifiers.contains(.shift)
+            if hasDraft, vm.mode == .aiChat || (vm.mode == .launcher && sendsToChatGPT) {
+                if sendsToChatGPT {
+                    sendChatGPTMessage()
+                } else {
+                    sendChatMessage()
+                }
+                return .handled
+            }
             toggleMode()
             return .handled
         }
@@ -562,8 +593,11 @@ struct RootPaletteView: View {
             guard !isCollapsed else { return .handled }
             // Chat has no selectable rows but a fixed menu; every other mode needs a selection.
             guard resultCount > 0 || vm.mode == .aiChat else { return .handled }
+            if selectedBackgroundTask != nil { return .handled }
             // An informational inline card can be selected without exposing an empty actions panel.
-            if inlineCount > 0, selection == 0, inlineResult?.result.isActionable != true {
+            if inlineCount > 0, selection == launcherTaskCount,
+                inlineResult?.result.isActionable != true
+            {
                 return .handled
             }
             toggleActions()
@@ -675,38 +709,50 @@ struct RootPaletteView: View {
 
     @ViewBuilder
     private func content(
-        apps: [AppEntry], clips: [ClipboardItem], hist: [CalcHistoryEntry],
+        apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
+        hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
         selection: Int, favoriteCount: Int, showSections: Bool
     ) -> some View {
         switch vm.mode {
         case .launcher:
-            let offset = inline == nil ? 0 : 1
-            let inlineSelected = inline != nil && selection == 0
-            let appIndex = selection - offset
+            let taskOffset = tasks.count
+            let inlineOffset = inline == nil ? 0 : 1
+            let selectedTask = tasks.indices.contains(selection) ? tasks[selection] : nil
+            let inlineSelected = inline != nil && selection == taskOffset
+            let appIndex = selection - taskOffset - inlineOffset
             let selectedID = apps.indices.contains(appIndex) ? apps[appIndex].id : nil
             LauncherList(
                 results: apps,
-                selectedID: inlineSelected ? nil : selectedID,
+                selectedID: selectedTask == nil && !inlineSelected ? selectedID : nil,
                 favoriteCount: favoriteCount,
                 showSections: showSections,
                 scroll: scroll,
+                backgroundTasks: tasks,
                 inline: inline,
                 dashboard: dashboard,
+                selectedTaskID: selectedTask?.id,
                 inlineSelected: inlineSelected,
+                onActivateTask: { task in
+                    guard let index = tasks.firstIndex(of: task) else { return }
+                    vm.selection = index
+                    activateSelection()
+                },
                 onActivateInline: {
-                    vm.selection = 0
+                    vm.selection = taskOffset
                     activateSelection()
                 },
                 onInlineActions: {
                     guard inline?.result.isActionable == true else { return }
-                    vm.selection = 0
+                    vm.selection = taskOffset
                     openActions()
                 },
                 onActivate: { core.launch($0, searchQuery: vm.query) },
                 onActions: { app in
-                    if let index = apps.firstIndex(of: app) { vm.selection = index + offset }
+                    if let index = apps.firstIndex(of: app) {
+                        vm.selection = index + taskOffset + inlineOffset
+                    }
                     openActions()
                 }
             )
@@ -846,12 +892,34 @@ struct RootPaletteView: View {
     /// The footer control group: primary action and the Actions toggle sharing one glass capsule.
     private func actionGroup(pillLabel: String, showActionsButton: Bool) -> some View {
         HStack(spacing: 2) {
-            BarButton(action: activateSelection) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    Text(pillLabel)
-                        .font(Theme.Typography.bar)
-                        .foregroundStyle(.primary)
-                    KeyCapChip(text: "↵", style: .outline)
+            if vm.mode == .aiChat {
+                BarButton(action: sendChatMessage) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Text(pillLabel)
+                            .font(Theme.Typography.bar)
+                            .foregroundStyle(.primary)
+                        KeyCapChip(text: "Tab", style: .outline)
+                    }
+                }
+                BarButton(action: sendChatGPTMessage) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Text("ChatGPT")
+                            .font(Theme.Typography.bar)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                        HStack(spacing: Theme.Spacing.xxs) {
+                            KeyCapChip(text: "⇧", style: .outline)
+                            KeyCapChip(text: "Tab", style: .outline)
+                        }
+                    }
+                }
+            } else {
+                BarButton(action: activateSelection) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Text(pillLabel)
+                            .font(Theme.Typography.bar)
+                            .foregroundStyle(.primary)
+                        KeyCapChip(text: "↵", style: .outline)
+                    }
                 }
             }
             if showActionsButton {
@@ -874,7 +942,8 @@ struct RootPaletteView: View {
 
     /// Pill label for the current selection, derived from the selection already resolved in `body` so it never re-runs the (unmemoized) `appResults` filter/sort.
     private func actionPillLabel(
-        selectedApp: AppEntry?, selectedPlugin: PluginPaletteItem?, inlineActionTitle: String?
+        selectedTask: BackgroundTaskItem?, selectedApp: AppEntry?,
+        selectedPlugin: PluginPaletteItem?, inlineActionTitle: String?
     ) -> String {
         switch vm.mode {
         case .clipboard, .emoji:
@@ -886,6 +955,7 @@ struct RootPaletteView: View {
         case .calculatorHistory:
             return "Copy Answer"
         case .launcher:
+            if selectedTask?.isDismissible == true { return "Dismiss" }
             if let inlineActionTitle { return inlineActionTitle }
             switch selectedApp?.kind {
             case .systemSettings: return "Open System Setting"
@@ -962,7 +1032,7 @@ struct RootPaletteView: View {
 
     /// ← rewinds and → advances the represented instant by one hour while an hourly inline card is selected. Deliberately takes the horizontal arrows from the field editor's caret in that state — retyping resets the offset, and ↑/↓ keep moving the flat selection.
     private func adjustPluginQueryHour(by delta: Int) -> Bool {
-        guard vm.mode == .launcher, selection == 0,
+        guard vm.mode == .launcher,
             selectedInlineResult?.pluginResult?.supportsHourlyAdjustment == true
         else { return false }
         pluginQueryHourOffset += delta
@@ -1008,10 +1078,7 @@ struct RootPaletteView: View {
         scroll = ScrollIntent(kind: .follow)
     }
 
-    /// Tab cycles Apps → AI Chat → Clipboard, skipping Clipboard when its plugin is disabled; every
-    /// other mode (Calculator History, Emoji, plugin screens) exits back to the launcher instead of
-    /// joining the cycle. The query survives the hop, so a typed launcher query lands in the chat
-    /// composer — Tab-to-ask.
+    /// Tab cycles empty root surfaces; a typed launcher query starts a fresh AI Chat turn, while sub-screens exit to the launcher.
     private func toggleMode() {
         var cycle: [PaletteMode] = [.launcher]
         cycle.append(.aiChat)
@@ -1041,11 +1108,18 @@ struct RootPaletteView: View {
         }
     }
 
-    /// The chat composer is the shared search field: ↵ sends what's typed and clears it.
+    /// The chat composer is the shared search field: Tab or ↵ sends through Spotter and clears it.
     private func sendChatMessage() {
         let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !core.aiChat.isWaiting else { return }
         if core.aiChat.send(text) { vm.query = "" }
+    }
+
+    /// Shift-Tab hands the draft to a new ChatGPT web query and lets the browser own the session.
+    private func sendChatGPTMessage() {
+        let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if core.sendAIChatPromptToChatGPT(text) { vm.query = "" }
     }
 
     /// Back out to a fresh root search — `prepare` is the same reset used when the palette is shown (clears query/selection, bumps focusToken to refocus the field).
@@ -1058,11 +1132,15 @@ struct RootPaletteView: View {
         guard !isCollapsed else { return }
         switch vm.mode {
         case .launcher:
+            if let task = selectedBackgroundTask {
+                backgroundTasks.dismiss(id: task.id)
+                return
+            }
             if let inline = selectedInlineResult {
                 activate(inline)
                 return
             }
-            let index = selection - inlineCount
+            let index = selection - launcherTaskCount - inlineCount
             guard appResults.indices.contains(index) else { return }
             core.launch(appResults[index], searchQuery: vm.query)
         case .clipboard:

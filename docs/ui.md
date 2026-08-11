@@ -70,7 +70,8 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 ### Size (`Theme.Size`)
 
 `panelWidth 750` · `panelHeight 475` · `headerHeight 44` · `bottomBarHeight 52` · `rowIcon 24` ·
-`keyCap 18` · `recorderKeyCap 16` · `menuButton 36` · `clipboardListWidth 290` · `menuWidth 276` · `menuIcon 20` ·
+`keyCap 18` · `recorderKeyCap 16` · `menuButton 36` · `clipboardListWidth 290` ·
+`backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
@@ -143,6 +144,11 @@ All lists share one row grammar so launcher and clipboard look identical:
 - **Scroll moves only on keyboard nav/reset**, driven by a `ScrollIntent` (`Core/ScrollIntent.swift`) — mouse selection targets a visible row and never yanks scroll. `.follow` is a minimal scroll-to-visible (nil anchor), so the list stays stationary while the selection walks across it and only advances by a row at the viewport edges; `.top` scrolls to the origin anchor that `scrollOriginAnchor()` installs — a zero-height overlay applied to the scrolled content *after* its padding, so it marks offset 0 without joining the layout and the restored origin is exact (targeting the first row instead leaves the top padding hidden under the header). A `.follow` that lands on flat index 0 restores the origin instead, so that row's section header comes back into view. One intent state serves all four modes — they never coexist.
 - **Keycaps** use `KeyCapChip`: `.outline` (`border`) for hotkey hints on rows, `.filled` (`controlSurface`) for footer shortcuts.
 
+Background tasks use the same row fill, insets and selection precedence. Their title/detail stack is
+followed by a determinate progress bar and percentage when the feature has a trustworthy estimate,
+or the native indeterminate spinner otherwise. Done/Failed replace progress with a state label and
+remain selectable for dismissal.
+
 ### Section headers
 
 All five palette lists (App Launcher, Clipboard, Emoji, Calculator History, and every plugin screen via `PluginPaletteList`) render category labels
@@ -190,7 +196,8 @@ clears the Dock — the placement macOS uses for its own volume HUD. It picks th
 cursor, holds for 1.4s, then fades over 0.22s; a second command mid-fade resets it to full opacity
 rather than resuming the dissolve. Same glass as `PopoverMenu` (`menuPanel` radius, no hand shadow).
 A no-op's glyph is `.secondary` — it reports that nothing happened. Beyond system commands, any
-subsystem can call `hud.show(title:symbol:)`; Mole uses it for a run finishing off-screen.
+subsystem can call `hud.show(title:symbol:)`; long-running work uses launcher background-task rows
+instead so its state remains available.
 
 ## Confirmation card — `Features/ConfirmationCard.swift`
 
@@ -246,8 +253,9 @@ section headers, scrolling and edge dissolve. The shared header and footer remai
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
 AI Chat is the asynchronous selected-text surface: translation, definition and grammar actions render
 the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
-shared composer for follow-ups. Selection Tools retains a palette screen only for explicit browser-search
-failures.
+shared composer for follow-ups. Its footer exposes the two draft destinations side by side: Tab for
+Spotter's OpenRouter chat and Shift-Tab for ChatGPT on the web. Selection Tools retains a palette
+screen only for explicit browser-search failures.
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the

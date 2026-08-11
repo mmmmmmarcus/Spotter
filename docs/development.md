@@ -129,6 +129,8 @@ swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
     Spotter/Plugins/WindowManagement/WindowLayout.swift \
     Spotter/Plugins/WindowManagement/WindowActionMemory.swift Tools/window-command-test.swift \
     -o /tmp/window-command-test && /tmp/window-command-test   # window geometry + cycling
+swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift Tools/background-task-test.swift \
+    -o /tmp/background-task-test && /tmp/background-task-test     # task lifetime + dismissal
 swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
     Spotter/Plugins/Mole/MoleProcessRunner.swift Tools/mole-test.swift \
     -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
@@ -136,10 +138,7 @@ swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-te
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Tools/ai-chat-test.swift \
-    -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # chat transcript windowing
-swiftc -swift-version 6 Spotter/Plugins/ChatGPTLauncher/ChatGPTLauncherTypes.swift \
-    Tools/chatgpt-launcher-test.swift \
-    -o /tmp/chatgpt-launcher-test && /tmp/chatgpt-launcher-test   # deep-link + Chat-mode verification
+    -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + ChatGPT web URL
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Tools/dashboard-widgets-test.swift \
     -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # local usage parsing
@@ -162,15 +161,16 @@ The World Clock harness compiles the real Foundation-only engine and Foundation 
 injects a fixed date, calendar, local time zone and isolated `UserDefaults` suite, so daylight-saving,
 formatting and saved-city checks never depend on the wall clock or the user's preferences.
 
+The Background Tasks harness checks newest-first ordering, progress clamping, terminal-state
+retention and the invariant that a running task cannot be dismissed.
+
 The Dashboard Widgets harness compiles the real Foundation-only engine. It pins the local
 Codex/CodexBar usage-cache decoders without touching EventKit or the user's files.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a
-browser; AI Chat tests transcript windowing plus the selected-text target-language and prompt logic
-without sending text over the network.
-Send to ChatGPT tests deep-link round trips, exact draft matching and the structural Chat-mode
-selection rule without opening ChatGPT or posting a keyboard event.
+browser; AI Chat tests transcript windowing, its ChatGPT web-query URL, and the selected-text
+target-language and prompt logic without sending text over the network or opening a browser.
 Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory.
 

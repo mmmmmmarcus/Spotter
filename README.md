@@ -55,7 +55,8 @@ Spotter requires **macOS 26 or later**.
 
 - Evaluate arithmetic, units and opt-in live currency conversions inline.
 - Query world clocks with phrases such as `time in Tokyo`.
-- Use AI Chat and selected-text AI actions with your own OpenRouter API key.
+- Use AI Chat and selected-text AI actions with your own OpenRouter API key, or hand a prompt to
+  ChatGPT on the web with Shift-Tab.
 
 ### Control the Mac
 
@@ -76,7 +77,8 @@ Spotter requires **macOS 26 or later**.
 
 1. Open **Settings → General** and record the global shortcut used to summon Spotter.
 2. Press it anywhere, type to filter, and press **Return** to run the selected result.
-3. Press **Tab** to cycle Apps → AI Chat → Clipboard, **↑/↓** to move, and **Esc** to back out.
+3. Press **Tab** to send a typed prompt to Spotter AI, **Shift-Tab** to send it to ChatGPT on the web,
+   **↑/↓** to move, and **Esc** to back out; with no prompt, Tab cycles Apps → AI Chat → Clipboard.
 4. Open **Settings → Shortcuts** to bind apps, built-in actions or custom commands globally.
 
 ## Permissions and privacy

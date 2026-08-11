@@ -1,8 +1,8 @@
 # Mole
 
-A launcher front end for the [Mole](https://github.com/tw93/mole) CLI (`mole` / `mo`). Every Mole
-command that can run without a terminal runs inside Spotter's palette — reading, previewing and
-executing — so the loop closes in the launcher instead of handing off to Terminal.
+A launcher front end for the [Mole](https://github.com/tw93/mole) CLI (`mole` / `mo`). Read-only
+screens and previews stay inside Spotter's palette; confirmed mutations return to the normal
+launcher and continue as background tasks instead of handing off to Terminal.
 
 Enabled by default, but idle until the Mole CLI is actually installed — every screen reports the
 missing binary rather than failing silently. Files live in `Spotter/Plugins/Mole/`.
@@ -13,7 +13,7 @@ missing binary rather than failing silently. Files live in `Spotter/Plugins/Mole
 | --- | --- |
 | `MoleTypes.swift` | Foundation-only, pure: the command catalog, screens, actions, and every output parser. |
 | `MoleProcessRunner.swift` | Foundation process runner: applies preview-only environment and propagates task cancellation to Mole. |
-| `MoleManager.swift` | Locates the binary, runs Mole off-main, owns screen state and the Analyze navigation trail. |
+| `MoleManager.swift` | Locates the binary, runs Mole off-main, owns screen state, streamed run progress and the Analyze navigation trail. |
 | `MolePlugin.swift` | Registration, palette snapshots, ⌘K menus, the confirmation dialog, and the `AppCore` entry points. |
 | `MoleSettingsView.swift` | Enable switch, binary path override, per-screen shortcuts. |
 
@@ -79,12 +79,13 @@ the confirmation:
 - Uninstall moves the app to the Trash by default; **Delete Permanently** is a separate ⌘K entry.
 - Admin-only system caches are skipped: Mole asks for sudo on a TTY, and there isn't one.
 
-The palette deliberately stays open while a run is in flight. The run row reports progress, and the
-preview underneath re-reads itself when a visible run finishes so what's left is what's shown. Closing
-the palette cancels and interrupts a *preview* but never a run — a half-cleaned machine is worse than
-a wasted read. An off-screen run reports its summary without launching a hidden follow-up scan.
-A run that finishes while its screen isn't visible (palette closed, or parked elsewhere) reports its
-closing summary through the command HUD instead, via `MoleManager.onRunFinished`.
+After confirmation, Spotter creates a launcher background task and returns to a fresh launcher root.
+The task stays above every result while Mole runs, even if the palette is closed or the query changes.
+Clean, Optimize and Purge use the preview item count as a progress estimate; Uninstall stays
+indeterminate and reports its latest streamed status rather than inventing a percentage. Closing the
+palette cancels and interrupts a *preview* but never a run — a half-cleaned machine is worse than a
+wasted read. Done and Failed rows remain until selected and dismissed with Return. See
+[background-tasks.md](background-tasks.md).
 
 Beyond the per-row actions, every screen's ⌘K menu carries Refresh (⌘R), All Mole Commands, and Mole
 Settings…; app rows add Move to Trash / Delete Permanently / Reveal in Finder / Copy Bundle ID, and
@@ -95,7 +96,7 @@ filter before returning to the hub.
 
 An app row's ⌘K menu in the launcher offers **Uninstall with Mole** (apps only, never Spotter
 itself, only while Mole is installed and the plugin enabled). It funnels through the same
-`runMoleAction` confirmation and lands on the Mole uninstall screen so the run row reports progress.
+`runMoleAction` confirmation and returns to the launcher with an Uninstalling background-task row.
 
 ## Parsing
 

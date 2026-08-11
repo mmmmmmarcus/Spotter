@@ -115,6 +115,14 @@ paths; see the command in `development.md`.
 
 Icons go through a byte-capped `NSCache` (`IconCache`, 32 MB, cost = decoded bitmap bytes).
 
+## Background tasks
+
+Long-running work is pinned above every other launcher result, including while a query is typed.
+`BackgroundTaskStore` supplies the rows; feature managers own the actual work and publish progress
+snapshots into it. The launcher's flat order is background tasks, the optional inline answer, then
+apps and commands. A running task cannot be dismissed. Done and Failed rows remain until selected
+and dismissed with Return. See [background-tasks.md](background-tasks.md).
+
 ## Reveal in Finder
 
 Application and System Settings results expose **Show in Finder** in their ⌘K Actions menu and on
@@ -143,7 +151,7 @@ running dot and the availability of the quit actions:
   in-palette confirmation card asks, and exactly what was confirmed terminates.
 - **Uninstall with Mole** — appended to an application row's ⌘K menu when the Mole plugin is enabled
   and the CLI installed (never for Spotter itself). It funnels through the confirmed `MoleAction`
-  path and lands on the Mole uninstall screen ([mole.md](mole.md)).
+  path, returns to the launcher and reports through a background-task row ([mole.md](mole.md)).
 
 Both quits are graceful `NSRunningApplication.terminate()`, so an app with unsaved work still puts up
 its own save sheet.

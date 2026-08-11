@@ -11,12 +11,13 @@ struct AIChatSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "AI Chat",
-            subtitle: "Ask anything, or bring selected text into a conversation you can follow up."
+            subtitle: "Ask Spotter AI, send to ChatGPT on the web, or start from selected text."
         ) {
             if !openRouter.isReady {
                 SettingsCallout(
-                    title: "AI Chat needs an OpenRouter API key.",
-                    message: "The key is entered once in General → AI and gates every AI request.",
+                    title: "Spotter AI needs an OpenRouter API key.",
+                    message:
+                        "The key is entered once in General → AI. ChatGPT web remains available with Shift-Tab.",
                     systemImage: "key",
                     tint: .orange
                 ) {

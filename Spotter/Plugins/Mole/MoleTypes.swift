@@ -161,6 +161,24 @@ enum MoleAction: Equatable, Sendable {
         }
     }
 
+    var backgroundTaskTitle: String {
+        switch self {
+        case .clean: "Cleaning with Mole"
+        case .optimize: "Optimizing with Mole"
+        case .purge: "Purging build artifacts"
+        case .uninstall(let name, _): "Uninstalling \(name)"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .clean: "sparkles"
+        case .optimize: "wand.and.stars"
+        case .purge: "hammer"
+        case .uninstall: "trash"
+        }
+    }
+
     var confirmation: String {
         switch self {
         case .clean:

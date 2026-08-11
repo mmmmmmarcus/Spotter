@@ -17,7 +17,7 @@ struct AIChatView: View {
             EmptyResults(
                 text: chat.isWaiting
                     ? "Another session is thinking — switch back from Sessions or stop it in Actions."
-                    : "Ask anything — the conversation lasts until you clear it or quit.")
+                    : "Ask anything — Tab sends here, and Shift-Tab sends to ChatGPT on the web.")
         } else {
             transcript
         }
