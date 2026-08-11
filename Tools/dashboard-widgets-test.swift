@@ -6,25 +6,6 @@ struct DashboardWidgetsTests {
     private static var failures = 0
 
     static func main() {
-        let utc = TimeZone(secondsFromGMT: 0)!
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = utc
-        calendar.locale = Locale(identifier: "en_US")
-        calendar.firstWeekday = 1
-        let now = calendar.date(
-            from: DateComponents(year: 2026, month: 8, day: 10, hour: 12))!
-        let event = calendar.date(
-            from: DateComponents(year: 2026, month: 8, day: 18, hour: 9))!
-
-        let month = DashboardWidgetsEngine.month(
-            containing: now, eventDates: [event], calendar: calendar,
-            locale: Locale(identifier: "en_US"))
-        check(month.days.count == 42, "month grid must always contain six weeks")
-        check(month.days.first?.day == 26, "August 2026 grid should begin on July 26")
-        check(month.days.first(where: { $0.isToday })?.day == 10, "today should be marked")
-        check(month.days.first(where: { $0.hasEvent })?.day == 18, "event day should be marked")
-        check(month.weekdaySymbols.count == 7, "month grid should expose seven weekday symbols")
-
         let codexLine = #"{"timestamp":"2026-08-10T06:02:06.674Z","payload":{"rate_limits":{"primary":{"used_percent":24,"window_minutes":10080,"resets_at":1786933919},"secondary":null}}}"#
         let codex = DashboardWidgetsEngine.codexSessionUsage(from: Data(codexLine.utf8))
         check(codex?.primary?.usedPercent == 24, "Codex percent should decode")

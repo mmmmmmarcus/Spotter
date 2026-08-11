@@ -280,7 +280,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
   adjustment; its launcher screen shows a user-managed saved-city list.
 - **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — enabled by default; adds local time,
-  next calendar event, Claude Code/Codex quota summaries and a month grid above the empty launcher.
+  next calendar event and Claude Code/Codex quota summaries above the empty launcher.
   Calendar data is permission-gated and usage data is read only from local tool/CodexBar state.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — enabled by default; launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.

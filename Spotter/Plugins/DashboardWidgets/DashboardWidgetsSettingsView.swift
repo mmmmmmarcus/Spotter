@@ -12,7 +12,7 @@ struct DashboardWidgetsSettingsView: View {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
                     title: "Dashboard Widgets",
-                    subtitle: "Shows time, month, next event, and AI usage in the launcher.",
+                    subtitle: "Shows time, next event, and AI usage in the launcher.",
                     systemImage: "rectangle.3.group", tint: .purple
                 ) {
                     Toggle(
@@ -74,7 +74,7 @@ struct DashboardWidgetsSettingsView: View {
 
     private var calendarSubtitle: String {
         switch store.calendarAccess {
-        case .notDetermined: return "Allow read access to show the next event and dots on event days."
+        case .notDetermined: return "Allow read access to show the next event."
         case .denied: return "Calendar access was denied. You can change it in System Settings."
         case .restricted: return "Calendar access is restricted on this Mac."
         case .writeOnly: return "Write-only access cannot show events; grant full access to continue."

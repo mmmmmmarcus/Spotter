@@ -1,21 +1,5 @@
 import Foundation
 
-struct DashboardMonthDay: Equatable, Identifiable, Sendable {
-    let date: Date
-    let day: Int
-    let isInMonth: Bool
-    let isToday: Bool
-    let hasEvent: Bool
-
-    var id: Date { date }
-}
-
-struct DashboardMonthSnapshot: Equatable, Sendable {
-    let title: String
-    let weekdaySymbols: [String]
-    let days: [DashboardMonthDay]
-}
-
 struct DashboardEvent: Equatable, Sendable {
     let id: String
     let title: String
@@ -59,48 +43,6 @@ struct DashboardUsageSnapshot: Equatable, Sendable {
 }
 
 enum DashboardWidgetsEngine {
-    static func month(
-        containing now: Date, eventDates: [Date], calendar inputCalendar: Calendar,
-        locale: Locale
-    ) -> DashboardMonthSnapshot {
-        var calendar = inputCalendar
-        calendar.locale = locale
-        guard let month = calendar.dateInterval(of: .month, for: now) else {
-            return DashboardMonthSnapshot(title: "", weekdaySymbols: [], days: [])
-        }
-        let weekday = calendar.component(.weekday, from: month.start)
-        let leadingDays = (weekday - calendar.firstWeekday + 7) % 7
-        guard let gridStart = calendar.date(byAdding: .day, value: -leadingDays, to: month.start)
-        else {
-            return DashboardMonthSnapshot(title: "", weekdaySymbols: [], days: [])
-        }
-
-        let eventDayStarts = Set(eventDates.map(calendar.startOfDay(for:)))
-        let days = (0..<42).compactMap { offset -> DashboardMonthDay? in
-            guard let date = calendar.date(byAdding: .day, value: offset, to: gridStart) else {
-                return nil
-            }
-            return DashboardMonthDay(
-                date: date,
-                day: calendar.component(.day, from: date),
-                isInMonth: calendar.isDate(date, equalTo: month.start, toGranularity: .month),
-                isToday: calendar.isDate(date, inSameDayAs: now),
-                hasEvent: eventDayStarts.contains(calendar.startOfDay(for: date)))
-        }
-
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-        let symbols = formatter.veryShortStandaloneWeekdaySymbols ?? formatter.veryShortWeekdaySymbols ?? []
-        let zeroBasedFirst = max(0, calendar.firstWeekday - 1)
-        let orderedSymbols = symbols.indices.contains(zeroBasedFirst)
-            ? Array(symbols[zeroBasedFirst...] + symbols[..<zeroBasedFirst])
-            : symbols
-        return DashboardMonthSnapshot(
-            title: formatter.string(from: now), weekdaySymbols: orderedSymbols, days: days)
-    }
-
     static func codexSessionUsage(from data: Data) -> DashboardUsageSnapshot? {
         let marker = Data("\"rate_limits\"".utf8)
         for line in data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: true).reversed() {

@@ -127,7 +127,7 @@ struct PermissionsSettingsView: View {
         let names = plugins.plugins(requiring: .calendar).map(\.name).joined(separator: ", ")
         return names.isEmpty
             ? "No installed plugin currently declares this permission."
-            : "Used by \(names) to show upcoming events and mark event days."
+            : "Used by \(names) to show upcoming events."
     }
 
     private var calendarStatus: (label: String, symbol: String, color: Color) {

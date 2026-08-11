@@ -5,14 +5,11 @@ struct DashboardWidgetsView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let month = DashboardWidgetsEngine.month(
-                containing: context.date, eventDates: store.eventDates,
-                calendar: .current, locale: .current)
             HStack(spacing: Theme.Spacing.md) {
                 timeCard(now: context.date)
                     .frame(width: Theme.Size.launcherDashboardTimeWidth)
                 eventCard(now: context.date)
-                    .frame(width: Theme.Size.launcherDashboardEventWidth)
+                    .frame(maxWidth: .infinity)
                 usageCard(
                     title: "CLAUDE CODE", systemImage: "sparkles",
                     usage: store.claudeUsage, now: context.date)
@@ -21,8 +18,6 @@ struct DashboardWidgetsView: View {
                     title: "CODEX", systemImage: "terminal",
                     usage: store.codexUsage, now: context.date)
                     .frame(width: Theme.Size.launcherDashboardUsageWidth)
-                monthCard(month)
-                    .frame(maxWidth: .infinity)
             }
             .frame(height: Theme.Size.launcherDashboardHeight)
         }
@@ -138,41 +133,6 @@ struct DashboardWidgetsView: View {
             Spacer(minLength: 0)
         }
         .help(usageHelp(usage))
-    }
-
-    private func monthCard(_ month: DashboardMonthSnapshot) -> some View {
-        DashboardWidgetCard(title: month.title.uppercased(), systemImage: "calendar") {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.xxs), count: 7),
-                spacing: Theme.Spacing.xxs
-            ) {
-                ForEach(Array(month.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
-                    Text(symbol)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                        .frame(maxWidth: .infinity)
-                }
-                ForEach(month.days) { day in
-                    ZStack(alignment: .bottom) {
-                        Text(day.day, format: .number)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(
-                                day.isInMonth ? Color.primary : Theme.Colors.textTertiary)
-                            .frame(maxWidth: .infinity)
-                            .background {
-                                if day.isToday {
-                                    Circle().fill(Theme.Colors.selection)
-                                }
-                            }
-                        if day.hasEvent {
-                            Circle()
-                                .fill(Theme.Colors.textSecondary)
-                                .frame(width: Theme.Spacing.xxs, height: Theme.Spacing.xxs)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private func eventTime(_ event: DashboardEvent, now: Date) -> String {

@@ -61,9 +61,8 @@ enum Theme {
         static let clipboardListWidth: CGFloat = 290
         static let emojiCell: CGFloat = 56
         /// Empty-launcher dashboard cards share one compact height and fixed narrow columns.
-        static let launcherDashboardHeight: CGFloat = 164
+        static let launcherDashboardHeight: CGFloat = 116
         static let launcherDashboardTimeWidth: CGFloat = 112
-        static let launcherDashboardEventWidth: CGFloat = 180
         static let launcherDashboardUsageWidth: CGFloat = 122
         static let menuWidth: CGFloat = 276
         /// Square slot for a popover-menu row's leading glyph. 20 (not the 16 the artwork suggests) because an `IconCache` app icon only paints ~85% of its canvas: at 20 its visible artwork is 17pt, matching the 17–18pt a `.body` SF Symbol renders at, so symbol and app-icon rows read the same size.

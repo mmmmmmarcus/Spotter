@@ -7,7 +7,7 @@ enum DashboardWidgetsPlugin {
             metadata: PluginMetadata(
                 id: .dashboardWidgets,
                 name: "Dashboard Widgets",
-                summary: "See the time, month, next event, and local AI usage above launcher results.",
+                summary: "See the time, next event, and local AI usage above launcher results.",
                 systemImage: "rectangle.3.group",
                 tint: .purple),
             defaultEnabled: true,

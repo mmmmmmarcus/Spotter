@@ -16,7 +16,6 @@ enum DashboardCalendarAccess: Equatable, Sendable {
 final class DashboardWidgetsStore: ObservableObject {
     @Published private(set) var calendarAccess = DashboardWidgetsStore.currentCalendarAccess()
     @Published private(set) var nextEvent: DashboardEvent?
-    @Published private(set) var eventDates: [Date] = []
     @Published private(set) var codexUsage: DashboardUsageSnapshot?
     @Published private(set) var claudeUsage: DashboardUsageSnapshot?
     @Published private(set) var lastRefresh: Date?
@@ -85,18 +84,14 @@ final class DashboardWidgetsStore: ObservableObject {
     private func refreshCalendar(now: Date = Date(), calendar: Calendar = .current) {
         calendarAccess = Self.currentCalendarAccess()
         guard calendarAccess.canRead,
-            let month = calendar.dateInterval(of: .month, for: now),
             let horizon = calendar.date(byAdding: .year, value: 1, to: now)
         else {
             nextEvent = nil
-            eventDates = []
             return
         }
-        let end = max(month.end, horizon)
-        let predicate = eventStore.predicateForEvents(withStart: month.start, end: end, calendars: nil)
+        let predicate = eventStore.predicateForEvents(withStart: now, end: horizon, calendars: nil)
         let events = eventStore.events(matching: predicate)
             .filter { $0.status != .canceled && $0.endDate > now }
-        eventDates = events.map(\.startDate)
         guard let event = events
             .filter({ $0.startDate < horizon })
             .min(by: { $0.startDate < $1.startDate })

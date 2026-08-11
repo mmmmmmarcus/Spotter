@@ -2,15 +2,15 @@
 
 Dashboard Widgets is the card strip above the launcher sections when the palette is on its empty
 query root. It shows the current time and date, the next calendar event, Claude Code and Codex quota
-windows, and the current month. Typing a query or switching palette mode hides it immediately.
+windows. Typing a query or switching palette mode hides it immediately.
 
 ## Architecture
 
 `DashboardWidgetsPlugin` owns the registry surface and Settings placement.
 `DashboardWidgetsStore`, owned by `AppCore`, owns EventKit authorization, the next-event snapshot,
 local usage snapshots and the visible-only refresh task. `DashboardWidgetsEngine.swift` remains
-Foundation-only and pure; it builds the fixed 42-cell month grid and decodes locally persisted usage
-formats for `Tools/dashboard-widgets-test.swift`.
+Foundation-only and pure; it decodes locally persisted usage formats for
+`Tools/dashboard-widgets-test.swift`.
 
 The registry permits exactly one `launcherDashboard` owner. `RootPaletteView` injects that view into
 the launcher's existing scroll content only for an empty launcher query. Dashboard cards never join
@@ -24,10 +24,9 @@ upcoming event, and the signed app carries the Calendar personal-information ent
 EventKit. Denied access renders an explicit System Settings affordance, while a policy-restricted Mac
 shows a non-actionable restricted state instead of an empty-event claim.
 
-After full access is granted, the store queries EventKit from now through one year ahead. The month
-grid marks dates that contain an event in the displayed month; the event card shows the earliest
-non-cancelled event. Calendar work starts when the dashboard becomes visible and stops when it leaves
-the palette.
+After full access is granted, the store queries EventKit from now through one year ahead and shows
+the earliest non-cancelled event. Calendar work starts when the dashboard becomes visible and stops
+when it leaves the palette.
 
 ## Local usage data
 
