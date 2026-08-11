@@ -163,9 +163,10 @@ Spacing lives in `Theme.Spacing`: `sectionHeaderBottom` (header → first row) a
 padding). Each list passes `isFirst: row.id == <rows>.first?.id` so only the very first row skips the
 leading gap. Headers are non-selectable display rows, so selection (keyed by id) is unaffected.
 
-The empty-query launcher may place the Dashboard Widgets strip before its first section header. It
-uses the same `cardFill`/`cardStroke` language as calculator cards, but it remains a zero-row,
-non-selectable surface: keyboard selection still starts at the first visible launcher result.
+The empty-query launcher places the Dashboard Widgets strip before Background Tasks and Favorites.
+It uses the same `cardFill`/`cardStroke` language as calculator cards, but it remains a zero-row,
+non-selectable surface: keyboard selection starts at the first task when one exists, otherwise the
+first normal launcher result.
 
 ---
 
@@ -251,11 +252,11 @@ List-oriented plugins do not use a workspace. Register a palette screen and rend
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
 section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
-AI Chat is the asynchronous selected-text surface: translation, definition and grammar actions render
+AI Chat is the asynchronous selected-text surface for definition and grammar actions: they render
 the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
 shared composer for follow-ups. Its footer exposes the two draft destinations side by side: Tab for
-Spotter's OpenRouter chat and Shift-Tab for ChatGPT on the web. Selection Tools retains a palette
-screen only for explicit browser-search failures.
+Spotter's OpenRouter chat and Shift-Tab for ChatGPT on the web. Selection Tools uses the shared
+plugin list for browser-search failures and its fixed original → Chinese → English translation rows.
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the

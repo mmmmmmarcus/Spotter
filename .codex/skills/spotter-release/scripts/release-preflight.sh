@@ -38,10 +38,18 @@ if [ -n "$EXPECTED" ] && [ "$VERSION" != "$EXPECTED" ]; then
     echo "✗ Expected $EXPECTED, found $VERSION in project.yml." >&2
     exit 1
 fi
+if [ "$(grep -Fc 'SPOTTER_VERSION_SUFFIX: "-dev"' project.yml)" -ne 1 ]; then
+    echo "✗ project.yml must keep exactly one Debug SPOTTER_VERSION_SUFFIX: \"-dev\"." >&2
+    exit 1
+fi
 
 PBX_VERSIONS="$(sed -nE 's/^[[:space:]]*MARKETING_VERSION = ([^;]+);/\1/p' Spotter.xcodeproj/project.pbxproj | sort -u)"
 if [ "$PBX_VERSIONS" != "$VERSION" ]; then
     echo "✗ Generated Xcode project version is '${PBX_VERSIONS:-missing}', expected $VERSION; run xcodegen generate." >&2
+    exit 1
+fi
+if [ "$(grep -Fc 'SPOTTER_VERSION_SUFFIX = "-dev";' Spotter.xcodeproj/project.pbxproj)" -ne 1 ]; then
+    echo "✗ Generated Xcode project is missing the Debug -dev suffix; run xcodegen generate." >&2
     exit 1
 fi
 SITE_VERSION="$(sed -nE 's/^[[:space:]]*version: "v([^"]+)",/\1/p' website/src/data/site.ts)"
@@ -49,8 +57,8 @@ if [ "$SITE_VERSION" != "$VERSION" ]; then
     echo "✗ Website fallback version is '${SITE_VERSION:-missing}', expected $VERSION." >&2
     exit 1
 fi
-if ! grep -Fq '<string>$(MARKETING_VERSION)</string>' Spotter/Info.plist; then
-    echo "✗ Spotter/Info.plist no longer inherits MARKETING_VERSION." >&2
+if ! grep -Fq '<string>$(MARKETING_VERSION)$(SPOTTER_VERSION_SUFFIX)</string>' Spotter/Info.plist; then
+    echo "✗ Spotter/Info.plist no longer combines the base version with its build-channel suffix." >&2
     exit 1
 fi
 if grep -Fq 'inputs.version' .github/workflows/release.yml; then

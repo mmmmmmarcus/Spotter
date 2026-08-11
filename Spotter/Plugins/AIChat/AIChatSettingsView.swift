@@ -4,7 +4,6 @@ struct AIChatSettingsView: View {
     @ObservedObject private var openRouter = AppCore.shared.openRouter
     @ObservedObject private var chat = AppCore.shared.aiChat
     @State private var chatModelDraft = AppCore.shared.openRouter.chatModel
-    @State private var translationModelDraft = AppCore.shared.openRouter.translationModel
     @State private var definitionModelDraft = AppCore.shared.openRouter.definitionModel
     @State private var grammarModelDraft = AppCore.shared.openRouter.grammarModel
 
@@ -35,14 +34,6 @@ struct AIChatSettingsView: View {
                     set: openRouter.setChatModel)
                 SettingsDivider()
                 modelRow(
-                    title: "Translation Model",
-                    subtitle: "Used for the first Translate Selected Text reply.",
-                    symbol: "translate",
-                    placeholder: OpenRouterStore.defaultTranslationModel,
-                    text: $translationModelDraft,
-                    set: openRouter.setTranslationModel)
-                SettingsDivider()
-                modelRow(
                     title: "Definition Model",
                     subtitle: "Used for the first Define Selected Text reply.",
                     symbol: "character.book.closed",
@@ -60,11 +51,6 @@ struct AIChatSettingsView: View {
             }
 
             SettingsCard(header: "Selected Text Prompts") {
-                AIChatPromptEditor(
-                    title: "Translation Prompt", systemImage: "translate",
-                    prompt: translationPromptBinding,
-                    defaultPrompt: AIChatSelectionPrompts.defaultTranslation)
-                SettingsDivider()
                 AIChatPromptEditor(
                     title: "Definition Prompt", systemImage: "character.book.closed",
                     prompt: definitionPromptBinding,
@@ -100,10 +86,6 @@ struct AIChatSettingsView: View {
                     symbol: "sparkles", action: .openAIChat)
                 SettingsDivider()
                 shortcutRow(
-                    title: "Translate Selected Text", subtitle: "Recommended: Hyper + T",
-                    symbol: "translate", action: .translateSelectedText)
-                SettingsDivider()
-                shortcutRow(
                     title: "Define Selected Text", subtitle: "Recommended: Hyper + D",
                     symbol: "character.book.closed", action: .defineSelectedText)
                 SettingsDivider()
@@ -113,17 +95,10 @@ struct AIChatSettingsView: View {
             }
         }
         .onChange(of: openRouter.chatModel) { chatModelDraft = openRouter.chatModel }
-        .onChange(of: openRouter.translationModel) {
-            translationModelDraft = openRouter.translationModel
-        }
         .onChange(of: openRouter.definitionModel) {
             definitionModelDraft = openRouter.definitionModel
         }
         .onChange(of: openRouter.grammarModel) { grammarModelDraft = openRouter.grammarModel }
-    }
-
-    private var translationPromptBinding: Binding<String> {
-        Binding(get: { chat.translationPrompt }, set: { chat.setTranslationPrompt($0) })
     }
 
     private var definitionPromptBinding: Binding<String> {

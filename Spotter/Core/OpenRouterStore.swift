@@ -33,7 +33,6 @@ final class OpenRouterStore: ObservableObject {
     static let provider = "OpenRouter"
     static let providerURL = URL(string: "https://openrouter.ai")!
     /// Fast, strong instruction-following and multilingual quality — the right class for short interactive selections.
-    static let defaultTranslationModel = "anthropic/claude-haiku-4.5"
     static let defaultDefinitionModel = "anthropic/claude-haiku-4.5"
     static let defaultGrammarModel = "anthropic/claude-haiku-4.5"
     /// Chat carries multi-turn reasoning, so it defaults a class up from the quick selection actions.
@@ -51,7 +50,6 @@ final class OpenRouterStore: ObservableObject {
     }
 
     @Published private(set) var apiKey: String
-    @Published private(set) var translationModel: String
     @Published private(set) var definitionModel: String
     @Published private(set) var grammarModel: String
     @Published private(set) var chatModel: String
@@ -62,7 +60,6 @@ final class OpenRouterStore: ObservableObject {
 
     private static let keyKey = "openrouter.api-key"
     private static let legacyModelKey = "openrouter.model"
-    private static let translationModelKey = "openrouter.translation-model"
     private static let definitionModelKey = "openrouter.definition-model"
     private static let grammarModelKey = "openrouter.grammar-model"
     private static let chatModelKey = "openrouter.chat-model"
@@ -73,9 +70,6 @@ final class OpenRouterStore: ObservableObject {
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
         // One release carried a single shared model key; seed every selection-action model from it once.
         let legacy = defaults.string(forKey: Self.legacyModelKey)
-        translationModel =
-            defaults.string(forKey: Self.translationModelKey) ?? legacy
-            ?? Self.defaultTranslationModel
         definitionModel =
             defaults.string(forKey: Self.definitionModelKey) ?? legacy
             ?? Self.defaultDefinitionModel
@@ -96,13 +90,6 @@ final class OpenRouterStore: ObservableObject {
         apiKey = trimmed
         defaults.set(trimmed, forKey: Self.keyKey)
         validation = .unknown
-    }
-
-    func setTranslationModel(_ newModel: String) {
-        let resolved = Self.resolve(newModel, default: Self.defaultTranslationModel)
-        guard resolved != translationModel else { return }
-        translationModel = resolved
-        defaults.set(resolved, forKey: Self.translationModelKey)
     }
 
     func setDefinitionModel(_ newModel: String) {

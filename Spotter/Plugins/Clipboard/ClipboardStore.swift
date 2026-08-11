@@ -58,6 +58,20 @@ struct ClipboardItem: Identifiable, Hashable, Sendable {
     }
 }
 
+/// Portable sync row whose image bytes replace a machine-local absolute cache path.
+struct ClipboardSyncItem: Identifiable, Codable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable { case text, image }
+
+    let id: UUID
+    let kind: Kind
+    let text: String?
+    let imageData: Data?
+    let imageExtension: String?
+    let createdAt: Date
+    let sourceBundleID: String?
+    let pinnedAt: Date?
+}
+
 /// How long clipboard history is kept before pruning; raw value is the age in days persisted to UserDefaults, and `forever` is -1 so an unset key (0) falls through to the default.
 enum ClipboardRetention: Int, CaseIterable, Identifiable, Sendable {
     case day = 1
@@ -272,6 +286,63 @@ final class ClipboardStore: ObservableObject {
         items = []
     }
 
+    /// Captures complete SQLite history off-main and omits image rows whose blobs are missing.
+    func syncSnapshot() async -> [ClipboardSyncItem] {
+        let rows = allItemsForSync()
+        return await Task.detached(priority: .utility) {
+            rows.compactMap { item in
+                switch item.kind {
+                case .text:
+                    return ClipboardSyncItem(
+                        id: item.id, kind: .text, text: item.text, imageData: nil,
+                        imageExtension: nil, createdAt: item.createdAt,
+                        sourceBundleID: item.sourceBundleID, pinnedAt: item.pinnedAt)
+                case .image:
+                    guard let path = item.imagePath, let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+                    else { return nil }
+                    let ext = URL(fileURLWithPath: path).pathExtension
+                    return ClipboardSyncItem(
+                        id: item.id, kind: .image, text: nil, imageData: data,
+                        imageExtension: ext.isEmpty ? "png" : ext,
+                        createdAt: item.createdAt, sourceBundleID: item.sourceBundleID,
+                        pinnedAt: item.pinnedAt)
+                }
+            }
+        }.value
+    }
+
+    /// Writes blobs off-main and replaces SQLite rows plus their FTS index in one transaction.
+    func replace(with snapshot: [ClipboardSyncItem]) async {
+        clearAll()
+        let imagesDir = imagesDir
+        let entries = await Task.detached(priority: .utility) {
+            snapshot.compactMap { item -> ClipboardItem? in
+                switch item.kind {
+                case .text:
+                    guard let text = item.text else { return nil }
+                    return ClipboardItem(
+                        id: item.id, kind: .text, text: text, imagePath: nil,
+                        createdAt: item.createdAt, sourceBundleID: item.sourceBundleID,
+                        pinnedAt: item.pinnedAt)
+                case .image:
+                    guard let data = item.imageData else { return nil }
+                    let rawExtension = item.imageExtension ?? "png"
+                    let safeExtension = rawExtension.unicodeScalars.allSatisfy {
+                        CharacterSet.alphanumerics.contains($0)
+                    } ? rawExtension.lowercased() : "png"
+                    let url = imagesDir.appendingPathComponent(
+                        item.id.uuidString + "." + safeExtension)
+                    guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }
+                    return ClipboardItem(
+                        id: item.id, kind: .image, text: nil, imagePath: url.path,
+                        createdAt: item.createdAt, sourceBundleID: item.sourceBundleID,
+                        pinnedAt: item.pinnedAt)
+                }
+            }
+        }.value
+        replaceEntries(entries)
+    }
+
     func imageURL(for item: ClipboardItem) -> URL? {
         guard let path = item.imagePath else { return nil }
         return URL(fileURLWithPath: path)
@@ -313,6 +384,33 @@ final class ClipboardStore: ObservableObject {
 
     private func fallbackSearch(_ q: String) -> [ClipboardItem] {
         items.filter { $0.matches(q) }
+    }
+
+    private func allItemsForSync() -> [ClipboardItem] {
+        guard
+            let stmt = prepare(
+                "SELECT id, kind, text, image_path, created_at, source_app, pinned_at "
+                    + "FROM items ORDER BY rowid DESC")
+        else { return items }
+        defer { sqlite3_finalize(stmt) }
+        var result: [ClipboardItem] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let item = Self.row(stmt) { result.append(item) }
+        }
+        return result
+    }
+
+    private func replaceEntries(_ entries: [ClipboardItem]) {
+        guard let stmt = insertStmt else {
+            items = Array(entries.prefix(Self.memoryWindow))
+            return
+        }
+        sqlite3_exec(db, "BEGIN", nil, nil, nil)
+        for item in entries.sorted(by: { $0.createdAt < $1.createdAt }) {
+            bindAndInsert(stmt, item)
+        }
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+        load()
     }
 
     private var orderedItems: [ClipboardItem] {

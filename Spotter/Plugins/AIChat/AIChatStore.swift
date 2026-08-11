@@ -1,44 +1,22 @@
 import Combine
 import Foundation
 
-/// One conversation in the session menu.
-struct AIChatSession: Identifiable, Equatable, Sendable {
-    let id: UUID
-    var messages: [AIChatMessage]
-    let startedAt: Date
-    let titleOverride: String?
-    let systemPrompt: String?
-
-    init(
-        id: UUID = UUID(), messages: [AIChatMessage] = [], startedAt: Date = Date(),
-        titleOverride: String? = nil, systemPrompt: String? = nil
-    ) {
-        self.id = id
-        self.messages = messages
-        self.startedAt = startedAt
-        self.titleOverride = titleOverride
-        self.systemPrompt = systemPrompt
-    }
-
-    var title: String { titleOverride ?? AIChatEngine.sessionTitle(for: messages) }
-}
-
-/// The palette conversations: a stack of sessions, the current one, and the one in-flight request.
-/// Session-only by design — nothing is persisted, and Quit is the privacy story. `AppCore` owns the
-/// single instance.
+/// Palette conversations join settings sync while the in-flight request ledger stays process-local.
 @MainActor
 final class AIChatStore: ObservableObject {
     @Published private(set) var sessions: [AIChatSession]
     @Published private(set) var currentID: UUID
     @Published private(set) var requests = AIChatRequestLedger()
-    @Published private(set) var translationPrompt: String
     @Published private(set) var definitionPrompt: String
     @Published private(set) var grammarPrompt: String
     private let openRouter: OpenRouterStore
     private let defaults: UserDefaults
     private var task: Task<Void, Never>?
+    private var backgroundTaskID: UUID?
+    var onRequestStarted: ((String) -> UUID)?
+    var onRequestFinished: ((UUID, Bool, String) -> Void)?
+    var onRequestCancelled: ((UUID) -> Void)?
     // Keep the existing keys so prompt customizations survive the ownership move from Selection Tools.
-    private static let translationPromptKey = "selection-tools.translation-prompt"
     private static let definitionPromptKey = "selection-tools.definition-prompt"
     private static let grammarPromptKey = "selection-tools.grammar-prompt"
 
@@ -48,8 +26,6 @@ final class AIChatStore: ObservableObject {
         let first = AIChatSession()
         sessions = [first]
         currentID = first.id
-        translationPrompt = defaults.string(forKey: Self.translationPromptKey)
-            ?? AIChatSelectionPrompts.defaultTranslation
         definitionPrompt = defaults.string(forKey: Self.definitionPromptKey)
             ?? AIChatSelectionPrompts.defaultDefinition
         grammarPrompt = defaults.string(forKey: Self.grammarPromptKey)
@@ -111,6 +87,23 @@ final class AIChatStore: ObservableObject {
         currentID = orderedSessions[0].id
     }
 
+    /// An active local request wins so sync cannot detach its executor from the owning session.
+    @discardableResult
+    func replace(sessions newSessions: [AIChatSession], currentID newCurrentID: UUID?) -> Bool {
+        guard !isWaiting else { return false }
+        let usable = newSessions.filter { session in
+            session.messages.allSatisfy { !$0.text.isEmpty }
+        }
+        sessions = usable.isEmpty ? [AIChatSession()] : usable
+        if let newCurrentID, sessions.contains(where: { $0.id == newCurrentID }) {
+            currentID = newCurrentID
+        } else {
+            currentID = sessions.max(by: { $0.startedAt < $1.startedAt })!.id
+        }
+        requests = AIChatRequestLedger()
+        return true
+    }
+
     // MARK: - Sending
 
     /// Appends the turn and asks; a selected-text action may override the model for its first turn.
@@ -121,6 +114,8 @@ final class AIChatStore: ObservableObject {
         let sessionID = currentID
         guard requests.begin(sessionID: sessionID) else { return false }
         append(AIChatMessage(role: .user, text: trimmed), to: sessionID)
+        let sessionTitle = sessions.first { $0.id == sessionID }?.title ?? "AI Chat"
+        backgroundTaskID = onRequestStarted?(sessionTitle)
         let window = AIChatEngine.transcriptWindow(messages)
         let sessionPrompt = current.systemPrompt
         let requestModel = model ?? openRouter.chatModel
@@ -151,22 +146,11 @@ final class AIChatStore: ObservableObject {
 
     /// Starts a dedicated conversation for a selected-text AI action. Its first answer uses the
     /// action's fast model; follow-ups use the normal chat model while retaining the action prompt.
-    func startSelectionConversation(
-        action: AIChatSelectionAction, text: String, detectedSourceLanguage: String?
-    ) {
+    func startSelectionConversation(action: AIChatSelectionAction, text: String) {
         stop()
         let prompt: String
         let model: String
         switch action {
-        case .translate:
-            let target = AIChatSelectionPrompts.targetLanguage(
-                preferred: Locale.preferredLanguages,
-                detectedSource: detectedSourceLanguage)
-            let targetName = Locale(identifier: "en").localizedString(forLanguageCode: target)
-                ?? target
-            prompt = AIChatSelectionPrompts.translation(
-                template: translationPrompt, targetLanguageName: targetName)
-            model = openRouter.translationModel
         case .define:
             prompt = definitionPrompt
             model = openRouter.definitionModel
@@ -183,14 +167,6 @@ final class AIChatStore: ObservableObject {
         stop()
         replaceEmptySession(with: AIChatSession(titleOverride: action.sessionTitle))
         requests.setFailure(message, for: currentID)
-    }
-
-    func setTranslationPrompt(_ prompt: String) {
-        guard prompt != translationPrompt else { return }
-        translationPrompt = prompt
-        persist(
-            prompt, key: Self.translationPromptKey,
-            defaultPrompt: AIChatSelectionPrompts.defaultTranslation)
     }
 
     func setDefinitionPrompt(_ prompt: String) {
@@ -213,6 +189,8 @@ final class AIChatStore: ObservableObject {
     func stop() {
         task?.cancel()
         task = nil
+        if let backgroundTaskID { onRequestCancelled?(backgroundTaskID) }
+        backgroundTaskID = nil
         requests.cancel()
     }
 
@@ -224,6 +202,12 @@ final class AIChatStore: ObservableObject {
     private func finishRequest(for sessionID: UUID, failure: String?) {
         guard requests.finish(sessionID: sessionID, failure: failure) else { return }
         task = nil
+        guard let backgroundTaskID else { return }
+        self.backgroundTaskID = nil
+        let sessionTitle = sessions.first { $0.id == sessionID }?.title ?? "AI Chat"
+        onRequestFinished?(
+            backgroundTaskID, failure == nil,
+            failure ?? "Reply ready in \(sessionTitle).")
     }
 
     private func replaceEmptySession(with session: AIChatSession) {

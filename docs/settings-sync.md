@@ -1,43 +1,56 @@
 # Settings sync
 
 Settings → Backup can attach Spotter to one user-selected JSON file. Creating a file writes the live
-configuration; choosing an existing file validates and applies it before the path is persisted. The
-same file remains a normal, human-readable `SettingsBackup`, so manual export/import and automatic
-sync do not create competing formats.
+state; choosing an existing file validates and applies it before the path is persisted. Manual
+backup and automatic sync share the human-readable `SettingsBackup` format.
 
 The path can be anywhere. When it is inside iCloud Drive, macOS transports it to the user's other
-Macs; Spotter itself uses no network service or CloudKit container. The Settings pane shows whether
-the selected item is an iCloud ubiquitous item and allows synchronization to be paused or disconnected
-without deleting the file.
+Macs; Spotter itself uses no network service or CloudKit container. Synchronization can be paused or
+disconnected without deleting the file.
 
-Coverage is deliberately complete for *configuration*: general settings (including
-`lockInputToEnglish` and `remembersPalettePosition`), every bound hotkey (including all plugin
-actions, keyed `<plugin-id>.<action-id>` so new plugins sync automatically), custom commands,
-favorites, visibility, plugin enable states, the OpenRouter key and per-action models, per-plugin
-preferences (Change Case, Kill Process, Image Modification, Caffeinate, Window Management, Mole's
-binary path), Quicklinks, World Clock's saved cities, and Text Replacement's prefix and rules.
-Content and learned state stay local by design: clipboard history, calculator history, notes,
-learned launcher ranking and frequent emoji. Two consent flags are deliberately excluded so an
-import can never grant network access: Currency Conversion's network consent (via
-`exportsEnabledState: false`) and the auto-update check consent on `UpdateStore`.
+## Coverage
+
+Format v3 mirrors the complete user-owned Spotter state:
+
+- General settings, plugin enable states and preferences, including every network consent toggle.
+- OpenRouter and Google Cloud Translation API keys and all associated model options.
+- Every shortcut. Empty binding maps are authoritative, so unbinding a shortcut propagates.
+- Custom commands, favorites, hidden launcher items, Quicklinks, World Clock cities and Text
+  Replacement rules.
+- Notes and selected note, text and image clipboard history, pinned clipboard state, calculator
+  history, AI conversations and current conversation, background-task rows, frequent emoji and
+  learned launcher ranking.
+
+Clipboard image bytes are embedded in the JSON and rebuilt under each Mac's own bundle-scoped cache;
+absolute cache paths never cross devices. Because v3 files can contain credentials and private
+content, the Backup pane and trust dialogs tell the user to keep them in a private location.
+
+The only user-owned state deliberately excluded is device-bound: the palette's concrete screen
+coordinates, macOS privacy grants, and the synchronization file's own path/enabled state. The
+“remember position” preference itself does sync. Runtime executors, provider response caches,
+temporary files and system-derived data are not backup state.
+
+Older v1/v2 files remain importable. Missing fields are preserved during a manual import, while an
+automatic v3 snapshot is authoritative: arrays, credentials and shortcuts can therefore propagate
+deletions and cleared values.
 
 ## Live pipeline
 
-`AppCore` owns one `SettingsSyncManager`. It observes the stores represented by `SettingsBackup`,
+`AppCore` owns one `SettingsSyncManager`. It observes every store represented by `SettingsBackup`,
 debounces local changes, gathers canonical sorted JSON and writes it through `NSFileCoordinator`.
 An `NSFilePresenter` receives coordinated iCloud updates, while a parent-directory dispatch source
 also catches uncoordinated editors and atomic file replacement. Reads and writes pass through one
-actor so they cannot race.
+actor so they cannot race inside a process; when two Macs write independently, the last file version
+delivered by the sync provider becomes the shared snapshot.
 
 External bytes are decoded completely before they touch live state. A different valid snapshot is
-applied on the main actor and immediately updates preferences, shortcuts, commands, favorites,
-visibility and safe plugin enable states. The last effective JSON bytes suppress notifications from
-Spotter's own writes and normalized re-exports, preventing feedback loops. Malformed or unavailable
-files leave live settings untouched, surface an inline error and remain watched for recovery.
+applied on the main actor and hot-updates the owning stores. Locally executing AI requests and
+background tasks keep their executors so a remote snapshot cannot orphan work in progress. The last
+effective JSON bytes suppress Spotter's own write notifications and normalized re-exports, preventing
+feedback loops. Malformed or unavailable files leave live state untouched, surface an inline error
+and remain watched for recovery.
 
-Connecting a file requires an explicit trust alert because settings JSON may include custom shell
-commands, global shortcuts and the OpenRouter API key. Plugin network-consent flags remain excluded
-through the existing `exportsEnabledState` contract. The OpenRouter key is the one deliberate
-exception (owner decision, Aug 2026): the key itself is the gate, so a synced Mac that receives it
-has the AI path active immediately — syncing the key is the consent act. The key travels in plain
-JSON, so the file should live somewhere private (iCloud Drive is fine; a shared folder is not).
+Connecting a file requires an explicit trust alert because future changes are applied automatically.
+Fresh installs still default every network feature to off; trusting a sync file or manually importing
+a backup is the consent act that may restore its saved toggles and keys. Requests continue to re-check
+their owning consent flag around every network call and use private cacheless sessions.

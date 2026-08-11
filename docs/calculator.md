@@ -169,9 +169,9 @@ unavailable" message.
 cache at init, the `source` the engine is handed, `start()`, each turn of the refresh loop, and twice
 around the network call itself — once before the request and once after the `await`, since consent
 can be withdrawn while a response is in flight. Revoking cancels the loop, drops the snapshot and
-deletes the cached file. The flag lives on the store, deliberately *not* in `AppSettings`:
-`SettingsBackup` mirrors that type field-for-field, and importing a config must never be able to
-grant network access.
+deletes the cached file. The flag lives on the store, deliberately *not* in `AppSettings`, and is
+mirrored explicitly by the trusted v3 backup/sync snapshot. Fresh installs remain off; trusting a
+file that restores the flag is the consent act on another Mac.
 
 For "revoking deletes the rates" to be true there has to be exactly one copy, so the fetch runs on a
 private **cacheless** `URLSession` (`.ephemeral`, `urlCache = nil`) rather than `URLSession.shared`.
@@ -205,4 +205,5 @@ than `5.539e-05`.
 
 When the launcher or Calculator History query evaluates to a result the card is pinned at the top of
 the list (flat selection index 0, shifting rows by one) and Enter copies the answer + records it to
-`CalculatorHistoryStore`.
+`CalculatorHistoryStore`. Its capped history enters trusted v3 backups and automatic sync, including
+deletions and Clear History.

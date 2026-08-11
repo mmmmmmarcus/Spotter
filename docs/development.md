@@ -41,10 +41,11 @@ single `type: file` entry in the resources phase — without that XcodeGen regis
 loose resources, `actool` never compiles the icon, and the app ships with the generic placeholder
 (no `CFBundleIconName` at all). `ASSETCATALOG_COMPILER_APPICON_NAME: spotter` resolves it.
 
-### Local builds install as the one Spotter.app
+### Local dev builds install as the one Spotter.app
 
-There is no separate dev channel. Debug builds produce **`Spotter.app`**, bundle id
-`com.spotter.app` — the same identity as the installed app — so a rebuild keeps every persisted
+Debug builds are the **dev** channel and report the release base version with a `-dev` suffix (for
+example `1.4.9-dev`). Public **stable** builds use the same base version without the suffix. Dev is
+never published. Both builds produce **`Spotter.app`**, bundle id `com.spotter.app`, so a rebuild keeps every persisted
 thing, all keyed by bundle id: `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
 `~/Library/Caches/<id>/` (clipboard history, calculator history, exchange rates, frequent emoji),
 `~/Library/Application Support/<id>/` (the onboarding marker, Notes data and Quicklinks), the `SMAppService`
@@ -109,7 +110,10 @@ swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
 swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
     Tools/change-case-test.swift -o /tmp/change-case-test && /tmp/change-case-test
 swiftc -swift-version 6 \
+    Spotter/Plugins/Infrastructure/PluginTypes.swift \
+    Spotter/Plugins/SelectionTools/SelectionToolsTypes.swift \
     Spotter/Plugins/SelectionTools/SearchURLBuilder.swift \
+    Spotter/Plugins/SelectionTools/SelectionToolsResults.swift \
     Tools/selection-tools-test.swift \
     -o /tmp/selection-tools-test && /tmp/selection-tools-test
 swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageIO -framework Vision \
@@ -162,7 +166,7 @@ injects a fixed date, calendar, local time zone and isolated `UserDefaults` suit
 formatting and saved-city checks never depend on the wall clock or the user's preferences.
 
 The Background Tasks harness checks newest-first ordering, progress clamping, terminal-state
-retention and the invariant that a running task cannot be dismissed.
+retention, sync encoding, relaunch interruption and the invariant that a running task cannot be dismissed.
 
 The Dashboard Widgets harness compiles the real Foundation-only engine. It pins the local
 Codex/CodexBar usage-cache decoders without touching EventKit or the user's files.
@@ -175,7 +179,7 @@ Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory.
 
 The Notes harness compiles the real Foundation-only model, store and Markdown transformer. It validates
-derived titles/previews, UTF-16 selections, formatting toggles and atomic persistence against a
+derived titles/previews, UTF-16 selections, formatting toggles, sync replacement and atomic persistence against a
 temporary archive without opening a window or touching the user's notes file.
 
 The Text Replacement harness compiles the real pure matcher and persisted store. It validates
@@ -185,7 +189,8 @@ and bundle-scoped preference persistence without installing an event tap or obse
 The Settings Sync harness exercises the real coordinated JSON reader/writer against a temporary file
 and validates the byte revision guard used to suppress self-triggered file notifications.
 
-The clipboard harness likewise compiles the real `ClipboardStore.swift`, so that file must keep to
+The clipboard harness likewise compiles the real `ClipboardStore.swift`, including portable text/image
+sync snapshots, so that file must keep to
 Foundation + SQLite3 and depend on no other app source. Each case drives a store rooted in a
 throwaway temp directory (`ClipboardStore(directory:)`), so a run can never reach a real history.
 

@@ -36,11 +36,23 @@ if [ "$SOURCE_COUNT" -ne 1 ] || [ "$SOURCE_VERSIONS" != "$EXPECTED" ]; then
     echo "✗ project.yml must contain exactly MARKETING_VERSION: \"$EXPECTED\"." >&2
     exit 1
 fi
+if [ "$(grep -Fc 'SPOTTER_VERSION_SUFFIX: "-dev"' project.yml)" -ne 1 ]; then
+    echo "✗ project.yml must keep exactly one Debug SPOTTER_VERSION_SUFFIX: \"-dev\"." >&2
+    exit 1
+fi
 
 PBX_VERSIONS="$(sed -nE 's/^[[:space:]]*MARKETING_VERSION = ([^;]+);/\1/p' \
     Spotter.xcodeproj/project.pbxproj | sort -u)"
 if [ "$PBX_VERSIONS" != "$EXPECTED" ]; then
     echo "✗ Spotter.xcodeproj is out of sync; run xcodegen generate." >&2
+    exit 1
+fi
+if [ "$(grep -Fc 'SPOTTER_VERSION_SUFFIX = "-dev";' Spotter.xcodeproj/project.pbxproj)" -ne 1 ]; then
+    echo "✗ Spotter.xcodeproj is missing the generated Debug -dev suffix; run xcodegen generate." >&2
+    exit 1
+fi
+if ! grep -Fq '<string>$(MARKETING_VERSION)$(SPOTTER_VERSION_SUFFIX)</string>' Spotter/Info.plist; then
+    echo "✗ Spotter/Info.plist no longer combines the base version with its build-channel suffix." >&2
     exit 1
 fi
 

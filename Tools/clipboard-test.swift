@@ -12,7 +12,7 @@ struct ClipboardTests {
     static var failures = 0
     static var passes = 0
 
-    static func main() {
+    static func main() async {
         pinOrder()
         unpinRejoinsAsNewest()
         pasteLeavesPinsAlone()
@@ -20,6 +20,7 @@ struct ClipboardTests {
         pinsLeadFilteredSearches()
         persistence()
         migrationFromShippedDatabase()
+        await portableSnapshot()
 
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
@@ -194,6 +195,42 @@ struct ClipboardTests {
             sqlite(db, "SELECT name FROM sqlite_master WHERE type = 'index'")
                 .contains("items_pinned_at"),
             "and indexed")
+    }
+
+    /// Sync snapshots carry image bytes, not an absolute cache path from the source Mac.
+    static func portableSnapshot() async {
+        let sourceDir = scratchDirectory()
+        let destinationDir = scratchDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: sourceDir)
+            try? FileManager.default.removeItem(at: destinationDir)
+        }
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+        let sourceImage = sourceDir.appendingPathComponent("source.png")
+        try? imageData.write(to: sourceImage)
+        let source = ClipboardStore(directory: sourceDir)
+        let now = Date()
+        _ = source.importEntries([
+            entry("portable text", at: now.addingTimeInterval(-1)),
+            ClipboardItem(
+                id: UUID(), kind: .image, text: nil, imagePath: sourceImage.path,
+                createdAt: now, sourceBundleID: "test.source",
+                pinnedAt: now),
+        ])
+
+        let snapshot = await source.syncSnapshot()
+        let destination = ClipboardStore(directory: destinationDir)
+        await destination.replace(with: snapshot)
+        expect(texts(destination).contains("portable text"), "sync restores clipboard text")
+        guard let image = destination.items.first(where: { $0.kind == .image }),
+            let restoredURL = destination.imageURL(for: image)
+        else {
+            fail("sync restores clipboard image row")
+            return
+        }
+        expect(restoredURL.path.hasPrefix(destinationDir.path), "sync rewrites image paths locally")
+        expect((try? Data(contentsOf: restoredURL)) == imageData, "sync restores clipboard image bytes")
+        expect(image.isPinned, "sync restores clipboard pin state")
     }
 
     // MARK: - Harness

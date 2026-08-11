@@ -23,7 +23,7 @@ enum UpdateError: LocalizedError {
 
 /// Checks GitHub Releases for a newer build and installs it in place. Networked, so it follows
 /// `CurrencyRateStore`'s shape: the daily automatic check ships off behind explicit consent
-/// (never synced), while Check for Updates is itself the user action. The installer refuses any
+/// mirrored by settings sync, while Check for Updates is itself the user action. The installer refuses any
 /// bundle whose code signature does not satisfy the running app's designated requirement, then
 /// swaps `/Applications/Spotter.app` and relaunches — the same replace-and-relaunch contract local
 /// builds follow, so the Accessibility grant survives.
@@ -46,7 +46,7 @@ final class UpdateStore: ObservableObject {
         case failed(String)
     }
 
-    /// Explicit consent for the background check; absent reads as false. Deliberately never part of `SettingsBackup`.
+    /// Explicit consent for the background check; absent reads as false and settings sync mirrors it.
     @Published private(set) var autoCheckEnabled: Bool
     @Published private(set) var status: Status = .idle
 

@@ -18,7 +18,7 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
    sufficient or whether publishing should begin. An explicitly read-only audit, local artifact or
    prepare-only request remains limited to that scope.
 4. Publish only `stable`. Never ask which channel to use and never dispatch `beta`. Stable versions
-   remain plain numeric `x.y.z` values with no channel label or suffix.
+   remain plain numeric `x.y.z` values; the Debug-only `SPOTTER_VERSION_SUFFIX` is never published.
 
 ## Manage the version
 

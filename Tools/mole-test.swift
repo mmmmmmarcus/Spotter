@@ -61,6 +61,10 @@ struct MoleTests {
             "every action names what it removes",
             [MoleAction.clean, .optimize, .purge, .uninstall(name: "X", permanent: true)]
                 .allSatisfy { !$0.confirmation.isEmpty && !$0.title.isEmpty })
+        check(
+            "every state-changing action has background-task presentation",
+            [MoleAction.clean, .optimize, .purge, .uninstall(name: "X", permanent: false)]
+                .allSatisfy { !$0.backgroundTaskTitle.isEmpty && !$0.systemImage.isEmpty })
         check("each action refreshes its own screen", MoleAction.purge.screen == .purge)
 
         // Preview arguments — the read-only pass behind each screen.

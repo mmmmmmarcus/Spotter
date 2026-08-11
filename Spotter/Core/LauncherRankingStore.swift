@@ -102,6 +102,18 @@ final class LauncherRankingStore: ObservableObject {
         didMutate()
     }
 
+    /// Full-state replacement preserves the validation and bound used at load time.
+    func replace(records newRecords: [LauncherRankingRecord]) {
+        records = Array(
+            newRecords
+                .filter { !$0.itemKey.isEmpty && !$0.query.isEmpty && $0.count > 0 }
+                .sorted {
+                    $0.count != $1.count ? $0.count > $1.count : $0.lastUsed > $1.lastUsed
+                }
+                .prefix(Self.cap))
+        didMutate()
+    }
+
     /// `locale: nil` is the locale-independent canonical form: these are persisted lookup keys, and a locale-sensitive fold maps "I" to "ı" under Turkish, orphaning every record keyed on the dotted form.
     static func normalize(_ query: String) -> String {
         query

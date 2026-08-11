@@ -46,8 +46,8 @@ The archive is versioned JSON at:
 Using the bundle identifier keeps Debug, beta and stable channels isolated. Content changes are
 debounced for 250 ms, snapshotted as `Sendable` values and written atomically by a serial actor, so
 typing never performs filesystem IO on the main actor and newer saves cannot be overtaken by older
-ones. Creation and deletion schedule immediate snapshots. Notes are local-only and require no macOS
-permission or network consent.
+ones. Creation and deletion schedule immediate snapshots. Notes and the selected note enter trusted
+v3 backups and automatic sync; the feature itself requires no macOS permission or network consent.
 
 ## Editor
 

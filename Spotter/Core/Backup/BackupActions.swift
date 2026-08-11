@@ -19,10 +19,15 @@ enum BackupActions {
         panel.canCreateDirectories = true
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try SettingsBackup.gather().encoded().write(to: url, options: .atomic)
-        } catch {
-            present(title: "Export Failed", message: error.localizedDescription, style: .warning)
+        Task {
+            do {
+                let data = try await SettingsBackup.gather().encodedOffMain()
+                try await Task.detached(priority: .utility) {
+                    try data.write(to: url, options: .atomic)
+                }.value
+            } catch {
+                present(title: "Export Failed", message: error.localizedDescription, style: .warning)
+            }
         }
     }
 
@@ -32,19 +37,18 @@ enum BackupActions {
         panel.allowsMultipleSelection = false
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let backup = try SettingsBackup(json: try Data(contentsOf: url))
-            let commandCount = backup.customCommands?.count ?? 0
-            let shortcutCount = backup.hotkeys?.customCommands?.count ?? 0
-            guard confirmExecutableImport(commands: commandCount, shortcuts: shortcutCount) else {
-                return
+        Task {
+            do {
+                let data = try await Task.detached(priority: .utility) { try Data(contentsOf: url) }
+                    .value
+                let backup = try await SettingsBackup.decodedOffMain(data)
+                guard confirmSettingsImport(backup) else { return }
+                present(
+                    title: "Settings Imported",
+                    message: summaryText(await backup.apply()), style: .informational)
+            } catch {
+                present(title: "Import Failed", message: error.localizedDescription, style: .warning)
             }
-            present(
-                title: "Settings Imported", message: summaryText(backup.apply()),
-                style: .informational
-            )
-        } catch {
-            present(title: "Import Failed", message: error.localizedDescription, style: .warning)
         }
     }
 
@@ -86,7 +90,7 @@ enum BackupActions {
                 return try RaycastImport.parse(decrypted).selecting(options)
             }
         }.value
-        let summary = result.backup.apply()
+        let summary = await result.backup.apply()
         let imported =
             result.clipboard.isEmpty
             ? 0 : AppCore.shared.clipboardStore.importEntries(result.clipboard)
@@ -128,21 +132,26 @@ enum BackupActions {
         if s.hiddenItems > 0 { parts.append("\(s.hiddenItems) hidden items") }
         if s.customCommands > 0 { parts.append("\(s.customCommands) custom commands") }
         if s.plugins > 0 { parts.append("\(s.plugins) plugins") }
+        if s.contentCollections > 0 {
+            parts.append("\(s.contentCollections) content collections")
+        }
         return parts.isEmpty
             ? "Nothing to import from this file." : "Applied " + parts.joined(separator: ", ") + "."
     }
 
-    private static func confirmExecutableImport(commands: Int, shortcuts: Int) -> Bool {
-        guard commands > 0 || shortcuts > 0 else { return true }
+    private static func confirmSettingsImport(_ backup: SettingsBackup) -> Bool {
+        let commands = backup.customCommands?.count ?? 0
+        let shortcuts = backup.hotkeys?.customCommands?.count ?? 0
         let commandText = commands == 1 ? "1 custom command" : "\(commands) custom commands"
         let shortcutText =
             shortcuts == 1 ? "1 global shortcut" : "\(shortcuts) global shortcuts"
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Import executable commands?"
+        alert.messageText = "Trust this Spotter backup?"
         alert.informativeText =
-            "This backup contains \(commandText) and \(shortcutText). Custom commands can run "
-            + "arbitrary shell code. Only import files you trust."
+            "A backup may contain API keys, private content, and network-service consent. This one "
+            + "contains \(commandText) and \(shortcutText); custom commands can run arbitrary shell "
+            + "code. Only import files you trust."
         alert.alertStyle = .warning
         let importButton = alert.addButton(withTitle: "Import")
         importButton.keyEquivalent = ""
@@ -155,7 +164,8 @@ enum BackupActions {
         alert.messageText = "Trust this settings file?"
         alert.informativeText =
             "Spotter will automatically apply future changes from this file. It may contain custom "
-            + "shell commands and global shortcuts, so choose a file that only you control."
+            + "shell commands, global shortcuts, API keys, notes, clipboard history, AI chats and "
+            + "other private data, so choose a file that only you control."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Enable Sync")
         alert.addButton(withTitle: "Cancel")

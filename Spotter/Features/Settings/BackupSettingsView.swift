@@ -22,13 +22,13 @@ struct BackupSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "Backup",
-            subtitle: "Sync or export your settings, restore a backup, or import from Raycast."
+            subtitle: "Sync or export your Spotter data, restore a backup, or import from Raycast."
         ) {
             SettingsCard(header: "Spotter") {
                 SettingsRow(
                     title: "Export Settings",
                     subtitle:
-                        "Save your shortcuts, custom commands, favorites, and preferences to JSON.",
+                        "Save settings, shortcuts, API keys, notes, histories, and other content to JSON.",
                     systemImage: "square.and.arrow.up",
                     tint: .blue
                 ) {
@@ -39,7 +39,7 @@ struct BackupSettingsView: View {
                 SettingsRow(
                     title: "Import Settings",
                     subtitle:
-                        "Restore from a Spotter backup. Only values in the file are changed.",
+                        "Merge a Spotter backup into this Mac; only values present in the file change.",
                     systemImage: "square.and.arrow.down",
                     tint: .green
                 ) {
@@ -95,8 +95,8 @@ struct BackupSettingsView: View {
                 }
             }
             SettingsCallout(
-                title: "Location-based sync",
-                message: "Spotter watches the selected file and applies changes live. Put it in iCloud Drive to let macOS carry it between devices; local and other cloud folders also work.",
+                title: "Keep this file private",
+                message: "Spotter watches the selected file and mirrors settings, API keys, notes, clipboard images, histories, and other content. Put it in your private iCloud Drive to let macOS carry it between devices; shared folders are not recommended.",
                 systemImage: "icloud.and.arrow.up",
                 tint: .blue)
 

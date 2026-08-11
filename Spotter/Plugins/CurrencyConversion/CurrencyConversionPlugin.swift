@@ -11,7 +11,7 @@ enum CurrencyConversionPlugin {
                 systemImage: "dollarsign.arrow.circlepath",
                 tint: .green),
             defaultEnabled: false,
-            exportsEnabledState: false,
+            exportsEnabledState: true,
             readEnabled: { [weak core] in core?.currencyRates.isEnabled ?? false },
             writeEnabled: { [weak core] enabled in core?.currencyRates.setEnabled(enabled) },
             onEnable: { [weak core] in core?.currencyRates.start() },

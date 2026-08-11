@@ -83,6 +83,13 @@ struct AIChatTests {
             AIChatMessage.Role.user.rawValue == "user"
                 && AIChatMessage.Role.assistant.rawValue == "assistant")
 
+        let portableSession = AIChatSession(
+            messages: [message(.user, "同步这个对话"), message(.assistant, "好的")],
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let encodedSession = try! JSONEncoder().encode(portableSession)
+        let decodedSession = try! JSONDecoder().decode(AIChatSession.self, from: encodedSession)
+        check("a chat session round-trips through sync JSON", decodedSession == portableSession)
+
         check("an empty ChatGPT prompt has no URL", AIChatEngine.chatGPTURL(for: " \n ") == nil)
         let chatGPTPrompt = "  Explain Swift & Objective-C?\n用中文回答  "
         let chatGPTURL = AIChatEngine.chatGPTURL(for: chatGPTPrompt)
@@ -125,26 +132,8 @@ struct AIChatTests {
         check("deleting a session drops its failure", requests.phase(for: firstSession) == .idle)
 
         check(
-            "selection translation targets the first preferred language",
-            AIChatSelectionPrompts.targetLanguage(
-                preferred: ["zh-Hans-CN", "en-US"], detectedSource: "en") == "zh")
-        check(
-            "selection translation skips the source language",
-            AIChatSelectionPrompts.targetLanguage(
-                preferred: ["zh-Hans-CN", "en-US"], detectedSource: "zh") == "en")
-        check(
-            "selection translation falls back to English",
-            AIChatSelectionPrompts.targetLanguage(
-                preferred: ["fr-FR"], detectedSource: "fr") == "en")
-        check(
-            "translation prompt expands the target language",
-            AIChatSelectionPrompts.translation(
-                template: "Use {{target_language}} only.", targetLanguageName: "Japanese")
-                == "Use Japanese only.")
-        check(
             "selected-text prompts invite follow-ups",
-            AIChatSelectionPrompts.defaultTranslation.contains("later messages")
-                && AIChatSelectionPrompts.defaultDefinition.contains("follow-up")
+            AIChatSelectionPrompts.defaultDefinition.contains("follow-up")
                 && AIChatSelectionPrompts.defaultGrammar.contains("later messages"))
 
         print(failures == 0 ? "\nAI Chat: ALL PASSED" : "\n\(failures) FAILED")

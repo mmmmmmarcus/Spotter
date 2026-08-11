@@ -297,7 +297,7 @@ final class PluginRegistry: ObservableObject {
         }
     }
 
-    /// Network consent is excluded by its registration; imports must never grant it.
+    /// Application features without an enable state may opt out of the complete plugin-state map.
     func exportedEnabledStates() -> [String: Bool] {
         Dictionary(uniqueKeysWithValues: orderedIDs.compactMap { id in
             guard registrations[id]?.exportsEnabledState == true else { return nil }

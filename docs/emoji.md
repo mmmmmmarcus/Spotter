@@ -18,6 +18,8 @@ routed through `PluginRegistry`, and disabling it returns an open emoji palette 
 
 `EmojiCatalog.swift`, `EmojiGridGeometry.swift` and the generated dataset form the
 **Foundation-only** testable boundary; the other files may use AppKit or SwiftUI as required.
+The bounded `FrequentEmojiStore` records enter trusted v3 backups and automatic sync, so usage
+ranking and resets propagate between Macs.
 
 ## Invariants
 

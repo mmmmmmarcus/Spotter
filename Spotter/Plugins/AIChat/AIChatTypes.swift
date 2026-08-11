@@ -1,8 +1,8 @@
 import Foundation
 
 /// One turn of the palette conversation.
-struct AIChatMessage: Identifiable, Equatable, Sendable {
-    enum Role: String, Sendable {
+struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
+    enum Role: String, Codable, Sendable {
         case user
         case assistant
     }
@@ -16,6 +16,28 @@ struct AIChatMessage: Identifiable, Equatable, Sendable {
         self.role = role
         self.text = text
     }
+}
+
+/// One portable conversation in the session menu.
+struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
+    let id: UUID
+    var messages: [AIChatMessage]
+    let startedAt: Date
+    let titleOverride: String?
+    let systemPrompt: String?
+
+    init(
+        id: UUID = UUID(), messages: [AIChatMessage] = [], startedAt: Date = Date(),
+        titleOverride: String? = nil, systemPrompt: String? = nil
+    ) {
+        self.id = id
+        self.messages = messages
+        self.startedAt = startedAt
+        self.titleOverride = titleOverride
+        self.systemPrompt = systemPrompt
+    }
+
+    var title: String { titleOverride ?? AIChatEngine.sessionTitle(for: messages) }
 }
 
 enum AIChatPhase: Equatable, Sendable {

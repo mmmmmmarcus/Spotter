@@ -123,6 +123,14 @@ final class NoteStore: ObservableObject {
         scheduleSave(immediately: true)
     }
 
+    /// Full-state replacement follows the synced selection when that note still exists.
+    func replace(notes newNotes: [SpotterNote], selectedID newSelectedID: UUID?) {
+        notes = newNotes.sorted { $0.updatedAt > $1.updatedAt }
+        selectedID = notes.contains(where: { $0.id == newSelectedID })
+            ? newSelectedID : notes.first?.id
+        scheduleSave(immediately: true)
+    }
+
     func flush() async {
         saveTask?.cancel()
         revision &+= 1

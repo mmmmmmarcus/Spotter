@@ -93,13 +93,13 @@ final class SettingsSyncManager: ObservableObject {
         errorMessage = nil
         do {
             let data = try await io.read(from: url)
-            let backup = try SettingsBackup(json: data)
+            let backup = try await SettingsBackup.decodedOffMain(data)
             guard let core else { throw CocoaError(.userCancelled) }
             stopWatching()
             isApplyingRemote = true
-            _ = backup.apply(to: core)
+            _ = await backup.apply(to: core, mode: .replace)
             isApplyingRemote = false
-            let effectiveData = try SettingsBackup.gather(from: core).encoded()
+            let effectiveData = try await SettingsBackup.gather(from: core).encodedOffMain()
             configure(url: url, revisionData: effectiveData)
             if effectiveData != data { try await io.write(effectiveData, to: url) }
             lastSyncedAt = Date()
@@ -116,7 +116,7 @@ final class SettingsSyncManager: ObservableObject {
         isWorking = true
         errorMessage = nil
         do {
-            let data = try SettingsBackup.gather(from: core).encoded()
+            let data = try await SettingsBackup.gather(from: core).encodedOffMain()
             try await io.write(data, to: url)
             stopWatching()
             configure(url: url, revisionData: data)
@@ -145,6 +145,14 @@ final class SettingsSyncManager: ObservableObject {
             core.customCommands.objectWillChange.eraseToAnyPublisher(),
             core.favorites.objectWillChange.eraseToAnyPublisher(),
             core.visibility.objectWillChange.eraseToAnyPublisher(),
+            core.quicklinks.objectWillChange.eraseToAnyPublisher(),
+            core.notes.objectWillChange.eraseToAnyPublisher(),
+            core.clipboardStore.objectWillChange.eraseToAnyPublisher(),
+            core.calcHistory.objectWillChange.eraseToAnyPublisher(),
+            core.aiChat.objectWillChange.eraseToAnyPublisher(),
+            core.backgroundTasks.objectWillChange.eraseToAnyPublisher(),
+            core.frequentEmoji.objectWillChange.eraseToAnyPublisher(),
+            core.launcherRanking.objectWillChange.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in self?.scheduleSave() }
@@ -168,7 +176,7 @@ final class SettingsSyncManager: ObservableObject {
     private func saveNow() async {
         guard let core, let fileURL, isEnabled, !isApplyingRemote else { return }
         do {
-            let data = try SettingsBackup.gather(from: core).encoded()
+            let data = try await SettingsBackup.gather(from: core).encodedOffMain()
             guard !revision.isCurrent(data) else { return }
             isWorking = true
             errorMessage = nil
@@ -199,13 +207,13 @@ final class SettingsSyncManager: ObservableObject {
         do {
             let data = try await io.read(from: fileURL)
             guard !revision.isCurrent(data) else { return }
-            let backup = try SettingsBackup(json: data)
+            let backup = try await SettingsBackup.decodedOffMain(data)
             isWorking = true
             errorMessage = nil
             isApplyingRemote = true
-            _ = backup.apply(to: core)
+            _ = await backup.apply(to: core, mode: .replace)
             isApplyingRemote = false
-            let effectiveData = try SettingsBackup.gather(from: core).encoded()
+            let effectiveData = try await SettingsBackup.gather(from: core).encodedOffMain()
             revision.record(effectiveData)
             if effectiveData != data { try await io.write(effectiveData, to: fileURL) }
             lastSyncedAt = Date()

@@ -8,7 +8,18 @@ final class ImageModificationManager {
         let arePersistent: Bool
     }
 
+    private struct ProgressUpdate: Sendable {
+        let completed: Int
+        let total: Int
+        let input: URL?
+    }
+
     private var task: Task<Void, Never>?
+    private var backgroundTaskID: UUID?
+    var onTaskStarted: ((ImageOperation, Int) -> UUID)?
+    var onTaskProgress: ((UUID, String, Double) -> Void)?
+    var onTaskFinished: ((UUID, Bool, String) -> Void)?
+    var onTaskCancelled: ((UUID) -> Void)?
 
     func run(operation: ImageOperation, sourceApp: NSRunningApplication?) {
         precondition(operation != .convert, "Convert Image requires an explicit target format")
@@ -32,6 +43,8 @@ final class ImageModificationManager {
 
     func cancel() {
         task?.cancel()
+        if let backgroundTaskID { onTaskCancelled?(backgroundTaskID) }
+        backgroundTaskID = nil
     }
 
     private func execute(
@@ -59,17 +72,54 @@ final class ImageModificationManager {
                 return
             }
 
+            let total = operation == .create ? 1 : inputs.urls.count
+            let taskID = onTaskStarted?(operation, total)
+            backgroundTaskID = taskID
             let temporaryDirectory = temporaryDirectory
-            let results = try await Task.detached(priority: .userInitiated) {
-                try ImageModificationEngine.process(
-                    request: request, inputs: inputs.urls, temporaryDirectory: temporaryDirectory)
-            }.value
-            guard !Task.isCancelled else { return }
+            let (progress, continuation) = AsyncStream.makeStream(of: ProgressUpdate.self)
+            let processing = Task.detached(priority: .userInitiated) {
+                defer { continuation.finish() }
+                return try ImageModificationEngine.process(
+                    request: request, inputs: inputs.urls, temporaryDirectory: temporaryDirectory
+                ) { completed, total, input in
+                    continuation.yield(
+                        ProgressUpdate(completed: completed, total: total, input: input))
+                }
+            }
+            for await update in progress {
+                guard let taskID else { continue }
+                let name = update.input?.lastPathComponent ?? "Generated image"
+                onTaskProgress?(
+                    taskID, "Processed \(name)",
+                    Double(update.completed) / Double(update.total))
+            }
+            let results = try await processing.value
+            guard !Task.isCancelled else {
+                discardBackgroundTask(taskID)
+                return
+            }
             finishOutput(results, location: request.output)
+            backgroundTaskID = nil
+            if let taskID {
+                onTaskFinished?(
+                    taskID, true,
+                    total == 1 ? "Processed 1 image." : "Processed \(total) images.")
+            }
         } catch {
-            guard !Task.isCancelled else { return }
+            let taskID = backgroundTaskID
+            backgroundTaskID = nil
+            guard !Task.isCancelled else {
+                discardBackgroundTask(taskID)
+                return
+            }
+            if let taskID { onTaskFinished?(taskID, false, error.localizedDescription) }
             presentFailure(operation: operation, error: error, sourceApp: sourceApp)
         }
+    }
+
+    private func discardBackgroundTask(_ taskID: UUID?) {
+        backgroundTaskID = nil
+        if let taskID { onTaskCancelled?(taskID) }
     }
 
     private func resolveInputs(sourceApp: NSRunningApplication?) async throws -> Inputs {

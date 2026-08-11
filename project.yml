@@ -8,7 +8,7 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "1.4.9"
+    MARKETING_VERSION: "1.4.10"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
     DEVELOPMENT_TEAM: ""
@@ -19,6 +19,9 @@ settings:
     ENABLE_HARDENED_RUNTIME: NO
     SWIFT_STRICT_CONCURRENCY: complete
   configs:
+    Debug:
+      # Dev and stable share one base version; only the locally installed build gets the suffix.
+      SPOTTER_VERSION_SUFFIX: "-dev"
     Release:
       # Public releases use the company Developer ID so Gatekeeper and notarization accept them.
       DEVELOPMENT_TEAM: SM96W8VVK9
@@ -56,6 +59,6 @@ targets:
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/../Frameworks"
-      # Debug deliberately shares the release product name and bundle id: every local build is
-      # installed as /Applications/Spotter.app (AGENTS.md local-build contract), so it must keep the
-      # installed app's prefs, caches, TCC grants and login item rather than forking a dev channel.
+      # Debug deliberately shares the stable product name and bundle id: every local build is
+      # installed as /Applications/Spotter.app (AGENTS.md local-build contract), so it keeps the
+      # installed app's prefs, caches, TCC grants and login item.

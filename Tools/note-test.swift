@@ -104,6 +104,12 @@ struct NoteTests {
         await reopened.flush()
         check("delete note", 1, reopened.notes.count)
 
+        let synced = SpotterNote(content: "# Synced", createdAt: fixedDate)
+        reopened.replace(notes: [synced], selectedID: synced.id)
+        await reopened.flush()
+        check("sync replaces notes", [synced], reopened.notes)
+        check("sync restores selected note", synced.id, reopened.selectedID)
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

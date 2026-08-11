@@ -1,8 +1,8 @@
 import Combine
 import Foundation
 
-struct BackgroundTaskItem: Identifiable, Equatable, Sendable {
-    enum State: Equatable, Sendable {
+struct BackgroundTaskItem: Identifiable, Equatable, Codable, Sendable {
+    enum State: String, Codable, Equatable, Sendable {
         case running
         case done
         case failed
@@ -29,27 +29,55 @@ struct BackgroundTaskItem: Identifiable, Equatable, Sendable {
     let id: UUID
     let title: String
     let systemImage: String
+    let ownerID: UUID?
     fileprivate(set) var detail: String
     fileprivate(set) var progress: Double?
     fileprivate(set) var state: State
 
     var isDismissible: Bool { state.isDismissible }
+
+    init(
+        id: UUID, title: String, systemImage: String, detail: String, progress: Double?,
+        state: State, ownerID: UUID? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.ownerID = ownerID
+        self.detail = detail
+        self.progress = progress
+        self.state = state
+    }
 }
 
 /// Owns the launcher-visible lifetime and progress snapshot while each feature manager keeps owning its work.
 @MainActor
 final class BackgroundTaskStore: ObservableObject {
     @Published private(set) var tasks: [BackgroundTaskItem] = []
+    private let ownerID: UUID
+    private var executingIDs: Set<UUID> = []
+
+    init(defaults: UserDefaults = .standard) {
+        let key = "background-tasks.owner-id"
+        if let stored = defaults.string(forKey: key).flatMap(UUID.init(uuidString:)) {
+            ownerID = stored
+        } else {
+            let created = UUID()
+            ownerID = created
+            defaults.set(created.uuidString, forKey: key)
+        }
+    }
 
     @discardableResult
     func begin(
         title: String, detail: String = "Starting…", systemImage: String = "gearshape.2",
         id: UUID = UUID()
     ) -> UUID {
+        executingIDs.insert(id)
         tasks.insert(
             BackgroundTaskItem(
                 id: id, title: title, systemImage: systemImage, detail: detail,
-                progress: nil, state: .running),
+                progress: nil, state: .running, ownerID: ownerID),
             at: 0)
         return id
     }
@@ -75,6 +103,26 @@ final class BackgroundTaskStore: ObservableObject {
         tasks.removeAll { $0.id == id }
     }
 
+    func discard(id: UUID) {
+        executingIDs.remove(id)
+        tasks.removeAll { $0.id == id }
+    }
+
+    /// A remote snapshot mirrors rows without detaching live work or reviving this Mac's dead executor.
+    func replace(tasks newTasks: [BackgroundTaskItem]) {
+        let liveLocal = tasks.filter { executingIDs.contains($0.id) }
+        let liveIDs = Set(liveLocal.map(\.id))
+        let imported = newTasks.filter { !liveIDs.contains($0.id) }.map { task in
+            guard task.state == .running, task.ownerID == ownerID else { return task }
+            var interrupted = task
+            interrupted.detail = "Interrupted when Spotter last quit."
+            interrupted.progress = nil
+            interrupted.state = .failed
+            return interrupted
+        }
+        tasks = liveLocal + imported
+    }
+
     private func finish(id: UUID, detail: String, state: BackgroundTaskItem.State) {
         guard let index = tasks.firstIndex(where: { $0.id == id }),
             tasks[index].state == .running
@@ -82,5 +130,6 @@ final class BackgroundTaskStore: ObservableObject {
         tasks[index].detail = detail
         tasks[index].progress = state == .done ? 1 : nil
         tasks[index].state = state
+        executingIDs.remove(id)
     }
 }

@@ -27,6 +27,11 @@ in-memory history).
 Image capture (TIFF→PNG re-encode + blob write) runs off the main actor via detached tasks; row
 inserts, search, and pruning stay on the main actor.
 
+Trusted v3 backups and automatic sync include the complete text/image history and pin stamps. Image
+bytes are embedded in the JSON and written into the destination Mac's own cache, so machine-local
+absolute paths never cross devices. A synced deletion replaces the destination history rather than
+merging old rows back in.
+
 ## Pinned entries
 
 A row's ⌘K Actions menu carries **Pin Entry / Unpin Entry** (⌘P), persisted as a `pinned_at` column

@@ -23,9 +23,7 @@ final class CurrencyRateStore: ObservableObject {
     /// Shorter retry so a machine that was offline at launch picks rates up soon after it reconnects.
     private static let retryInterval: TimeInterval = 15 * 60
 
-    /// Explicit user consent, persisted under the bundle-scoped defaults. Deliberately *not* part of
-    /// `AppSettings`: `SettingsBackup` mirrors that type field-for-field, and an imported config —
-    /// or a Raycast import — must never be able to silently grant network access.
+    /// Explicit user consent, persisted locally and mirrored by the trusted settings-sync file.
     @Published private(set) var isEnabled: Bool
 
     /// The newest snapshot, or nil when none has landed — and always nil while consent is withheld.

@@ -115,8 +115,9 @@ is optional:
 - `readEnabled` and `writeEnabled` adapt a feature-owned state gate. Currency uses these because
   network consent must remain on `CurrencyRateStore`; ordinary plugins use the registry's
   bundle-scoped `UserDefaults` key.
-- `exportsEnabledState` controls Settings backup. It defaults to true. Network-consent plugins must set
-  it to false so importing a backup cannot grant network access.
+- `exportsEnabledState` controls Settings backup. It defaults to true; set it false only for an
+  application feature such as AI Chat whose registry enable state is not user-configurable. Trusted
+  v3 backup/sync snapshots intentionally include network-consent plugin states.
 - Per-plugin **preferences** (not just the enable flag) sync by extending
   `SettingsBackup.PluginPrefs` — gather effective values, apply through the owning manager when the
   manager caches state. Change Case, Kill Process, Image Modification, Caffeinate, Window Management
@@ -198,7 +199,7 @@ The manual creation flow is:
    `onOpen`/`onClose`; `onDisable` stops it too and returns an active mode to `.launcher`.
 9. If it reaches the network, follow `CurrencyRateStore`: ship off, show explicit provider/cadence/data
    consent, re-check consent before and after every `await`, use a private cacheless session, delete
-   cached data on revoke, and exclude the consent state from backup.
+   cached data on revoke, and include the consent state in the trusted v3 backup/sync snapshot.
 10. Update the relevant subsystem documentation, run the feature and full standalone harnesses, run
    `xcodegen generate`, and complete an Xcode build.
 
@@ -245,7 +246,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   and shortcuts, but cannot be disabled and does not export an enable state. It remains inert without
   the shared OpenRouter key for Spotter-hosted replies. Tab sends a typed query through OpenRouter;
   Shift-Tab opens the same query at `https://chatgpt.com/?q=…` in the default browser. Selected-text
-  translation, definition and grammar checks start follow-up-ready conversations.
+  definition and grammar checks start follow-up-ready conversations.
 
 ## Current plugins
 
@@ -267,8 +268,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Commands** (`Spotter/Plugins/Commands/`) — enabled by default; provides 30 read-only built-in
   macOS actions and publishes the user's editable persisted shell commands through
   `dynamicLauncherCommands`. Disabling it preserves custom commands and every binding, removes both
-  command sources from the launcher, and makes their global shortcuts no-op; a custom command already
-  running is not terminated.
+  command sources from the launcher, and makes their global shortcuts no-op. Custom commands plus
+  Empty Trash, Eject All Disks and Dismiss Notifications report as background tasks; work already
+  running is not terminated when Commands is disabled.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
@@ -285,7 +287,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   text and opens a Google Search in the default browser. Its former AI actions now belong to AI Chat.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — enabled by default; local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
-  a searchable target-format palette before any conversion begins.
+  a searchable target-format palette before any conversion begins, then every operation reports
+  batch progress through the launcher background-task surface.
 - **Window Management** (`Spotter/Plugins/WindowManagement/`) — enabled by default; 30 commands
   covering halves, quarters, thirds, sizing, display moves and fullscreen, on a pure geometry engine
   with an AX mover.

@@ -1,13 +1,9 @@
 import AppKit
-import NaturalLanguage
 import SwiftUI
 
 extension PluginActionKey {
     static let openAIChat = standard(pluginID: .aiChat, actionID: "open", title: "AI Chat")
     // Preserve the original defaults keys so existing Selection Tools bindings survive the move.
-    static let translateSelectedText = PluginActionKey(
-        pluginID: .aiChat, actionID: "translate", title: "Translate Selected Text",
-        defaultsKey: "KeyboardShortcuts_plugin.selection-tools.translate")
     static let defineSelectedText = PluginActionKey(
         pluginID: .aiChat, actionID: "define", title: "Define Selected Text",
         defaultsKey: "KeyboardShortcuts_plugin.selection-tools.define")
@@ -31,7 +27,7 @@ enum AIChatPlugin {
                 id: .aiChat,
                 name: "AI Chat",
                 summary:
-                    "Chat through OpenRouter or hand a prompt to ChatGPT on the web, plus translate, define, and proofread selected text.",
+                    "Chat through OpenRouter or hand a prompt to ChatGPT on the web, plus define and proofread selected text.",
                 systemImage: "sparkles",
                 tint: .purple,
                 settingsPlacement: .application),
@@ -41,7 +37,6 @@ enum AIChatPlugin {
             permissions: [.accessibility],
             shortcutActions: [
                 PluginActionRegistration(key: .openAIChat, perform: open),
-                PluginActionRegistration(key: .translateSelectedText) { runAction(.translate) },
                 PluginActionRegistration(key: .defineSelectedText) { runAction(.define) },
                 PluginActionRegistration(key: .checkSelectedTextGrammar) { runAction(.grammar) },
             ],
@@ -49,12 +44,6 @@ enum AIChatPlugin {
                 PluginCommandRegistration(
                     id: "command:ai-chat", name: "AI Chat", systemImage: "sparkles",
                     actionKey: .openAIChat, perform: open),
-                PluginCommandRegistration(
-                    id: "command:selection-tools:translate",
-                    name: "Translate Selected Text",
-                    systemImage: "translate",
-                    actionKey: .translateSelectedText
-                ) { runCommand(.translate) },
                 PluginCommandRegistration(
                     id: "command:selection-tools:define",
                     name: "Define Selected Text",
@@ -164,7 +153,7 @@ extension AppCore {
         confirmInPalette(
             PaletteConfirmation(
                 title: "Delete \(title)?",
-                message: "This conversation is session-only and will be permanently removed.",
+                message: "This conversation will be permanently removed from synced Spotter data.",
                 actionTitle: "Delete"
             ) { [weak self] in
                 self?.aiChat.deleteCurrentSession()
@@ -211,11 +200,8 @@ extension AppCore {
         case .failure(let error):
             aiChat.showSelectionFailure(action: action, message: error.message)
         case .success(let snapshot):
-            let detectedLanguage = action == .translate
-                ? NLLanguageRecognizer.dominantLanguage(for: snapshot.text)?.rawValue : nil
             aiChat.startSelectionConversation(
-                action: action, text: snapshot.text,
-                detectedSourceLanguage: detectedLanguage)
+                action: action, text: snapshot.text)
         }
         palette.prepare(mode: .aiChat)
         showPalette(mode: .aiChat)

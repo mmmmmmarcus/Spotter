@@ -14,7 +14,10 @@ struct BackgroundTaskTests {
             }
         }
 
-        let store = BackgroundTaskStore()
+        let suiteName = "spotter.background-task.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = BackgroundTaskStore(defaults: defaults)
         let first = UUID()
         let second = UUID()
         store.begin(title: "First", id: first)
@@ -40,6 +43,30 @@ struct BackgroundTaskTests {
         check("failures are indeterminate", store.tasks.first?.progress == nil)
         store.dismiss(id: first)
         check("failed tasks dismiss", store.tasks.isEmpty)
+
+        let cancelled = UUID()
+        store.begin(title: "Cancelled", id: cancelled)
+        store.discard(id: cancelled)
+        check("feature cancellation discards a running task", store.tasks.isEmpty)
+
+        let localRunning = UUID()
+        store.begin(title: "Still running here", id: localRunning)
+        let remoteDone = BackgroundTaskItem(
+            id: UUID(), title: "Remote task", systemImage: "checkmark",
+            detail: "Finished elsewhere", progress: 1, state: .done)
+        store.replace(tasks: [remoteDone])
+        check(
+            "sync preserves a locally executing task",
+            store.tasks.map(\.id) == [localRunning, remoteDone.id])
+        let encoded = try! JSONEncoder().encode(store.tasks)
+        let decoded = try! JSONDecoder().decode([BackgroundTaskItem].self, from: encoded)
+        check("task rows round-trip through sync JSON", decoded == store.tasks)
+
+        let relaunched = BackgroundTaskStore(defaults: defaults)
+        relaunched.replace(tasks: decoded)
+        check(
+            "a relaunched owner marks orphaned work failed",
+            relaunched.tasks.first(where: { $0.id == localRunning })?.state == .failed)
 
         print(failures == 0 ? "\nBackground tasks: ALL PASSED" : "\n\(failures) FAILED")
         if failures > 0 { exit(1) }

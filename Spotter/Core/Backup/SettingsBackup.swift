@@ -1,8 +1,8 @@
 import Foundation
 
-/// A passwordless, human-readable snapshot of Spotter's configuration. Every field is optional so an import applies only the keys actually present (non-destructive merge): a partial file — or one from Raycast — leaves everything it omits untouched.
-struct SettingsBackup: Codable {
-    var version = 2
+/// A human-readable snapshot of Spotter's settings and content. Every field is optional so a manual import remains a non-destructive merge, while automatic sync treats a v3 snapshot as authoritative.
+struct SettingsBackup: Codable, Sendable {
+    var version = 3
     var settings: SettingsData?
     var hotkeys: HotkeyBackup?
     var customCommands: [CustomCommand]?
@@ -14,9 +14,16 @@ struct SettingsBackup: Codable {
     var worldClockCities: [String]?
     var quicklinks: [Quicklink]?
     var textReplacement: TextReplacementBackup?
+    var notes: NotesBackup?
+    var clipboardHistory: [ClipboardSyncItem]?
+    var calculatorHistory: [CalcHistoryEntry]?
+    var aiChat: AIChatBackup?
+    var backgroundTasks: [BackgroundTaskItem]?
+    var frequentEmoji: [FrequentEmoji]?
+    var launcherRanking: [LauncherRankingRecord]?
 
     /// Enum-backed settings are stored by raw value so the JSON stays legible and forward-compatible (an unknown value is ignored on import rather than failing the whole decode).
-    struct SettingsData: Codable {
+    struct SettingsData: Codable, Sendable {
         var clipboardRetentionDays: Int?
         var clipboardDisabledApps: [String]?
         var launchAtLogin: Bool?
@@ -36,14 +43,16 @@ struct SettingsBackup: Codable {
         var lockInputToEnglish: Bool?
         // The key is the OpenRouter gate (owner decision): importing or syncing a file that carries one activates the AI path on this Mac.
         var openRouterAPIKey: String?
-        var openRouterTranslationModel: String?
         var openRouterDefinitionModel: String?
         var openRouterGrammarModel: String?
         var openRouterChatModel: String?
         var openRouterChatWebSearch: Bool?
+        var googleTranslationAPIKey: String?
+        var googleTranslationEnabled: Bool?
+        var updateAutoCheckEnabled: Bool?
     }
 
-    struct HotkeyBackup: Codable {
+    struct HotkeyBackup: Codable, Sendable {
         var togglePalette: HotKeyBinding?
         // Legacy per-action fields, read on import only; `pluginActions` supersedes both on export.
         var toggleClipboard: HotKeyBinding?
@@ -56,8 +65,8 @@ struct SettingsBackup: Codable {
     }
 
     /// Per-plugin preferences that live in raw bundle-scoped `UserDefaults`. Gathered as effective values (defaults resolved), so a synced Mac lands on exactly what the source Mac shows.
-    struct PluginPrefs: Codable {
-        struct ChangeCase: Codable {
+    struct PluginPrefs: Codable, Sendable {
+        struct ChangeCase: Codable, Sendable {
             var source: String?
             var primaryAction: String?
             var preserveCase: Bool?
@@ -69,7 +78,7 @@ struct SettingsBackup: Codable {
             var recent: [String]?
             var disabled: [String]?
         }
-        struct KillProcess: Codable {
+        struct KillProcess: Codable, Sendable {
             var sort: String?
             var groupApps: Bool?
             var searchPaths: Bool?
@@ -79,24 +88,23 @@ struct SettingsBackup: Codable {
             var showPath: Bool?
             var refreshSeconds: Double?
         }
-        struct ImageModification: Codable {
+        struct ImageModification: Codable, Sendable {
             var output: String?
             var format: String?
         }
-        struct SelectionTools: Codable {
-            var translationPrompt: String?
+        struct SelectionTools: Codable, Sendable {
             var definitionPrompt: String?
             var grammarPrompt: String?
         }
-        struct Caffeinate: Codable {
+        struct Caffeinate: Codable, Sendable {
             var keepsDisplayAwake: Bool?
             var keepsDiskAwake: Bool?
         }
-        struct WindowManagement: Codable {
+        struct WindowManagement: Codable, Sendable {
             var gap: Int?
             var cycleOnRepeat: Bool?
         }
-        struct Mole: Codable {
+        struct Mole: Codable, Sendable {
             // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
             var binaryPath: String?
         }
@@ -109,19 +117,35 @@ struct SettingsBackup: Codable {
         var mole: Mole?
     }
 
-    struct TextReplacementBackup: Codable {
+    struct TextReplacementBackup: Codable, Sendable {
         var prefix: String?
         var rules: [TextReplacementRule]?
     }
 
+    struct NotesBackup: Codable, Sendable {
+        var notes: [SpotterNote]
+        var selectedID: UUID?
+    }
+
+    struct AIChatBackup: Codable, Sendable {
+        var sessions: [AIChatSession]
+        var currentID: UUID?
+    }
+
+    enum ApplyMode: Sendable {
+        case merge
+        case replace
+    }
+
     /// A tally of what an import touched, for user-facing confirmation.
-    struct ApplySummary {
+    struct ApplySummary: Sendable {
         var settingsFields = 0
         var hotkeys = 0
         var favorites = 0
         var hiddenItems = 0
         var customCommands = 0
         var plugins = 0
+        var contentCollections = 0
     }
 }
 
@@ -129,7 +153,7 @@ struct SettingsBackup: Codable {
 
 @MainActor
 extension SettingsBackup {
-    static func gather(from core: AppCore = .shared) -> SettingsBackup {
+    static func gather(from core: AppCore = .shared) async -> SettingsBackup {
         let s = core.settings
         var backup = SettingsBackup()
         backup.settings = SettingsData(
@@ -151,12 +175,14 @@ extension SettingsBackup {
             openOnCursorScreen: s.openOnCursorScreen,
             remembersPalettePosition: s.remembersPalettePosition,
             lockInputToEnglish: s.lockInputToEnglish,
-            openRouterAPIKey: core.openRouter.apiKey.isEmpty ? nil : core.openRouter.apiKey,
-            openRouterTranslationModel: core.openRouter.translationModel,
+            openRouterAPIKey: core.openRouter.apiKey,
             openRouterDefinitionModel: core.openRouter.definitionModel,
             openRouterGrammarModel: core.openRouter.grammarModel,
             openRouterChatModel: core.openRouter.chatModel,
-            openRouterChatWebSearch: core.openRouter.chatWebSearch)
+            openRouterChatWebSearch: core.openRouter.chatWebSearch,
+            googleTranslationAPIKey: core.selectionTools.apiKey,
+            googleTranslationEnabled: core.selectionTools.isTranslationEnabled,
+            updateAutoCheckEnabled: core.updates.autoCheckEnabled)
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -193,6 +219,14 @@ extension SettingsBackup {
         backup.textReplacement = TextReplacementBackup(
             prefix: core.textReplacements.prefix,
             rules: core.textReplacements.rules)
+        backup.notes = NotesBackup(notes: core.notes.notes, selectedID: core.notes.selectedID)
+        backup.clipboardHistory = await core.clipboardStore.syncSnapshot()
+        backup.calculatorHistory = core.calcHistory.entries
+        backup.aiChat = AIChatBackup(
+            sessions: core.aiChat.sessions, currentID: core.aiChat.currentID)
+        backup.backgroundTasks = core.backgroundTasks.tasks
+        backup.frequentEmoji = core.frequentEmoji.records
+        backup.launcherRanking = core.launcherRanking.records
         return backup
     }
 
@@ -234,7 +268,6 @@ extension SettingsBackup {
                 ?? ImageOutputLocation.alongside.rawValue,
             format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
         prefs.selectionTools = PluginPrefs.SelectionTools(
-            translationPrompt: core.aiChat.translationPrompt,
             definitionPrompt: core.aiChat.definitionPrompt,
             grammarPrompt: core.aiChat.grammarPrompt)
         prefs.caffeinate = PluginPrefs.Caffeinate(
@@ -249,16 +282,18 @@ extension SettingsBackup {
     }
 
     @discardableResult
-    func apply(to core: AppCore = .shared) -> ApplySummary {
+    func apply(to core: AppCore = .shared, mode: ApplyMode = .merge) async -> ApplySummary {
         var summary = ApplySummary()
-        if let s = settings { summary.settingsFields = applySettings(s, to: core) }
+        if let s = settings {
+            summary.settingsFields = applySettings(s, to: core, mode: mode)
+        }
         if let pluginStates {
             summary.plugins = core.plugins.applyEnabledStates(pluginStates)
         }
         if let customCommands {
             summary.customCommands = core.replaceCustomCommands(customCommands)
         }
-        if let hotkeys { summary.hotkeys = applyHotkeys(hotkeys, to: core) }
+        if let hotkeys { summary.hotkeys = applyHotkeys(hotkeys, to: core, mode: mode) }
         if let favoriteApps {
             core.favorites.replace(keys: favoriteApps)
             summary.favorites = favoriteApps.count
@@ -284,6 +319,33 @@ extension SettingsBackup {
             core.textReplacements.replace(
                 prefix: textReplacement.prefix, rules: textReplacement.rules ?? [])
             summary.settingsFields += 1
+        }
+        if let notes {
+            core.notes.replace(notes: notes.notes, selectedID: notes.selectedID)
+            summary.contentCollections += 1
+        }
+        if let clipboardHistory {
+            await core.clipboardStore.replace(with: clipboardHistory)
+            summary.contentCollections += 1
+        }
+        if let calculatorHistory {
+            core.calcHistory.replace(entries: calculatorHistory)
+            summary.contentCollections += 1
+        }
+        if let aiChat, core.aiChat.replace(sessions: aiChat.sessions, currentID: aiChat.currentID) {
+            summary.contentCollections += 1
+        }
+        if let backgroundTasks {
+            core.backgroundTasks.replace(tasks: backgroundTasks)
+            summary.contentCollections += 1
+        }
+        if let frequentEmoji {
+            core.frequentEmoji.replace(records: frequentEmoji)
+            summary.contentCollections += 1
+        }
+        if let launcherRanking {
+            core.launcherRanking.replace(records: launcherRanking)
+            summary.contentCollections += 1
         }
         return summary
     }
@@ -325,10 +387,6 @@ extension SettingsBackup {
             set(i.format, "image-modification.format")
         }
         if let selection = prefs.selectionTools {
-            if let prompt = selection.translationPrompt {
-                core.aiChat.setTranslationPrompt(prompt)
-                count += 1
-            }
             if let prompt = selection.definitionPrompt {
                 core.aiChat.setDefinitionPrompt(prompt)
                 count += 1
@@ -361,7 +419,7 @@ extension SettingsBackup {
         return count
     }
 
-    private func applySettings(_ s: SettingsData, to core: AppCore) -> Int {
+    private func applySettings(_ s: SettingsData, to core: AppCore, mode: ApplyMode) -> Int {
         let settings = core.settings
         var count = 0
         if let days = s.clipboardRetentionDays, let retention = ClipboardRetention(rawValue: days) {
@@ -437,9 +495,8 @@ extension SettingsBackup {
         if let key = s.openRouterAPIKey {
             core.openRouter.setAPIKey(key)
             count += 1
-        }
-        if let model = s.openRouterTranslationModel {
-            core.openRouter.setTranslationModel(model)
+        } else if mode == .replace && version >= 3 {
+            core.openRouter.setAPIKey("")
             count += 1
         }
         if let model = s.openRouterDefinitionModel {
@@ -458,10 +515,27 @@ extension SettingsBackup {
             core.openRouter.setChatWebSearch(webSearch)
             count += 1
         }
+        if let key = s.googleTranslationAPIKey {
+            core.selectionTools.setAPIKey(key)
+            count += 1
+        } else if mode == .replace && version >= 3 {
+            core.selectionTools.setAPIKey("")
+            count += 1
+        }
+        if let enabled = s.googleTranslationEnabled {
+            core.selectionTools.setTranslationEnabled(enabled)
+            count += 1
+        }
+        if let enabled = s.updateAutoCheckEnabled {
+            core.updates.setAutoCheck(enabled)
+            count += 1
+        }
         return count
     }
 
-    private func applyHotkeys(_ hotkeys: HotkeyBackup, to core: AppCore) -> Int {
+    private func applyHotkeys(
+        _ hotkeys: HotkeyBackup, to core: AppCore, mode: ApplyMode
+    ) -> Int {
         let hk = core.hotKeys
         var count = 0
         // Skip a binding whose combo is already claimed by an earlier-applied (or existing) action: two actions on the same key would make Carbon's second RegisterEventHotKey fail with eventHotKeyExistsErr, silently killing that shortcut. The recorder does this check interactively; imports must too.
@@ -469,6 +543,23 @@ extension SettingsBackup {
             guard hk.conflictOwner(of: s, excluding: action) == nil else { return }
             hk.setBinding(s, for: action)
             count += 1
+        }
+        if mode == .replace {
+            hk.setBinding(nil, for: .togglePalette)
+            for key in core.plugins.shortcutActions { hk.setBinding(nil, for: .plugin(key)) }
+            let remoteAppIDs = Set(hotkeys.apps?.keys.map { $0 } ?? [])
+            for id in Set(hk.boundBundleIDs).union(remoteAppIDs) {
+                hk.setBinding(nil, for: .app(bundleID: id))
+            }
+            let remotePaneIDs = Set(hotkeys.panes?.keys.map { $0 } ?? [])
+            for id in Set(hk.boundPaneBundleIDs).union(remotePaneIDs) {
+                hk.setBinding(nil, for: .settingsPane(bundleID: id))
+            }
+            let remoteCommandIDs = Set(
+                (hotkeys.customCommands?.keys.map { $0 } ?? []).compactMap(UUID.init(uuidString:)))
+            for id in Set(hk.boundCustomCommandIDs).union(remoteCommandIDs) {
+                hk.setBinding(nil, for: .customCommand(id: id))
+            }
         }
         if let s = hotkeys.togglePalette { apply(s, .togglePalette) }
         // Legacy single-action fields from older files; `pluginActions` below carries these in new exports.
@@ -479,8 +570,10 @@ extension SettingsBackup {
             for key in core.plugins.shortcutActions {
                 let currentID = "\(key.pluginID.rawValue).\(key.actionID)"
                 let legacyID: String?
-                if key.pluginID == .aiChat,
-                    ["translate", "define", "grammar"].contains(key.actionID)
+                if key.pluginID == .selectionTools, key.actionID == "translate" {
+                    legacyID = "ai-chat.translate"
+                } else if key.pluginID == .aiChat,
+                    ["define", "grammar"].contains(key.actionID)
                 {
                     legacyID = "selection-tools.\(key.actionID)"
                 } else if key.pluginID == .commands, key.actionID.hasPrefix("system.") {
@@ -495,9 +588,14 @@ extension SettingsBackup {
                 }
             }
         }
-        for (id, s) in hotkeys.apps ?? [:] { apply(s, .app(bundleID: id)) }
-        for (id, s) in hotkeys.panes ?? [:] { apply(s, .settingsPane(bundleID: id)) }
-        for (rawID, s) in hotkeys.customCommands ?? [:] {
+        for id in (hotkeys.apps?.keys.sorted() ?? []) {
+            if let binding = hotkeys.apps?[id] { apply(binding, .app(bundleID: id)) }
+        }
+        for id in (hotkeys.panes?.keys.sorted() ?? []) {
+            if let binding = hotkeys.panes?[id] { apply(binding, .settingsPane(bundleID: id)) }
+        }
+        for rawID in (hotkeys.customCommands?.keys.sorted() ?? []) {
+            guard let s = hotkeys.customCommands?[rawID] else { continue }
             guard let id = UUID(uuidString: rawID), core.customCommands.command(id: id) != nil else {
                 continue
             }
@@ -511,7 +609,7 @@ extension SettingsBackup {
 
 extension SettingsBackup {
     /// Newest format this build can interpret. Older files decode fine (every field is optional), but a newer file could carry semantics this build would silently misapply, so it is rejected instead.
-    static let supportedVersion = 2
+    static let supportedVersion = 3
 
     enum DecodeError: LocalizedError {
         case unsupportedVersion(Int)
@@ -528,6 +626,15 @@ extension SettingsBackup {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(self)
+    }
+
+    func encodedOffMain() async throws -> Data {
+        let snapshot = self
+        return try await Task.detached(priority: .utility) { try snapshot.encoded() }.value
+    }
+
+    static func decodedOffMain(_ data: Data) async throws -> SettingsBackup {
+        try await Task.detached(priority: .utility) { try SettingsBackup(json: data) }.value
     }
 
     init(json: Data) throws {

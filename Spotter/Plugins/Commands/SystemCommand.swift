@@ -48,6 +48,13 @@ struct SystemCommand: Identifiable, Hashable, Sendable {
         // Preserve the existing Quit All launcher's persisted favorite, visibility and ranking key.
         id == .quitAllApps ? "command:quit-all-apps" : "system-command:" + id.rawValue
     }
+
+    var runsInBackground: Bool {
+        switch id {
+        case .emptyTrash, .ejectAllDisks, .dismissNotifications: true
+        default: false
+        }
+    }
 }
 
 enum SystemCommandCatalog {

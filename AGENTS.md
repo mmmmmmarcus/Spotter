@@ -9,10 +9,14 @@ builds with the **Xcode 26** toolchain.
   `project.yml`. After editing `project.yml`, run `xcodegen generate` and commit. There is **no**
   `Package.swift` / SwiftPM. Full build/test/sign/release steps: [`docs/development.md`](docs/development.md),
   [`docs/signing.md`](docs/signing.md).
-- **Local build destination:** Every non-release build must finish as
-  `/Applications/Spotter.app`. Do not maintain or launch a separate `Spotter Dev.app`, and do not
-  distinguish a routine Debug build from the normal locally installed app. `project.yml` already
-  builds Debug as `Spotter.app` / `com.spotter.app`; keep it that way.
+- **Build channels and versions:** The build installed on this Mac is the **dev** channel; a public
+  release is the **stable** channel. Dev builds are never published. Dev and stable share one base
+  version: dev appends `-dev` (for example `1.4.9-dev`) while stable uses the bare version
+  (`1.4.9`).
+- **Local build destination:** Every successful new local build must be installed immediately as
+  `/Applications/Spotter.app`. Do not maintain or launch a separate `Spotter Dev.app`;
+  `project.yml` already builds Debug as `Spotter.app` / `com.spotter.app`, so keep the same product
+  name and bundle identifier across dev and stable.
 - **Replace and relaunch after every successful build.** Build into a staging/DerivedData location
   first. Only after the new app has built and passed its required checks, quit the running Spotter,
   delete the exact old `/Applications/Spotter.app`, copy the new app into `/Applications`, and launch
@@ -71,8 +75,9 @@ Never break these without an explicit task to do so.
   stops are the original design and must not drift — `Tools/theme-test.swift` pins both stops of
   every token. Rasterized art is the one exception: an `IconCache` symbol tile bakes its colors, so
   the appearance is part of its cache key and the view re-decodes on a flip.
-- **The flat `selection` index must match the visible row order exactly.** In launcher mode, background
-  tasks come first, then the inline calculator/plugin card when present, then normal results.
+- **The flat `selection` index must match the visible selectable-row order exactly.** The empty-query
+  dashboard is non-selectable; visually, background tasks sit below it and above Favorites. Among
+  selectable rows, tasks come first, then the inline calculator/plugin card, then normal results.
   Selection is the single source of truth for highlight / activation.
 - **While a footer menu is open the palette search field never resigns first responder** — input is
   frozen instead (resigning shifts the text a point or two). See [palette.md](docs/palette.md).
@@ -129,19 +134,22 @@ Never break these without an explicit task to do so.
   provider, the cadence and what leaves the machine, and its owning store must re-check consent at
   every entry point — including on both sides of the `await` around the request, since consent can
   be withdrawn mid-flight. Consent flags live on the owning store, never in `AppSettings`
-  (`SettingsBackup` mirrors that type, and an import must not grant network access). Model the gate
+  (`SettingsBackup` mirrors that type). Fresh installs remain off; explicitly trusting a sync or
+  backup file may restore consent and is itself the consent act. Model the gate
   so the *safe* state is the default: `CalcEngine.evaluate`'s `currency:` parameter defaults to
   `.off`, so forgetting to pass one disables the feature rather than enabling it. Fetch on a private
   **cacheless** `URLSession` (`.ephemeral`, `urlCache = nil`), never `URLSession.shared` — a cacheable
   response would leave a second copy in the on-disk `URLCache` that opting out doesn't delete.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
-  rather than inventing a second shape. **Deliberate exception (owner decision, Aug 2026):**
+  rather than inventing a second shape. Selection Tools' Google Translation path follows that
+  consent shape; its consent flag and API key are included in the trusted v3 backup/sync snapshot.
+  **Deliberate exception (owner decision, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
-  means no request can be made (AI Chat and its selected-text actions stay unavailable); entering the key, or syncing
+  means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing
   a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
   not copy this shape for new networked features without an explicit owner decision.
   `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a
-  consent dialog (never synced); the manual Check for Updates click is itself the consent for that
+  consent dialog and its saved choice syncs; the manual Check for Updates click is itself the consent for that
   one request. Stable and beta feeds stay channel-isolated, and installs only happen on an explicit
   click after the new bundle passes designated-requirement signature verification. See
   [`docs/updates.md`](docs/updates.md). `Core/UpdateFeed.swift` stays Foundation-only and pure for
@@ -164,6 +172,9 @@ Never break these without an explicit task to do so.
   `NSAlert`, and the card's highlight always starts on Cancel — a reflexive second ↵ must never be
   the confirmation. The one deliberate exception is Image Modification's Replace Original alert,
   which belongs to its workspace window.
+- **Potentially long one-shot work returns to the launcher as a background task.** The feature keeps
+  ownership of execution and cancellation; `BackgroundTaskStore` owns only the row snapshot. Current
+  coverage and deliberate exclusions are pinned in [`docs/background-tasks.md`](docs/background-tasks.md).
 - **Process and image mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
   executes selected process actions immediately without dismissing its palette. Image Modification's
   Convert Image command selects a target format in a second-level palette before any work starts and
@@ -177,8 +188,10 @@ Never break these without an explicit task to do so.
 - **Clipboard writes stamp a private `internalType` marker** so the poller skips Spotter's own writes.
 - **Settings sync reuses `SettingsBackup`.** The selected JSON file may live in iCloud Drive, but
   Spotter must coordinate access with `NSFileCoordinator`, observe replacement-safe file changes,
-  hot-apply only fully decoded snapshots, suppress its own write notifications, and never synchronize
-  network consent. See [`docs/settings-sync.md`](docs/settings-sync.md).
+  hot-apply only fully decoded snapshots, suppress its own write notifications, and mirror all
+  user-owned settings and content, including credentials and network consent. Only concrete palette
+  coordinates, system privacy grants and the sync file's own path/state stay device-local. See
+  [`docs/settings-sync.md`](docs/settings-sync.md).
 - **Text Replacement never records arbitrary typing or uses the clipboard.** Its matcher retains only
   a suffix that can still become a configured trigger, and its synthetic deletion/insertion events use
   the shared event-source marker so neither its own tap nor Hyper Key rewrites them.

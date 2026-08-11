@@ -38,7 +38,7 @@ Native feature modules live under `Spotter/Plugins/<Name>/` and register through
 plugin's own directory. These are source-level modules in the main target, so they retain direct native
 calls and compile-time checking without framework or runtime-loader overhead.
 
-The registry generates the Features and Plugins Settings groups, persists safe enable states, routes
+The registry generates the Features and Plugins Settings groups, persists enable states, routes
 launcher commands and shortcut actions, declares permission use, keeps a precomputed enabled
 query-provider list, and hosts plugin palette-screen registrations. AI Chat is an always-available
 application feature that reuses this wiring; Commands is a disableable plugin. See
@@ -77,15 +77,16 @@ imperatively from AppKit.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
-  Selection Tools uses this route only for explicit browser-search failures. AI Chat owns selected-text
-  translation, bilingual definition and grammar checking as ordinary follow-up-ready chat sessions.
+  Selection Tools uses this route for browser-search failures and its three-row Google translation
+  result. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
 - **Launcher dashboard** — the enabled plugin that owns `launcherDashboard` contributes one
   non-selectable view above the empty-query launcher sections. `RootPaletteView` keeps the dashboard
   inside the palette's existing scroll view and selection model; the plugin owns only its local data
   and card content, never a window or a second search field.
 - **Background tasks** — `BackgroundTaskStore` keeps long-running work visible as the launcher's
-  first selectable rows while each feature manager remains the executor. Finished rows stay until
-  dismissed; see [background-tasks.md](background-tasks.md).
+  first selectable rows, visually below the non-selectable dashboard and above Favorites, while
+  each feature manager remains the executor. Finished rows stay until dismissed; see
+  [background-tasks.md](background-tasks.md).
 
 The app follows the system appearance. Every color token lives in `Core/Theme.swift` as an
 `adaptive(dark:light:)` pair resolved through `NSColor`'s dynamic provider, so views never branch on

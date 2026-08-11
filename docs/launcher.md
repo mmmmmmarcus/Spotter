@@ -112,16 +112,19 @@ Plugin command activation routes through the registration's in-process closure; 
 
 The ranking harness covers prefix learning, frequency/recency scoring, persistence, and both reset
 paths; see the command in `development.md`.
+The bounded learned ranking records enter trusted v3 backups and automatic sync; a reset therefore
+propagates instead of being repopulated by stale records on another Mac.
 
 Icons go through a byte-capped `NSCache` (`IconCache`, 32 MB, cost = decoded bitmap bytes).
 
 ## Background tasks
 
-Long-running work is pinned above every other launcher result, including while a query is typed.
-`BackgroundTaskStore` supplies the rows; feature managers own the actual work and publish progress
-snapshots into it. The launcher's flat order is background tasks, the optional inline answer, then
-apps and commands. A running task cannot be dismissed. Done and Failed rows remain until selected
-and dismissed with Return. See [background-tasks.md](background-tasks.md).
+Long-running work is pinned below the empty-query dashboard and above Favorites; while a query is
+typed, the dashboard disappears and tasks remain above every result. `BackgroundTaskStore` supplies
+the rows; feature managers own the actual work and publish progress snapshots into it. The flat
+selectable-row order is background tasks, the optional inline answer, then apps and commands. A
+running task cannot be dismissed. Done and Failed rows remain until selected and dismissed with
+Return. See [background-tasks.md](background-tasks.md).
 
 ## Reveal in Finder
 

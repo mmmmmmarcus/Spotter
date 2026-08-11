@@ -104,6 +104,11 @@ struct RankingTest {
         reloaded.resetAll()
         check("global reset clears all learned ranking", reloaded.isEmpty)
 
+        let synced = LauncherRankingRecord(
+            itemKey: wick, query: "wi", count: 4, lastUsed: clock)
+        reloaded.replace(records: [synced])
+        check("sync replaces learned ranking", reloaded.records == [synced])
+
         // No amount of learning lets a weaker field outrank a stronger one.
         let alias = SearchFields(names: ["ChatGPT"], alternateNames: ["Codex"])
         let displayName = SearchFields(names: ["Codex Viewer"])

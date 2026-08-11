@@ -1,6 +1,17 @@
 import Foundation
 import ImageIO
 
+private final class ImageProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [(Int, Int, String)] = []
+
+    func append(_ value: (Int, Int, String)) {
+        lock.withLock { values.append(value) }
+    }
+
+    var snapshots: [(Int, Int, String)] { lock.withLock { values } }
+}
+
 @main
 struct ImageModificationTests {
     static func main() {
@@ -57,10 +68,18 @@ struct ImageModificationTests {
 
         create.operation = .convert
         create.format = .jpeg
+        let progress = ImageProgressRecorder()
         let converted = try! ImageModificationEngine.process(
-            request: create, inputs: [created], temporaryDirectory: directory)[0].output
+            request: create, inputs: [created], temporaryDirectory: directory
+        ) { completed, total, input in
+            progress.append((completed, total, input?.lastPathComponent ?? ""))
+        }[0].output
         precondition(converted.pathExtension == ImageFormat.jpeg.fileExtension)
         precondition(sourceType(converted) == ImageFormat.jpeg.uniformType)
+        let snapshots = progress.snapshots
+        precondition(snapshots.count == 1)
+        precondition(snapshots[0].0 == 1 && snapshots[0].1 == 1)
+        precondition(snapshots[0].2 == created.lastPathComponent)
         print("Image Modification: ALL PASSED")
     }
 

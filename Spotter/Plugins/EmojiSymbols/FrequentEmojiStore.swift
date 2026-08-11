@@ -64,6 +64,28 @@ final class FrequentEmojiStore: ObservableObject {
         return Array(sorted.prefix(n))
     }
 
+    /// Full-state replacement normalizes to one positive tally per base glyph.
+    func replace(records newRecords: [FrequentEmoji]) {
+        var byGlyph: [String: FrequentEmoji] = [:]
+        for record in newRecords where !record.glyph.isEmpty && record.count > 0 {
+            if let previous = byGlyph[record.glyph] {
+                byGlyph[record.glyph] = FrequentEmoji(
+                    glyph: record.glyph, count: max(previous.count, record.count),
+                    lastUsed: max(previous.lastUsed, record.lastUsed))
+            } else {
+                byGlyph[record.glyph] = record
+            }
+        }
+        records = Array(
+            byGlyph.values
+                .sorted {
+                    $0.count != $1.count ? $0.count > $1.count : $0.lastUsed > $1.lastUsed
+                }
+                .prefix(Self.cap))
+        sortedGlyphs = nil
+        persist()
+    }
+
     private func persist() {
         if let data = try? JSONEncoder().encode(records) {
             try? data.write(to: fileURL, options: .atomic)

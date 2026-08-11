@@ -330,7 +330,7 @@ private struct OpenRouterSettingsCard: View {
     private var keySubtitle: String {
         switch store.validation {
         case .unknown:
-            "Required for AI Chat, including selected-text translation, definition and grammar. "
+            "Required for AI Chat, including selected-text definition and grammar. "
                 + "Included in settings backups and sync."
         case .checking: "Checking key with \(OpenRouterStore.provider)…"
         case .valid(let detail): detail

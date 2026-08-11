@@ -47,7 +47,7 @@ enum SelectedTextCaptureFailure: Error, Equatable, Sendable {
     }
 }
 
-/// Shared selected-text capture for Selection Tools search and AI Chat's selected-text actions.
+/// Shared capture for Selection Tools search/translation and AI Chat's selected-text actions.
 /// `AppCore` owns the instance because both plugins use the same clipboard-history suppression hooks.
 @MainActor
 final class SelectedTextCapture {

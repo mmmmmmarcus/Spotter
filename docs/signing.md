@@ -2,8 +2,8 @@
 
 Spotter uses two signing identities for two different purposes:
 
-- Debug builds use the stable self-signed `Spotter Self-Signed` identity. This lets every contributor
-  build locally while keeping Accessibility and Input Monitoring grants stable across rebuilds.
+- Debug builds are local `-dev` versions signed with the stable self-signed `Spotter Self-Signed`
+  identity. This keeps Accessibility and Input Monitoring grants stable across rebuilds.
 - Release builds use `Developer ID Application: Round Technology (Shanghai) Co.,Ltd (SM96W8VVK9)`,
   enable Hardened Runtime, include a secure timestamp and are notarized by Apple.
 

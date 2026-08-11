@@ -7,7 +7,7 @@ struct LauncherList: View {
     let showSections: Bool
     /// Changes only when the list should scroll (keyboard nav / reset), so mouse selection never yanks the scroll position.
     let scroll: ScrollIntent
-    /// Long-running work stays pinned above every launcher result until the user dismisses it.
+    /// Long-running work sits below the dashboard and above every selectable launcher result.
     var backgroundTasks: [BackgroundTaskItem] = []
     /// Inline calculator/plugin answer; follows any background-task rows.
     var inline: PaletteInlineResult?
@@ -87,6 +87,10 @@ struct LauncherList: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
+                            if let dashboard {
+                                dashboard
+                                    .padding(.bottom, Theme.Spacing.md)
+                            }
                             if !backgroundTasks.isEmpty {
                                 SectionHeader(title: "Background Tasks", isFirst: true)
                                 ForEach(backgroundTasks) { task in
@@ -96,11 +100,6 @@ struct LauncherList: View {
                                     .contentShape(Rectangle())
                                     .onTapGesture { onActivateTask(task) }
                                 }
-                            }
-                            if let dashboard {
-                                dashboard
-                                    .padding(.top, backgroundTasks.isEmpty ? 0 : Theme.Spacing.sectionSpacing)
-                                    .padding(.bottom, Theme.Spacing.md)
                             }
                             ForEach(rows) { row in
                                 switch row {

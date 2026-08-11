@@ -4,7 +4,7 @@ Enabled by default; registration declares the Automation permission (for reading
 so it appears in System → Permissions. The output-location and format preferences sync through
 `SettingsBackup.PluginPrefs.ImageModification`. The Replace Original confirmation is the one dialog
 that deliberately stays a window-modal alert: it belongs to the Image Modification workspace, not the
-palette. plugin
+palette.
 
 Image Modification is the native counterpart of Raycast's Image Modification (`sips`) extension. Its
 launcher commands run immediately without opening a plugin workspace. They cover filtering,
@@ -27,12 +27,16 @@ application and uses the macOS Automation grant. Operations run in a detached ta
 Image, Vision and ImageIO; no JS runtime, helper daemon or network request is involved. Vision's
 foreground mask powers background removal.
 
+After inputs and any Replace Original confirmation are resolved, every operation returns Spotter to
+the launcher and starts a background-task row. Multi-image batches update the row after each output;
+Done or Failed remains visible until dismissed. Cancelling before input or confirmation creates no
+row, while disabling the plugin discards its running row.
+
 Outputs can be written beside the original, to Desktop or Downloads, opened in Preview, copied to the
 clipboard, or used to replace the original. Replace Original always confirms the resolved batch count.
 When Beside Original has no durable original, Create Image opens its result in Preview and copied pixel
 data is replaced with the processed result on the clipboard.
-Temporary clipboard/Preview output lives under the current bundle identifier's cache directory, so
-Debug, beta and stable channels remain isolated.
+Temporary clipboard/Preview output lives under the current bundle identifier's cache directory.
 
 Spotter exposes ImageIO's full native writable set: JPEG, PNG, GIF, TIFF, JPEG 2000, ATX, KTX/KTX2,
 ASTC, DDS, HEIC/HEICS, AVIF, ICO, BMP, ICNS, PSD, PDF, TGA, EXR, PBM and PVR. macOS may decode

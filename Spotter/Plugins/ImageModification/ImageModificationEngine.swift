@@ -8,16 +8,20 @@ enum ImageModificationEngine {
     private static let context = CIContext(options: [.cacheIntermediates: false])
 
     static func process(
-        request: ImageModificationRequest, inputs: [URL], temporaryDirectory: URL
+        request: ImageModificationRequest, inputs: [URL], temporaryDirectory: URL,
+        progress: (@Sendable (_ completed: Int, _ total: Int, _ input: URL?) -> Void)? = nil
     ) throws -> [ImageModificationResult] {
         if request.operation == .create {
             let image = try create(request)
             let destination = destinationURL(request: request, input: nil, temporaryDirectory: temporaryDirectory)
             try write(image, to: destination, format: request.format, quality: request.quality)
+            progress?(1, 1, nil)
             return [ImageModificationResult(input: nil, output: destination)]
         }
         guard !inputs.isEmpty else { throw ImageModificationFailure.noInput }
-        return try inputs.map { input in
+        var results: [ImageModificationResult] = []
+        results.reserveCapacity(inputs.count)
+        for (index, input) in inputs.enumerated() {
             guard let image = read(input) else {
                 throw ImageModificationFailure.cannotRead(input.lastPathComponent)
             }
@@ -32,8 +36,10 @@ enum ImageModificationEngine {
                 try write(outputImage, to: destination, format: format, quality: request.quality)
                 if request.output == .replace { try FileManager.default.removeItem(at: input) }
             }
-            return ImageModificationResult(input: input, output: destination)
+            results.append(ImageModificationResult(input: input, output: destination))
+            progress?(index + 1, inputs.count, input)
         }
+        return results
     }
 
     private static func read(_ url: URL) -> CIImage? {

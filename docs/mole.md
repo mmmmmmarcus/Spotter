@@ -80,7 +80,8 @@ the confirmation:
 - Admin-only system caches are skipped: Mole asks for sudo on a TTY, and there isn't one.
 
 After confirmation, Spotter creates a launcher background task and returns to a fresh launcher root.
-The task stays above every result while Mole runs, even if the palette is closed or the query changes.
+The task sits below Dashboard Widgets and above Favorites, then stays above searched results while
+Mole runs, even if the palette is closed or the query changes.
 Clean, Optimize and Purge use the preview item count as a progress estimate; Uninstall stays
 indeterminate and reports its latest streamed status rather than inventing a percentage. Closing the
 palette cancels and interrupts a *preview* but never a run — a half-cleaned machine is worse than a

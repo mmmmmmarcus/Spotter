@@ -59,6 +59,16 @@ final class CalculatorHistoryStore: ObservableObject {
         persist()
     }
 
+    /// Full-state replacement keeps the cap load-bearing even for a hand-edited sync file.
+    func replace(entries newEntries: [CalcHistoryEntry]) {
+        entries = Array(
+            newEntries
+                .filter { !$0.expression.isEmpty && !$0.result.isEmpty }
+                .sorted { $0.createdAt > $1.createdAt }
+                .prefix(Self.cap))
+        persist()
+    }
+
     /// Case-insensitive substring match over both sides of each calculation.
     func search(_ query: String) -> [CalcHistoryEntry] {
         let q = query.trimmingCharacters(in: .whitespaces)

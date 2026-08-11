@@ -268,6 +268,46 @@ final class AppCore: ObservableObject {
             }
         }
 
+        imageModification.onTaskStarted = { [weak self] operation, count in
+            guard let self else { return UUID() }
+            let noun = count == 1 ? "image" : "images"
+            let taskID = self.backgroundTasks.begin(
+                title: operation.title, detail: "Processing \(count) \(noun)…",
+                systemImage: operation.systemImage)
+            self.palette.prepare(mode: .launcher)
+            self.showPalette(mode: .launcher)
+            return taskID
+        }
+        imageModification.onTaskProgress = { [weak self] taskID, detail, progress in
+            self?.backgroundTasks.update(id: taskID, detail: detail, progress: progress)
+        }
+        imageModification.onTaskFinished = { [weak self] taskID, succeeded, detail in
+            if succeeded {
+                self?.backgroundTasks.complete(id: taskID, detail: detail)
+            } else {
+                self?.backgroundTasks.fail(id: taskID, detail: detail)
+            }
+        }
+        imageModification.onTaskCancelled = { [weak self] taskID in
+            self?.backgroundTasks.discard(id: taskID)
+        }
+
+        aiChat.onRequestStarted = { [weak self] sessionTitle in
+            self?.backgroundTasks.begin(
+                title: "Asking Spotter AI", detail: "Waiting for \(sessionTitle)…",
+                systemImage: "sparkles") ?? UUID()
+        }
+        aiChat.onRequestFinished = { [weak self] taskID, succeeded, detail in
+            if succeeded {
+                self?.backgroundTasks.complete(id: taskID, detail: detail)
+            } else {
+                self?.backgroundTasks.fail(id: taskID, detail: detail)
+            }
+        }
+        aiChat.onRequestCancelled = { [weak self] taskID in
+            self?.backgroundTasks.discard(id: taskID)
+        }
+
         // Terminate through NSApp so applicationWillTerminate still runs (Hyper Key remap cleanup) before the relaunch helper brings the new build up.
         updates.terminateForRelaunch = { NSApp.terminate(nil) }
         updates.start()
@@ -552,20 +592,35 @@ final class AppCore: ObservableObject {
                     actionTitle: "Run",
                     isDestructive: false
                 ) { [weak self] in
-                    self?.hidePalette(restoreFocus: false)
                     self?.executeCustomCommand(command)
                 })
             return
         }
-        if windowController.isVisible { hidePalette(restoreFocus: false) }
         executeCustomCommand(command)
     }
 
     private func executeCustomCommand(_ command: CustomCommand) {
+        let taskID = backgroundTasks.begin(
+            title: command.name, detail: "Running command…", systemImage: "terminal")
+        palette.prepare(mode: .launcher)
+        showPalette(mode: .launcher)
         Task {
             let outcome = await ShellCommandRunner.run(
                 command.command, loadingShellEnvironment: command.loadsShellEnvironment)
-            guard outcome != .success else { return }
+            guard outcome != .success else {
+                backgroundTasks.complete(id: taskID, detail: "Command finished.")
+                return
+            }
+            let detail: String
+            switch outcome {
+            case .success:
+                detail = "Command finished."
+            case .launchFailure:
+                detail = "The shell could not be started."
+            case .nonZeroExit(let status, _):
+                detail = "Command exited with status \(status)."
+            }
+            backgroundTasks.fail(id: taskID, detail: detail)
             AppLog.error("custom-commands", "“\(command.name)” failed: \(outcome)")
             self.presentCustomCommandFailure(command: command, outcome: outcome)
         }
