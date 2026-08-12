@@ -105,9 +105,8 @@ struct PermissionsSettingsView: View {
 
     private var automationSubtitle: String {
         let names = plugins.features(requiring: .automation).map(\.name).joined(separator: ", ")
-        return names.isEmpty
-            ? "No feature currently declares this permission."
-            : "Used by \(names) to control another application after you run a command."
+        let featureText = names.isEmpty ? "launcher actions" : "launcher actions and \(names)"
+        return "Used by \(featureText) to control another application only after you choose an action."
     }
 
     private var calendarStatusBadge: some View {

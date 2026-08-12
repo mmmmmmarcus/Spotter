@@ -56,7 +56,9 @@ work, so closing the palette leaves no minute timer or EventKit fetch running.
 The flat `selection` index is the single source of truth for highlight / activation and **must always
 match the visible selectable-row order**. The empty-query dashboard is non-selectable and renders
 above background tasks; tasks still occupy the first indices, followed by the optional inline
-calculator/plugin card, then app and command results. See
+calculator/plugin card, then app and command results. Every non-empty launcher query appends four
+destination rows as the final result slice: AI Chat, ChatGPT web, Terminal and Finder file search.
+See
 [background-tasks.md](background-tasks.md) and [calculator.md](calculator.md).
 
 In launcher mode an enabled plugin query provider may claim the inline card instead. The registry

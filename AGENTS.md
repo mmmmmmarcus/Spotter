@@ -118,7 +118,10 @@ Never break these without an explicit task to do so.
   `Core/CustomCommand.swift` and `Core/ShellCommandRunner.swift` must likewise stay free of AppKit /
   SwiftUI (Foundation plus Combine for `ObservableObject` and Darwin for `mkstemp`) so
   `Tools/custom-command-test.swift` can compile them standalone — which is why the custom-command
-  confirmation gate lives in `AppCore` and not in the runner.
+  confirmation gate lives in `AppCore` and not in the runner. `Core/LauncherFallback.swift` and
+  `Core/TerminalCommandRunner.swift` also stay Foundation-only for
+  `Tools/launcher-fallback-test.swift`; the latter passes user input as one `osascript` argv value,
+  never interpolated AppleScript source.
 - **`Core/SearchRelevance.swift` stays Foundation-only and pure** — `Tools/fuzz-test.swift` compiles
   the real scorer, so there is no copy to keep in sync (the old mirrored-`FuzzyMatch` invariant is
   retired). `Core/SpotlightNames.swift` owns the only Spotlight read; keep its per-bundle

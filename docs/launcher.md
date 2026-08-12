@@ -126,6 +126,21 @@ selectable-row order is background tasks, the optional inline answer, then apps 
 running task cannot be dismissed. Done and Failed rows remain until selected and dismissed with
 Return. See [background-tasks.md](background-tasks.md).
 
+## Query destinations
+
+Every non-empty launcher query appends four explicit `Try With` rows after its normal results: send to
+Spotter's AI Chat, send to ChatGPT on the web, run in Terminal, and search files in Finder. If there
+are no normal or inline results, this group replaces the empty state. These are transient rows backed
+by the current query; they never enter the app index, ranking, favorites, visibility settings or
+command registry.
+
+In the flat selection order the rows follow background tasks, the optional inline answer, and every
+app/command match. AI Chat reuses the normal fresh-session send path and preserves the draft when no
+OpenRouter key is configured. ChatGPT reuses the encoded web handoff. Terminal receives the command
+as one `osascript` argv value and executes it in a new Terminal shell only after the user activates
+that row; file search uses macOS's native Finder search. Both external-app actions dismiss Spotter
+without restoring focus.
+
 ## Reveal in Finder
 
 Application and System Settings results expose **Show in Finder** in their ⌘K Actions menu and on

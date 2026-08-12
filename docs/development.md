@@ -83,6 +83,9 @@ swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift Tools/fuzz-test.swift
 swiftc -swift-version 6 Spotter/Core/LauncherRankingStore.swift \
     Spotter/Core/SearchRelevance.swift Tools/ranking-test.swift \
     -o /tmp/ranking-test && /tmp/ranking-test                      # learned launcher ranking
+swiftc -swift-version 6 Spotter/Core/LauncherFallback.swift \
+    Spotter/Core/TerminalCommandRunner.swift Tools/launcher-fallback-test.swift \
+    -o /tmp/launcher-fallback-test && /tmp/launcher-fallback-test  # query destinations + safe Terminal argv
 swiftc Spotter/Core/Calculator/*.swift \
     Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
     Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift Tools/calc-test.swift \
@@ -167,6 +170,9 @@ formatting and saved-city checks never depend on the wall clock or the user's pr
 
 The Background Tasks harness checks newest-first ordering, progress clamping, terminal-state
 retention, sync encoding, relaunch interruption and the invariant that a running task cannot be dismissed.
+
+The Launcher Fallbacks harness pins the four query destinations and verifies that arbitrary shell
+text reaches Terminal as one exact `osascript` argument rather than interpolated AppleScript source.
 
 The Dashboard Widgets harness compiles the real Foundation-only engine. It pins widget preference
 fallbacks, calendar-account/all-day filtering, time-zone resolution and the local Codex/CodexBar

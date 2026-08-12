@@ -14,6 +14,10 @@ palette menu in chat mode lists sessions newest-first (titled by their first use
 derive-don't-ask rule) plus New Session (also **⌘N** anywhere in chat), and the ⌘K menu adds Delete
 Session.
 
+Every non-empty launcher query also exposes those same two destinations in a final `Try With` group,
+after any normal results. Activating AI Chat follows the fresh-session Tab path; activating ChatGPT
+follows the Shift-Tab web handoff.
+
 AI Chat is an always-available system feature shown in Settings → System, but remains inert
 without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
 or syncing a key is the consent act). AI Chat also owns Define and Check Grammar for selected text;

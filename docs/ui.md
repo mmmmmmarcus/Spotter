@@ -168,6 +168,11 @@ It uses the same `cardFill`/`cardStroke` language as calculator cards, but it re
 non-selectable surface: keyboard selection starts at the first task when one exists, otherwise the
 first normal launcher result.
 
+Every typed launcher query ends with a `Try With` section after its normal results; when none exist,
+the section replaces the centered empty state. Its four selectable destination rows use the same row
+insets, selection-over-hover fill and leading 24pt symbol slot as normal results; their trailing
+labels name the destination.
+
 ---
 
 ## Liquid Glass — `Theme.frosted(in:)`, `Features/PopoverMenu.swift`

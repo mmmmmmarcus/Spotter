@@ -12,6 +12,7 @@
 		04360F63BDEE30C1925F805B /* ImageModificationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57737D17272961EF0A264675 /* ImageModificationPlugin.swift */; };
 		04BD0C95C5A98DB1E9B4122D /* CurrencyConversionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6919806BEBF9D1E830E9E0A /* CurrencyConversionSettingsView.swift */; };
 		0527FC6AB7CD093420A9CEA3 /* SelectionToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */; };
+		05B869933FF72958D085019A /* TerminalCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E0FCA72B3EF5C8E00F2ED6 /* TerminalCommandRunner.swift */; };
 		05E166214EB13354668D8FE3 /* TextReplacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AF8927AABC43F0F4697DEA /* TextReplacementEngine.swift */; };
 		0786DFECE4F2486AFEF16653 /* BackgroundTaskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53812463933BC7F47104B76B /* BackgroundTaskStore.swift */; };
 		084DC68B54BF150103E64881 /* ScrollIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86BA65B8DEE192723E55849 /* ScrollIntent.swift */; };
@@ -45,6 +46,7 @@
 		2B4F9D37E9833D15ACD74ECF /* PaletteWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */; };
 		2BC09BC8D0D49669D427471C /* SystemCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E196A0B64D45C449593C4989 /* SystemCommand.swift */; };
 		2D6A4987B4236BAEE8EFAEE3 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC5F2AA5E4C20EC212A2749 /* GeneralSettingsView.swift */; };
+		2E65CBDE4E58A89065A8A832 /* LauncherFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33991D52E55CC9584A33759 /* LauncherFallback.swift */; };
 		2FF224FDF812F1CB95F0587A /* AppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E060D21F511407E080FA1D1 /* AppLauncher.swift */; };
 		303E1C83902774D76B5FE70A /* SearchRelevance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA84AA9CB27934A7E346142 /* SearchRelevance.swift */; };
 		31BAEAEA3C34CE65BF4F0518 /* NotificationToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669FECA0B11D71E765DC0F0D /* NotificationToken.swift */; };
@@ -169,6 +171,7 @@
 		E591CD83E6A221D17006D15F /* CustomCommandsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D135D36FA8D234DA6418AA42 /* CustomCommandsSettingsView.swift */; };
 		EA2CF1863220F2B985AC16D3 /* SettingsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914090CD864C4A06E091CB49 /* SettingsRootView.swift */; };
 		EABCAF4A8BE13B037FC861E5 /* CalculatorHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C94EBE4ECBE73CE017D8F24 /* CalculatorHistoryStore.swift */; };
+		EB0C4F02103548E77E6F2139 /* LauncherFallbackActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AFF3EF0C5EF7422975327E3 /* LauncherFallbackActions.swift */; };
 		EBE65BC33FCDC1737D14B6D1 /* ImageThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964BE9F71D0D45A8468D1F47 /* ImageThumbnail.swift */; };
 		ED923F28872F6617E3450021 /* EmojiGridGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72ACEB329C570B413A7A395 /* EmojiGridGeometry.swift */; };
 		EDC4675DB0C64B520EBEFD8E /* PluginPaletteList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D7FC8027F35E0F0E397BC7 /* PluginPaletteList.swift */; };
@@ -202,6 +205,7 @@
 		07B954546DFCF752D02810A5 /* WindowCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCommand.swift; sourceTree = "<group>"; };
 		080980BFAF7DEB7943384341 /* QuicklinksSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinksSettingsView.swift; sourceTree = "<group>"; };
 		08EFDC39436C21336F87FBB6 /* KillProcessPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KillProcessPlugin.swift; sourceTree = "<group>"; };
+		0AFF3EF0C5EF7422975327E3 /* LauncherFallbackActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherFallbackActions.swift; sourceTree = "<group>"; };
 		0B021648C18367106C234D3C /* RaycastImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastImport.swift; sourceTree = "<group>"; };
 		0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRankingStore.swift; sourceTree = "<group>"; };
 		0C8ACF3052CC0B630FA4B2AF /* QuicklinkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkStore.swift; sourceTree = "<group>"; };
@@ -329,6 +333,8 @@
 		C0D7FC8027F35E0F0E397BC7 /* PluginPaletteList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginPaletteList.swift; sourceTree = "<group>"; };
 		C17AE76ADC7A9EC2466F6587 /* ClipboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardView.swift; sourceTree = "<group>"; };
 		C1DCDA3DDA71EB23010C3B83 /* QuicklinksPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinksPlugin.swift; sourceTree = "<group>"; };
+		C33991D52E55CC9584A33759 /* LauncherFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherFallback.swift; sourceTree = "<group>"; };
+		C4E0FCA72B3EF5C8E00F2ED6 /* TerminalCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalCommandRunner.swift; sourceTree = "<group>"; };
 		C56565B07BE5151D843D54F5 /* EmojiSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSettingsView.swift; sourceTree = "<group>"; };
 		C56CDF128216DD71A2A2C54D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandHUD.swift; sourceTree = "<group>"; };
@@ -709,6 +715,8 @@
 				964BE9F71D0D45A8468D1F47 /* ImageThumbnail.swift */,
 				8D60D7E8BF89AC9EB221093E /* InputSourceLock.swift */,
 				25F3DB0D82605F0450E69E57 /* LaunchAtLogin.swift */,
+				C33991D52E55CC9584A33759 /* LauncherFallback.swift */,
+				0AFF3EF0C5EF7422975327E3 /* LauncherFallbackActions.swift */,
 				0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */,
 				669FECA0B11D71E765DC0F0D /* NotificationToken.swift */,
 				7B2B1D180CB11167DFD22ECF /* OnboardingState.swift */,
@@ -728,6 +736,7 @@
 				52F1BEC5DCAE51044D8182BC /* SettingsPaneScanner.swift */,
 				7441AEA90EAD88A1E78D22C0 /* ShellCommandRunner.swift */,
 				EDE5E4F4A4A0EB8523394BB4 /* SpotlightNames.swift */,
+				C4E0FCA72B3EF5C8E00F2ED6 /* TerminalCommandRunner.swift */,
 				10D143CDE86259528CFC5F56 /* Theme.swift */,
 				1D58C310CD39C89001E71E53 /* ThinScrollbar.swift */,
 				80B34460791F6B79BDE3717A /* UpdateFeed.swift */,
@@ -992,6 +1001,8 @@
 				2885DDD8BA81D3F07E7443E1 /* KillProcessPlugin.swift in Sources */,
 				DCA953DAB2F8D15F72B8E225 /* KillProcessSettingsView.swift in Sources */,
 				A1F4D1C65D235F6A73EF5747 /* LaunchAtLogin.swift in Sources */,
+				2E65CBDE4E58A89065A8A832 /* LauncherFallback.swift in Sources */,
+				EB0C4F02103548E77E6F2139 /* LauncherFallbackActions.swift in Sources */,
 				BDAA91D3A56013BB740673D9 /* LauncherRankingStore.swift in Sources */,
 				B4A5B407BC1F9D8B6870D0D5 /* LauncherView.swift in Sources */,
 				3410D4A4451ABC6AC439C246 /* MoleManager.swift in Sources */,
@@ -1056,6 +1067,7 @@
 				2BC09BC8D0D49669D427471C /* SystemCommand.swift in Sources */,
 				52755379C29E05805247B689 /* SystemCommandRunner.swift in Sources */,
 				14FCE1F0B754D1A9776E4E34 /* SystemCommandsIntegration.swift in Sources */,
+				05B869933FF72958D085019A /* TerminalCommandRunner.swift in Sources */,
 				05E166214EB13354668D8FE3 /* TextReplacementEngine.swift in Sources */,
 				B7504CE4426D4843BEF4C07A /* TextReplacementManager.swift in Sources */,
 				2B010F5FD9357CDF4CDCA8F7 /* TextReplacementPlugin.swift in Sources */,
@@ -1137,7 +1149,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.11;
+				MARKETING_VERSION = 1.4.12;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1209,7 +1221,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.11;
+				MARKETING_VERSION = 1.4.12;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

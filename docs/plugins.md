@@ -247,7 +247,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   and shortcuts, but cannot be disabled and does not export an enable state. It remains inert without
   the shared OpenRouter key for Spotter-hosted replies. Tab sends a typed query through OpenRouter;
   Shift-Tab opens the same query at `https://chatgpt.com/?q=…` in the default browser. Selected-text
-  definition and grammar checks start follow-up-ready conversations.
+  definition and grammar checks start follow-up-ready conversations. The launcher's final query
+  destination rows reuse both paths without adding registry commands.
 - **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature
   shown under Settings → System. It adds independently toggleable local time, next calendar event and
   Claude Code/Codex quota cards above the empty launcher. The clock supports an explicit time zone;

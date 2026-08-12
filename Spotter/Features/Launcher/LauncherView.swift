@@ -13,30 +13,40 @@ struct LauncherList: View {
     var inline: PaletteInlineResult?
     /// Non-selectable plugin dashboard shown only for an empty launcher query.
     var dashboard: AnyView?
+    /// Explicit destinations appended after the normal results of every typed query.
+    var fallbacks: [LauncherFallback] = []
     var selectedTaskID: BackgroundTaskItem.ID?
     var inlineSelected = false
+    var selectedFallbackID: LauncherFallback.ID?
     var onActivateTask: (BackgroundTaskItem) -> Void = { _ in }
     var onActivateInline: () -> Void = {}
     var onInlineActions: () -> Void = {}
+    var onActivateFallback: (LauncherFallback) -> Void = { _ in }
     let onActivate: (AppEntry) -> Void
     let onActions: (AppEntry) -> Void
     @EnvironmentObject private var runningApps: RunningAppsMonitor
 
     private nonisolated static let inlineRowID = "inline-card"
 
-    private static func taskRowID(_ id: BackgroundTaskItem.ID) -> String {
+    private nonisolated static func taskRowID(_ id: BackgroundTaskItem.ID) -> String {
         "background-task:" + id.uuidString
+    }
+
+    private nonisolated static func fallbackRowID(_ id: LauncherFallback.ID) -> String {
+        "launcher-fallback:" + id
     }
 
     private enum Row: Identifiable {
         case header(String)
         case inline(PaletteInlineResult)
         case app(AppEntry)
+        case fallback(LauncherFallback)
         var id: String {
             switch self {
             case .header(let title): return "header-" + title
             case .inline: return LauncherList.inlineRowID
             case .app(let app): return app.id
+            case .fallback(let fallback): return LauncherList.fallbackRowID(fallback.id)
             }
         }
     }
@@ -44,21 +54,34 @@ struct LauncherList: View {
     /// Scroll target for the current selection.
     private var selectedRowID: String? {
         if let selectedTaskID { return Self.taskRowID(selectedTaskID) }
-        return inlineSelected ? Self.inlineRowID : selectedID
+        if inlineSelected { return Self.inlineRowID }
+        if let selectedFallbackID { return Self.fallbackRowID(selectedFallbackID) }
+        return selectedID
     }
 
     /// Whether the selection sits on the first selectable row, including a pinned task when present.
     private var firstRowSelected: Bool {
         if let first = backgroundTasks.first { return selectedTaskID == first.id }
-        return inline != nil ? inlineSelected : selectedID != nil && selectedID == results.first?.id
+        if inline != nil { return inlineSelected }
+        if let first = results.first { return selectedID == first.id }
+        if let first = fallbacks.first { return selectedFallbackID == first.id }
+        return false
     }
 
     private var rows: [Row] {
         var inlineRows: [Row] = []
         if let inline { inlineRows = [.header(inline.sectionTitle), .inline(inline)] }
         guard showSections else {
-            guard !results.isEmpty else { return inlineRows }
-            return inlineRows + [.header("Results")] + results.map(Row.app)
+            var rows = inlineRows
+            if !results.isEmpty {
+                rows.append(.header("Results"))
+                rows.append(contentsOf: results.map(Row.app))
+            }
+            if !fallbacks.isEmpty {
+                rows.append(.header("Try With"))
+                rows.append(contentsOf: fallbacks.map(Row.fallback))
+            }
+            return rows
         }
         var rows: [Row] = inlineRows
         let favorites = results.prefix(favoriteCount)
@@ -81,7 +104,9 @@ struct LauncherList: View {
     var body: some View {
         let rows = rows
         return Group {
-            if results.isEmpty && backgroundTasks.isEmpty && inline == nil && dashboard == nil {
+            if results.isEmpty && backgroundTasks.isEmpty && inline == nil && dashboard == nil
+                && fallbacks.isEmpty
+            {
                 EmptyResults(text: "No apps found")
             } else {
                 ScrollViewReader { proxy in
@@ -124,6 +149,12 @@ struct LauncherList: View {
                                     .contentShape(Rectangle())
                                     .onTapGesture { onActivate(app) }
                                     .onRightClick { onActions(app) }
+                                case .fallback(let fallback):
+                                    LauncherFallbackRow(
+                                        fallback: fallback,
+                                        selected: fallback.id == selectedFallbackID)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { onActivateFallback(fallback) }
                                 }
                             }
                         }
@@ -151,6 +182,42 @@ struct LauncherList: View {
                 }
             }
         }
+    }
+}
+
+private struct LauncherFallbackRow: View {
+    let fallback: LauncherFallback
+    let selected: Bool
+    @State private var hovered = false
+
+    private var fill: Color {
+        if selected { return Theme.Colors.selection }
+        if hovered { return Theme.Colors.rowHover }
+        return .clear
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.lg) {
+            Image(systemName: fallback.action.systemImage)
+                .font(.body)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
+            Text(fallback.action.title)
+                .font(Theme.Typography.rowTitle)
+                .lineLimit(1)
+            Spacer()
+            Text(fallback.action.contextLabel)
+                .font(Theme.Typography.rowTrailing)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
+                .fill(fill)
+        )
+        .armedHover($hovered)
     }
 }
 

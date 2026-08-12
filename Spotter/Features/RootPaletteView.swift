@@ -94,13 +94,18 @@ struct RootPaletteView: View {
     }
 
     private var inlineCount: Int { inlineResult == nil ? 0 : 1 }
+    private var launcherFallbackResults: [LauncherFallback] {
+        guard vm.mode == .launcher else { return [] }
+        return LauncherFallback.suggestions(for: vm.query)
+    }
     private var launcherTaskCount: Int {
         vm.mode == .launcher ? backgroundTasks.tasks.count : 0
     }
 
     private var resultCount: Int {
         switch vm.mode {
-        case .launcher: return appResults.count + launcherTaskCount + inlineCount
+        case .launcher:
+            return appResults.count + launcherFallbackResults.count + launcherTaskCount + inlineCount
         case .clipboard: return clipResults.count
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
@@ -136,6 +141,10 @@ struct RootPaletteView: View {
         let index = selection - launcherTaskCount - inlineCount
         return appResults.indices.contains(index) ? appResults[index] : nil
     }
+    private var selectedLauncherFallback: LauncherFallback? {
+        let index = selection - launcherTaskCount - inlineCount - appResults.count
+        return launcherFallbackResults.indices.contains(index) ? launcherFallbackResults[index] : nil
+    }
     private var selectedClipItem: ClipboardItem? {
         clipResults.indices.contains(selection) ? clipResults[selection] : nil
     }
@@ -155,6 +164,7 @@ struct RootPaletteView: View {
         switch vm.mode {
         case .launcher:
             if selectedBackgroundTask != nil { return nil }
+            if selectedLauncherFallback != nil { return nil }
             if let inline = selectedInlineResult {
                 switch inline {
                 case .calculator(let result):
@@ -246,11 +256,13 @@ struct RootPaletteView: View {
         let clipFollow = ClipFollowKey(id: store.items.first?.id, token: vm.followToken)
         // Every count/selection below derives from the same task/inline offsets, so the flat index always matches the visible row order.
         let inline = inlineResult
+        let fallbacks = vm.mode == .launcher ? LauncherFallback.suggestions(for: vm.query) : []
         let inlineOffset = inline == nil ? 0 : 1
         let taskOffset = tasks.count
         // Only the active mode is non-empty.
         let count =
-            apps.count + taskOffset + inlineOffset + clips.count + hist.count + emojis.count
+            apps.count + fallbacks.count + taskOffset + inlineOffset + clips.count + hist.count
+            + emojis.count
             + pluginItems.count
         let sel = count == 0 ? 0 : min(max(vm.selection, 0), count - 1)
         let selectedTask = tasks.indices.contains(sel) ? tasks[sel] : nil
@@ -262,20 +274,24 @@ struct RootPaletteView: View {
             showSections ? apps.prefix(while: { favorites.isFavorite($0) }).count : 0
         let appIndex = sel - taskOffset - inlineOffset
         let selectedApp = apps.indices.contains(appIndex) ? apps[appIndex] : nil
+        let fallbackIndex = appIndex - apps.count
+        let selectedFallback = fallbacks.indices.contains(fallbackIndex)
+            ? fallbacks[fallbackIndex] : nil
         let selectedPlugin = pluginItems.indices.contains(sel) ? pluginItems[sel] : nil
         // Derive the footer label from the already-resolved selection so `bottomBar` doesn't re-run `appResults` (its filter/sort aren't memoized). The primary/Actions group is hidden when there's nothing to act on: no results in any mode, or an error calc card (selectable but action-less).
         let pillLabel = actionPillLabel(
             selectedTask: selectedTask, selectedApp: selectedApp, selectedPlugin: selectedPlugin,
-            inlineActionTitle: inlineActionTitle)
+            selectedFallback: selectedFallback, inlineActionTitle: inlineActionTitle)
         let showActionGroup = selectedTask.map(\.isDismissible)
             ?? (((count > 0 || vm.mode == .aiChat)
                 && !(inlineSelected && inlineActionTitle == nil))
                 || (vm.mode == .updates && updatePrimaryActionTitle != nil))
         let showActionsButton = vm.mode != .updates && selectedTask == nil
+            && selectedFallback == nil
 
         let layout = paletteLayout(
             apps: apps, tasks: tasks, clips: clips, hist: hist, emojiSections: emojiSections,
-            inline: inline, plugin: plugin, dashboard: dashboard, selection: sel,
+            inline: inline, fallbacks: fallbacks, plugin: plugin, dashboard: dashboard, selection: sel,
             favoriteCount: favoriteCount,
             showSections: showSections, pillLabel: pillLabel,
             showActionGroup: showActionGroup, showActionsButton: showActionsButton
@@ -289,6 +305,7 @@ struct RootPaletteView: View {
         apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
         hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
+        fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?, selection: Int, favoriteCount: Int,
         showSections: Bool, pillLabel: String, showActionGroup: Bool,
         showActionsButton: Bool
@@ -300,7 +317,7 @@ struct RootPaletteView: View {
             } else {
                 content(
                     apps: apps, tasks: tasks, clips: clips, hist: hist,
-                    emojiSections: emojiSections, inline: inline, plugin: plugin,
+                    emojiSections: emojiSections, inline: inline, fallbacks: fallbacks, plugin: plugin,
                     dashboard: dashboard, selection: selection,
                     favoriteCount: favoriteCount, showSections: showSections
                 )
@@ -600,6 +617,7 @@ struct RootPaletteView: View {
             {
                 return .handled
             }
+            if selectedLauncherFallback != nil { return .handled }
             toggleActions()
             return .handled
         }
@@ -712,6 +730,7 @@ struct RootPaletteView: View {
         apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
         hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
+        fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
         selection: Int, favoriteCount: Int, showSections: Bool
     ) -> some View {
@@ -723,6 +742,9 @@ struct RootPaletteView: View {
             let inlineSelected = inline != nil && selection == taskOffset
             let appIndex = selection - taskOffset - inlineOffset
             let selectedID = apps.indices.contains(appIndex) ? apps[appIndex].id : nil
+            let fallbackIndex = appIndex - apps.count
+            let selectedFallbackID = fallbacks.indices.contains(fallbackIndex)
+                ? fallbacks[fallbackIndex].id : nil
             LauncherList(
                 results: apps,
                 selectedID: selectedTask == nil && !inlineSelected ? selectedID : nil,
@@ -732,8 +754,10 @@ struct RootPaletteView: View {
                 backgroundTasks: tasks,
                 inline: inline,
                 dashboard: dashboard,
+                fallbacks: fallbacks,
                 selectedTaskID: selectedTask?.id,
                 inlineSelected: inlineSelected,
+                selectedFallbackID: selectedFallbackID,
                 onActivateTask: { task in
                     guard let index = tasks.firstIndex(of: task) else { return }
                     vm.selection = index
@@ -747,6 +771,11 @@ struct RootPaletteView: View {
                     guard inline?.result.isActionable == true else { return }
                     vm.selection = taskOffset
                     openActions()
+                },
+                onActivateFallback: { fallback in
+                    guard let index = fallbacks.firstIndex(of: fallback) else { return }
+                    vm.selection = taskOffset + inlineOffset + apps.count + index
+                    core.performLauncherFallback(fallback)
                 },
                 onActivate: { core.launch($0, searchQuery: vm.query) },
                 onActions: { app in
@@ -943,7 +972,8 @@ struct RootPaletteView: View {
     /// Pill label for the current selection, derived from the selection already resolved in `body` so it never re-runs the (unmemoized) `appResults` filter/sort.
     private func actionPillLabel(
         selectedTask: BackgroundTaskItem?, selectedApp: AppEntry?,
-        selectedPlugin: PluginPaletteItem?, inlineActionTitle: String?
+        selectedPlugin: PluginPaletteItem?, selectedFallback: LauncherFallback?,
+        inlineActionTitle: String?
     ) -> String {
         switch vm.mode {
         case .clipboard, .emoji:
@@ -957,6 +987,7 @@ struct RootPaletteView: View {
         case .launcher:
             if selectedTask?.isDismissible == true { return "Dismiss" }
             if let inlineActionTitle { return inlineActionTitle }
+            if let selectedFallback { return selectedFallback.action.title }
             switch selectedApp?.kind {
             case .systemSettings: return "Open System Setting"
             case .command: return "Run Command"
@@ -1100,12 +1131,7 @@ struct RootPaletteView: View {
     /// question in the launcher, Tab, and it's already asked. Without a key the text stays in the
     /// composer next to the add-a-key notice.
     private func enterChat() {
-        core.aiChat.startNewSession()
-        vm.mode = .aiChat
-        let draft = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !draft.isEmpty, core.aiChat.send(draft) {
-            vm.query = ""
-        }
+        core.startAIChat(prompt: vm.query)
     }
 
     /// The chat composer is the shared search field: Tab or ↵ sends through Spotter and clears it.
@@ -1141,8 +1167,13 @@ struct RootPaletteView: View {
                 return
             }
             let index = selection - launcherTaskCount - inlineCount
-            guard appResults.indices.contains(index) else { return }
-            core.launch(appResults[index], searchQuery: vm.query)
+            if appResults.indices.contains(index) {
+                core.launch(appResults[index], searchQuery: vm.query)
+                return
+            }
+            let fallbackIndex = index - appResults.count
+            guard launcherFallbackResults.indices.contains(fallbackIndex) else { return }
+            core.performLauncherFallback(launcherFallbackResults[fallbackIndex])
         case .clipboard:
             guard clipResults.indices.contains(selection) else { return }
             core.paste(clipResults[selection])

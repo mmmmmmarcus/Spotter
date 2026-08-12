@@ -135,6 +135,14 @@ extension AppCore {
         showPalette(mode: .aiChat)
     }
 
+    func startAIChat(prompt rawPrompt: String) {
+        aiChat.startNewSession()
+        palette.mode = .aiChat
+        let prompt = rawPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        palette.query = prompt
+        if !prompt.isEmpty, aiChat.send(prompt) { palette.query = "" }
+    }
+
     @discardableResult
     func sendAIChatPromptToChatGPT(_ prompt: String) -> Bool {
         guard let url = AIChatEngine.chatGPTURL(for: prompt) else { return false }
