@@ -18,7 +18,7 @@ UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its con
 - `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
 **Tab cycles empty root surfaces** — Apps → AI Chat → Clipboard. AI Chat is always included as an
-application feature; Clipboard is skipped when its plugin is disabled. With a typed launcher query,
+system feature; Clipboard is skipped when its plugin is disabled. With a typed launcher query,
 Tab instead enters a fresh AI Chat session and sends through Spotter's OpenRouter-backed default.
 With a typed AI Chat draft, Tab sends in the current Spotter session. Shift-Tab sends a typed draft
 from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the default browser. Every other mode

@@ -96,16 +96,12 @@ struct SettingsRootView: View {
                         destination: .system(item))
                 }
 
-                if !plugins.applicationFeatures.isEmpty {
-                    sidebarHeader("Features")
-                        .padding(.top, Theme.Spacing.md)
-                    ForEach(plugins.applicationFeatures) { feature in
-                        sidebarRow(
-                            title: feature.name,
-                            systemImage: feature.systemImage,
-                            tint: feature.tint.color,
-                            destination: .plugin(feature.id))
-                    }
+                ForEach(plugins.systemFeatures) { feature in
+                    sidebarRow(
+                        title: feature.name,
+                        systemImage: feature.systemImage,
+                        tint: feature.tint.color,
+                        destination: .plugin(feature.id))
                 }
 
                 sidebarHeader("Plugins")

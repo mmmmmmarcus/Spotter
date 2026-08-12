@@ -14,15 +14,106 @@ enum DashboardCalendarAccess: Equatable, Sendable {
 
 @MainActor
 final class DashboardWidgetsStore: ObservableObject {
-    @Published private(set) var calendarAccess = DashboardWidgetsStore.currentCalendarAccess()
+    private enum Keys {
+        static let enabledWidgets = "dashboard-widgets.enabled-widgets"
+        static let calendarSource = "dashboard-widgets.calendar-source"
+        static let includesAllDayEvents = "dashboard-widgets.includes-all-day-events"
+        static let clockTimeZone = "dashboard-widgets.clock-time-zone"
+    }
+
+    @Published private(set) var preferences: DashboardWidgetPreferences
+    @Published private(set) var calendarAccess: DashboardCalendarAccess
+    @Published private(set) var calendarAccounts: [DashboardCalendarAccount] = []
     @Published private(set) var nextEvent: DashboardEvent?
     @Published private(set) var codexUsage: DashboardUsageSnapshot?
     @Published private(set) var claudeUsage: DashboardUsageSnapshot?
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRequestingCalendarAccess = false
 
-    private let eventStore = EKEventStore()
+    private let defaults: UserDefaults
+    private let eventStore: EKEventStore
     private var refreshTask: Task<Void, Never>?
+
+    init(defaults: UserDefaults = .standard, eventStore: EKEventStore = EKEventStore()) {
+        self.defaults = defaults
+        self.eventStore = eventStore
+        calendarAccess = Self.currentCalendarAccess()
+        preferences = DashboardWidgetPreferences(
+            enabledWidgets: DashboardWidgetsEngine.widgetKinds(
+                from: defaults.stringArray(forKey: Keys.enabledWidgets)),
+            calendarSourceIdentifier: defaults.string(forKey: Keys.calendarSource)?.nilIfEmpty,
+            includesAllDayEvents: defaults.object(forKey: Keys.includesAllDayEvents) == nil
+                || defaults.bool(forKey: Keys.includesAllDayEvents),
+            clockTimeZoneIdentifier: defaults.string(forKey: Keys.clockTimeZone)?.nilIfEmpty)
+    }
+
+    var hasEnabledWidgets: Bool { !preferences.enabledWidgets.isEmpty }
+
+    var clockTimeZone: TimeZone {
+        DashboardWidgetsEngine.resolvedTimeZone(
+            identifier: preferences.clockTimeZoneIdentifier, fallback: .autoupdatingCurrent)
+    }
+
+    func isWidgetEnabled(_ widget: DashboardWidgetKind) -> Bool {
+        preferences.enabledWidgets.contains(widget)
+    }
+
+    func setWidgetEnabled(_ widget: DashboardWidgetKind, enabled: Bool) {
+        var updated = preferences
+        if enabled {
+            updated.enabledWidgets.insert(widget)
+        } else {
+            updated.enabledWidgets.remove(widget)
+        }
+        updatePreferences(updated)
+    }
+
+    func setCalendarSourceIdentifier(_ identifier: String?) {
+        var updated = preferences
+        updated.calendarSourceIdentifier = identifier?.nilIfEmpty
+        updatePreferences(updated)
+    }
+
+    func setIncludesAllDayEvents(_ included: Bool) {
+        var updated = preferences
+        updated.includesAllDayEvents = included
+        updatePreferences(updated)
+    }
+
+    func setClockTimeZoneIdentifier(_ identifier: String?) {
+        var updated = preferences
+        updated.clockTimeZoneIdentifier = TimeZone(identifier: identifier ?? "") == nil
+            ? nil : identifier
+        updatePreferences(updated)
+    }
+
+    @discardableResult
+    func applyPreferences(
+        enabledWidgetRawValues: [String]?, calendarSourceIdentifier: String?,
+        includesAllDayEvents: Bool?, clockTimeZoneIdentifier: String?
+    ) -> Int {
+        var updated = preferences
+        var count = 0
+        if let enabledWidgetRawValues {
+            updated.enabledWidgets = DashboardWidgetsEngine.widgetKinds(from: enabledWidgetRawValues)
+            count += 1
+        }
+        if let calendarSourceIdentifier {
+            updated.calendarSourceIdentifier = calendarSourceIdentifier.nilIfEmpty
+            count += 1
+        }
+        if let includesAllDayEvents {
+            updated.includesAllDayEvents = includesAllDayEvents
+            count += 1
+        }
+        if let clockTimeZoneIdentifier {
+            updated.clockTimeZoneIdentifier = TimeZone(identifier: clockTimeZoneIdentifier) == nil
+                ? nil : clockTimeZoneIdentifier
+            count += 1
+        }
+        updatePreferences(updated)
+        return count
+    }
 
     func start() {
         guard refreshTask == nil else { return }
@@ -45,13 +136,21 @@ final class DashboardWidgetsStore: ObservableObject {
 
     func refresh() async {
         refreshCalendar()
+        let wantsCodex = isWidgetEnabled(.codex)
+        let wantsClaude = isWidgetEnabled(.claudeCode)
+        guard wantsCodex || wantsClaude else {
+            codexUsage = nil
+            claudeUsage = nil
+            lastRefresh = Date()
+            return
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let usage = await Task.detached(priority: .utility) {
             DashboardUsageReader.load(homeDirectory: home)
         }.value
         guard !Task.isCancelled else { return }
-        codexUsage = usage.codex
-        claudeUsage = usage.claude
+        codexUsage = wantsCodex ? usage.codex : nil
+        claudeUsage = wantsClaude ? usage.claude : nil
         lastRefresh = Date()
     }
 
@@ -83,15 +182,37 @@ final class DashboardWidgetsStore: ObservableObject {
 
     private func refreshCalendar(now: Date = Date(), calendar: Calendar = .current) {
         calendarAccess = Self.currentCalendarAccess()
-        guard calendarAccess.canRead,
+        guard calendarAccess.canRead else {
+            calendarAccounts = []
+            nextEvent = nil
+            return
+        }
+        let calendars = eventStore.calendars(for: .event)
+        calendarAccounts = Self.calendarAccounts(from: calendars)
+        guard isWidgetEnabled(.nextEvent),
             let horizon = calendar.date(byAdding: .year, value: 1, to: now)
         else {
             nextEvent = nil
             return
         }
-        let predicate = eventStore.predicateForEvents(withStart: now, end: horizon, calendars: nil)
+        let effectiveSourceIdentifier = DashboardWidgetsEngine.effectiveCalendarSourceIdentifier(
+            selected: preferences.calendarSourceIdentifier,
+            availableIdentifiers: Set(calendarAccounts.map(\DashboardCalendarAccount.id)))
+        let selectedCalendars = effectiveSourceIdentifier.map { identifier in
+            calendars.filter { $0.source?.sourceIdentifier == identifier }
+        }
+        let predicateCalendars = selectedCalendars?.isEmpty == false ? selectedCalendars : nil
+        let predicate = eventStore.predicateForEvents(
+            withStart: now, end: horizon, calendars: predicateCalendars)
         let events = eventStore.events(matching: predicate)
-            .filter { $0.status != .canceled && $0.endDate > now }
+            .filter {
+                $0.status != .canceled && $0.endDate > now
+                    && DashboardWidgetsEngine.shouldIncludeCalendarEvent(
+                        isAllDay: $0.isAllDay,
+                        sourceIdentifier: $0.calendar.source?.sourceIdentifier ?? "",
+                        selectedSourceIdentifier: effectiveSourceIdentifier,
+                        includesAllDayEvents: preferences.includesAllDayEvents)
+            }
         guard let event = events
             .filter({ $0.startDate < horizon })
             .min(by: { $0.startDate < $1.startDate })
@@ -117,6 +238,34 @@ final class DashboardWidgetsStore: ObservableObject {
         case .fullAccess, .authorized: return .fullAccess
         @unknown default: return .restricted
         }
+    }
+
+    private static func calendarAccounts(from calendars: [EKCalendar]) -> [DashboardCalendarAccount] {
+        var accounts: [String: DashboardCalendarAccount] = [:]
+        for calendar in calendars {
+            guard let source = calendar.source else { continue }
+            guard !source.sourceIdentifier.isEmpty else { continue }
+            accounts[source.sourceIdentifier] = DashboardCalendarAccount(
+                id: source.sourceIdentifier, title: source.title)
+        }
+        return accounts.values.sorted {
+            $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+        }
+    }
+
+    private func updatePreferences(_ updated: DashboardWidgetPreferences) {
+        guard updated != preferences else { return }
+        preferences = updated
+        defaults.set(
+            updated.enabledWidgets.map(\DashboardWidgetKind.rawValue).sorted(),
+            forKey: Keys.enabledWidgets)
+        defaults.set(updated.calendarSourceIdentifier ?? "", forKey: Keys.calendarSource)
+        defaults.set(updated.includesAllDayEvents, forKey: Keys.includesAllDayEvents)
+        defaults.set(updated.clockTimeZoneIdentifier ?? "", forKey: Keys.clockTimeZone)
+        if !isWidgetEnabled(.nextEvent) { nextEvent = nil }
+        if !isWidgetEnabled(.codex) { codexUsage = nil }
+        if !isWidgetEnabled(.claudeCode) { claudeUsage = nil }
+        Task { [weak self] in await self?.refresh() }
     }
 }
 

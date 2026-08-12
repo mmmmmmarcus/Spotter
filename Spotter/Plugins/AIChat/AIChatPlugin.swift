@@ -30,7 +30,7 @@ enum AIChatPlugin {
                     "Chat through OpenRouter or hand a prompt to ChatGPT on the web, plus define and proofread selected text.",
                 systemImage: "sparkles",
                 tint: .purple,
-                settingsPlacement: .application),
+                settingsPlacement: .system),
             defaultEnabled: true,
             canDisable: false,
             exportsEnabledState: false,

@@ -228,10 +228,10 @@ pane use the native `.overlayScroller()`. Don't reintroduce native scrollers on 
 Settings runs in its own `NSWindow` (the SwiftUI `Settings` scene is unreliable for accessory apps) but
 shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not the palette:
 
-- The sidebar has scrollable **System**, **Features** and **Plugins** groups. System panes have a fixed
-  order; application-feature and plugin rows are generated from `PluginRegistry`, so adding either
+- The sidebar has scrollable **System** and **Plugins** groups. Core System panes have a fixed order;
+  registered system-feature and plugin rows are generated from `PluginRegistry`, so adding either
   does not add a `SettingsTab` case or a view switch branch. `metadata.settingsPlacement` selects the
-  group. Each registration owns its Settings view in `Spotter/Plugins/<Name>/`; shared Settings
+  group. Each registered feature owns its Settings view in `Spotter/Plugins/<Name>/`; shared Settings
   components remain here.
 
 - **`SettingsPane`**: bold `.title2` title + secondary subtitle header, then scrollable content, `xxl` inset all around, the same thin scrollbar.

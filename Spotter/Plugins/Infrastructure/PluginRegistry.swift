@@ -99,10 +99,10 @@ final class PluginRegistry: ObservableObject {
         }
     }
 
-    var applicationFeatures: [PluginMetadata] {
+    var systemFeatures: [PluginMetadata] {
         orderedIDs.compactMap { id in
             guard let metadata = registrations[id]?.metadata,
-                metadata.settingsPlacement == .application
+                metadata.settingsPlacement == .system
             else { return nil }
             return metadata
         }
@@ -290,14 +290,14 @@ final class PluginRegistry: ObservableObject {
         commandOwners[commandID].map(isEnabled) ?? true
     }
 
-    func plugins(requiring permission: PluginPermission) -> [PluginMetadata] {
+    func features(requiring permission: PluginPermission) -> [PluginMetadata] {
         orderedIDs.compactMap { id in
             guard registrations[id]?.permissions.contains(permission) == true else { return nil }
             return registrations[id]?.metadata
         }
     }
 
-    /// Application features without an enable state may opt out of the complete plugin-state map.
+    /// System features without an enable state may opt out of the complete plugin-state map.
     func exportedEnabledStates() -> [String: Bool] {
         Dictionary(uniqueKeysWithValues: orderedIDs.compactMap { id in
             guard registrations[id]?.exportsEnabledState == true else { return nil }

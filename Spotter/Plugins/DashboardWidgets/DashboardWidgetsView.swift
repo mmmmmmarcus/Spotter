@@ -3,36 +3,56 @@ import SwiftUI
 struct DashboardWidgetsView: View {
     @ObservedObject var store: DashboardWidgetsStore
 
+    @ViewBuilder
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            HStack(spacing: Theme.Spacing.md) {
-                timeCard(now: context.date)
-                    .frame(width: Theme.Size.launcherDashboardTimeWidth)
-                eventCard(now: context.date)
-                    .frame(maxWidth: .infinity)
-                usageCard(
-                    title: "CLAUDE CODE", systemImage: "sparkles",
-                    usage: store.claudeUsage, now: context.date)
-                    .frame(width: Theme.Size.launcherDashboardUsageWidth)
-                usageCard(
-                    title: "CODEX", systemImage: "terminal",
-                    usage: store.codexUsage, now: context.date)
-                    .frame(width: Theme.Size.launcherDashboardUsageWidth)
+        if store.hasEnabledWidgets {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                HStack(spacing: Theme.Spacing.md) {
+                    if store.isWidgetEnabled(.clock) {
+                        timeCard(now: context.date)
+                            .frame(
+                                minWidth: Theme.Size.launcherDashboardTimeWidth,
+                                maxWidth: compactWidgetMaximumWidth(
+                                    Theme.Size.launcherDashboardTimeWidth))
+                    }
+                    if store.isWidgetEnabled(.nextEvent) {
+                        eventCard(now: context.date)
+                            .frame(maxWidth: .infinity)
+                    }
+                    if store.isWidgetEnabled(.claudeCode) {
+                        usageCard(
+                            title: "CLAUDE CODE", systemImage: "sparkles",
+                            usage: store.claudeUsage, now: context.date)
+                            .frame(
+                                minWidth: Theme.Size.launcherDashboardUsageWidth,
+                                maxWidth: compactWidgetMaximumWidth(
+                                    Theme.Size.launcherDashboardUsageWidth))
+                    }
+                    if store.isWidgetEnabled(.codex) {
+                        usageCard(
+                            title: "CODEX", systemImage: "terminal",
+                            usage: store.codexUsage, now: context.date)
+                            .frame(
+                                minWidth: Theme.Size.launcherDashboardUsageWidth,
+                                maxWidth: compactWidgetMaximumWidth(
+                                    Theme.Size.launcherDashboardUsageWidth))
+                    }
+                }
+                .frame(height: Theme.Size.launcherDashboardHeight)
             }
-            .frame(height: Theme.Size.launcherDashboardHeight)
+            .onAppear { store.start() }
+            .onDisappear { store.stop() }
         }
-        .onAppear { store.start() }
-        .onDisappear { store.stop() }
     }
 
     private func timeCard(now: Date) -> some View {
         DashboardWidgetCard(title: "TIME", systemImage: "clock") {
             Spacer(minLength: Theme.Spacing.xs)
-            Text(now, format: .dateTime.hour().minute())
+            Text(formattedTime(now))
                 .font(.title2.weight(.semibold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-            Text(now, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
+            Text(formattedDate(now))
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .lineLimit(1)
@@ -152,6 +172,23 @@ struct DashboardWidgetsView: View {
         case .codexBarHistory: "CodexBar history cache"
         }
         return "\(source), updated \(usage.updatedAt.formatted(date: .abbreviated, time: .shortened))."
+    }
+
+    private func compactWidgetMaximumWidth(_ fixedWidth: CGFloat) -> CGFloat {
+        store.isWidgetEnabled(.nextEvent) ? fixedWidth : .infinity
+    }
+
+    private func formattedTime(_ date: Date) -> String {
+        var style = Date.FormatStyle.dateTime.hour().minute()
+        style.timeZone = store.clockTimeZone
+        return date.formatted(style)
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        var style = Date.FormatStyle.dateTime
+            .weekday(.abbreviated).month(.abbreviated).day()
+        style.timeZone = store.clockTimeZone
+        return date.formatted(style)
     }
 }
 

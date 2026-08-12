@@ -96,17 +96,17 @@ struct PermissionsSettingsView: View {
     }
 
     private var accessibilitySubtitle: String {
-        let names = plugins.plugins(requiring: .accessibility).map(\.name).joined(separator: ", ")
+        let names = plugins.features(requiring: .accessibility).map(\.name).joined(separator: ", ")
         return names.isEmpty
-            ? "No installed plugin currently declares this permission."
+            ? "No feature currently declares this permission."
             : "Used by \(names) to observe configured triggers, read selected text, or type into "
                 + "the app you were using."
     }
 
     private var automationSubtitle: String {
-        let names = plugins.plugins(requiring: .automation).map(\.name).joined(separator: ", ")
+        let names = plugins.features(requiring: .automation).map(\.name).joined(separator: ", ")
         return names.isEmpty
-            ? "No installed plugin currently declares this permission."
+            ? "No feature currently declares this permission."
             : "Used by \(names) to control another application after you run a command."
     }
 
@@ -124,9 +124,9 @@ struct PermissionsSettingsView: View {
     }
 
     private var calendarSubtitle: String {
-        let names = plugins.plugins(requiring: .calendar).map(\.name).joined(separator: ", ")
+        let names = plugins.features(requiring: .calendar).map(\.name).joined(separator: ", ")
         return names.isEmpty
-            ? "No installed plugin currently declares this permission."
+            ? "No feature currently declares this permission."
             : "Used by \(names) to show upcoming events."
     }
 

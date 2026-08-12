@@ -158,8 +158,9 @@ Never break these without an explicit task to do so.
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
   [`docs/plugins.md`](docs/plugins.md) and use the tracked `$spotter-plugin` skill.
-- **AI Chat is an application feature; Commands is a plugin.** AI Chat reuses registry wiring with
-  `settingsPlacement: .application` but is always enabled and never exports an enable state. Commands
+- **AI Chat and Dashboard Widgets are system features; Commands is a plugin.** Both system features
+  reuse registry wiring with `settingsPlacement: .system`, stay always enabled, and never export an
+  enable state. Dashboard visibility comes only from its individual widget switches. Commands
   owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
   data and bindings while hiding entries and making their hotkeys no-op.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a

@@ -12,7 +12,8 @@ disconnected without deleting the file.
 
 Format v3 mirrors the complete user-owned Spotter state:
 
-- General settings, plugin enable states and preferences, including every network consent toggle.
+- General and system-feature settings, plugin enable states and preferences, including every network
+  consent toggle.
 - OpenRouter and Google Cloud Translation API keys and all associated model options.
 - Every shortcut. Empty binding maps are authoritative, so unbinding a shortcut propagates.
 - Custom commands, favorites, hidden launcher items, Quicklinks, World Clock cities and Text

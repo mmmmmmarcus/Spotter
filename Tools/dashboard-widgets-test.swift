@@ -6,6 +6,57 @@ struct DashboardWidgetsTests {
     private static var failures = 0
 
     static func main() {
+        check(
+            DashboardWidgetsEngine.widgetKinds(from: nil)
+                == Set(DashboardWidgetKind.allCases),
+            "missing widget preferences should preserve the four-widget default")
+        check(
+            DashboardWidgetsEngine.widgetKinds(from: []) == [],
+            "an explicitly empty widget selection should remain empty")
+        check(
+            DashboardWidgetsEngine.widgetKinds(from: ["clock", "codex", "future-widget"])
+                == [.clock, .codex],
+            "unknown future widget identifiers should be ignored")
+
+        let fallbackTimeZone = TimeZone(identifier: "Asia/Shanghai")!
+        check(
+            DashboardWidgetsEngine.resolvedTimeZone(identifier: "America/New_York", fallback: fallbackTimeZone)
+                .identifier == "America/New_York",
+            "a selected clock time zone should resolve")
+        check(
+            DashboardWidgetsEngine.resolvedTimeZone(identifier: "Missing/Zone", fallback: fallbackTimeZone)
+                == fallbackTimeZone,
+            "an unavailable clock time zone should fall back safely")
+        check(
+            DashboardWidgetsEngine.effectiveCalendarSourceIdentifier(
+                selected: "icloud", availableIdentifiers: ["icloud", "exchange"]) == "icloud",
+            "an available calendar account should remain selected")
+        check(
+            DashboardWidgetsEngine.effectiveCalendarSourceIdentifier(
+                selected: "removed", availableIdentifiers: ["icloud", "exchange"]) == nil,
+            "an unavailable calendar account should fall back to all accounts")
+
+        check(
+            DashboardWidgetsEngine.shouldIncludeCalendarEvent(
+                isAllDay: false, sourceIdentifier: "icloud", selectedSourceIdentifier: nil,
+                includesAllDayEvents: true),
+            "all accounts should accept a timed event")
+        check(
+            !DashboardWidgetsEngine.shouldIncludeCalendarEvent(
+                isAllDay: true, sourceIdentifier: "icloud", selectedSourceIdentifier: nil,
+                includesAllDayEvents: false),
+            "the all-day preference should exclude all-day events")
+        check(
+            !DashboardWidgetsEngine.shouldIncludeCalendarEvent(
+                isAllDay: false, sourceIdentifier: "exchange",
+                selectedSourceIdentifier: "icloud", includesAllDayEvents: true),
+            "a selected calendar account should exclude other accounts")
+        check(
+            DashboardWidgetsEngine.shouldIncludeCalendarEvent(
+                isAllDay: false, sourceIdentifier: "icloud",
+                selectedSourceIdentifier: "icloud", includesAllDayEvents: true),
+            "a selected calendar account should include its own events")
+
         let codexLine = #"{"timestamp":"2026-08-10T06:02:06.674Z","payload":{"rate_limits":{"primary":{"used_percent":24,"window_minutes":10080,"resets_at":1786933919},"secondary":null}}}"#
         let codex = DashboardWidgetsEngine.codexSessionUsage(from: Data(codexLine.utf8))
         check(codex?.primary?.usedPercent == 24, "Codex percent should decode")

@@ -38,10 +38,11 @@ Native feature modules live under `Spotter/Plugins/<Name>/` and register through
 plugin's own directory. These are source-level modules in the main target, so they retain direct native
 calls and compile-time checking without framework or runtime-loader overhead.
 
-The registry generates the Features and Plugins Settings groups, persists enable states, routes
+The registry adds system-feature rows to the fixed System Settings group, generates the Plugins
+group, persists plugin enable states, routes
 launcher commands and shortcut actions, declares permission use, keeps a precomputed enabled
-query-provider list, and hosts plugin palette-screen registrations. AI Chat is an always-available
-application feature that reuses this wiring; Commands is a disableable plugin. See
+query-provider list, and hosts plugin palette-screen registrations. AI Chat and Dashboard Widgets
+are always-available system features that reuse this wiring; Commands is a disableable plugin. See
 [plugins.md](plugins.md) for the contract, directory rules, `$spotter-plugin` project skill and plugin
 lifecycle checklists.
 
@@ -79,7 +80,7 @@ imperatively from AppKit.
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
   Selection Tools uses this route for browser-search failures and its three-row Google translation
   result. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
-- **Launcher dashboard** — the enabled plugin that owns `launcherDashboard` contributes one
+- **Launcher dashboard** — the registered system feature that owns `launcherDashboard` contributes one
   non-selectable view above the empty-query launcher sections. `RootPaletteView` keeps the dashboard
   inside the palette's existing scroll view and selection model; the plugin owns only its local data
   and card content, never a window or a second search field.

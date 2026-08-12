@@ -24,6 +24,13 @@ struct SettingsBackup: Codable, Sendable {
 
     /// Enum-backed settings are stored by raw value so the JSON stays legible and forward-compatible (an unknown value is ignored on import rather than failing the whole decode).
     struct SettingsData: Codable, Sendable {
+        struct DashboardWidgets: Codable, Sendable {
+            var enabledWidgets: [String]?
+            var calendarSourceIdentifier: String?
+            var includesAllDayEvents: Bool?
+            var clockTimeZoneIdentifier: String?
+        }
+
         var clipboardRetentionDays: Int?
         var clipboardDisabledApps: [String]?
         var launchAtLogin: Bool?
@@ -50,6 +57,7 @@ struct SettingsBackup: Codable, Sendable {
         var googleTranslationAPIKey: String?
         var googleTranslationEnabled: Bool?
         var updateAutoCheckEnabled: Bool?
+        var dashboardWidgets: DashboardWidgets?
     }
 
     struct HotkeyBackup: Codable, Sendable {
@@ -115,6 +123,8 @@ struct SettingsBackup: Codable, Sendable {
         var caffeinate: Caffeinate?
         var windowManagement: WindowManagement?
         var mole: Mole?
+        // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
+        var dashboardWidgets: SettingsData.DashboardWidgets?
     }
 
     struct TextReplacementBackup: Codable, Sendable {
@@ -155,6 +165,7 @@ struct SettingsBackup: Codable, Sendable {
 extension SettingsBackup {
     static func gather(from core: AppCore = .shared) async -> SettingsBackup {
         let s = core.settings
+        let dashboard = core.dashboardWidgets.preferences
         var backup = SettingsBackup()
         backup.settings = SettingsData(
             clipboardRetentionDays: s.clipboardRetention.rawValue,
@@ -182,7 +193,12 @@ extension SettingsBackup {
             openRouterChatWebSearch: core.openRouter.chatWebSearch,
             googleTranslationAPIKey: core.selectionTools.apiKey,
             googleTranslationEnabled: core.selectionTools.isTranslationEnabled,
-            updateAutoCheckEnabled: core.updates.autoCheckEnabled)
+            updateAutoCheckEnabled: core.updates.autoCheckEnabled,
+            dashboardWidgets: SettingsData.DashboardWidgets(
+                enabledWidgets: dashboard.enabledWidgets.map(\DashboardWidgetKind.rawValue).sorted(),
+                calendarSourceIdentifier: dashboard.calendarSourceIdentifier ?? "",
+                includesAllDayEvents: dashboard.includesAllDayEvents,
+                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier ?? ""))
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -416,6 +432,13 @@ extension SettingsBackup {
             core.mole.setBinaryPathOverride(path)
             count += 1
         }
+        if let dashboard = prefs.dashboardWidgets {
+            count += core.dashboardWidgets.applyPreferences(
+                enabledWidgetRawValues: dashboard.enabledWidgets,
+                calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
+                includesAllDayEvents: dashboard.includesAllDayEvents,
+                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
+        }
         return count
     }
 
@@ -529,6 +552,13 @@ extension SettingsBackup {
         if let enabled = s.updateAutoCheckEnabled {
             core.updates.setAutoCheck(enabled)
             count += 1
+        }
+        if let dashboard = s.dashboardWidgets {
+            count += core.dashboardWidgets.applyPreferences(
+                enabledWidgetRawValues: dashboard.enabledWidgets,
+                calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
+                includesAllDayEvents: dashboard.includesAllDayEvents,
+                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
         }
         return count
     }

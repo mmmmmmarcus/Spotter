@@ -1,9 +1,10 @@
-# Built-in plugins
+# Built-in feature registry
 
-Spotter plugins are native Swift feature modules compiled into the signed application. Each plugin is
-independently organized and enabled, but there is no runtime bundle loader, JavaScript runtime or
-reflection-based discovery. Adding or removing plugin source requires rebuilding the app; once built,
-plugin calls have the same performance characteristics as the rest of Spotter.
+Spotter's system features and plugins are native Swift modules compiled into the signed application.
+System features stay available, while plugins may be independently enabled. There is no runtime bundle
+loader, JavaScript runtime or reflection-based discovery. Adding or removing feature source requires
+rebuilding the app; once built, registry calls have the same performance characteristics as the rest
+of Spotter.
 
 This design keeps development boundaries clear for 20+ features while preserving static type checking,
 Swift 6 actor isolation, dead-code optimization and predictable startup/security behavior.
@@ -39,8 +40,8 @@ Spotter/Plugins/
 └── Coffee/
 ```
 
-`Infrastructure/` contains only the shared contract and registry. Every sibling plugin directory owns
-its registration factory, engine/store, views, settings and generated data. Plugin code must not be
+`Infrastructure/` contains only the shared contract and registry. Every sibling feature directory owns
+its registration factory, engine/store, views, settings and generated data. Feature code must not be
 moved back into generic `Core/` or `Features/` buckets.
 
 The folders are source-level modules inside the existing Spotter Xcode target, not separate frameworks
@@ -62,8 +63,8 @@ The shared integration points are:
 - `Spotter/Plugins/Infrastructure/PluginRegistry.swift` — ordered registration, persisted enable
   state, lifecycle, settings factories, command routing and the enabled query-provider cache.
 - `Spotter/Plugins/BuiltInPlugins.swift` — one ordered entry per compiled plugin.
-- `Spotter/Features/Settings/SettingsRootView.swift` — the fixed System group plus registry-generated
-  Features and Plugins groups.
+- `Spotter/Features/Settings/SettingsRootView.swift` — the fixed System group, registered system
+  feature rows and the registry-generated Plugins group.
 
 Catalog order is user-visible in Settings and also determines query priority: the first enabled
 provider that claims a query wins. Choose the order deliberately and make providers reject unrelated
@@ -91,11 +92,11 @@ is optional:
   quicklinks or shell commands — and is re-read on every rebuild instead of captured once. Call
   `PluginRegistry.reloadDynamicCommands(for:)` whenever the underlying store changes; registration
   seeds the routing table so entries restored from disk are launchable before any change fires.
-- `metadata.settingsPlacement` places a registration under Settings → Features or Settings → Plugins.
-  Application features may reuse the registry's command, shortcut and Settings routing without being
+- `metadata.settingsPlacement` places a registration under Settings → System or Settings → Plugins.
+  System features may reuse the registry's command, shortcut and Settings routing without being
   presented as optional plugins.
-- `canDisable` (default true) pins a registration on. AI Chat sets it false because it is an
-  application feature rather than an optional plugin.
+- `canDisable` (default true) pins a registration on. AI Chat and Dashboard Widgets set it false
+  because they are system features rather than optional plugins.
 - `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
   renders the recorded keycap.
 - `queryProvider` contributes a synchronous inline result provider.
@@ -115,8 +116,8 @@ is optional:
 - `readEnabled` and `writeEnabled` adapt a feature-owned state gate. Currency uses these because
   network consent must remain on `CurrencyRateStore`; ordinary plugins use the registry's
   bundle-scoped `UserDefaults` key.
-- `exportsEnabledState` controls Settings backup. It defaults to true; set it false only for an
-  application feature such as AI Chat whose registry enable state is not user-configurable. Trusted
+- `exportsEnabledState` controls Settings backup. It defaults to true; set it false only for a system
+  feature whose registry enable state is not user-configurable. Trusted
   v3 backup/sync snapshots intentionally include network-consent plugin states.
 - Per-plugin **preferences** (not just the enable flag) sync by extending
   `SettingsBackup.PluginPrefs` — gather effective values, apply through the owning manager when the
@@ -239,14 +240,19 @@ enum ExamplePlugin {
 Plugin commands are signed application actions. The Commands plugin is the user-authored
 shell-command feature; do not use shell commands as an internal plugin API.
 
-## Application features
+## System features
 
-- **AI Chat** (`Spotter/Plugins/AIChat/`) — an always-available application feature shown under
-  Settings → Features. It reuses plugin infrastructure for Settings routing, commands, permissions
+- **AI Chat** (`Spotter/Plugins/AIChat/`) — an always-available system feature shown under
+  Settings → System. It reuses registry infrastructure for Settings routing, commands, permissions
   and shortcuts, but cannot be disabled and does not export an enable state. It remains inert without
   the shared OpenRouter key for Spotter-hosted replies. Tab sends a typed query through OpenRouter;
   Shift-Tab opens the same query at `https://chatgpt.com/?q=…` in the default browser. Selected-text
   definition and grammar checks start follow-up-ready conversations.
+- **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature
+  shown under Settings → System. It adds independently toggleable local time, next calendar event and
+  Claude Code/Codex quota cards above the empty launcher. The clock supports an explicit time zone;
+  Calendar can filter by EventKit account and exclude all-day events. Calendar data is permission-gated
+  and usage data is read only from local tool/CodexBar state.
 
 ## Current plugins
 
@@ -276,9 +282,6 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
   IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
   adjustment; its launcher screen shows a user-managed saved-city list.
-- **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — enabled by default; adds local time,
-  next calendar event and Claude Code/Codex quota summaries above the empty launcher.
-  Calendar data is permission-gated and usage data is read only from local tool/CodexBar state.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — enabled by default; launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard

@@ -51,7 +51,7 @@ struct PluginMetadata: Identifiable, Sendable {
 }
 
 enum PluginSettingsPlacement: Equatable, Sendable {
-    case application
+    case system
     case plugin
 }
 

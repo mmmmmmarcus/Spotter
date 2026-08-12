@@ -2,14 +2,17 @@
 
 Dashboard Widgets is the card strip above the launcher sections when the palette is on its empty
 query root. It shows the current time and date, the next calendar event, Claude Code and Codex quota
-windows. Typing a query or switching palette mode hides it immediately.
+windows. Each card can be shown or hidden independently. Typing a query or switching palette mode
+hides the strip immediately.
 
 ## Architecture
 
-`DashboardWidgetsPlugin` owns the registry surface and Settings placement.
+`DashboardWidgetsPlugin` is the registration adapter that places this system feature in Settings.
 `DashboardWidgetsStore`, owned by `AppCore`, owns EventKit authorization, the next-event snapshot,
-local usage snapshots and the visible-only refresh task. `DashboardWidgetsEngine.swift` remains
-Foundation-only and pure; it decodes locally persisted usage formats for
+widget preferences, local usage snapshots and the visible-only refresh task. Preferences use
+bundle-scoped `UserDefaults` and participate in trusted settings backup/sync.
+`DashboardWidgetsEngine.swift` remains Foundation-only and pure; it resolves preference fallbacks,
+calendar filters and locally persisted usage formats for
 `Tools/dashboard-widgets-test.swift`.
 
 The registry permits exactly one `launcherDashboard` owner. `RootPaletteView` injects that view into
@@ -24,9 +27,12 @@ upcoming event, and the signed app carries the Calendar personal-information ent
 EventKit. Denied access renders an explicit System Settings affordance, while a policy-restricted Mac
 shows a non-actionable restricted state instead of an empty-event claim.
 
-After full access is granted, the store queries EventKit from now through one year ahead and shows
-the earliest non-cancelled event. Calendar work starts when the dashboard becomes visible and stops
-when it leaves the palette.
+After full access is granted, the store exposes EventKit calendar sources as accounts. The user can
+include all accounts or one source such as iCloud, Google or Exchange, and can independently exclude
+all-day entries. The store queries EventKit from now through one year ahead and shows the earliest
+matching non-cancelled event. A selected account that is temporarily unavailable falls back to all
+available calendars rather than producing a false empty result. Calendar work starts when the
+dashboard becomes visible and stops when it leaves the palette.
 
 ## Local usage data
 
@@ -41,8 +47,11 @@ shown as unavailable rather than as zero usage.
 
 ## Settings and lifecycle
 
-The plugin is enabled by default and can be disabled under Settings → Plugins → Dashboard Widgets.
-Disabling it removes the strip and stops refresh work. The permission overview exposes Calendar as a
-global permission because the next-event card depends on it. Usage refreshes occur only while the
-dashboard is visible and can also be triggered from the plugin settings page. Permission views
-re-check authorization while visible so returning from System Settings updates them without a relaunch.
+Dashboard Widgets is an always-available system feature under Settings → System → Dashboard Widgets.
+Its pane independently toggles Clock, Next Event, Claude Code and Codex; switching all four off hides
+the strip. Clock can follow the system time zone or use any IANA zone built into macOS. Existing
+installations retain the original four-card, all-accounts, all-day-inclusive, system-time-zone
+behavior until changed. The permission overview exposes Calendar as a global permission because the
+next-event card depends on it. Usage refreshes occur only while the dashboard is visible and can also
+be triggered from the system settings page. Permission views re-check
+authorization while visible so returning from System Settings updates them without a relaunch.

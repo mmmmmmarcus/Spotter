@@ -145,7 +145,7 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + ChatGPT web URL
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Tools/dashboard-widgets-test.swift \
-    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # local usage parsing
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences + local usage parsing
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
@@ -168,8 +168,9 @@ formatting and saved-city checks never depend on the wall clock or the user's pr
 The Background Tasks harness checks newest-first ordering, progress clamping, terminal-state
 retention, sync encoding, relaunch interruption and the invariant that a running task cannot be dismissed.
 
-The Dashboard Widgets harness compiles the real Foundation-only engine. It pins the local
-Codex/CodexBar usage-cache decoders without touching EventKit or the user's files.
+The Dashboard Widgets harness compiles the real Foundation-only engine. It pins widget preference
+fallbacks, calendar-account/all-day filtering, time-zone resolution and the local Codex/CodexBar
+usage-cache decoders without touching EventKit or the user's files.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a

@@ -14,7 +14,7 @@ palette menu in chat mode lists sessions newest-first (titled by their first use
 derive-don't-ask rule) plus New Session (also **⌘N** anywhere in chat), and the ⌘K menu adds Delete
 Session.
 
-AI Chat is an always-available application feature shown in Settings → Features, but remains inert
+AI Chat is an always-available system feature shown in Settings → System, but remains inert
 without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
 or syncing a key is the consent act). AI Chat also owns Define and Check Grammar for selected text;
 Google-powered translation lives in Selection Tools. Its implementation lives in `Spotter/Plugins/AIChat/` so it can reuse the registry's
@@ -73,7 +73,7 @@ corrected text followed by concise explanations. The first reply uses the action
 model, while later composer messages use the chat model and retain the action's system prompt. This
 keeps the existing quick first answer and makes follow-up questions part of the same context.
 
-The two action models and prompts are configured in Settings → Features → AI Chat. Prompt persistence keeps
+The two action models and prompts are configured in Settings → System → AI Chat. Prompt persistence keeps
 the former `selection-tools.*-prompt` keys and backup fields so customizations migrate without a data
 rewrite. The new defaults explicitly distinguish the first selected-text turn from later follow-ups.
 Capture and missing-key failures render as chat status rows instead of opening the former Selection
@@ -102,7 +102,7 @@ composer text intact.
 
 ## Web search
 
-An optional per-chat capability, off by default: when enabled (Settings → Features → AI Chat, or the ⌘K
+An optional per-chat capability, off by default: when enabled (Settings → System → AI Chat, or the ⌘K
 toggle), requests carry OpenRouter's Exa-backed `web` plugin (`plugins: [{id: "web"}]`, 5 results),
 letting replies cite current information. It rides the same key and the same consented request to
 the same provider — no new network surface — but each search adds a small per-message cost, which is
