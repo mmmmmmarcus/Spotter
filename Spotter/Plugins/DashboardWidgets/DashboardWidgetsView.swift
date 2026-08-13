@@ -19,24 +19,6 @@ struct DashboardWidgetsView: View {
                         eventCard(now: context.date)
                             .frame(maxWidth: .infinity)
                     }
-                    if store.isWidgetEnabled(.claudeCode) {
-                        usageCard(
-                            title: "CLAUDE CODE", systemImage: "sparkles",
-                            usage: store.claudeUsage, now: context.date)
-                            .frame(
-                                minWidth: Theme.Size.launcherDashboardUsageWidth,
-                                maxWidth: compactWidgetMaximumWidth(
-                                    Theme.Size.launcherDashboardUsageWidth))
-                    }
-                    if store.isWidgetEnabled(.codex) {
-                        usageCard(
-                            title: "CODEX", systemImage: "terminal",
-                            usage: store.codexUsage, now: context.date)
-                            .frame(
-                                minWidth: Theme.Size.launcherDashboardUsageWidth,
-                                maxWidth: compactWidgetMaximumWidth(
-                                    Theme.Size.launcherDashboardUsageWidth))
-                    }
                 }
                 .frame(height: Theme.Size.launcherDashboardHeight)
             }
@@ -114,64 +96,11 @@ struct DashboardWidgetsView: View {
         }
     }
 
-    private func usageCard(
-        title: String, systemImage: String, usage: DashboardUsageSnapshot?, now: Date
-    ) -> some View {
-        DashboardWidgetCard(title: title, systemImage: systemImage) {
-            Spacer(minLength: Theme.Spacing.xs)
-            if let usage, let window = usage.currentWindows(at: now).first
-            {
-                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xxs) {
-                    Text(window.usedPercent, format: .number.precision(.fractionLength(0)))
-                        .font(.title2.weight(.semibold).monospacedDigit())
-                    Text("%")
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                }
-                Text("\(window.name) used")
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                if let other = usage.currentWindows(at: now).first(where: { $0 != window })
-                {
-                    Text("\(other.name) \(Int(other.usedPercent.rounded()))%")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                } else if let reset = window.resetsAt {
-                    Text(reset, format: .relative(presentation: .named))
-                        .font(.caption2)
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                }
-            } else {
-                Text("No current data")
-                    .font(.body.weight(.medium))
-                    .lineLimit(2)
-                Text(usage == nil ? "Use the CLI first." : "Cached data expired.")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .lineLimit(2)
-            }
-            Spacer(minLength: 0)
-        }
-        .help(usageHelp(usage))
-    }
-
     private func eventTime(_ event: DashboardEvent, now: Date) -> String {
         if event.isAllDay { return "All day" }
         let day = Calendar.current.isDate(event.startDate, inSameDayAs: now)
             ? "Today" : event.startDate.formatted(.dateTime.weekday(.abbreviated))
         return "\(day) · \(event.startDate.formatted(.dateTime.hour().minute()))"
-    }
-
-    private func usageHelp(_ usage: DashboardUsageSnapshot?) -> String {
-        guard let usage else {
-            return "No local usage metadata found. Spotter never reads conversation content."
-        }
-        let source = switch usage.source {
-        case .codexSession: "Codex session metadata"
-        case .codexBarSnapshot: "CodexBar widget cache"
-        case .codexBarHistory: "CodexBar history cache"
-        }
-        return "\(source), updated \(usage.updatedAt.formatted(date: .abbreviated, time: .shortened))."
     }
 
     private func compactWidgetMaximumWidth(_ fixedWidth: CGFloat) -> CGFloat {

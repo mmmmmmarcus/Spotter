@@ -9,6 +9,7 @@ enum CommandID: String, CaseIterable, Sendable {
     case importFromRaycast = "command:import-from-raycast"
     case settings = "command:settings"
     case about = "command:about"
+    case version = "command:version"
     case quitAllApps = "command:quit-all-apps"
     case quit = "command:quit"
 
@@ -21,6 +22,7 @@ enum CommandID: String, CaseIterable, Sendable {
         case .importFromRaycast: return "Import from Raycast"
         case .settings: return "Settings"
         case .about: return "About Spotter"
+        case .version: return "Spotter Version"
         case .quitAllApps: return "Quit All Applications"
         case .quit: return "Quit Spotter"
         }
@@ -35,6 +37,7 @@ enum CommandID: String, CaseIterable, Sendable {
         case .importFromRaycast: return "arrow.down.doc"
         case .settings: return "gearshape"
         case .about: return "info.circle"
+        case .version: return "number"
         case .quitAllApps: return "xmark.circle"
         case .quit: return "power"
         }
@@ -50,7 +53,8 @@ enum CommandRegistry {
                 id: id.rawValue, name: id.name,
                 url: URL(
                     string: "spotter://" + id.rawValue.replacingOccurrences(of: ":", with: "/"))!,
-                bundleID: nil, kind: .command, symbolImage: id.sfSymbol)
+                bundleID: nil, kind: .command, symbolImage: id.sfSymbol,
+                detailLabel: id == .version ? AppVersion.current.short : nil)
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 

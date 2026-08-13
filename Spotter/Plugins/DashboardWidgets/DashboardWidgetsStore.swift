@@ -25,9 +25,6 @@ final class DashboardWidgetsStore: ObservableObject {
     @Published private(set) var calendarAccess: DashboardCalendarAccess
     @Published private(set) var calendarAccounts: [DashboardCalendarAccount] = []
     @Published private(set) var nextEvent: DashboardEvent?
-    @Published private(set) var codexUsage: DashboardUsageSnapshot?
-    @Published private(set) var claudeUsage: DashboardUsageSnapshot?
-    @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRequestingCalendarAccess = false
 
     private let defaults: UserDefaults
@@ -119,7 +116,7 @@ final class DashboardWidgetsStore: ObservableObject {
         guard refreshTask == nil else { return }
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refresh()
+                self?.refresh()
                 do {
                     try await Task.sleep(for: .seconds(60))
                 } catch {
@@ -134,24 +131,8 @@ final class DashboardWidgetsStore: ObservableObject {
         refreshTask = nil
     }
 
-    func refresh() async {
+    func refresh() {
         refreshCalendar()
-        let wantsCodex = isWidgetEnabled(.codex)
-        let wantsClaude = isWidgetEnabled(.claudeCode)
-        guard wantsCodex || wantsClaude else {
-            codexUsage = nil
-            claudeUsage = nil
-            lastRefresh = Date()
-            return
-        }
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let usage = await Task.detached(priority: .utility) {
-            DashboardUsageReader.load(homeDirectory: home)
-        }.value
-        guard !Task.isCancelled else { return }
-        codexUsage = wantsCodex ? usage.codex : nil
-        claudeUsage = wantsClaude ? usage.claude : nil
-        lastRefresh = Date()
     }
 
     func requestCalendarAccess() {
@@ -263,74 +244,7 @@ final class DashboardWidgetsStore: ObservableObject {
         defaults.set(updated.includesAllDayEvents, forKey: Keys.includesAllDayEvents)
         defaults.set(updated.clockTimeZoneIdentifier ?? "", forKey: Keys.clockTimeZone)
         if !isWidgetEnabled(.nextEvent) { nextEvent = nil }
-        if !isWidgetEnabled(.codex) { codexUsage = nil }
-        if !isWidgetEnabled(.claudeCode) { claudeUsage = nil }
-        Task { [weak self] in await self?.refresh() }
-    }
-}
-
-private struct DashboardUsageReader: Sendable {
-    let codex: DashboardUsageSnapshot?
-    let claude: DashboardUsageSnapshot?
-
-    static func load(homeDirectory: URL) -> DashboardUsageReader {
-        let support = homeDirectory.appending(path: "Library/Application Support")
-        let codexBarSupport = support.appending(path: "CodexBar")
-        let codexBarHistory = support.appending(path: "com.steipete.codexbar/history")
-        let snapshotCandidates = [
-            homeDirectory.appending(path: "Library/Group Containers/Y5PE65HELJ.com.steipete.codexbar/widget-snapshot.json"),
-            homeDirectory.appending(path: "Library/Group Containers/group.com.steipete.codexbar/widget-snapshot.json"),
-            codexBarSupport.appending(path: "widget-snapshot.json"),
-        ]
-        let snapshotData = snapshotCandidates.compactMap { try? Data(contentsOf: $0) }
-            .max(by: { lhs, rhs in
-                (DashboardWidgetsEngine.codexBarSnapshotUsage(from: lhs, provider: "codex")?.updatedAt ?? .distantPast)
-                    < (DashboardWidgetsEngine.codexBarSnapshotUsage(from: rhs, provider: "codex")?.updatedAt ?? .distantPast)
-            })
-        let codexHistory = try? Data(contentsOf: codexBarHistory.appending(path: "codex.json"))
-        let claudeHistory = try? Data(contentsOf: codexBarHistory.appending(path: "claude.json"))
-        let codexSession = newestJSONL(
-            under: [homeDirectory.appending(path: ".codex/sessions"), homeDirectory.appending(path: ".codex/archived_sessions")]
-        ).flatMap { tail($0) }
-
-        let codex = DashboardWidgetsEngine.preferredUsage([
-            codexSession.flatMap(DashboardWidgetsEngine.codexSessionUsage),
-            snapshotData.flatMap { DashboardWidgetsEngine.codexBarSnapshotUsage(from: $0, provider: "codex") },
-            codexHistory.flatMap { DashboardWidgetsEngine.codexBarHistoryUsage(from: $0, provider: "codex") },
-        ])
-        let claude = DashboardWidgetsEngine.preferredUsage([
-            snapshotData.flatMap { DashboardWidgetsEngine.codexBarSnapshotUsage(from: $0, provider: "claude") },
-            claudeHistory.flatMap { DashboardWidgetsEngine.codexBarHistoryUsage(from: $0, provider: "claude") },
-        ])
-        return DashboardUsageReader(codex: codex, claude: claude)
-    }
-
-    private static func newestJSONL(under roots: [URL]) -> URL? {
-        var newest: (url: URL, date: Date)?
-        let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
-        for root in roots {
-            guard let enumerator = FileManager.default.enumerator(
-                at: root, includingPropertiesForKeys: Array(keys),
-                options: [.skipsHiddenFiles, .skipsPackageDescendants])
-            else { continue }
-            for case let url as URL in enumerator where url.pathExtension == "jsonl" {
-                guard let values = try? url.resourceValues(forKeys: keys),
-                    values.isRegularFile == true,
-                    let date = values.contentModificationDate
-                else { continue }
-                if newest == nil || date > newest!.date { newest = (url, date) }
-            }
-        }
-        return newest?.url
-    }
-
-    private static func tail(_ url: URL, maximumBytes: UInt64 = 2_000_000) -> Data? {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
-        defer { try? handle.close() }
-        guard let end = try? handle.seekToEnd() else { return nil }
-        let offset = end > maximumBytes ? end - maximumBytes : 0
-        try? handle.seek(toOffset: offset)
-        return try? handle.readToEnd()
+        Task { [weak self] in self?.refresh() }
     }
 }
 

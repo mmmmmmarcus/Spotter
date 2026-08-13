@@ -75,11 +75,26 @@ app; changes always apply (fixed build path — no need to delete `build/`).
 
 ## Tests
 
-There's no XCTest target. Standalone harnesses:
+There's no XCTest target. Run the complete suite with bounded parallelism:
+
+```sh
+scripts/test-all.sh --jobs 4
+```
+
+Release preparation runs the same full suite and validates the website only when it has changes
+beyond the synchronized version fallback:
+
+```sh
+scripts/release.sh prepare <x.y.z>
+```
+
+Individual standalone harnesses:
 
 ```sh
 swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift Tools/fuzz-test.swift \
     -o /tmp/fuzz-test && /tmp/fuzz-test                            # search relevance + fuzzy matcher
+swiftc -swift-version 6 Spotter/Core/AppVersion.swift Tools/app-version-test.swift \
+    -o /tmp/app-version-test && /tmp/app-version-test              # launcher/About version labels
 swiftc -swift-version 6 Spotter/Core/LauncherRankingStore.swift \
     Spotter/Core/SearchRelevance.swift Tools/ranking-test.swift \
     -o /tmp/ranking-test && /tmp/ranking-test                      # learned launcher ranking
@@ -149,7 +164,7 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + ChatGPT web URL
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Tools/dashboard-widgets-test.swift \
-    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences + local usage parsing
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences + calendar filtering
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
@@ -164,6 +179,9 @@ swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
 stay Foundation-only and pure — there is no copy of the scorer to keep in sync. The calc harness compiles the real engine
 sources, which is why `Spotter/Core/Calculator/` and the parser/data sources in
 `Spotter/Plugins/CurrencyConversion/` must stay Foundation-only.
+
+The App Version harness pins the channel-aware Launcher label, full About label and missing-value
+fallbacks without depending on the version of the test executable.
 
 The World Clock harness compiles the real Foundation-only engine and Foundation + Combine store. It
 injects a fixed date, calendar, local time zone and isolated `UserDefaults` suite, so daylight-saving,
@@ -180,8 +198,8 @@ The Launcher Fallbacks harness pins the four query destinations and verifies tha
 text reaches Terminal as one exact `osascript` argument rather than interpolated AppleScript source.
 
 The Dashboard Widgets harness compiles the real Foundation-only engine. It pins widget preference
-fallbacks, calendar-account/all-day filtering, time-zone resolution and the local Codex/CodexBar
-usage-cache decoders without touching EventKit or the user's files.
+fallbacks, calendar-account/all-day filtering and time-zone resolution without touching EventKit or
+the user's files.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a
@@ -293,6 +311,15 @@ Then use the **Actions** tab (`Release` → **Run workflow**) and pick:
 Stable releases are accepted only from the default branch. The workflow reads and validates the
 numeric `x.y.z` version from `project.yml` and stops if its target tag already exists. The website's
 offline fallback version is kept in sync by the release preflight.
+
+The tracked release orchestrator performs context inspection, publication preflight, safe push,
+stable dispatch, job-level waiting and independent downloadable-asset auditing:
+
+```sh
+scripts/release.sh context
+scripts/release.sh publish <x.y.z>
+scripts/release.sh audit <x.y.z>    # read-only audit of an existing stable release
+```
 
 It builds on a `macos-26` runner with Xcode 26 and publishes a GitHub Release tagged
 `v<full-version>` with two assets: the DMG (`Spotter-<full-version>.dmg`) and the zip

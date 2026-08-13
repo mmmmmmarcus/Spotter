@@ -17,6 +17,8 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     /// A bundle to draw the icon from when the entry has no file of its own — a quicklink borrows the icon of the app that opens it. Overrides `symbolImage`.
     let iconFilePath: String?
     let pluginActionKey: PluginActionKey?
+    /// Optional trailing value that replaces the generic kind label for informational commands.
+    let detailLabel: String?
     /// Spotlight's `kMDItemAlternateNames`, ranked below the display name. Applications only.
     var alternateNames: [String] = []
     /// `CFBundleExecutable`, matched literally as a last resort. Applications only.
@@ -26,6 +28,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
         id: String, name: String, url: URL, bundleID: String?, kind: Kind,
         symbolImage: String? = nil, iconFilePath: String? = nil,
         pluginActionKey: PluginActionKey? = nil,
+        detailLabel: String? = nil,
         alternateNames: [String] = [], executableName: String? = nil
     ) {
         self.id = id
@@ -36,6 +39,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
         self.symbolImage = symbolImage
         self.iconFilePath = iconFilePath
         self.pluginActionKey = pluginActionKey
+        self.detailLabel = detailLabel
         self.alternateNames = alternateNames
         self.executableName = executableName
     }
@@ -50,6 +54,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     }
 
     var kindLabel: String {
+        if let detailLabel { return detailLabel }
         switch kind {
         case .application: return "Application"
         case .systemSettings: return "System Setting"

@@ -98,6 +98,11 @@ Update palette sub-screen and performs a fresh manual check; it observes the sam
 by General Settings and carries the flow through download, signature verification, replacement and
 relaunch without leaving the launcher.
 
+**Spotter Version** is another ordinary core command rather than a query special case. Its display
+name participates in the same fuzzy ranking as every other entry, while its trailing label shows the
+running bundle's channel-aware short version (for example `1.4.13-dev`). Activating it opens About,
+where the build number is also shown.
+
 A registration may mark a secondary command `defaultVisible: false`. `AppCore.start()` seeds that
 visibility exactly once, after which the normal visibility store and System → Shortcuts own the user
 choice. Change Case uses this for its 21 direct transformations and Window Management for 20 of its 30

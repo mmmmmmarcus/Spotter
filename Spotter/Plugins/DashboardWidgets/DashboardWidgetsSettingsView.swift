@@ -25,22 +25,6 @@ struct DashboardWidgetsSettingsView: View {
                 ) {
                     widgetToggle(.nextEvent)
                 }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Claude Code",
-                    subtitle: "Local Claude usage metadata from CodexBar.",
-                    systemImage: "sparkles", tint: .purple
-                ) {
-                    widgetToggle(.claudeCode)
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Codex",
-                    subtitle: "Local Codex rate-limit metadata.",
-                    systemImage: "terminal", tint: .green
-                ) {
-                    widgetToggle(.codex)
-                }
             }
 
             SettingsCard(header: "Clock Details") {
@@ -127,19 +111,8 @@ struct DashboardWidgetsSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "AI Usage") {
-                SettingsRow(
-                    title: "Local Usage Metadata",
-                    subtitle:
-                        "Reads Codex rate-limit metadata and CodexBar's local widget/history cache. It does not start another app, access credentials, send network requests, or parse conversation content.",
-                    systemImage: "chart.bar", tint: .purple
-                ) {
-                    Button("Refresh") { Task { await store.refresh() } }
-                        .controlSize(.small)
-                }
-            }
         }
-        .task { await store.refresh() }
+        .task { store.refresh() }
     }
 
     private var calendarSubtitle: String {

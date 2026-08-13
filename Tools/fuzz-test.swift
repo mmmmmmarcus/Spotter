@@ -59,6 +59,7 @@ struct FuzzTest {
         App(name: "Maps", alternates: ["ALTERNATE_NAME_1", "Maps.app"]),
         // Alternate that only repeats the display name; contributes nothing.
         App(name: "Image Playground", alternates: ["Image Playground", "Image Playground.app"]),
+        App(name: "Spotter Version"),
     ]
 
     static func app(_ name: String) -> App { apps.first { $0.name == name }! }
@@ -132,6 +133,9 @@ struct FuzzTest {
             "'code' includes Visual Studio Code", rank("code").contains("Visual Studio Code"),
             "got \(rank("code"))")
         check("'terminal' exact top", rank("terminal").first == "Terminal")
+        check(
+            "a partial version query finds the normal launcher result",
+            rank("vrsn").first == "Spotter Version", "got \(rank("vrsn"))")
         check("'xyz' matches nothing", rank("xyz").isEmpty, "got \(rank("xyz"))")
 
         let defaultW = rank("w")

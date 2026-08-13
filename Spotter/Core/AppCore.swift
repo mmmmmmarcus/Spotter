@@ -718,7 +718,7 @@ final class AppCore: ObservableObject {
         case .settings:
             hidePalette(restoreFocus: false)
             showSettings()
-        case .about:
+        case .about, .version:
             hidePalette(restoreFocus: false)
             showAbout()
         case .quitAllApps:

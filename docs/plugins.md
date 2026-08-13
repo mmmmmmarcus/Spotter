@@ -250,10 +250,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   definition and grammar checks start follow-up-ready conversations. The launcher's final query
   destination rows reuse both paths without adding registry commands.
 - **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature
-  shown under Settings → System. It adds independently toggleable local time, next calendar event and
-  Claude Code/Codex quota cards above the empty launcher. The clock supports an explicit time zone;
-  Calendar can filter by EventKit account and exclude all-day events. Calendar data is permission-gated
-  and usage data is read only from local tool/CodexBar state.
+  shown under Settings → System. It adds independently toggleable local time and next calendar event
+  cards above the empty launcher. The clock supports an explicit time zone; Calendar can filter by
+  EventKit account and exclude all-day events. Calendar data is permission-gated.
 
 ## Current plugins
 

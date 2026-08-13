@@ -124,7 +124,8 @@ Never break these without an explicit task to do so.
   confirmation gate lives in `AppCore` and not in the runner. `Core/LauncherFallback.swift` and
   `Core/TerminalCommandRunner.swift` also stay Foundation-only for
   `Tools/launcher-fallback-test.swift`; the latter passes user input as one `osascript` argv value,
-  never interpolated AppleScript source.
+  never interpolated AppleScript source. `Core/AppVersion.swift` stays Foundation-only for
+  `Tools/app-version-test.swift`.
 - **`Core/SearchRelevance.swift` stays Foundation-only and pure** — `Tools/fuzz-test.swift` compiles
   the real scorer, so there is no copy to keep in sync (the old mirrored-`FuzzyMatch` invariant is
   retired). `Core/SpotlightNames.swift` owns the only Spotlight read; keep its per-bundle

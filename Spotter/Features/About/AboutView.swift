@@ -2,12 +2,6 @@ import AppKit
 import SwiftUI
 
 struct AboutView: View {
-    private static var version: String {
-        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
-        return "Version \(short) (\(build))"
-    }
-
     // Loaded once and cached: reading the .icns is disk I/O, and body can re-run often. Read the
     // bundled file directly since NSApp.applicationIconImage returns the generic placeholder until
     // LaunchServices registers the app, which it hasn't when run from build/.
@@ -55,7 +49,7 @@ struct AboutView: View {
             VStack(spacing: Theme.Spacing.sm) {
                 Text(Bundle.main.appDisplayName)
                     .font(.title.weight(.bold))
-                Text(Self.version)
+                Text(AppVersion.current.aboutLabel)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, Theme.Spacing.md)
