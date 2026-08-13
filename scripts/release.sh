@@ -173,7 +173,7 @@ wait_for_jobs() {
 
     for attempt in $(seq 1 240); do
         state="$(gh run view "$run_id" --json status,conclusion,jobs --jq \
-            '[.status, (.conclusion // ""), (.jobs | length), ( [.jobs[] | select(.status != "completed")] | length ), ( [.jobs[] | select(.status == "completed" and .conclusion != "success")] | length )] | @tsv')"
+            '[.status, (if .conclusion == "" then "pending" else .conclusion end), (.jobs | length), ( [.jobs[] | select(.status != "completed")] | length ), ( [.jobs[] | select(.status == "completed" and .conclusion != "success")] | length )] | @tsv')"
         IFS=$'\t' read -r workflow_status workflow_conclusion total incomplete failed <<< "$state"
         if [ "$failed" -ne 0 ]; then
             echo "✗ Release workflow $run_id failed." >&2
