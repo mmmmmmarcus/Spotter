@@ -164,7 +164,8 @@ final class AppCore: ObservableObject {
     let selectedTextCapture = SelectedTextCapture()
     let selectionTools: SelectionToolsManager
     let imageModification = ImageModificationManager()
-    let notes = NoteStore()
+    let notes: NoteStore
+    let noteSync: NoteSyncManager
     let aiChat: AIChatStore
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
@@ -191,6 +192,9 @@ final class AppCore: ObservableObject {
         self.textReplacements = textReplacements
         textReplacementManager = TextReplacementManager(store: textReplacements)
         selectionTools = SelectionToolsManager()
+        let notes = NoteStore()
+        self.notes = notes
+        noteSync = NoteSyncManager(store: notes)
         aiChat = AIChatStore(openRouter: openRouter)
         quicklinkManager = QuicklinkManager(store: quicklinks)
         for registration in BuiltInPlugins.registrations(core: self) {

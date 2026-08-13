@@ -51,6 +51,13 @@ final class MoleManager: ObservableObject {
         "/opt/homebrew/bin/mole", "/usr/local/bin/mole", "/opt/homebrew/bin/mo",
         "/usr/local/bin/mo",
     ]
+    private nonisolated static let homebrewPaths = [
+        "/opt/homebrew/bin/brew", "/usr/local/bin/brew",
+    ]
+    /// Mole 1.50's Bash 3.2 cask probe can terminate `uninstall --list` mid-JSON.
+    private static let uninstallInventoryEnvironment = [
+        "MO_NO_OPLOG": "1", "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+    ]
 
     init() {
         binaryPath = Self.locateBinary()
@@ -153,11 +160,28 @@ final class MoleManager: ObservableObject {
             onOutput = nil
         }
         loadTask = Task { [weak self] in
+            let environment = screen == .uninstall
+                ? Self.uninstallInventoryEnvironment : ["MO_NO_OPLOG": "1"]
             let result = await MoleProcessRunner.capture(
-                path: path, arguments: arguments, environment: ["MO_NO_OPLOG": "1"],
+                path: path, arguments: arguments, environment: environment,
                 onOutput: onOutput)
             guard !Task.isCancelled else { return }
-            self?.apply(result, for: screen)
+            guard screen == .uninstall, case .success = result else {
+                self?.apply(result, for: screen)
+                return
+            }
+            let casks = await Self.loadHomebrewCasks()
+            guard !Task.isCancelled else { return }
+            switch casks {
+            case .success(let catalog):
+                self?.apply(result, for: screen, homebrewCasks: catalog)
+            case .failure(let error):
+                self?.apply(
+                    .failure(
+                        MoleRunError(
+                            message: "Homebrew ownership check failed: \(error.message)")),
+                    for: screen)
+            }
         }
     }
 
@@ -216,6 +240,7 @@ final class MoleManager: ObservableObject {
         runTask = Task { [weak self] in
             let result = await MoleProcessRunner.capture(
                 path: path, arguments: action.arguments,
+                standardInput: action.standardInput,
                 onOutput: { [weak self] data in
                     self?.enqueueRunProgress(
                         data, taskID: taskID, action: action,
@@ -308,7 +333,10 @@ final class MoleManager: ObservableObject {
             .first { !$0.isEmpty }
     }
 
-    private func apply(_ result: Result<Data, MoleRunError>, for screen: MoleScreen) {
+    private func apply(
+        _ result: Result<Data, MoleRunError>, for screen: MoleScreen,
+        homebrewCasks: [String: String] = [:]
+    ) {
         // A screen switch mid-flight must not have its result overwritten by the older request.
         guard screen == self.screen else { return }
         loadTask = nil
@@ -334,7 +362,7 @@ final class MoleManager: ObservableObject {
             case .purge:
                 state = .purge(MoleParser.parsePurge(String(decoding: data, as: UTF8.self)))
             case .uninstall:
-                let apps = MoleParser.parseApps(data)
+                let apps = MoleParser.parseApps(data, homebrewCasks: homebrewCasks)
                 state = apps.isEmpty
                     ? .failed("Mole didn't return an app list.") : .apps(apps)
             case .analyze:
@@ -362,6 +390,27 @@ final class MoleManager: ObservableObject {
 
     private func markSuccessfulLoad(for screen: MoleScreen) {
         lastSuccessfulLoad = (screen, Date())
+    }
+
+    /// Homebrew's local JSON lets Spotter block cask rows that Mole would remove incompletely.
+    private nonisolated static func loadHomebrewCasks()
+        async -> Result<[String: String], MoleRunError>
+    {
+        guard let brew = homebrewPaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            return .success([:])
+        }
+        let result = await MoleProcessRunner.capture(
+            path: brew, arguments: ["info", "--json=v2", "--installed", "--cask"],
+            environment: ["HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_ENV_HINTS": "1"])
+        switch result {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let data):
+            guard let catalog = MoleParser.parseHomebrewCasks(data) else {
+                return .failure(MoleRunError(message: "Homebrew returned unreadable cask data."))
+            }
+            return .success(catalog)
+        }
     }
 
     private nonisolated func enqueueCleanProgress(

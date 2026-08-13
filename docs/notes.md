@@ -3,7 +3,8 @@
 Notes is a native, local note-taking workspace modeled on the core experience described before the
 “Frictionless integrations” section of Raycast Notes: quick floating access, Markdown formatting,
 todos and multiple notes. It deliberately does not implement Raycast AI, snippets, quicklinks, cloud
-sync, export/share targets, a separate preview mode or deleted-note recovery.
+services, export/share targets, a separate preview mode or deleted-note recovery. Optional cross-Mac
+sync uses a user-selected JSON file carried by iCloud Drive or another file provider.
 
 ## Entry points
 
@@ -19,7 +20,7 @@ resizing, `.floating` level and all-Spaces visibility, but the plugin never crea
 inset, leaving the clipped Note material as the only rounded surface. The surface and toolbar extend
 through one seamless title bar, with the lone close button directly left of the centered note title
 in the same native-height row; minimize and zoom controls are hidden. The workspace opens as a
-440-point-wide editor with four matching continuous corners.
+440-point-wide editor with four matching 20-point continuous corners.
 Its centered toolbar title is derived from the selected note's first line; the right side contains
 only the notes-list and New Note actions. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting
@@ -43,11 +44,32 @@ The archive is versioned JSON at:
 ~/Library/Application Support/<bundle-id>/Notes/notes.json
 ```
 
-Using the bundle identifier keeps Debug, beta and stable channels isolated. Content changes are
+Using the bundle identifier keeps the local store scoped to Spotter. Content changes are
 debounced for 250 ms, snapshotted as `Sendable` values and written atomically by a serial actor, so
 typing never performs filesystem IO on the main actor and newer saves cannot be overtaken by older
-ones. Creation and deletion schedule immediate snapshots. Notes and the selected note enter trusted
-v3 backups and automatic sync; the feature itself requires no macOS permission or network consent.
+ones. Creation and deletion schedule immediate snapshots. Manual Spotter backups include Notes for
+recovery, but automatic Settings Sync deliberately excludes them.
+
+## Independent sync
+
+The Notes Settings pane can create or connect a dedicated versioned JSON file. `NoteSyncManager` is
+owned by `AppCore`, observes only `NoteStore`, and uses the shared coordinated file IO primitives:
+`NSFileCoordinator` serializes atomic reads/writes, an `NSFilePresenter` catches file-provider
+changes, and a parent-directory source catches replacement by ordinary editors. Fully decoded
+snapshots hot-apply to the store; byte revisions suppress Spotter's own notifications. The Notes and
+Settings sync managers never observe, read or write each other's files, and the file pickers reject
+using one path for both.
+
+When upgrading an installation that already has automatic Settings Sync enabled, Spotter performs a
+bounded migration. It creates or connects `Spotter Notes.json` next to the trusted Settings file,
+using the current local `NoteStore` when creating it, then records the separate path under
+bundle-scoped defaults. The next Settings Sync normalization omits the legacy `notes` field. Local
+`notes.json` remains the working store throughout, so the migration never deletes the only copy.
+Disconnecting stops the watcher without deleting either local notes or the selected sync file.
+
+Putting the dedicated file in iCloud Drive lets macOS transport it; Spotter has no Notes server or
+CloudKit container and performs no network request itself. Concurrent edits are whole-snapshot,
+last-delivered-writer wins, so users should avoid editing the same note on two offline Macs at once.
 
 ## Editor
 
@@ -72,8 +94,9 @@ Run the pure harness independently:
 
 ```sh
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
+    Spotter/Plugins/Note/NoteSyncDocument.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 ```
 
-The harness uses an injected temporary archive and defaults suite; it never opens the floating window
-or reads real application data.
+The harness uses an injected temporary archive and defaults suite, and checks the independent sync
+document's versioned round trip; it never opens the floating window or reads real application data.

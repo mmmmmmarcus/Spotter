@@ -3,6 +3,7 @@ import SwiftUI
 struct NoteSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: NoteStore
+    @ObservedObject var sync: NoteSyncManager
 
     var body: some View {
         SettingsPane(
@@ -54,6 +55,64 @@ struct NoteSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            SettingsCard(header: "Sync") {
+                SettingsRow(
+                    title: "Notes File",
+                    subtitle: sync.fileURL.map(displayPath)
+                        ?? "Choose an existing Notes file or create one in iCloud Drive.",
+                    systemImage: sync.isICloudLocation ? "icloud" : "doc.text",
+                    tint: .blue
+                ) {
+                    HStack(spacing: Theme.Spacing.md) {
+                        Button("Choose…") { NoteSyncActions.connectExisting() }
+                            .controlSize(.small)
+                        Button("Create…") { NoteSyncActions.create() }
+                            .controlSize(.small)
+                    }
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Automatic Sync",
+                    subtitle: sync.statusText,
+                    systemImage: sync.errorMessage == nil
+                        ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle.fill",
+                    tint: sync.errorMessage == nil ? .teal : .orange
+                ) {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { sync.isEnabled },
+                            set: { sync.setEnabled($0) }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .disabled(sync.fileURL == nil || sync.isWorking)
+                }
+                if sync.fileURL != nil {
+                    SettingsDivider()
+                    SettingsRow(
+                        title: "Disconnect",
+                        subtitle: "Stops Notes sync without deleting the JSON file.",
+                        systemImage: "link.badge.minus",
+                        tint: .secondary
+                    ) {
+                        Button("Disconnect") { sync.disconnect() }
+                            .controlSize(.small)
+                    }
+                }
+            }
+            SettingsCallout(
+                title: "Notes sync separately",
+                message:
+                    "Automatic Settings Sync never reads or writes this file. Keep it private; "
+                    + "placing it in iCloud Drive lets macOS carry Notes between your Macs.",
+                systemImage: "lock.doc",
+                tint: .blue)
         }
+    }
+
+    private func displayPath(_ url: URL) -> String {
+        (url.path as NSString).abbreviatingWithTildeInPath
     }
 }

@@ -53,6 +53,11 @@ struct MoleTests {
             "permanent uninstall bypasses the Trash",
             MoleAction.uninstall(name: "Slack", permanent: true).arguments
                 == ["uninstall", "--permanent", "Slack"])
+        check(
+            "uninstall supplies Mole's direct-command confirmation",
+            MoleAction.uninstall(name: "Slack", permanent: false).standardInput
+                == Data("y\n".utf8))
+        check("clean never receives synthetic input", MoleAction.clean.standardInput == nil)
         check("a Trash uninstall is recoverable, so not flagged permanent",
             !MoleAction.uninstall(name: "Slack", permanent: false).isPermanent)
         check("purge is irreversible", MoleAction.purge.isPermanent)
@@ -264,7 +269,40 @@ struct MoleTests {
         check("apps keep the display name", apps.first?.name == "Cursor")
         check("apps keep the uninstall token", apps.first?.uninstallName == "Cursor")
         check("apps keep the size", apps.first?.size == "559.5MB")
+        check("a uniquely named app can be uninstalled", apps.first?.canUninstall == true)
         check("malformed app list is empty", MoleParser.parseApps(Data("nope".utf8)).isEmpty)
+
+        let duplicateAppsJSON = """
+        [
+          {"name":"Antinote","uninstall_name":"Antinote","path":"/Applications/Antinote.app"},
+          {"name":"Antinote","uninstall_name":"Antinote","path":"/Applications/Setapp/Antinote.app"},
+          {"name":"Xcode","uninstall_name":"Xcode","path":"/Applications/Xcode.app"},
+          {"name":"Xcode","uninstall_name":"Xcode","path":"/Applications/Xcode-beta.app"}
+        ]
+        """.data(using: .utf8)!
+        let duplicateApps = MoleParser.parseApps(duplicateAppsJSON)
+        check(
+            "indistinguishable copies are blocked",
+            duplicateApps.filter { $0.name == "Antinote" }.allSatisfy { !$0.canUninstall })
+        check(
+            "a unique bundle filename resolves an otherwise duplicated display name",
+            duplicateApps.last?.uninstallName == "Xcode-beta"
+                && duplicateApps.last?.canUninstall == true)
+
+        let brewJSON = """
+        {"casks":[{"token":"docker-desktop","artifacts":[
+          {"app":["Docker.app"],"target":"/Applications/Docker.app"},
+          {"binary":["docker"]}
+        ]}]}
+        """.data(using: .utf8)!
+        let casks = MoleParser.parseHomebrewCasks(brewJSON)
+        check("Homebrew catalog maps the installed app target", casks?["/Applications/Docker.app"] == "docker-desktop")
+        let caskAppJSON = """
+        [{"name":"Docker","uninstall_name":"Docker","path":"/Applications/Docker.app"}]
+        """.data(using: .utf8)!
+        let caskApps = MoleParser.parseApps(caskAppJSON, homebrewCasks: casks ?? [:])
+        check("Homebrew casks are blocked from incomplete Mole removal", caskApps.first?.canUninstall == false)
+        check("malformed Homebrew data is rejected", MoleParser.parseHomebrewCasks(Data("nope".utf8)) == nil)
 
         // Disk analysis parsing
         let analysisJSON = """
@@ -305,6 +343,32 @@ struct MoleTests {
             environment: ["MO_NO_OPLOG": "1"])
         check("preview environment reaches Mole", successText(environment) == "1")
 
+        let input = await MoleProcessRunner.capture(
+            path: "/bin/sh",
+            arguments: ["-c", "IFS= read -r answer; [ \"$answer\" = y ] && printf confirmed"],
+            standardInput: Data("y\n".utf8))
+        check("synthetic confirmation reaches stdin exactly once", successText(input) == "confirmed")
+
+        let nonzero = await MoleProcessRunner.capture(
+            path: "/bin/sh",
+            arguments: ["-c", "printf partial; printf 'real failure' >&2; exit 7"])
+        check("non-zero exit status is a failure even with stdout", ifCaseFailure(nonzero))
+        check("failure keeps the exit status", failureMessage(nonzero)?.contains("status 7") == true)
+        check("failure keeps stderr detail", failureMessage(nonzero)?.contains("real failure") == true)
+
+        let summarizedFailure = await MoleProcessRunner.capture(
+            path: "/bin/sh",
+            arguments: [
+                "-c",
+                "printf '◎ Failed to scan shared file lists\\nDry Run Complete\\n=====\\n'; exit 1",
+            ])
+        check(
+            "failure detail prefers the actionable line over trailing banners",
+            failureMessage(summarizedFailure)?.contains("Failed to scan shared file lists") == true)
+
+        let emptySuccess = await MoleProcessRunner.capture(path: "/usr/bin/true", arguments: [])
+        check("an empty successful command remains successful", successText(emptySuccess) == "")
+
         let output = MoleOutputRecorder()
         _ = await MoleProcessRunner.capture(
             path: "/bin/sh", arguments: ["-c", "printf first; sleep 0.3; printf second"],
@@ -324,5 +388,10 @@ struct MoleTests {
     private static func successText(_ result: Result<Data, MoleRunError>) -> String? {
         guard case .success(let data) = result else { return nil }
         return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func failureMessage(_ result: Result<Data, MoleRunError>) -> String? {
+        guard case .failure(let error) = result else { return nil }
+        return error.message
     }
 }

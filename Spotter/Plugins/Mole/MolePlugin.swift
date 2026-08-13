@@ -244,14 +244,21 @@ enum MoleResults {
 
     private static func appItems(_ apps: [MoleApp]) -> [PluginPaletteItem] {
         apps.enumerated().map { index, app in
-            PluginPaletteItem(
+            var accessories: [PluginPaletteAccessory] = []
+            if app.uninstallIssue != nil {
+                accessories.append(.init(systemImage: "exclamationmark.triangle", text: "Review"))
+            }
+            if !app.size.isEmpty {
+                accessories.append(.init(systemImage: "externaldrive", text: app.size))
+            }
+            return PluginPaletteItem(
                 id: "app:\(index)",
                 title: app.name,
-                subtitle: app.path,
+                subtitle: app.uninstallIssue.map { app.path + " · " + $0 } ?? app.path,
                 icon: app.path.isEmpty ? .symbol("app") : .file(path: app.path),
-                accessories: app.size.isEmpty
-                    ? [] : [.init(systemImage: "externaldrive", text: app.size)],
-                primaryActionTitle: "Move to Trash")
+                accessories: accessories,
+                subtitleLineLimit: app.uninstallIssue == nil ? 1 : 2,
+                primaryActionTitle: app.canUninstall ? "Move to Trash" : "Reveal in Finder")
         }
     }
 
@@ -384,14 +391,17 @@ enum MoleResults {
                 })
         }
         if let app = app(manager: manager, itemID: itemID) {
-            items.append(
-                PopoverMenuItem(title: "Move to Trash", systemImage: "trash") {
-                    core.runMoleAction(.uninstall(name: app.uninstallName, permanent: false))
-                })
-            items.append(
-                PopoverMenuItem(
-                    title: "Delete Permanently", systemImage: "trash.slash", isDestructive: true
-                ) { core.runMoleAction(.uninstall(name: app.uninstallName, permanent: true)) })
+            if app.canUninstall {
+                items.append(
+                    PopoverMenuItem(title: "Move to Trash", systemImage: "trash") {
+                        core.runMoleAction(.uninstall(name: app.uninstallName, permanent: false))
+                    })
+                items.append(
+                    PopoverMenuItem(
+                        title: "Delete Permanently", systemImage: "trash.slash",
+                        isDestructive: true
+                    ) { core.runMoleAction(.uninstall(name: app.uninstallName, permanent: true)) })
+            }
             items.append(
                 PopoverMenuItem(title: "Reveal in Finder", systemImage: "folder") {
                     core.revealInFinder(path: app.path)
@@ -558,10 +568,11 @@ extension AppCore {
             && app.bundleID != Bundle.main.bundleIdentifier
     }
 
-    /// Launcher app rows hand their uninstall to the same confirmed background-task funnel.
+    /// Launcher app rows open the filtered inventory so the exact copy is resolved before deletion.
     func uninstallWithMole(_ app: AppEntry) {
         guard canUninstallWithMole(app) else { return }
-        runMoleAction(.uninstall(name: app.name, permanent: false))
+        openMole(.uninstall)
+        palette.query = app.name
     }
 
     func runMoleAction(_ action: MoleAction) {
@@ -614,7 +625,11 @@ extension AppCore {
             return
         }
         if let app = MoleResults.app(manager: mole, itemID: itemID) {
-            runMoleAction(.uninstall(name: app.uninstallName, permanent: false))
+            if app.canUninstall {
+                runMoleAction(.uninstall(name: app.uninstallName, permanent: false))
+            } else {
+                revealInFinder(path: app.path)
+            }
             return
         }
         if let path = MoleResults.revealablePath(manager: mole, itemID: itemID) {

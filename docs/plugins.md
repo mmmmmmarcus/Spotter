@@ -267,8 +267,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
   event tap without storing typing history or using the clipboard.
 - **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local notes in a translucent,
-  content-height floating Markdown editor that opens 440 points wide with an inset overlay list,
-  plus `Open Notes` and `New Note` actions.
+  content-height floating Markdown editor that opens 440 points wide with a 20-point window radius
+  and an inset overlay list, plus `Open Notes` and `New Note` actions. Its optional coordinated JSON
+  sync is independent from automatic Settings Sync.
 - **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — enabled by default; user-saved links, files and
   deep links published as launcher entries through `dynamicLauncherCommands`, with `{argument}`
   placeholders collected one step at a time on a palette screen using `livePlaceholder`.
@@ -298,8 +299,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   with an AX mover.
 - **Mole** (`Spotter/Plugins/Mole/`) — enabled by default (idle until the CLI is installed); a
   launcher front end for the Mole CLI with no Terminal hand-off — the installer screen is Spotter's
-  own scan and native Trash. Launcher app rows offer **Uninstall with Mole** through the same
-  confirmed funnel.
+  own scan and native Trash. Launcher app rows offer **Uninstall with Mole** by opening the filtered
+  inventory first, so Spotter resolves the exact copy before entering the confirmed funnel.
   Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
   off a menu hub; state-changing runs preview first, go through one confirmed funnel, then return to
   the launcher as persistent background-task rows. Nothing hands off to Terminal.

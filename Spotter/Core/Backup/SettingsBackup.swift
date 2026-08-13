@@ -147,6 +147,11 @@ struct SettingsBackup: Codable, Sendable {
         case replace
     }
 
+    enum NoteTransfer: Sendable {
+        case include
+        case exclude
+    }
+
     /// A tally of what an import touched, for user-facing confirmation.
     struct ApplySummary: Sendable {
         var settingsFields = 0
@@ -163,7 +168,9 @@ struct SettingsBackup: Codable, Sendable {
 
 @MainActor
 extension SettingsBackup {
-    static func gather(from core: AppCore = .shared) async -> SettingsBackup {
+    static func gather(
+        from core: AppCore = .shared, notes noteTransfer: NoteTransfer = .include
+    ) async -> SettingsBackup {
         let s = core.settings
         let dashboard = core.dashboardWidgets.preferences
         var backup = SettingsBackup()
@@ -235,7 +242,9 @@ extension SettingsBackup {
         backup.textReplacement = TextReplacementBackup(
             prefix: core.textReplacements.prefix,
             rules: core.textReplacements.rules)
-        backup.notes = NotesBackup(notes: core.notes.notes, selectedID: core.notes.selectedID)
+        if case .include = noteTransfer {
+            backup.notes = NotesBackup(notes: core.notes.notes, selectedID: core.notes.selectedID)
+        }
         backup.clipboardHistory = await core.clipboardStore.syncSnapshot()
         backup.calculatorHistory = core.calcHistory.entries
         backup.aiChat = AIChatBackup(
@@ -298,7 +307,10 @@ extension SettingsBackup {
     }
 
     @discardableResult
-    func apply(to core: AppCore = .shared, mode: ApplyMode = .merge) async -> ApplySummary {
+    func apply(
+        to core: AppCore = .shared, mode: ApplyMode = .merge,
+        notes noteTransfer: NoteTransfer = .include
+    ) async -> ApplySummary {
         var summary = ApplySummary()
         if let s = settings {
             summary.settingsFields = applySettings(s, to: core, mode: mode)
@@ -336,7 +348,7 @@ extension SettingsBackup {
                 prefix: textReplacement.prefix, rules: textReplacement.rules ?? [])
             summary.settingsFields += 1
         }
-        if let notes {
+        if case .include = noteTransfer, let notes {
             core.notes.replace(notes: notes.notes, selectedID: notes.selectedID)
             summary.contentCollections += 1
         }

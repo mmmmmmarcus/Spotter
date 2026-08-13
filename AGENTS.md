@@ -96,7 +96,8 @@ Never break these without an explicit task to do so.
   `Plugins/SelectionTools/SearchURLBuilder.swift` stay Foundation-only and pure,
   `Plugins/TextReplacement/TextReplacementEngine.swift` stays
   Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
-  Foundation + Combine, `Plugins/Note/NoteEngine.swift` stays Foundation-only and pure while
+  Foundation + Combine, `Plugins/Note/NoteEngine.swift` and
+  `Plugins/Note/NoteSyncDocument.swift` stay Foundation-only and pure while
   `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
@@ -105,7 +106,9 @@ Never break these without an explicit task to do so.
   `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift` stays
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
-  `Tools/mole-test.swift` (its harness never executes Mole), `Plugins/Coffee/CoffeeTypes.swift`
+  `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
+  termination status, retain stderr, and supply synthetic stdin only to a post-confirmation
+  uninstall. `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
@@ -193,9 +196,11 @@ Never break these without an explicit task to do so.
 - **Settings sync reuses `SettingsBackup`.** The selected JSON file may live in iCloud Drive, but
   Spotter must coordinate access with `NSFileCoordinator`, observe replacement-safe file changes,
   hot-apply only fully decoded snapshots, suppress its own write notifications, and mirror all
-  user-owned settings and content, including credentials and network consent. Only concrete palette
-  coordinates, system privacy grants and the sync file's own path/state stay device-local. See
-  [`docs/settings-sync.md`](docs/settings-sync.md).
+  covered user-owned settings and content, including credentials and network consent. Notes are the
+  deliberate exception: manual backups still include them, but automatic Settings Sync must exclude
+  them because `NoteSyncManager` owns a separate coordinated JSON file and watcher. Both sync paths
+  keep their own file path/state device-local. Concrete palette coordinates and system privacy grants
+  also stay device-local. See [`docs/settings-sync.md`](docs/settings-sync.md).
 - **Text Replacement never records arbitrary typing or uses the clipboard.** Its matcher retains only
   a suffix that can still become a configured trigger, and its synthetic deletion/insertion events use
   the shared event-source marker so neither its own tap nor Hyper Key rewrites them.

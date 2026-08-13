@@ -1,8 +1,8 @@
 import Darwin
 import Foundation
 
-/// Byte identity is enough for the small, canonical settings JSON and suppresses notifications caused by our own coordinated write.
-struct SettingsSyncRevision: Sendable {
+/// Byte identity suppresses notifications caused by our own canonical coordinated writes.
+struct CoordinatedFileRevision: Sendable {
     private(set) var data: Data?
 
     func isCurrent(_ candidate: Data) -> Bool {
@@ -15,7 +15,7 @@ struct SettingsSyncRevision: Sendable {
 }
 
 /// Serializes coordinated reads and writes so an iCloud download cannot race a local settings save.
-actor SettingsSyncFileIO {
+actor CoordinatedFileIO {
     func read(from url: URL) throws -> Data {
         if FileManager.default.isUbiquitousItem(at: url) {
             try? FileManager.default.startDownloadingUbiquitousItem(at: url)
@@ -52,7 +52,7 @@ actor SettingsSyncFileIO {
 }
 
 /// NSFilePresenter catches coordinated iCloud changes; the directory source also catches uncoordinated editors and atomic file replacement.
-final class SettingsSyncFileWatcher: NSObject, NSFilePresenter, @unchecked Sendable {
+final class CoordinatedFileWatcher: NSObject, NSFilePresenter, @unchecked Sendable {
     let presentedItemURL: URL?
     let presentedItemOperationQueue: OperationQueue
 
@@ -64,7 +64,7 @@ final class SettingsSyncFileWatcher: NSObject, NSFilePresenter, @unchecked Senda
         presentedItemURL = url
         self.onChange = onChange
         let queue = OperationQueue()
-        queue.name = "Spotter Settings Sync Presenter"
+        queue.name = "Spotter Coordinated File Presenter"
         queue.maxConcurrentOperationCount = 1
         presentedItemOperationQueue = queue
         super.init()

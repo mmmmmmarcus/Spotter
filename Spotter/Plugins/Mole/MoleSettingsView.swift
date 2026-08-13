@@ -72,7 +72,9 @@ struct MoleSettingsView: View {
                 message:
                     "Clean, Optimize, Purge and Uninstall open as previews first; running one needs an "
                     + "explicit confirmation naming what it removes. Uninstall moves apps to the Trash "
-                    + "unless you pick Delete Permanently. Admin-only system caches are always skipped.",
+                    + "unless you pick Delete Permanently. Homebrew casks and indistinguishable copies "
+                    + "stay reveal-only so Spotter never removes the wrong app or breaks Homebrew state. "
+                    + "Admin-only system caches are always skipped.",
                 systemImage: "hand.raised",
                 tint: .green)
 

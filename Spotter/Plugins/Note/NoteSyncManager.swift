@@ -1,12 +1,19 @@
 import Combine
 import Foundation
 
-/// Keeps the native settings backup hot across any user-selected JSON path, including iCloud Drive.
 @MainActor
-final class SettingsSyncManager: ObservableObject {
-    private enum Key {
-        static let filePath = "settings-sync.file-path"
-        static let enabled = "settings-sync.enabled"
+final class NoteSyncManager: ObservableObject {
+    private struct Keys {
+        let filePath: String
+        let enabled: String
+        let migrated: String
+
+        init(bundleID: String) {
+            let prefix = bundleID + ".note-sync"
+            filePath = prefix + ".file-path"
+            enabled = prefix + ".enabled"
+            migrated = prefix + ".separated-from-settings-v1"
+        }
     }
 
     @Published private(set) var fileURL: URL?
@@ -15,29 +22,36 @@ final class SettingsSyncManager: ObservableObject {
     @Published private(set) var lastSyncedAt: Date?
     @Published private(set) var errorMessage: String?
 
-    private weak var core: AppCore?
+    private let store: NoteStore
     private let defaults: UserDefaults
+    private let keys: Keys
     private let io = CoordinatedFileIO()
     private var revision = CoordinatedFileRevision()
     private var watcher: CoordinatedFileWatcher?
-    private var cancellables: Set<AnyCancellable> = []
+    private var storeCancellable: AnyCancellable?
     private var saveTask: Task<Void, Never>?
     private var reloadTask: Task<Void, Never>?
+    private var migrationTask: Task<Void, Never>?
     private var isApplyingRemote = false
-    private var hasStarted = false
+    private var isRunning = false
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        store: NoteStore, defaults: UserDefaults = .standard,
+        bundleID: String = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+    ) {
+        self.store = store
         self.defaults = defaults
-        let configuredURL = defaults.string(forKey: Key.filePath).map(URL.init(fileURLWithPath:))
+        keys = Keys(bundleID: bundleID)
+        let configuredURL = defaults.string(forKey: keys.filePath).map(URL.init(fileURLWithPath:))
         fileURL = configuredURL
-        isEnabled = defaults.bool(forKey: Key.enabled) && configuredURL != nil
+        isEnabled = defaults.bool(forKey: keys.enabled) && configuredURL != nil
     }
 
     var statusText: String {
         if let errorMessage { return errorMessage }
         if isWorking { return "Syncing…" }
         guard isEnabled else { return fileURL == nil ? "Not configured" : "Paused" }
-        guard let lastSyncedAt else { return "Waiting for the settings file…" }
+        guard let lastSyncedAt else { return "Waiting for the Notes file…" }
         return "Up to date · " + lastSyncedAt.formatted(date: .omitted, time: .shortened)
     }
 
@@ -45,15 +59,27 @@ final class SettingsSyncManager: ObservableObject {
         fileURL.map { FileManager.default.isUbiquitousItem(at: $0) } ?? false
     }
 
-    func start(core: AppCore) {
-        guard !hasStarted else { return }
-        hasStarted = true
-        self.core = core
-        observeLocalChanges(core: core)
+    func start(migratingFrom settingsSyncURL: URL?) {
+        guard !isRunning else { return }
+        isRunning = true
+        if storeCancellable == nil {
+            storeCancellable = store.objectWillChange.sink { [weak self] in self?.scheduleSave() }
+        }
         if isEnabled {
             startWatching()
             scheduleReload()
+        } else if fileURL == nil, !defaults.bool(forKey: keys.migrated),
+            let settingsSyncURL
+        {
+            migrateFromSettingsSync(settingsSyncURL)
         }
+    }
+
+    func stop() {
+        isRunning = false
+        stopWatching()
+        migrationTask?.cancel()
+        migrationTask = nil
     }
 
     func connectExisting(_ url: URL) {
@@ -67,9 +93,9 @@ final class SettingsSyncManager: ObservableObject {
     func setEnabled(_ enabled: Bool) {
         guard fileURL != nil, enabled != isEnabled else { return }
         isEnabled = enabled
-        defaults.set(enabled, forKey: Key.enabled)
+        defaults.set(enabled, forKey: keys.enabled)
         errorMessage = nil
-        if enabled {
+        if enabled, isRunning {
             startWatching()
             scheduleReload()
         } else {
@@ -79,52 +105,55 @@ final class SettingsSyncManager: ObservableObject {
 
     func disconnect() {
         stopWatching()
+        migrationTask?.cancel()
+        migrationTask = nil
         fileURL = nil
         isEnabled = false
         revision = CoordinatedFileRevision()
         lastSyncedAt = nil
         errorMessage = nil
-        defaults.removeObject(forKey: Key.filePath)
-        defaults.removeObject(forKey: Key.enabled)
+        defaults.removeObject(forKey: keys.filePath)
+        defaults.removeObject(forKey: keys.enabled)
+        defaults.set(true, forKey: keys.migrated)
     }
 
     private func connectExistingNow(_ url: URL) async {
+        guard !isWorking else { return }
         isWorking = true
         errorMessage = nil
         do {
             let data = try await io.read(from: url)
-            let backup = try await SettingsBackup.decodedOffMain(data)
-            guard let core else { throw CocoaError(.userCancelled) }
+            let document = try await NoteSyncDocument.decodedOffMain(data)
             stopWatching()
             isApplyingRemote = true
-            _ = await backup.apply(to: core, mode: .replace, notes: .exclude)
+            store.replace(notes: document.notes, selectedID: document.selectedID)
             isApplyingRemote = false
-            let effectiveData = try await SettingsBackup.gather(from: core, notes: .exclude)
-                .encodedOffMain()
+            let effectiveData = try await snapshot().encodedOffMain()
             configure(url: url, revisionData: effectiveData)
             if effectiveData != data { try await io.write(effectiveData, to: url) }
             lastSyncedAt = Date()
         } catch {
             isApplyingRemote = false
             errorMessage = "Couldn’t connect: " + error.localizedDescription
-            AppLog.error("settings-sync", "Couldn’t connect: " + error.localizedDescription)
+            AppLog.error("note-sync", "Couldn’t connect: " + error.localizedDescription)
         }
         isWorking = false
     }
 
     private func createNow(at url: URL) async {
-        guard let core else { return }
+        guard !isWorking else { return }
         isWorking = true
         errorMessage = nil
         do {
-            let data = try await SettingsBackup.gather(from: core, notes: .exclude).encodedOffMain()
+            let data = try await snapshot().encodedOffMain()
             try await io.write(data, to: url)
             stopWatching()
             configure(url: url, revisionData: data)
+            defaults.set(true, forKey: keys.migrated)
             lastSyncedAt = Date()
         } catch {
-            errorMessage = "Couldn’t create the sync file: " + error.localizedDescription
-            AppLog.error("settings-sync", "Couldn’t create the sync file: " + error.localizedDescription)
+            errorMessage = "Couldn’t create the Notes file: " + error.localizedDescription
+            AppLog.error("note-sync", "Couldn’t create the Notes file: " + error.localizedDescription)
         }
         isWorking = false
     }
@@ -134,49 +163,26 @@ final class SettingsSyncManager: ObservableObject {
         isEnabled = true
         revision = CoordinatedFileRevision()
         revision.record(revisionData)
-        defaults.set(url.path, forKey: Key.filePath)
-        defaults.set(true, forKey: Key.enabled)
-        startWatching()
-    }
-
-    private func observeLocalChanges(core: AppCore) {
-        let publishers: [AnyPublisher<Void, Never>] = [
-            core.settings.objectWillChange.eraseToAnyPublisher(),
-            core.hotKeys.objectWillChange.eraseToAnyPublisher(),
-            core.customCommands.objectWillChange.eraseToAnyPublisher(),
-            core.favorites.objectWillChange.eraseToAnyPublisher(),
-            core.visibility.objectWillChange.eraseToAnyPublisher(),
-            core.quicklinks.objectWillChange.eraseToAnyPublisher(),
-            core.clipboardStore.objectWillChange.eraseToAnyPublisher(),
-            core.calcHistory.objectWillChange.eraseToAnyPublisher(),
-            core.aiChat.objectWillChange.eraseToAnyPublisher(),
-            core.backgroundTasks.objectWillChange.eraseToAnyPublisher(),
-            core.frequentEmoji.objectWillChange.eraseToAnyPublisher(),
-            core.launcherRanking.objectWillChange.eraseToAnyPublisher(),
-        ]
-        Publishers.MergeMany(publishers)
-            .sink { [weak self] in self?.scheduleSave() }
-            .store(in: &cancellables)
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .sink { [weak self] _ in self?.scheduleSave() }
-            .store(in: &cancellables)
-        core.plugins.onEnabledStatesChanged = { [weak self] in self?.scheduleSave() }
+        defaults.set(url.path, forKey: keys.filePath)
+        defaults.set(true, forKey: keys.enabled)
+        defaults.set(true, forKey: keys.migrated)
+        if isRunning { startWatching() }
     }
 
     private func scheduleSave() {
-        guard isEnabled, fileURL != nil, !isApplyingRemote else { return }
+        guard isRunning, isEnabled, fileURL != nil, !isApplyingRemote else { return }
         saveTask?.cancel()
         saveTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(600))
+            try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else { return }
             await self?.saveNow()
         }
     }
 
     private func saveNow() async {
-        guard let core, let fileURL, isEnabled, !isApplyingRemote else { return }
+        guard let fileURL, isRunning, isEnabled, !isApplyingRemote else { return }
         do {
-            let data = try await SettingsBackup.gather(from: core, notes: .exclude).encodedOffMain()
+            let data = try await snapshot().encodedOffMain()
             guard !revision.isCurrent(data) else { return }
             isWorking = true
             errorMessage = nil
@@ -186,13 +192,13 @@ final class SettingsSyncManager: ObservableObject {
             isWorking = false
         } catch {
             isWorking = false
-            errorMessage = "Couldn’t save settings: " + error.localizedDescription
-            AppLog.error("settings-sync", "Couldn’t save settings: " + error.localizedDescription)
+            errorMessage = "Couldn’t save Notes: " + error.localizedDescription
+            AppLog.error("note-sync", "Couldn’t save Notes: " + error.localizedDescription)
         }
     }
 
     private func scheduleReload() {
-        guard isEnabled, fileURL != nil else { return }
+        guard isRunning, isEnabled, fileURL != nil else { return }
         reloadTask?.cancel()
         reloadTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(250))
@@ -202,19 +208,18 @@ final class SettingsSyncManager: ObservableObject {
     }
 
     private func reloadNow() async {
-        guard let core, let fileURL, isEnabled else { return }
+        guard let fileURL, isRunning, isEnabled else { return }
         saveTask?.cancel()
         do {
             let data = try await io.read(from: fileURL)
             guard !revision.isCurrent(data) else { return }
-            let backup = try await SettingsBackup.decodedOffMain(data)
+            let document = try await NoteSyncDocument.decodedOffMain(data)
             isWorking = true
             errorMessage = nil
             isApplyingRemote = true
-            _ = await backup.apply(to: core, mode: .replace, notes: .exclude)
+            store.replace(notes: document.notes, selectedID: document.selectedID)
             isApplyingRemote = false
-            let effectiveData = try await SettingsBackup.gather(from: core, notes: .exclude)
-                .encodedOffMain()
+            let effectiveData = try await snapshot().encodedOffMain()
             revision.record(effectiveData)
             if effectiveData != data { try await io.write(effectiveData, to: fileURL) }
             lastSyncedAt = Date()
@@ -222,13 +227,35 @@ final class SettingsSyncManager: ObservableObject {
         } catch {
             isApplyingRemote = false
             isWorking = false
-            errorMessage = "Couldn’t read settings: " + error.localizedDescription
-            AppLog.error("settings-sync", "Couldn’t read settings: " + error.localizedDescription)
+            errorMessage = "Couldn’t read Notes: " + error.localizedDescription
+            AppLog.error("note-sync", "Couldn’t read Notes: " + error.localizedDescription)
         }
     }
 
+    private func migrateFromSettingsSync(_ settingsURL: URL) {
+        let directory = settingsURL.deletingLastPathComponent()
+        var target = directory.appendingPathComponent("Spotter Notes.json")
+        if target.standardizedFileURL == settingsURL.standardizedFileURL {
+            target = directory.appendingPathComponent("Spotter Notes Sync.json")
+        }
+        migrationTask?.cancel()
+        migrationTask = Task { [weak self] in
+            guard let self else { return }
+            if FileManager.default.fileExists(atPath: target.path) {
+                await self.connectExistingNow(target)
+            } else {
+                await self.createNow(at: target)
+            }
+            self.migrationTask = nil
+        }
+    }
+
+    private func snapshot() -> NoteSyncDocument {
+        NoteSyncDocument(notes: store.notes, selectedID: store.selectedID)
+    }
+
     private func startWatching() {
-        guard watcher == nil, let fileURL, isEnabled else { return }
+        guard watcher == nil, let fileURL, isRunning, isEnabled else { return }
         watcher = CoordinatedFileWatcher(url: fileURL) { [weak self] in
             self?.scheduleReload()
         }

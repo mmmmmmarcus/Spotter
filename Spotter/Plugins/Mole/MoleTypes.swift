@@ -151,6 +151,14 @@ enum MoleAction: Equatable, Sendable {
         }
     }
 
+    /// Direct Mole uninstall asks for one line confirmation even though Spotter already confirmed.
+    var standardInput: Data? {
+        switch self {
+        case .uninstall: Data("y\n".utf8)
+        case .clean, .optimize, .purge: nil
+        }
+    }
+
     var title: String {
         switch self {
         case .clean: "Clean Now"
@@ -264,6 +272,12 @@ struct MoleApp: Equatable, Sendable {
     let uninstallName: String
     let path: String
     let size: String
+    /// Homebrew casks need Homebrew to keep its installed-state receipt consistent.
+    let homebrewCask: String?
+    /// A non-nil issue makes the row reveal-only instead of risking the wrong or incomplete removal.
+    let uninstallIssue: String?
+
+    var canUninstall: Bool { uninstallIssue == nil }
 }
 
 /// One installer file found by Spotter's own scan of Mole's installer paths.
@@ -395,6 +409,20 @@ enum MoleParser {
         let size: String?
     }
 
+    private struct HomebrewPayload: Decodable {
+        struct Cask: Decodable {
+            struct Artifact: Decodable {
+                let app: [String]?
+                let target: String?
+            }
+
+            let token: String
+            let artifacts: [Artifact]
+        }
+
+        let casks: [Cask]
+    }
+
     private struct AnalysisPayload: Decodable {
         struct Entry: Decodable {
             let name: String?
@@ -468,22 +496,94 @@ enum MoleParser {
         }
     }
 
-    static func parseApps(_ data: Data) -> [MoleApp] {
+    static func parseApps(
+        _ data: Data, homebrewCasks: [String: String] = [:]
+    ) -> [MoleApp] {
         guard let payload = try? JSONDecoder().decode([AppPayload].self, from: data) else {
             return []
         }
-        return payload.compactMap { app in
+        let rawApps = payload.compactMap { app -> (AppPayload, String)? in
             // The uninstall token is what the command actually needs; a row without one is unusable.
             guard let name = app.name, let token = app.uninstall_name, !token.isEmpty else {
                 return nil
             }
+            return (app, name)
+        }
+        var normalizedCasks: [String: String] = [:]
+        for (path, token) in homebrewCasks {
+            normalizedCasks[normalizedPath(path)] = token
+        }
+        return rawApps.map { pair in
+            let (app, name) = pair
+            let path = app.path ?? ""
+            let listedToken = app.uninstall_name ?? name
+            let bundleName = URL(fileURLWithPath: path)
+                .deletingPathExtension().lastPathComponent
+            var candidates: [String] = []
+            for candidate in [listedToken, bundleName] where !candidate.isEmpty {
+                if !candidates.contains(where: { normalizedName($0) == normalizedName(candidate) }) {
+                    candidates.append(candidate)
+                }
+            }
+            let uniqueToken = candidates.first { candidate in
+                rawApps.filter { otherPair in
+                    let (other, otherName) = otherPair
+                    let otherPath = other.path ?? ""
+                    let otherBundleName = URL(fileURLWithPath: otherPath)
+                        .deletingPathExtension().lastPathComponent
+                    let key = normalizedName(candidate)
+                    return normalizedName(otherName) == key || normalizedName(otherBundleName) == key
+                }.count == 1
+            }
+            let cask = normalizedCasks[normalizedPath(path)]
+            let issue: String?
+            if let cask {
+                issue = "Homebrew cask \(cask) must be uninstalled with Homebrew."
+            } else if uniqueToken == nil {
+                issue = "Mole cannot distinguish this app from another copy with the same name."
+            } else {
+                issue = nil
+            }
             return MoleApp(
                 name: name,
                 bundleID: app.bundle_id ?? "",
-                uninstallName: token,
-                path: app.path ?? "",
-                size: app.size ?? "")
+                uninstallName: uniqueToken ?? listedToken,
+                path: path,
+                size: app.size ?? "",
+                homebrewCask: cask,
+                uninstallIssue: issue)
         }
+    }
+
+    /// Maps each installed Homebrew cask app target to its token using Homebrew's local JSON.
+    static func parseHomebrewCasks(_ data: Data) -> [String: String]? {
+        guard let payload = try? JSONDecoder().decode(HomebrewPayload.self, from: data) else {
+            return nil
+        }
+        var result: [String: String] = [:]
+        for cask in payload.casks {
+            for artifact in cask.artifacts {
+                guard let apps = artifact.app else { continue }
+                for app in apps {
+                    let target: String
+                    if let artifactTarget = artifact.target, artifactTarget.hasSuffix(".app") {
+                        target = artifactTarget
+                    } else {
+                        target = "/Applications/" + app
+                    }
+                    result[normalizedPath(target)] = cask.token
+                }
+            }
+        }
+        return result
+    }
+
+    private static func normalizedName(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func normalizedPath(_ value: String) -> String {
+        (value as NSString).standardizingPath
     }
 
     static func parseAnalysis(_ data: Data) -> MoleAnalysis? {

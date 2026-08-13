@@ -8,6 +8,7 @@ struct MoleRunError: Error, Sendable {
 enum MoleProcessRunner {
     static func capture(
         path: String, arguments: [String], environment: [String: String] = [:],
+        standardInput: Data? = nil,
         onOutput: (@Sendable (Data) -> Void)? = nil
     ) async -> Result<Data, MoleRunError> {
         let controller = MoleProcessController()
@@ -22,8 +23,13 @@ enum MoleProcessRunner {
                     }
                     let out = Pipe()
                     process.standardOutput = out
-                    process.standardError = FileHandle.nullDevice
-                    process.standardInput = FileHandle.nullDevice
+                    process.standardError = out
+                    let input = standardInput.map { _ in Pipe() }
+                    if let input {
+                        process.standardInput = input
+                    } else {
+                        process.standardInput = FileHandle.nullDevice
+                    }
 
                     guard controller.attach(process) else {
                         continuation.resume(
@@ -39,6 +45,11 @@ enum MoleProcessRunner {
                                 MoleRunError(
                                     message: "Couldn't run Mole: \(error.localizedDescription)")))
                         return
+                    }
+
+                    if let standardInput, let input {
+                        input.fileHandleForWriting.write(standardInput)
+                        try? input.fileHandleForWriting.close()
                     }
 
                     controller.interruptIfCancelled(process)
@@ -65,9 +76,16 @@ enum MoleProcessRunner {
                     if controller.isCancelled {
                         continuation.resume(
                             returning: .failure(MoleRunError(message: "Mole scan cancelled.")))
-                    } else if data.isEmpty {
+                    } else if process.terminationReason != .exit {
                         continuation.resume(
-                            returning: .failure(MoleRunError(message: "Mole returned no output.")))
+                            returning: .failure(
+                                MoleRunError(message: "Mole was terminated before it finished.")))
+                    } else if process.terminationStatus != 0 {
+                        let detail = failureDetail(from: data)
+                        let status = process.terminationStatus
+                        let message = detail.map { "Mole exited with status \(status): \($0)" }
+                            ?? "Mole exited with status \(status)."
+                        continuation.resume(returning: .failure(MoleRunError(message: message)))
                     } else {
                         continuation.resume(returning: .success(data))
                     }
@@ -76,6 +94,18 @@ enum MoleProcessRunner {
         } onCancel: {
             controller.cancel()
         }
+    }
+
+    private static func failureDetail(from data: Data) -> String? {
+        let lines = MoleParser.stripANSI(String(decoding: data, as: UTF8.self))
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !$0.allSatisfy { "=-_─".contains($0) } }
+        let failureTerms = ["failed", "failure", "error", "aborted", "denied", "not found"]
+        return lines.reversed().first { line in
+            let lowered = line.lowercased()
+            return failureTerms.contains(where: lowered.contains)
+        } ?? lines.last
     }
 }
 

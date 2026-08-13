@@ -98,6 +98,7 @@ struct ThemeTests {
 
         check("dark appearance reports isDark", NSAppearance(named: .darkAqua)!.isDark)
         check("light appearance does not", !NSAppearance(named: .aqua)!.isDark)
+        check("Notes keeps its 20-point window radius", Theme.Radius.noteWindow == 20)
 
         print(failures == 0 ? "\nTheme: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)

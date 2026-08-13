@@ -26,6 +26,7 @@ enum Theme {
 
     enum Radius {
         static let panel: CGFloat = 26
+        static let noteWindow: CGFloat = 20
         static let row: CGFloat = 10
         static let menu: CGFloat = 6
         /// Hover highlight behind a popover menu row.

@@ -28,7 +28,7 @@ struct BackupSettingsView: View {
                 SettingsRow(
                     title: "Export Settings",
                     subtitle:
-                        "Save settings, shortcuts, API keys, notes, histories, and other content to JSON.",
+                        "Save settings, shortcuts, API keys, Notes, histories, and other content to JSON.",
                     systemImage: "square.and.arrow.up",
                     tint: .blue
                 ) {
@@ -96,7 +96,7 @@ struct BackupSettingsView: View {
             }
             SettingsCallout(
                 title: "Keep this file private",
-                message: "Spotter watches the selected file and mirrors settings, API keys, notes, clipboard images, histories, and other content. Put it in your private iCloud Drive to let macOS carry it between devices; shared folders are not recommended.",
+                message: "Automatic Settings Sync mirrors settings, API keys, clipboard images, histories, and other non-Note content. Notes uses its own file under Plugins → Notes. Put both in your private iCloud Drive to let macOS carry them between devices.",
                 systemImage: "icloud.and.arrow.up",
                 tint: .blue)
 

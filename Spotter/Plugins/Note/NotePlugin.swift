@@ -28,12 +28,20 @@ enum NotePlugin {
                     id: "command:notes:new", name: "New Note", systemImage: "square.and.pencil",
                     actionKey: .newNote, perform: create),
             ],
+            onEnable: { [weak core] in
+                guard let core else { return }
+                core.noteSync.start(
+                    migratingFrom: core.settingsSync.isEnabled ? core.settingsSync.fileURL : nil)
+            },
             onDisable: { [weak core] in
                 guard let core else { return }
                 core.closePluginWindow(id: "notes")
+                core.noteSync.stop()
                 Task { await core.notes.flush() }
             },
-            settingsView: { AnyView(NoteSettingsView(store: core.notes)) })
+            settingsView: {
+                AnyView(NoteSettingsView(store: core.notes, sync: core.noteSync))
+            })
     }
 }
 

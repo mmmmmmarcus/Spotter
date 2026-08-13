@@ -17,7 +17,8 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `CalculatorHistoryStore`, `CurrencyRateStore`, `EmojiIndex`, `FrequentEmojiStore`,
 `RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`, `ChangeCaseStore`,
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
-`TextReplacementManager`, `NoteStore`, `QuicklinkStore`, `QuicklinkManager`, `WindowMover`,
+`TextReplacementManager`, `NoteStore`, `NoteSyncManager`, `QuicklinkStore`, `QuicklinkManager`,
+`WindowMover`,
 `MoleManager`, `CoffeeManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,
 `SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry`, `AIChatStore` — plus the window
@@ -26,6 +27,9 @@ controllers. One deliberate singleton lives outside this rule: `AppLog.shared`
 `NotificationCenter.default`, not feature state. It mirrors entries into `os.Logger`, keeps a
 ring buffer for Settings → Diagnostics, and writes a size-capped rotated file. The registry owns capability registrations, not feature managers: registration closures
 refer back to managers on `AppCore`, so it does not weaken the single-owner rule.
+Notes keeps local persistence on `NoteStore`, while the separately owned `NoteSyncManager` coordinates
+its optional user-selected JSON file; the general `SettingsSyncManager` never observes or applies
+Notes during automatic sync.
 `AppDelegate.applicationDidFinishLaunching` calls
 `AppCore.shared.start()` and nothing else; that is the single wiring point. All palette / paste /
 launch actions are methods on `AppCore` that the SwiftUI views call.

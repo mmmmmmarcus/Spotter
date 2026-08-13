@@ -124,6 +124,7 @@ swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageI
     Spotter/Plugins/ImageModification/ImageModificationEngine.swift Tools/image-modification-test.swift \
     -o /tmp/image-modification-test && /tmp/image-modification-test
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
+    Spotter/Plugins/Note/NoteSyncDocument.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \
     Spotter/Plugins/TextReplacement/TextReplacementStore.swift Tools/text-replacement-test.swift \
@@ -170,6 +171,10 @@ formatting and saved-city checks never depend on the wall clock or the user's pr
 
 The Background Tasks harness checks newest-first ordering, progress clamping, terminal-state
 retention, sync encoding, relaunch interruption and the invariant that a running task cannot be dismissed.
+
+The Mole harness pins its command catalog, parsers, duplicate-app and Homebrew-cask safety gates,
+post-confirmation uninstall input, process exit-status/stderr handling, cancellation and streaming.
+It uses shell fixtures for the runner and never executes Mole or changes user data.
 
 The Launcher Fallbacks harness pins the four query destinations and verifies that arbitrary shell
 text reaches Terminal as one exact `osascript` argument rather than interpolated AppleScript source.

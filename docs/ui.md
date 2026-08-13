@@ -61,7 +61,8 @@ section's closing padding). See "Section headers" below.
 
 ### Radius (`Theme.Radius`)
 
-`panel 26` · `row 10` · `card 10` · `menuPanel 16` · `menu 6` · `menuRow 10` · `thumbnail 6` · `keyCap 6` · `recorderKeyCap 4`
+`panel 26` · `noteWindow 20` · `row 10` · `card 10` · `menuPanel 16` · `menu 6` ·
+`menuRow 10` · `thumbnail 6` · `keyCap 6` · `recorderKeyCap 4`
 
 `menu` is the shared small-control corner (sidebar tiles, About link pills); `menuRow` is the slightly rounder hover highlight behind popover-menu rows.
 
@@ -257,6 +258,8 @@ List-oriented plugins do not use a workspace. Register a palette screen and rend
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
 section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
+Mole uses the same trailing accessory slot to mark Homebrew-owned or duplicate-name app rows that are
+reveal-only; the two-line subtitle explains why destructive actions are unavailable.
 AI Chat is the asynchronous selected-text surface for definition and grammar actions: they render
 the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
 shared composer for follow-ups. Its footer exposes the two draft destinations side by side: Tab for
@@ -265,10 +268,10 @@ plugin list for browser-search failures and its fixed original → Chinese → E
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the
-owner. It opens as a 440-point editor with four matching continuous corners; the native backdrop stays
-clear while its host neutralizes the safe-area inset, so the clipped Note material is the only rounded
-surface and fills one seamless title bar behind a single native close button. Minimize and zoom stay
-hidden. The selected first-line title is centered in that same native-height row, directly right of
+owner. It opens as a 440-point editor with four matching 20-point continuous corners; the native
+backdrop stays clear while its host neutralizes the safe-area inset, so the clipped Note material is
+the only rounded surface and fills one seamless title bar behind a single native close button.
+Minimize and zoom stay hidden. The selected first-line title is centered in that same native-height row, directly right of
 the window control, with only notes-list and New Note actions at the right.
 The list appears as an inset material card over the editor, temporarily grows the window vertically,
 and uses selection-over-hover precedence. The overlay-scrolling `NSTextView` presents live Markdown
@@ -277,6 +280,8 @@ workspace from three visible editor lines to twenty before scrolling. Notes has 
 input, formatting buttons, preview mode or bottom status row; persistence remains automatic. Height
 changes use short live-frame interpolation from the anchored top edge so SwiftUI redraws the fixed
 panel radius throughout instead of letting AppKit bitmap-scale the rounded surface.
+Its Settings pane owns a standard Sync card for the separate Notes JSON file; this file picker,
+pause state, status and disconnect controls never appear in the global Backup pane.
 
 The calculator's inline `CalculatorCard` reuses this card language (`cardFill` + `cardStroke`) rather than the row language, since it's a highlighted answer, not a list item. A value answer is normally a **two-column** layout: a source column (input echo) and a target column (result), separated by a centered `arrow.right` glyph (no divider line). A plugin result may add one companion column; World Clock uses it for the local system time after the requested city's time. Each column optionally carries a word-name **badge pill** beneath its value (`keyCap` font, `controlSurface` fill, `keyCap` radius) — `Expression`→`Result` for scalar arithmetic, unit or currency names for typed results (`Expression`→`Kilograms`), and moment labels for a date/time calc (`12:18 AM`→`9:00 AM`, `Friday, 24 July`→`Friday, 9 April, 2027`). A trailing operator keeps the last complete result and its badge visible while the next operand is being typed.
 

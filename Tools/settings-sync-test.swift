@@ -3,7 +3,7 @@ import Foundation
 @main
 struct SettingsSyncTests {
     static func main() async throws {
-        var revision = SettingsSyncRevision()
+        var revision = CoordinatedFileRevision()
         let first = Data("first".utf8)
         let second = Data("second".utf8)
         precondition(!revision.isCurrent(first))
@@ -16,7 +16,7 @@ struct SettingsSyncTests {
         let file = directory.appendingPathComponent("Settings.json")
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let io = SettingsSyncFileIO()
+        let io = CoordinatedFileIO()
         try await io.write(first, to: file)
         let firstRead = try await io.read(from: file)
         precondition(firstRead == first)
@@ -26,7 +26,7 @@ struct SettingsSyncTests {
         precondition(FileManager.default.fileExists(atPath: file.path))
 
         let changed = DispatchSemaphore(value: 0)
-        let watcher = SettingsSyncFileWatcher(url: file) { changed.signal() }
+        let watcher = CoordinatedFileWatcher(url: file) { changed.signal() }
         try Data("external replacement".utf8).write(to: file, options: .atomic)
         let observed = await Task.detached {
             waitForChange(changed)

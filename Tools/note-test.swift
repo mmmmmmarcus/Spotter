@@ -110,6 +110,22 @@ struct NoteTests {
         check("sync replaces notes", [synced], reopened.notes)
         check("sync restores selected note", synced.id, reopened.selectedID)
 
+        let document = NoteSyncDocument(notes: reopened.notes, selectedID: reopened.selectedID)
+        let encodedDocument = try! document.encoded()
+        let decodedDocument = try! NoteSyncDocument(json: encodedDocument)
+        check("standalone sync document round-trips", document, decodedDocument)
+        check("sync document keeps selected note", synced.id, decodedDocument.selectedID)
+        let futureDocument = Data(
+            "{\"version\":2,\"notes\":[],\"selectedID\":null}".utf8)
+        let rejectsFutureDocument: Bool
+        do {
+            _ = try NoteSyncDocument(json: futureDocument)
+            rejectsFutureDocument = false
+        } catch {
+            rejectsFutureDocument = true
+        }
+        check("newer sync documents are rejected", true, rejectsFutureDocument)
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

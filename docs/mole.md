@@ -40,7 +40,7 @@ shortcut. The section header names the screen, and the placeholder changes with 
 | **Clean** | `mole clean --dry-run` | A run row, then every reclaimable cache with its size |
 | **Optimize** | `mole optimize --dry-run` | A run row, then every maintenance item |
 | **Purge** | `mole purge --dry-run` | A run row, then every build-artifact directory with its size |
-| **Uninstall** | `mole uninstall --list` | Every installed app with its icon, path and size |
+| **Uninstall** | `mole uninstall --list` + local Homebrew ownership JSON | Every safely targetable installed app with its icon, path and size |
 | **Analyze Disk** | `mole analyze -json <dir>` | Folder contents by size; ↵ descends, a Back row climbs out. Roots at the home folder on every open |
 | **Cleanup History** | `mole history --json` | Past sessions with item counts and reclaimed size |
 | **Installer Files** | nothing — Spotter's own scan | Every installer file with icon, folder and size; ↵ moves it to the Trash |
@@ -49,6 +49,13 @@ Every read-only pass runs with stdin on `/dev/null`, stdout on a pipe and `MO_NO
 Mole take its non-interactive path without turning a preview into thousands of operation-log writes:
 no TUI, no sudo prompt, nothing waiting on a keystroke. Nothing hands off to Terminal — the whole
 plugin lives in the launcher.
+
+Mole 1.50's Homebrew-cask probe can terminate `uninstall --list` halfway through its JSON under the
+system Bash 3.2. Spotter obtains that read-only app inventory with Homebrew removed from the child
+`PATH`, then independently reads `brew info --json=v2 --installed --cask` locally. A Homebrew cask is
+reveal-only because asking Mole to remove it as a normal app would leave Homebrew's installed receipt
+inconsistent. Copies that Mole cannot uniquely address by display name or bundle filename are also
+reveal-only, so selecting one can never delete a different copy.
 
 Clean is an intrinsically broad disk scan in Mole. Spotter keeps it from multiplying that cost:
 cancelling, closing or refreshing interrupts the old subprocess; reopening the same completed screen
@@ -78,6 +85,9 @@ the confirmation:
   in the palette, and a reflexive second ↵ must not wipe a build folder.
 - Uninstall moves the app to the Trash by default; **Delete Permanently** is a separate ⌘K entry.
 - Admin-only system caches are skipped: Mole asks for sudo on a TTY, and there isn't one.
+- After Spotter's confirmation, only Uninstall receives Mole's required `y` line on stdin. Every
+  other run keeps stdin closed. The process runner checks the real exit status, retains stderr and
+  reports a failed or partial command as Failed instead of treating non-empty output as success.
 
 After confirmation, Spotter creates a launcher background task and returns to a fresh launcher root.
 The task sits below Dashboard Widgets and above Favorites, then stays above searched results while
@@ -96,8 +106,10 @@ filter before returning to the hub.
 ## Launcher hand-off
 
 An app row's ⌘K menu in the launcher offers **Uninstall with Mole** (apps only, never Spotter
-itself, only while Mole is installed and the plugin enabled). It funnels through the same
-`runMoleAction` confirmation and returns to the launcher with an Uninstalling background-task row.
+itself, only while Mole is installed and the plugin enabled). It opens the Mole inventory filtered
+to that app, rather than passing an unverified display name directly; selecting the resolved row then
+uses the same `runMoleAction` confirmation and returns to the launcher with an Uninstalling
+background-task row.
 
 ## Parsing
 
