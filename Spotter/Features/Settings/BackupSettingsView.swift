@@ -96,7 +96,7 @@ struct BackupSettingsView: View {
             }
             SettingsCallout(
                 title: "Keep this file private",
-                message: "Automatic Settings Sync mirrors settings, API keys, clipboard images, histories, and other non-Note content. Notes uses its own file under Plugins → Notes. Put both in your private iCloud Drive to let macOS carry them between devices.",
+                message: "Automatic Settings Sync mirrors settings, API keys, clipboard images, histories, and other non-Note content. Notes uses separate, consented CloudKit sync under Plugins → Notes; its Markdown content never enters this Settings file.",
                 systemImage: "icloud.and.arrow.up",
                 tint: .blue)
 

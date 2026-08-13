@@ -1,6 +1,11 @@
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    override init() {
+        AppIdentityMigration.runForCurrentApp()
+        super.init()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppCore.shared.start()
     }

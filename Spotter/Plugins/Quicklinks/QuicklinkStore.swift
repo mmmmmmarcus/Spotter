@@ -17,7 +17,7 @@ final class QuicklinkStore: ObservableObject {
         if let fileURL {
             self.fileURL = fileURL
         } else {
-            let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+            let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
             let base = FileManager.default
                 .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent(bundleID, isDirectory: true)

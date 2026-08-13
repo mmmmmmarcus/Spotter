@@ -35,6 +35,11 @@ Xcode, prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (t
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) — after changing project settings in `project.yml`,
 run `xcodegen generate` and commit the result.
 
+The self-signed Debug channel deliberately omits the restricted CloudKit entitlement, so Notes'
+iCloud toggle reports unavailable locally. The same sources compile into Developer ID Release builds,
+which embed the channel-specific provisioning profile described in [signing.md](signing.md). Pure Note
+merge/tombstone coverage remains available in the standalone harness without an iCloud account.
+
 One `project.yml` trap worth knowing: the app icon is the Icon Composer bundle `Spotter/spotter.icon`,
 which is a *directory*. It must stay excluded from the recursive `sources` walk and added back as a
 single `type: file` entry in the resources phase — without that XcodeGen registers its inner files as
@@ -45,12 +50,18 @@ loose resources, `actool` never compiles the icon, and the app ships with the ge
 
 Debug builds are the **dev** channel and report the release base version with a `-dev` suffix (for
 example `1.4.9-dev`). Public **stable** builds use the same base version without the suffix. Dev is
-never published. Both builds produce **`Spotter.app`**, bundle id `com.spotter.app`, so a rebuild keeps every persisted
+never published. Both builds produce **`Spotter.app`**, bundle id `com.spotter.app1`, so a rebuild keeps every persisted
 thing, all keyed by bundle id: `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
 `~/Library/Caches/<id>/` (clipboard history, calculator history, exchange rates, frequent emoji),
 `~/Library/Application Support/<id>/` (the onboarding marker, Notes data and Quicklinks), the `SMAppService`
 login item, and the Accessibility / Input Monitoring (TCC) grants (the stable `Spotter Self-Signed`
 identity is what keeps those grants alive across rebuilds).
+
+The first build with this identity migrates from the former `com.spotter.app` domain before
+`AppCore` initializes. It copies preferences, Application Support content and caches without deleting
+the originals; new-identity values win on collisions. The onboarding marker is deliberately excluded
+so Accessibility and Input Monitoring are requested for the new designated requirement. This is a
+one-time manual DMG transition; subsequent builds retain `com.spotter.app1` and update normally.
 
 The install contract (see `AGENTS.md`): build into a staging location (e.g.
 `build/LocalInstallDerivedData`), and only after the build and its checks succeed, quit the running
@@ -173,6 +184,9 @@ swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
 swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
     Spotter/Core/HotKey/DoubleTapModifier.swift Tools/hotkey-test.swift \
     -o /tmp/hotkey-test && /tmp/hotkey-test                       # double-tap recognition
+swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
+    Spotter/Core/PaletteMenuTypeahead.swift Tools/menu-typeahead-test.swift \
+    -o /tmp/menu-typeahead-test && /tmp/menu-typeahead-test       # Actions menu type-ahead
 ```
 
 `Tools/fuzz-test.swift` compiles the real `Spotter/Core/SearchRelevance.swift`, so that file must
@@ -198,8 +212,8 @@ The Launcher Fallbacks harness pins the four query destinations and verifies tha
 text reaches Terminal as one exact `osascript` argument rather than interpolated AppleScript source.
 
 The Dashboard Widgets harness compiles the real Foundation-only engine. It pins widget preference
-fallbacks, calendar-account/all-day filtering and time-zone resolution without touching EventKit or
-the user's files.
+fallbacks, calendar-account/all-day filtering, time-zone resolution and analog-clock hand geometry
+without touching EventKit or the user's files.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a
@@ -208,9 +222,10 @@ target-language and prompt logic without sending text over the network or openin
 Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory.
 
-The Notes harness compiles the real Foundation-only model, store and Markdown transformer. It validates
-derived titles/previews, UTF-16 selections, formatting toggles, sync replacement and atomic persistence against a
-temporary archive without opening a window or touching the user's notes file.
+The Notes harness compiles the real Foundation-only model, store, merge rules and Markdown transformer.
+It validates derived titles/previews, UTF-16 selections, formatting toggles, deletion tombstones,
+deterministic CloudKit conflict resolution and atomic persistence against a temporary archive without
+opening a window, contacting iCloud or touching the user's notes file.
 
 The Text Replacement harness compiles the real pure matcher and persisted store. It validates
 case-insensitive trigger matching, bounded suffix retention, backspace behavior, conflict rejection
@@ -303,7 +318,7 @@ scripts/release-preflight.sh --expected <x.y.z>
 Then use the **Actions** tab (`Release` → **Run workflow**) and pick:
 
 - **channel** — `beta` or `stable`. Beta builds `Spotter Beta.app` with its own bundle id so it can
-  run beside stable; stable builds the same `Spotter.app` / `com.spotter.app` identity a local
+  run beside stable; stable builds the same `Spotter.app` / `com.spotter.app1` identity a local
   Debug build produces (there is no separate dev app — see "Local builds install as the one
   Spotter.app" above). Beta gets an auto-incrementing `-beta.N` suffix (`N` = the Actions run
   number) so re-running never collides; stable ships the version as-is.

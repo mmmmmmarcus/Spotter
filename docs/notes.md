@@ -4,7 +4,7 @@ Notes is a native, local note-taking workspace modeled on the core experience de
 “Frictionless integrations” section of Raycast Notes: quick floating access, Markdown formatting,
 todos and multiple notes. It deliberately does not implement Raycast AI, snippets, quicklinks, cloud
 services, export/share targets, a separate preview mode or deleted-note recovery. Optional cross-Mac
-sync uses a user-selected JSON file carried by iCloud Drive or another file provider.
+sync replicates each Note and deletion through the user's private Apple CloudKit database.
 
 ## Entry points
 
@@ -44,7 +44,9 @@ The archive is versioned JSON at:
 ~/Library/Application Support/<bundle-id>/Notes/notes.json
 ```
 
-Using the bundle identifier keeps the local store scoped to Spotter. Content changes are
+Using the bundle identifier keeps the local store scoped to Spotter. Archive v2 also retains
+content-free deletion tombstones so an offline deletion cannot be resurrected by a later first sync.
+Content changes are
 debounced for 250 ms, snapshotted as `Sendable` values and written atomically by a serial actor, so
 typing never performs filesystem IO on the main actor and newer saves cannot be overtaken by older
 ones. Creation and deletion schedule immediate snapshots. Manual Spotter backups include Notes for
@@ -52,24 +54,35 @@ recovery, but automatic Settings Sync deliberately excludes them.
 
 ## Independent sync
 
-The Notes Settings pane can create or connect a dedicated versioned JSON file. `NoteSyncManager` is
-owned by `AppCore`, observes only `NoteStore`, and uses the shared coordinated file IO primitives:
-`NSFileCoordinator` serializes atomic reads/writes, an `NSFilePresenter` catches file-provider
-changes, and a parent-directory source catches replacement by ordinary editors. Fully decoded
-snapshots hot-apply to the store; byte revisions suppress Spotter's own notifications. The Notes and
-Settings sync managers never observe, read or write each other's files, and the file pickers reject
-using one path for both.
+`NoteSyncManager` is owned by `AppCore` and holds the explicit iCloud consent flag. Fresh installs
+ship off. The Settings sheet names Apple CloudKit, the synchronized fields and cadence before the
+toggle can turn on; every explicit fetch/send re-checks consent before and after its `await`.
+Disabling cancels the engine and deletes its bundle-scoped local state while preserving both local
+Notes and the user's private CloudKit records.
 
-When upgrading an installation that already has automatic Settings Sync enabled, Spotter performs a
-bounded migration. It creates or connects `Spotter Notes.json` next to the trusted Settings file,
-using the current local `NoteStore` when creating it, then records the separate path under
-bundle-scoped defaults. The next Settings Sync normalization omits the legacy `notes` field. Local
-`notes.json` remains the working store throughout, so the migration never deletes the only copy.
-Disconnecting stops the watcher without deleting either local notes or the selected sync file.
+`NoteCloudSyncEngine` is an actor-backed `CKSyncEngineDelegate` targeting the private database in
+`iCloud.com.spotter.app`. It uses one custom `SpotterNotes` record zone and one encrypted
+`SpotterNote` record per UUID. A live Note carries Markdown, creation time and user edit time; a
+deletion keeps only its UUID and deletion time. The engine persists its opaque state serialization
+and last-known record system fields under the bundle-specific Application Support `Notes` directory.
+Edits debounce for 300 ms, then only changed records are sent. CloudKit's subscription-driven fetches
+hot-apply remote records, and Settings exposes an immediate fetch/send action.
 
-Putting the dedicated file in iCloud Drive lets macOS transport it; Spotter has no Notes server or
-CloudKit container and performs no network request itself. Concurrent edits are whole-snapshot,
-last-delivered-writer wins, so users should avoid editing the same note on two offline Macs at once.
+Conflicts compare the user edit/deletion timestamp rather than upload arrival time. The newer item
+wins; a deletion wins an exact timestamp tie, and simultaneous Note edits use a deterministic content
+tiebreak so two devices converge. Server-record conflicts retain the newest CKRecord system fields
+before retrying a winning local edit. Account sign-out/switch disables sync without deleting local
+Notes so content is never silently uploaded to a different iCloud account.
+
+The former user-selected Notes JSON pipeline has one bounded decode-only migration. If that trusted
+file was active, the first upgraded start fully decodes and applies it to local `NoteStore`, clears
+the obsolete bundle-scoped path/toggle, and never deletes the user's file. It does not grant CloudKit
+consent; the user must explicitly enable the new service. Automatic Settings Sync continues to omit
+Note content, while its trusted snapshot may carry the CloudKit consent flag.
+
+Developer ID stable and beta builds share the CloudKit container but use provisioning profiles tied
+to their separate App IDs. The local self-signed Debug build deliberately has no CloudKit entitlement,
+so it exercises local Notes and pure sync tests without contacting iCloud.
 
 ## Editor
 
@@ -98,5 +111,6 @@ swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/No
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 ```
 
-The harness uses an injected temporary archive and defaults suite, and checks the independent sync
-document's versioned round trip; it never opens the floating window or reads real application data.
+The harness uses an injected temporary archive and defaults suite, checks archive-v2 tombstones,
+deterministic Note/deletion merges and the former sync document's decode bridge; it never opens the
+floating window, contacts CloudKit or reads real application data.

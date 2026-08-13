@@ -21,7 +21,7 @@ final class CalculatorHistoryStore: ObservableObject {
     private var searchCache: (query: String, result: [CalcHistoryEntry])?
 
     init() {
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
         let base = FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)

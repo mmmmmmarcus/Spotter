@@ -28,7 +28,7 @@ enum PopToRootTimeout: Int, CaseIterable, Identifiable, Sendable {
 final class AppSettings: ObservableObject {
     private let defaults = UserDefaults.standard
     private enum Key {
-        static let showInDock = "\(Bundle.main.bundleIdentifier ?? "com.spotter.app").showInDock"
+        static let showInDock = "\(Bundle.main.bundleIdentifier ?? "com.spotter.app1").showInDock"
         static let clipboardRetention = "clipboardRetentionDays"
         static let clipboardDisabledApps = "clipboardDisabledApps"
         static let hyperKey = "hyperKeyPhysicalKey"

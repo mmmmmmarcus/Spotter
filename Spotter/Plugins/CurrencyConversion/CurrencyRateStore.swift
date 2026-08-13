@@ -37,7 +37,7 @@ final class CurrencyRateStore: ObservableObject {
     init() {
         // Absent reads as false, which is the only safe default for a network feature.
         isEnabled = defaults.bool(forKey: Self.consentKey)
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
         let base = FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)

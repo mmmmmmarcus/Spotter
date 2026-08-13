@@ -220,7 +220,7 @@ verify_signature() {
     spctl --assess --type execute --verbose=2 "$app"
     bundle="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
     built_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")"
-    [ "$bundle" = "com.spotter.app" ] \
+    [ "$bundle" = "com.spotter.app1" ] \
         || { echo "✗ $app has bundle identifier $bundle." >&2; return 1; }
     [ "$built_version" = "$version" ] \
         || { echo "✗ $app has version $built_version, expected $version." >&2; return 1; }

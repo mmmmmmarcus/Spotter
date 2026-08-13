@@ -1,22 +1,46 @@
 import Combine
 import Foundation
+import Security
+
+enum NoteCloudCapability {
+    static var containerEnvironment: String? {
+        guard let task = SecTaskCreateFromSelf(nil) else { return nil }
+        return SecTaskCopyValueForEntitlement(
+            task, "com.apple.developer.icloud-container-environment" as CFString, nil)
+            as? String
+    }
+
+    static var stateFileName: String {
+        guard let containerEnvironment else { return "cloud-sync-state.json" }
+        return "cloud-sync-" + containerEnvironment.lowercased() + "-state.json"
+    }
+
+    static var isAvailable: Bool {
+        guard let task = SecTaskCreateFromSelf(nil),
+            let value = SecTaskCopyValueForEntitlement(
+                task, "com.apple.developer.icloud-container-identifiers" as CFString, nil)
+                as? [String]
+        else { return false }
+        return value.contains(NoteCloudSyncEngine.containerIdentifier)
+    }
+}
 
 @MainActor
 final class NoteSyncManager: ObservableObject {
     private struct Keys {
-        let filePath: String
         let enabled: String
+        let legacyFilePath: String
+        let legacyEnabled: String
         let migrated: String
 
         init(bundleID: String) {
-            let prefix = bundleID + ".note-sync"
-            filePath = prefix + ".file-path"
-            enabled = prefix + ".enabled"
-            migrated = prefix + ".separated-from-settings-v1"
+            enabled = bundleID + ".note-cloud-sync.enabled"
+            legacyFilePath = bundleID + ".note-sync.file-path"
+            legacyEnabled = bundleID + ".note-sync.enabled"
+            migrated = bundleID + ".note-cloud-sync.legacy-json-migrated-v1"
         }
     }
 
-    @Published private(set) var fileURL: URL?
     @Published private(set) var isEnabled: Bool
     @Published private(set) var isWorking = false
     @Published private(set) var lastSyncedAt: Date?
@@ -25,248 +49,206 @@ final class NoteSyncManager: ObservableObject {
     private let store: NoteStore
     private let defaults: UserDefaults
     private let keys: Keys
-    private let io = CoordinatedFileIO()
-    private var revision = CoordinatedFileRevision()
-    private var watcher: CoordinatedFileWatcher?
-    private var storeCancellable: AnyCancellable?
-    private var saveTask: Task<Void, Never>?
-    private var reloadTask: Task<Void, Never>?
+    private let stateURL: URL
+    private let legacyIO = CoordinatedFileIO()
+    private var cloud: NoteCloudSyncEngine?
+    private var startTask: Task<Void, Never>?
+    private var pushTask: Task<Void, Never>?
     private var migrationTask: Task<Void, Never>?
-    private var isApplyingRemote = false
     private var isRunning = false
 
     init(
         store: NoteStore, defaults: UserDefaults = .standard,
-        bundleID: String = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+        bundleID: String = Bundle.main.bundleIdentifier ?? "com.spotter.app1",
+        stateURL: URL? = nil
     ) {
         self.store = store
         self.defaults = defaults
         keys = Keys(bundleID: bundleID)
-        let configuredURL = defaults.string(forKey: keys.filePath).map(URL.init(fileURLWithPath:))
-        fileURL = configuredURL
-        isEnabled = defaults.bool(forKey: keys.enabled) && configuredURL != nil
+        isEnabled = defaults.bool(forKey: keys.enabled)
+        self.stateURL = stateURL ?? FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Notes", isDirectory: true)
+            .appendingPathComponent(NoteCloudCapability.stateFileName)
     }
 
     var statusText: String {
         if let errorMessage { return errorMessage }
-        if isWorking { return "Syncing…" }
-        guard isEnabled else { return fileURL == nil ? "Not configured" : "Paused" }
-        guard let lastSyncedAt else { return "Waiting for the Notes file…" }
+        if isWorking { return "Syncing with iCloud…" }
+        guard isEnabled else { return "Off · Notes stay on this Mac" }
+        guard let lastSyncedAt else { return "Waiting for iCloud…" }
         return "Up to date · " + lastSyncedAt.formatted(date: .omitted, time: .shortened)
     }
 
-    var isICloudLocation: Bool {
-        fileURL.map { FileManager.default.isUbiquitousItem(at: $0) } ?? false
-    }
+    var cloudKitAvailable: Bool { NoteCloudCapability.isAvailable }
 
-    func start(migratingFrom settingsSyncURL: URL?) {
+    func start() {
         guard !isRunning else { return }
         isRunning = true
-        if storeCancellable == nil {
-            storeCancellable = store.objectWillChange.sink { [weak self] in self?.scheduleSave() }
+        store.onSyncSnapshotChanged = { [weak self] snapshot in
+            self?.schedulePush(snapshot)
         }
-        if isEnabled {
-            startWatching()
-            scheduleReload()
-        } else if fileURL == nil, !defaults.bool(forKey: keys.migrated),
-            let settingsSyncURL
-        {
-            migrateFromSettingsSync(settingsSyncURL)
+        migrationTask?.cancel()
+        migrationTask = Task { [weak self] in
+            guard let self else { return }
+            await self.migrateLegacyJSONIfNeeded()
+            guard !Task.isCancelled, self.isRunning, self.isEnabled else { return }
+            self.startCloud()
         }
     }
 
     func stop() {
         isRunning = false
-        stopWatching()
+        store.onSyncSnapshotChanged = nil
         migrationTask?.cancel()
         migrationTask = nil
-    }
-
-    func connectExisting(_ url: URL) {
-        Task { await connectExistingNow(url.standardizedFileURL) }
-    }
-
-    func create(at url: URL) {
-        Task { await createNow(at: url.standardizedFileURL) }
+        stopCloud(deleteState: false)
     }
 
     func setEnabled(_ enabled: Bool) {
-        guard fileURL != nil, enabled != isEnabled else { return }
+        guard enabled != isEnabled else { return }
         isEnabled = enabled
         defaults.set(enabled, forKey: keys.enabled)
         errorMessage = nil
-        if enabled, isRunning {
-            startWatching()
-            scheduleReload()
+        if enabled {
+            if isRunning { startCloud() }
         } else {
-            stopWatching()
+            lastSyncedAt = nil
+            stopCloud(deleteState: true)
         }
     }
 
-    func disconnect() {
-        stopWatching()
-        migrationTask?.cancel()
-        migrationTask = nil
-        fileURL = nil
-        isEnabled = false
-        revision = CoordinatedFileRevision()
-        lastSyncedAt = nil
-        errorMessage = nil
-        defaults.removeObject(forKey: keys.filePath)
-        defaults.removeObject(forKey: keys.enabled)
-        defaults.set(true, forKey: keys.migrated)
-    }
-
-    private func connectExistingNow(_ url: URL) async {
-        guard !isWorking else { return }
+    func syncNow() async -> Bool {
+        guard isRunning, isEnabled else { return false }
+        guard let cloud else {
+            startCloud()
+            return false
+        }
         isWorking = true
         errorMessage = nil
         do {
-            let data = try await io.read(from: url)
-            let document = try await NoteSyncDocument.decodedOffMain(data)
-            stopWatching()
-            isApplyingRemote = true
-            store.replace(notes: document.notes, selectedID: document.selectedID)
-            isApplyingRemote = false
-            let effectiveData = try await snapshot().encodedOffMain()
-            configure(url: url, revisionData: effectiveData)
-            if effectiveData != data { try await io.write(effectiveData, to: url) }
+            try await cloud.syncNow()
+            guard isRunning, isEnabled, self.cloud === cloud else { return false }
             lastSyncedAt = Date()
+            isWorking = false
+            return true
         } catch {
-            isApplyingRemote = false
-            errorMessage = "Couldn’t connect: " + error.localizedDescription
-            AppLog.error("note-sync", "Couldn’t connect: " + error.localizedDescription)
+            guard isRunning, isEnabled, self.cloud === cloud else { return false }
+            isWorking = false
+            errorMessage = error.localizedDescription
+            AppLog.error("note-cloud-sync", error.localizedDescription)
+            return false
         }
-        isWorking = false
     }
 
-    private func createNow(at url: URL) async {
-        guard !isWorking else { return }
+    private func startCloud() {
+        guard isRunning, isEnabled, cloud == nil, startTask == nil else { return }
+        guard cloudKitAvailable else {
+            errorMessage = "CloudKit isn’t available in this build."
+            return
+        }
         isWorking = true
         errorMessage = nil
-        do {
-            let data = try await snapshot().encodedOffMain()
-            try await io.write(data, to: url)
-            stopWatching()
-            configure(url: url, revisionData: data)
-            defaults.set(true, forKey: keys.migrated)
-            lastSyncedAt = Date()
-        } catch {
-            errorMessage = "Couldn’t create the Notes file: " + error.localizedDescription
-            AppLog.error("note-sync", "Couldn’t create the Notes file: " + error.localizedDescription)
-        }
-        isWorking = false
-    }
-
-    private func configure(url: URL, revisionData: Data) {
-        fileURL = url
-        isEnabled = true
-        revision = CoordinatedFileRevision()
-        revision.record(revisionData)
-        defaults.set(url.path, forKey: keys.filePath)
-        defaults.set(true, forKey: keys.enabled)
-        defaults.set(true, forKey: keys.migrated)
-        if isRunning { startWatching() }
-    }
-
-    private func scheduleSave() {
-        guard isRunning, isEnabled, fileURL != nil, !isApplyingRemote else { return }
-        saveTask?.cancel()
-        saveTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(450))
-            guard !Task.isCancelled else { return }
-            await self?.saveNow()
-        }
-    }
-
-    private func saveNow() async {
-        guard let fileURL, isRunning, isEnabled, !isApplyingRemote else { return }
-        do {
-            let data = try await snapshot().encodedOffMain()
-            guard !revision.isCurrent(data) else { return }
-            isWorking = true
-            errorMessage = nil
-            try await io.write(data, to: fileURL)
-            revision.record(data)
-            lastSyncedAt = Date()
-            isWorking = false
-        } catch {
-            isWorking = false
-            errorMessage = "Couldn’t save Notes: " + error.localizedDescription
-            AppLog.error("note-sync", "Couldn’t save Notes: " + error.localizedDescription)
-        }
-    }
-
-    private func scheduleReload() {
-        guard isRunning, isEnabled, fileURL != nil else { return }
-        reloadTask?.cancel()
-        reloadTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            await self?.reloadNow()
-        }
-    }
-
-    private func reloadNow() async {
-        guard let fileURL, isRunning, isEnabled else { return }
-        saveTask?.cancel()
-        do {
-            let data = try await io.read(from: fileURL)
-            guard !revision.isCurrent(data) else { return }
-            let document = try await NoteSyncDocument.decodedOffMain(data)
-            isWorking = true
-            errorMessage = nil
-            isApplyingRemote = true
-            store.replace(notes: document.notes, selectedID: document.selectedID)
-            isApplyingRemote = false
-            let effectiveData = try await snapshot().encodedOffMain()
-            revision.record(effectiveData)
-            if effectiveData != data { try await io.write(effectiveData, to: fileURL) }
-            lastSyncedAt = Date()
-            isWorking = false
-        } catch {
-            isApplyingRemote = false
-            isWorking = false
-            errorMessage = "Couldn’t read Notes: " + error.localizedDescription
-            AppLog.error("note-sync", "Couldn’t read Notes: " + error.localizedDescription)
-        }
-    }
-
-    private func migrateFromSettingsSync(_ settingsURL: URL) {
-        let directory = settingsURL.deletingLastPathComponent()
-        var target = directory.appendingPathComponent("Spotter Notes.json")
-        if target.standardizedFileURL == settingsURL.standardizedFileURL {
-            target = directory.appendingPathComponent("Spotter Notes Sync.json")
-        }
-        migrationTask?.cancel()
-        migrationTask = Task { [weak self] in
-            guard let self else { return }
-            if FileManager.default.fileExists(atPath: target.path) {
-                await self.connectExistingNow(target)
-            } else {
-                await self.createNow(at: target)
+        let cloud = NoteCloudSyncEngine(
+            snapshot: store.syncSnapshot, stateURL: stateURL,
+            hasConsent: { [weak self] in
+                self?.isRunning == true && self?.isEnabled == true
+            },
+            onEvent: { [weak self] event in self?.handle(event) })
+        self.cloud = cloud
+        startTask = Task { [weak self, cloud] in
+            do {
+                try await cloud.start()
+                guard let self, self.isRunning, self.isEnabled, self.cloud === cloud else { return }
+                self.lastSyncedAt = Date()
+                self.isWorking = false
+                self.startTask = nil
+            } catch {
+                guard let self, self.isRunning, self.isEnabled, self.cloud === cloud else { return }
+                self.isWorking = false
+                self.errorMessage = error.localizedDescription
+                self.startTask = nil
+                self.cloud = nil
+                AppLog.error("note-cloud-sync", error.localizedDescription)
+                await cloud.stop(deleteState: false)
             }
-            self.migrationTask = nil
         }
     }
 
-    private func snapshot() -> NoteSyncDocument {
-        NoteSyncDocument(notes: store.notes, selectedID: store.selectedID)
+    private func stopCloud(deleteState: Bool) {
+        startTask?.cancel()
+        pushTask?.cancel()
+        startTask = nil
+        pushTask = nil
+        isWorking = false
+        let cloud = cloud
+        self.cloud = nil
+        Task { await cloud?.stop(deleteState: deleteState) }
+        if deleteState, cloud == nil { try? FileManager.default.removeItem(at: stateURL) }
     }
 
-    private func startWatching() {
-        guard watcher == nil, let fileURL, isRunning, isEnabled else { return }
-        watcher = CoordinatedFileWatcher(url: fileURL) { [weak self] in
-            self?.scheduleReload()
+    private func schedulePush(_ snapshot: NoteSyncSnapshot) {
+        guard isRunning, isEnabled, let cloud else { return }
+        pushTask?.cancel()
+        pushTask = Task { [weak self, cloud] in
+            do { try await Task.sleep(for: .milliseconds(300)) }
+            catch { return }
+            guard let self, self.isRunning, self.isEnabled, self.cloud === cloud else { return }
+            await cloud.applyLocalSnapshot(snapshot)
+            guard self.isRunning, self.isEnabled, self.cloud === cloud else { return }
+            do {
+                try await cloud.sendPendingChanges()
+                guard self.isRunning, self.isEnabled, self.cloud === cloud else { return }
+                self.lastSyncedAt = Date()
+            } catch {
+                guard self.isRunning, self.isEnabled, self.cloud === cloud else { return }
+                self.errorMessage = error.localizedDescription
+                AppLog.error("note-cloud-sync", error.localizedDescription)
+            }
         }
     }
 
-    private func stopWatching() {
-        saveTask?.cancel()
-        reloadTask?.cancel()
-        saveTask = nil
-        reloadTask = nil
-        watcher?.stop()
-        watcher = nil
+    private func handle(_ event: NoteCloudSyncEvent) {
+        guard isRunning, isEnabled else { return }
+        switch event {
+        case .received(let snapshot):
+            store.applyCloudSnapshot(snapshot)
+        case .didSync:
+            errorMessage = nil
+            lastSyncedAt = Date()
+        case .error(let message):
+            errorMessage = message
+        case .accountChanged:
+            setEnabled(false)
+            errorMessage = "iCloud account changed. Turn sync on again for the current account."
+        }
+    }
+
+    private func migrateLegacyJSONIfNeeded() async {
+        guard !defaults.bool(forKey: keys.migrated) else { return }
+        guard defaults.bool(forKey: keys.legacyEnabled),
+            let path = defaults.string(forKey: keys.legacyFilePath)
+        else {
+            finishLegacyMigration()
+            return
+        }
+        do {
+            let data = try await legacyIO.read(from: URL(fileURLWithPath: path))
+            let document = try await NoteSyncDocument.decodedOffMain(data)
+            guard isRunning else { return }
+            store.replace(notes: document.notes, selectedID: document.selectedID)
+            finishLegacyMigration()
+        } catch {
+            guard isRunning else { return }
+            errorMessage = "Couldn’t import the former Notes sync file: " + error.localizedDescription
+            AppLog.error("note-cloud-sync", errorMessage ?? error.localizedDescription)
+        }
+    }
+
+    private func finishLegacyMigration() {
+        defaults.set(true, forKey: keys.migrated)
+        defaults.removeObject(forKey: keys.legacyFilePath)
+        defaults.removeObject(forKey: keys.legacyEnabled)
     }
 }

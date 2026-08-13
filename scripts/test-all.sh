@@ -7,6 +7,7 @@ SELF="$ROOT/scripts/test-all.sh"
 
 TESTS=(
     fuzz
+    app-identity-migration
     app-version
     ranking
     launcher-fallback
@@ -58,6 +59,10 @@ run_harness() {
     local output="$2"
 
     case "$name" in
+        app-identity-migration)
+            swiftc -swift-version 6 Spotter/Core/AppIdentityMigration.swift \
+                Tools/app-identity-migration-test.swift -o "$output" && "$output"
+            ;;
         fuzz)
             swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
                 Tools/fuzz-test.swift -o "$output" && "$output"

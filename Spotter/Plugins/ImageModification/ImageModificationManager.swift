@@ -192,7 +192,7 @@ final class ImageModificationManager {
 
     private var temporaryDirectory: URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.spotter.app", isDirectory: true)
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.spotter.app1", isDirectory: true)
             .appendingPathComponent("ImageModification", isDirectory: true)
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root

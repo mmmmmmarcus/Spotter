@@ -4,6 +4,9 @@ struct NoteSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: NoteStore
     @ObservedObject var sync: NoteSyncManager
+    @State private var askingConsent = false
+    @State private var syncing = false
+    @State private var syncFailed = false
 
     var body: some View {
         SettingsPane(
@@ -58,61 +61,111 @@ struct NoteSettingsView: View {
 
             SettingsCard(header: "Sync") {
                 SettingsRow(
-                    title: "Notes File",
-                    subtitle: sync.fileURL.map(displayPath)
-                        ?? "Choose an existing Notes file or create one in iCloud Drive.",
-                    systemImage: sync.isICloudLocation ? "icloud" : "doc.text",
-                    tint: .blue
-                ) {
-                    HStack(spacing: Theme.Spacing.md) {
-                        Button("Choose…") { NoteSyncActions.connectExisting() }
-                            .controlSize(.small)
-                        Button("Create…") { NoteSyncActions.create() }
-                            .controlSize(.small)
-                    }
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Automatic Sync",
-                    subtitle: sync.statusText,
-                    systemImage: sync.errorMessage == nil
-                        ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle.fill",
-                    tint: sync.errorMessage == nil ? .teal : .orange
+                    title: "iCloud Sync",
+                    subtitle: cloudStatus,
+                    systemImage: sync.errorMessage == nil ? "icloud" : "exclamationmark.icloud",
+                    tint: sync.errorMessage == nil ? .blue : .orange
                 ) {
                     Toggle(
                         "",
                         isOn: Binding(
                             get: { sync.isEnabled },
-                            set: { sync.setEnabled($0) }))
+                            set: { wantsOn in
+                                if wantsOn {
+                                    askingConsent = true
+                                } else {
+                                    sync.setEnabled(false)
+                                }
+                            }))
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
-                        .disabled(sync.fileURL == nil || sync.isWorking)
+                        .disabled(!sync.cloudKitAvailable)
                 }
-                if sync.fileURL != nil {
+                if sync.isEnabled {
                     SettingsDivider()
                     SettingsRow(
-                        title: "Disconnect",
-                        subtitle: "Stops Notes sync without deleting the JSON file.",
-                        systemImage: "link.badge.minus",
-                        tint: .secondary
+                        title: "Sync Now",
+                        subtitle: syncFailed
+                            ? "Couldn’t reach iCloud. Check your account or connection."
+                            : "Fetch and send pending Note changes immediately.",
+                        systemImage: "arrow.triangle.2.circlepath", tint: .teal
                     ) {
-                        Button("Disconnect") { sync.disconnect() }
-                            .controlSize(.small)
+                        Button(syncing ? "Syncing…" : "Sync Now") {
+                            syncing = true
+                            syncFailed = false
+                            Task {
+                                let succeeded = await sync.syncNow()
+                                syncFailed = !succeeded
+                                syncing = false
+                            }
+                        }
+                        .controlSize(.small)
+                        .disabled(syncing || sync.isWorking)
                     }
                 }
             }
+
             SettingsCallout(
-                title: "Notes sync separately",
+                title: "Private iCloud database",
                 message:
-                    "Automatic Settings Sync never reads or writes this file. Keep it private; "
-                    + "placing it in iCloud Drive lets macOS carry Notes between your Macs.",
-                systemImage: "lock.doc",
+                    "Each Note syncs independently through Apple CloudKit. Automatic Settings Sync "
+                    + "still excludes Note content, and turning iCloud Sync off keeps every local Note.",
+                systemImage: "lock.icloud",
                 tint: .blue)
+        }
+        .sheet(isPresented: $askingConsent) {
+            NoteCloudConsentSheet(
+                onCancel: { askingConsent = false },
+                onAccept: {
+                    askingConsent = false
+                    sync.setEnabled(true)
+                })
         }
     }
 
-    private func displayPath(_ url: URL) -> String {
-        (url.path as NSString).abbreviatingWithTildeInPath
+    private var cloudStatus: String {
+        guard sync.cloudKitAvailable else {
+            return "Unavailable in this local self-signed build."
+        }
+        return sync.statusText
+    }
+}
+
+private struct NoteCloudConsentSheet: View {
+    let onCancel: () -> Void
+    let onAccept: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            HStack(spacing: Theme.Spacing.lg) {
+                Image(systemName: "icloud")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(.blue)
+                Text("Turn on Notes iCloud Sync?")
+                    .font(.headline)
+            }
+
+            Text(
+                "Spotter sends each Note’s Markdown content, stable identifier, edit dates, and "
+                    + "deletions to your private Apple CloudKit database. Changes are queued shortly "
+                    + "after editing and synchronized at launch and when iCloud reports updates. "
+                    + "Your Macs must use the same iCloud account. Turning sync off stops CloudKit "
+                    + "access and deletes Spotter’s local CloudKit state, while keeping local Notes."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: Theme.Spacing.lg) {
+                Spacer()
+                Button("Not Now", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Enable", action: onAccept)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(Theme.Spacing.xxl)
+        .frame(width: 440)
     }
 }

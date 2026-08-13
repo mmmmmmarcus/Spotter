@@ -10,6 +10,7 @@ enum NoteSaveState: Equatable {
 private struct NoteArchive: Codable, Sendable {
     let version: Int
     let notes: [SpotterNote]
+    var tombstones: [NoteTombstone]?
 }
 
 private actor NoteWriter {
@@ -50,6 +51,8 @@ final class NoteStore: ObservableObject {
     private let now: () -> Date
     private var saveTask: Task<Void, Never>?
     private var revision: UInt = 0
+    private var tombstones: [UUID: NoteTombstone]
+    var onSyncSnapshotChanged: ((NoteSyncSnapshot) -> Void)?
 
     init(
         fileURL: URL? = nil, defaults: UserDefaults = .standard,
@@ -60,7 +63,10 @@ final class NoteStore: ObservableObject {
         self.writer = NoteWriter(fileURL: resolvedURL)
         self.now = now
 
-        let loaded = Self.load(from: resolvedURL).sorted { $0.updatedAt > $1.updatedAt }
+        let archive = Self.load(from: resolvedURL)
+        let loaded = archive.notes.sorted { $0.updatedAt > $1.updatedAt }
+        tombstones = Dictionary(
+            uniqueKeysWithValues: (archive.tombstones ?? []).map { ($0.id, $0) })
         if loaded.isEmpty {
             let initial = SpotterNote(createdAt: now())
             notes = [initial]
@@ -91,8 +97,10 @@ final class NoteStore: ObservableObject {
         let date = now()
         let note = SpotterNote(content: content, createdAt: date)
         notes.insert(note, at: 0)
+        tombstones.removeValue(forKey: note.id)
         selectedID = note.id
         scheduleSave(immediately: true)
+        notifySyncSnapshotChanged()
         return note.id
     }
 
@@ -111,23 +119,47 @@ final class NoteStore: ObservableObject {
             notes.insert(updated, at: 0)
         }
         scheduleSave()
+        notifySyncSnapshotChanged()
     }
 
     func delete(_ note: SpotterNote) {
         guard let index = notes.firstIndex(where: { $0.id == note.id }) else { return }
         let wasSelected = selectedID == note.id
         notes.remove(at: index)
+        tombstones[note.id] = NoteTombstone(id: note.id, deletedAt: now())
         if wasSelected {
             selectedID = notes.indices.contains(index) ? notes[index].id : notes.last?.id
         }
         scheduleSave(immediately: true)
+        notifySyncSnapshotChanged()
     }
 
     /// Full-state replacement follows the synced selection when that note still exists.
     func replace(notes newNotes: [SpotterNote], selectedID newSelectedID: UUID?) {
+        let incomingIDs = Set(newNotes.map(\.id))
+        for note in notes where !incomingIDs.contains(note.id) {
+            tombstones[note.id] = NoteTombstone(id: note.id, deletedAt: now())
+        }
+        for id in incomingIDs { tombstones.removeValue(forKey: id) }
         notes = newNotes.sorted { $0.updatedAt > $1.updatedAt }
         selectedID = notes.contains(where: { $0.id == newSelectedID })
             ? newSelectedID : notes.first?.id
+        scheduleSave(immediately: true)
+        notifySyncSnapshotChanged()
+    }
+
+    var syncSnapshot: NoteSyncSnapshot {
+        NoteSyncSnapshot(
+            notes: notes,
+            tombstones: tombstones.values.sorted { $0.deletedAt > $1.deletedAt })
+    }
+
+    func applyCloudSnapshot(_ remote: NoteSyncSnapshot) {
+        let merged = NoteSyncMerge.merging(syncSnapshot, with: remote)
+        let oldSelection = selectedID
+        notes = merged.notes
+        tombstones = merged.tombstonesByID
+        selectedID = notes.contains(where: { $0.id == oldSelection }) ? oldSelection : notes.first?.id
         scheduleSave(immediately: true)
     }
 
@@ -135,7 +167,7 @@ final class NoteStore: ObservableObject {
         saveTask?.cancel()
         revision &+= 1
         let currentRevision = revision
-        let archive = NoteArchive(version: 1, notes: notes)
+        let archive = archiveSnapshot()
         saveState = .saving
         do {
             try await writer.save(archive)
@@ -149,7 +181,7 @@ final class NoteStore: ObservableObject {
         saveTask?.cancel()
         revision &+= 1
         let currentRevision = revision
-        let archive = NoteArchive(version: 1, notes: notes)
+        let archive = archiveSnapshot()
         let writer = writer
         saveState = .saving
         saveTask = Task { [weak self] in
@@ -169,15 +201,28 @@ final class NoteStore: ObservableObject {
         }
     }
 
-    private static func load(from fileURL: URL) -> [SpotterNote] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+    private func archiveSnapshot() -> NoteArchive {
+        NoteArchive(
+            version: 2, notes: notes,
+            tombstones: tombstones.values.sorted { $0.deletedAt > $1.deletedAt })
+    }
+
+    private func notifySyncSnapshotChanged() {
+        onSyncSnapshotChanged?(syncSnapshot)
+    }
+
+    private static func load(from fileURL: URL) -> NoteArchive {
+        guard let data = try? Data(contentsOf: fileURL) else {
+            return NoteArchive(version: 2, notes: [], tombstones: [])
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode(NoteArchive.self, from: data).notes) ?? []
+        return (try? decoder.decode(NoteArchive.self, from: data))
+            ?? NoteArchive(version: 2, notes: [], tombstones: [])
     }
 
     private static func defaultFileURL() -> URL {
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
         return FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)

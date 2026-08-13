@@ -59,7 +59,7 @@ enum BackupActions {
         panel.canChooseDirectories = false
         panel.message = "Choose a Spotter settings JSON file to keep in sync."
         NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url, validateDistinctFromNotes(url),
+        guard panel.runModal() == .OK, let url = panel.url,
             confirmAutomaticSync()
         else { return }
         AppCore.shared.settingsSync.connectExisting(url)
@@ -72,7 +72,7 @@ enum BackupActions {
         panel.canCreateDirectories = true
         panel.message = "Save in iCloud Drive to keep Spotter settings synchronized across Macs."
         NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url, validateDistinctFromNotes(url),
+        guard panel.runModal() == .OK, let url = panel.url,
             confirmAutomaticSync()
         else { return }
         AppCore.shared.settingsSync.create(at: url)
@@ -176,17 +176,6 @@ enum BackupActions {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: Date())
-    }
-
-    private static func validateDistinctFromNotes(_ url: URL) -> Bool {
-        guard url.standardizedFileURL != AppCore.shared.noteSync.fileURL?.standardizedFileURL else {
-            present(
-                title: "Choose a Different File",
-                message: "Settings Sync and Notes Sync must use separate JSON files.",
-                style: .warning)
-            return false
-        }
-        return true
     }
 
     private static func present(title: String, message: String, style: NSAlert.Style) {

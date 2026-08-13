@@ -6,8 +6,8 @@ click before any installation starts.
 
 ## Channels and versions
 
-- Stable (`com.spotter.app`) considers only non-prerelease GitHub Releases.
-- Beta (`com.spotter.app.beta`) considers only prereleases, so it never offers a stable bundle with a
+- Stable (`com.spotter.app1`) considers only non-prerelease GitHub Releases.
+- Beta (`com.spotter.app1.beta`) considers only prereleases, so it never offers a stable bundle with a
   different identifier and designated requirement.
 - Tags use semantic versions: stable `v1.4.0`, beta `v1.4.0-beta.<Actions run number>`.
 - A release must be strictly newer than the running `CFBundleShortVersionString`.
@@ -45,6 +45,12 @@ is rejected. Releases without a zip asset show **View release** and leave instal
 
 Spotter 1.4.0 is the first Developer ID release. Users migrating from an older self-signed build must
 install a current DMG once; later releases with the same designated requirement can update in place.
+
+The first `com.spotter.app1` release is another one-time DMG migration because the former
+`com.spotter.app` identifier could not be registered for CloudKit. Its first launch copies preferences,
+Application Support content and caches from the former identity without deleting them, while omitting
+the onboarding marker so macOS permissions are requested again. After that migration, updates retain
+the new identifier and designated requirement and install in place normally.
 
 ## Verification
 

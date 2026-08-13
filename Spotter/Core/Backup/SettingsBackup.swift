@@ -116,6 +116,9 @@ struct SettingsBackup: Codable, Sendable {
             // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
             var binaryPath: String?
         }
+        struct Note: Codable, Sendable {
+            var iCloudSyncEnabled: Bool?
+        }
         var changeCase: ChangeCase?
         var killProcess: KillProcess?
         var imageModification: ImageModification?
@@ -123,6 +126,7 @@ struct SettingsBackup: Codable, Sendable {
         var caffeinate: Caffeinate?
         var windowManagement: WindowManagement?
         var mole: Mole?
+        var note: Note?
         // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
         var dashboardWidgets: SettingsData.DashboardWidgets?
     }
@@ -303,6 +307,7 @@ extension SettingsBackup {
             gap: d.integer(forKey: WindowManagementDefaults.gapKey),
             cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
         prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
+        prefs.note = PluginPrefs.Note(iCloudSyncEnabled: core.noteSync.isEnabled)
         return prefs
     }
 
@@ -351,6 +356,10 @@ extension SettingsBackup {
         if case .include = noteTransfer, let notes {
             core.notes.replace(notes: notes.notes, selectedID: notes.selectedID)
             summary.contentCollections += 1
+        }
+        if let enabled = pluginPrefs?.note?.iCloudSyncEnabled {
+            core.noteSync.setEnabled(enabled)
+            summary.settingsFields += 1
         }
         if let clipboardHistory {
             await core.clipboardStore.replace(with: clipboardHistory)

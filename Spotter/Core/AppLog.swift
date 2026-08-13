@@ -53,7 +53,7 @@ final class AppLog: ObservableObject {
     private var bytesWritten: UInt64 = 0
 
     private init() {
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
         let directory = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)
@@ -76,7 +76,7 @@ final class AppLog: ObservableObject {
         level: AppLogEntry.Level, subsystem: String, message: String
     ) {
         let logger = Logger(
-            subsystem: Bundle.main.bundleIdentifier ?? "com.spotter.app", category: subsystem)
+            subsystem: Bundle.main.bundleIdentifier ?? "com.spotter.app1", category: subsystem)
         switch level {
         case .error: logger.error("\(message, privacy: .public)")
         case .info: logger.info("\(message, privacy: .public)")

@@ -103,6 +103,9 @@ struct NoteTests {
         if let selected = reopened.selectedNote { reopened.delete(selected) }
         await reopened.flush()
         check("delete note", 1, reopened.notes.count)
+        check("delete persists tombstone", 1, reopened.syncSnapshot.tombstones.count)
+        let afterDelete = NoteStore(fileURL: fileURL, defaults: defaults, now: { fixedDate })
+        check("reopen keeps tombstone", reopened.syncSnapshot.tombstones, afterDelete.syncSnapshot.tombstones)
 
         let synced = SpotterNote(content: "# Synced", createdAt: fixedDate)
         reopened.replace(notes: [synced], selectedID: synced.id)
@@ -113,8 +116,25 @@ struct NoteTests {
         let document = NoteSyncDocument(notes: reopened.notes, selectedID: reopened.selectedID)
         let encodedDocument = try! document.encoded()
         let decodedDocument = try! NoteSyncDocument(json: encodedDocument)
-        check("standalone sync document round-trips", document, decodedDocument)
-        check("sync document keeps selected note", synced.id, decodedDocument.selectedID)
+        check("legacy sync document round-trips", document, decodedDocument)
+        check("legacy sync document keeps selection", synced.id, decodedDocument.selectedID)
+
+        let newerDate = fixedDate.addingTimeInterval(60)
+        let remoteEdit = SpotterNote(
+            id: synced.id, content: "# Remote", createdAt: fixedDate, updatedAt: newerDate)
+        reopened.applyCloudSnapshot(NoteSyncSnapshot(notes: [remoteEdit], tombstones: []))
+        check("newer remote edit wins", "# Remote", reopened.selectedNote?.content)
+        let tiedDeletion = NoteTombstone(id: synced.id, deletedAt: newerDate)
+        reopened.applyCloudSnapshot(NoteSyncSnapshot(notes: [], tombstones: [tiedDeletion]))
+        check("deletion wins an exact timestamp tie", nil, reopened.selectedNote)
+
+        let olderEdit = SpotterNote(
+            id: synced.id, content: "# Older", createdAt: fixedDate, updatedAt: fixedDate)
+        let merged = NoteSyncMerge.merging(
+            NoteSyncSnapshot(notes: [], tombstones: [tiedDeletion]),
+            with: NoteSyncSnapshot(notes: [olderEdit], tombstones: []))
+        check("older edit cannot resurrect a deletion", 0, merged.notes.count)
+
         let futureDocument = Data(
             "{\"version\":2,\"notes\":[],\"selectedID\":null}".utf8)
         let rejectsFutureDocument: Bool

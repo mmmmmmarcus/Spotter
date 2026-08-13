@@ -15,7 +15,7 @@ builds with the **Xcode 26** toolchain.
   (`1.4.9`).
 - **Local build destination:** Every successful new local build must be installed immediately as
   `/Applications/Spotter.app`. Do not maintain or launch a separate `Spotter Dev.app`;
-  `project.yml` already builds Debug as `Spotter.app` / `com.spotter.app`, so keep the same product
+  `project.yml` already builds Debug as `Spotter.app` / `com.spotter.app1`, so keep the same product
   name and bundle identifier across dev and stable.
 - **Replace and relaunch after every successful build.** Build into a staging/DerivedData location
   first. Only after the new app has built and passed its required checks, quit the running Spotter,
@@ -161,6 +161,11 @@ Never break these without an explicit task to do so.
   click after the new bundle passes designated-requirement signature verification. See
   [`docs/updates.md`](docs/updates.md). `Core/UpdateFeed.swift` stays Foundation-only and pure for
   `Tools/update-test.swift`.
+  Notes follows the same safe-default rule for its private CloudKit database: sync ships off,
+  `NoteSyncManager` owns consent and re-checks it around every explicit fetch/send, disabling deletes
+  only the local CloudKit state, and each Note/deletion is an independent record. Developer ID
+  releases must embed the channel's provisioning profile for `iCloud.com.spotter.app`; the local
+  self-signed Debug build deliberately has no CloudKit entitlement.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
@@ -199,9 +204,10 @@ Never break these without an explicit task to do so.
   hot-apply only fully decoded snapshots, suppress its own write notifications, and mirror all
   covered user-owned settings and content, including credentials and network consent. Notes are the
   deliberate exception: manual backups still include them, but automatic Settings Sync must exclude
-  them because `NoteSyncManager` owns a separate coordinated JSON file and watcher. Both sync paths
-  keep their own file path/state device-local. Concrete palette coordinates and system privacy grants
-  also stay device-local. See [`docs/settings-sync.md`](docs/settings-sync.md).
+  Note content because `NoteSyncManager` owns per-Note CloudKit replication. Its consent flag is
+  trusted Settings state; CloudKit engine tokens and record system fields stay bundle-scoped and
+  device-local. Concrete palette coordinates and system privacy grants also stay device-local. See
+  [`docs/settings-sync.md`](docs/settings-sync.md).
 - **Text Replacement never records arbitrary typing or uses the clipboard.** Its matcher retains only
   a suffix that can still become a configured trigger, and its synthetic deletion/insertion events use
   the shared event-source marker so neither its own tap nor Hyper Key rewrites them.

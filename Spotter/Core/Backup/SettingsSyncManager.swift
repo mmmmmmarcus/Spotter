@@ -155,9 +155,11 @@ final class SettingsSyncManager: ObservableObject {
             core.launcherRanking.objectWillChange.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.scheduleSave() }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.scheduleSave() }
             .store(in: &cancellables)
         core.plugins.onEnabledStatesChanged = { [weak self] in self?.scheduleSave() }

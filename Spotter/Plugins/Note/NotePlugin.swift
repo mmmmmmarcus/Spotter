@@ -29,9 +29,7 @@ enum NotePlugin {
                     actionKey: .newNote, perform: create),
             ],
             onEnable: { [weak core] in
-                guard let core else { return }
-                core.noteSync.start(
-                    migratingFrom: core.settingsSync.isEnabled ? core.settingsSync.fileURL : nil)
+                core?.noteSync.start()
             },
             onDisable: { [weak core] in
                 guard let core else { return }

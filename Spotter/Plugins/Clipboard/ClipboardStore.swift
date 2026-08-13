@@ -172,7 +172,7 @@ final class ClipboardStore: ObservableObject {
 
     /// Under ~/Library/Caches/<bundle-id> since clipboard history is regenerable; "Clear History" is the durable control.
     private static var defaultDirectory: URL {
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
         return FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)

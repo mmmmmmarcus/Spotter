@@ -20,7 +20,7 @@ Check existing [issues](https://github.com/mmmmmmarcus/Spotter/issues) and
 
 - macOS 26+, Xcode 26. Do the one-time signing setup ([`docs/signing.md`](docs/signing.md) §1).
 - `open Spotter.xcodeproj` → ⌘R. Debug builds share the installed app's identity
-  (`Spotter.app` / `com.spotter.app`) — see the local-build contract in
+  (`Spotter.app` / `com.spotter.app1`) — see the local-build contract in
   [`docs/development.md`](docs/development.md).
 - After editing `project.yml`: `xcodegen generate`, commit the result. No SwiftPM.
 - Details: [`docs/development.md`](docs/development.md). Architecture:

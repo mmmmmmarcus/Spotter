@@ -13,7 +13,12 @@ TEAM_ID="SM96W8VVK9"
 NOTARY_PROFILE="${NOTARY_KEYCHAIN_PROFILE:-spotter-notary}"
 DERIVED="build/DerivedData"
 SCRATCH="$(mktemp -d)"
-trap 'rm -rf "$SCRATCH"' EXIT
+INSTALLED_PROFILE=""
+cleanup() {
+    rm -rf "$SCRATCH"
+    if [ -n "$INSTALLED_PROFILE" ]; then rm -f "$INSTALLED_PROFILE"; fi
+}
+trap cleanup EXIT
 
 IDENTITIES="$(security find-identity -p codesigning)"
 if ! grep -Fq "$IDENTITY" <<< "$IDENTITIES"; then
@@ -21,14 +26,46 @@ if ! grep -Fq "$IDENTITY" <<< "$IDENTITIES"; then
     exit 1
 fi
 
+PROFILE_SOURCE="${SPOTTER_DEVELOPER_ID_PROFILE:-}"
+if [ -z "$PROFILE_SOURCE" ] || [ ! -f "$PROFILE_SOURCE" ]; then
+    echo "✗ Set SPOTTER_DEVELOPER_ID_PROFILE to the stable Developer ID CloudKit profile." >&2
+    exit 1
+fi
+PROFILE_PLIST="$SCRATCH/profile.plist"
+security cms -D -i "$PROFILE_SOURCE" > "$PROFILE_PLIST"
+PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")"
+PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")"
+PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$PROFILE_PLIST")"
+PROFILE_CONTAINERS="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.icloud-container-identifiers' "$PROFILE_PLIST")"
+if [ "$PROFILE_TEAM" != "$TEAM_ID" ] || [ "$PROFILE_APP_ID" != "$TEAM_ID.com.spotter.app1" ]; then
+    echo "✗ The provisioning profile does not match the stable Spotter App ID." >&2
+    exit 1
+fi
+if ! grep -Fq 'iCloud.com.spotter.app' <<< "$PROFILE_CONTAINERS"; then
+    echo "✗ The provisioning profile is not attached to iCloud.com.spotter.app." >&2
+    exit 1
+fi
+PROFILE_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+mkdir -p "$PROFILE_DIR"
+PROFILE_DEST="$PROFILE_DIR/${PROFILE_UUID}.provisionprofile"
+if [ ! -f "$PROFILE_DEST" ]; then
+    cp "$PROFILE_SOURCE" "$PROFILE_DEST"
+    INSTALLED_PROFILE="$PROFILE_DEST"
+fi
+
 echo "▸ Building signed Spotter.app (Release)…"
 xcodebuild -project Spotter.xcodeproj -scheme Spotter -configuration Release \
     -derivedDataPath "$DERIVED" \
     CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$IDENTITY" DEVELOPMENT_TEAM="$TEAM_ID" \
+    PROVISIONING_PROFILE="$PROFILE_UUID" \
     ENABLE_HARDENED_RUNTIME=YES OTHER_CODE_SIGN_FLAGS="--timestamp" \
     build
 
 APP="$DERIVED/Build/Products/Release/Spotter.app"
+if [ ! -f "$APP/Contents/embedded.provisionprofile" ]; then
+    echo "✗ CloudKit Developer ID provisioning profile was not embedded." >&2
+    exit 1
+fi
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
 SOURCE_VERSION="$(sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"([^"]+)".*/\1/p' project.yml)"
 if [ "$VERSION" != "$SOURCE_VERSION" ]; then
@@ -47,6 +84,11 @@ if [ "$TEAM" != "$TEAM_ID" ]; then
 fi
 if ! grep -q 'flags=.*runtime' <<< "$SIGNATURE_INFO"; then
     echo "✗ Hardened Runtime is not present in the app signature." >&2
+    exit 1
+fi
+ENTITLEMENTS="$(codesign -d --entitlements :- "$APP" 2>/dev/null)"
+if ! grep -Fq 'iCloud.com.spotter.app' <<< "$ENTITLEMENTS"; then
+    echo "✗ CloudKit container entitlement is missing from the signed app." >&2
     exit 1
 fi
 
