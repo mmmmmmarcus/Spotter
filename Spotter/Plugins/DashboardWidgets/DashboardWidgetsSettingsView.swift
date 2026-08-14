@@ -3,8 +3,10 @@ import SwiftUI
 struct DashboardWidgetsSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var weather: DashboardWeatherStore
+    @ObservedObject var uptime: DashboardUptimeStore
     private static let timeZoneIdentifiers = TimeZone.knownTimeZoneIdentifiers.sorted()
 
+    @State private var askingUptimeConsent = false
     @State private var askingWeatherConsent = false
     @State private var citySearch = ""
     @State private var refreshingWeather = false
@@ -47,6 +49,28 @@ struct DashboardWidgetsSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
+                    title: "Uptime",
+                    subtitle: uptimeStatus,
+                    systemImage: "timer", tint: .green
+                ) {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { uptime.isEnabled },
+                            set: { wantsOn in
+                                if wantsOn {
+                                    askingUptimeConsent = true
+                                } else {
+                                    uptime.setEnabled(false)
+                                }
+                            })
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+                SettingsDivider()
+                SettingsRow(
                     title: "Next Event",
                     subtitle: "The next event from the selected calendar account.",
                     systemImage: "calendar.badge.clock", tint: .blue
@@ -57,6 +81,10 @@ struct DashboardWidgetsSettingsView: View {
 
             if weather.isEnabled {
                 weatherDetailsCard
+            }
+
+            if uptime.isEnabled {
+                uptimeDetailsCard
             }
 
             SettingsCard(header: "Clock Details") {
@@ -153,6 +181,50 @@ struct DashboardWidgetsSettingsView: View {
                     weather.setEnabled(true)
                 })
         }
+        .sheet(isPresented: $askingUptimeConsent) {
+            UptimeConsentSheet(
+                onCancel: { askingUptimeConsent = false },
+                onAccept: {
+                    askingUptimeConsent = false
+                    uptime.setEnabled(true)
+                })
+        }
+    }
+
+    private var uptimeDetailsCard: some View {
+        SettingsCard(header: "Uptime Details") {
+            SettingsRow(
+                title: "Keyboard Counting",
+                subtitle: uptime.needsAccessibility
+                    ? "Clicks are counted. Counting keys needs the Accessibility permission."
+                    : "Spotter counts that a key was pressed — never which one.",
+                systemImage: "keyboard", tint: .green
+            ) {
+                if uptime.needsAccessibility {
+                    Button("Allow…") { Permissions.ensureAccessibility() }
+                        .controlSize(.small)
+                } else {
+                    Label("Granted", systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
+            }
+
+            SettingsDivider()
+            SettingsRow(
+                title: "Today's Counts",
+                subtitle: "Tallies clear on their own at midnight.",
+                systemImage: "arrow.counterclockwise", tint: .secondary
+            ) {
+                Button("Reset Today") { uptime.resetCounts() }
+                    .controlSize(.small)
+            }
+        }
+    }
+
+    private var uptimeStatus: String {
+        let summary = "Hours since the screen first came on today, with key and click counts."
+        return uptime.isEnabled ? summary : "\(summary) Off — no input is counted."
     }
 
     private var weatherDetailsCard: some View {
@@ -288,6 +360,47 @@ struct DashboardWidgetsSettingsView: View {
         Binding(
             get: { store.preferences.clockTimeZoneIdentifier ?? "" },
             set: { store.setClockTimeZoneIdentifier($0) })
+    }
+}
+
+/// Nothing here reaches the network, but a system-wide input counter is asked for as plainly as one
+/// that does — the user should turn this on knowing exactly what is and isn't recorded.
+private struct UptimeConsentSheet: View {
+    let onCancel: () -> Void
+    let onAccept: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            HStack(spacing: Theme.Spacing.lg) {
+                Image(systemName: "timer")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(.green)
+                Text("Turn on the uptime widget?")
+                    .font(.headline)
+            }
+
+            Text(
+                "Spotter counts how many keys you press and how many times you click, everywhere on "
+                    + "this Mac, and shows the totals next to how long the screen has been on today. "
+                    + "It records only that a key was pressed — never which key, what you typed, or "
+                    + "where you clicked. The totals stay on this Mac, clear at midnight, and are "
+                    + "deleted when you turn this off. Counting keys needs the Accessibility "
+                    + "permission; clicks are counted without it."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: Theme.Spacing.lg) {
+                Spacer()
+                Button("Not Now", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Enable", action: onAccept)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(Theme.Spacing.xxl)
+        .frame(width: 420)
     }
 }
 

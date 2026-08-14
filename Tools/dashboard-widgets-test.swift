@@ -164,6 +164,61 @@ struct DashboardWidgetsTests {
                 .absoluteString.contains("name=S%C3%A3o%20Paulo") == true,
             "a search term should be percent-encoded")
 
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let dayStart = date("2026-08-14 09:15", calendar)
+        let dayEnd = date("2026-08-14 18:45", calendar)
+        let nextMorning = date("2026-08-15 07:30", calendar)
+
+        check(
+            DashboardUptimeEngine.carriedOverSessionStart(dayStart, now: dayEnd, calendar: calendar)
+                == dayStart,
+            "a start stamped earlier the same day should carry over")
+        check(
+            DashboardUptimeEngine.carriedOverSessionStart(
+                dayEnd, now: nextMorning, calendar: calendar) == nil,
+            "yesterday's start should not survive midnight")
+        check(
+            DashboardUptimeEngine.carriedOverSessionStart(nil, now: dayEnd, calendar: calendar)
+                == nil,
+            "a day with no activity yet should have no start")
+        check(
+            DashboardUptimeEngine.carriedOverSessionStart(
+                dayEnd, now: dayStart, calendar: calendar) == nil,
+            "a start in the future should be dropped rather than report a negative session")
+
+        let tallies = DashboardInputCounts(keys: 4182, clicks: 861)
+        check(
+            DashboardUptimeEngine.carriedOverCounts(
+                tallies, countedDay: dayStart, now: dayEnd, calendar: calendar) == tallies,
+            "counts should survive a relaunch on the same day")
+        check(
+            DashboardUptimeEngine.carriedOverCounts(
+                tallies, countedDay: dayEnd, now: nextMorning, calendar: calendar) == .zero,
+            "counts should zero on a new day")
+        check(
+            DashboardUptimeEngine.carriedOverCounts(
+                tallies, countedDay: nil, now: dayEnd, calendar: calendar) == .zero,
+            "counts with no recorded day should not be trusted")
+
+        check(
+            DashboardUptimeEngine.formattedElapsed(from: dayStart, to: dayEnd) == "9h 30m",
+            "elapsed time should read as whole hours and minutes")
+        check(
+            DashboardUptimeEngine.formattedElapsed(
+                from: dayStart, to: dayStart.addingTimeInterval(2_099)) == "34m",
+            "under an hour should drop the hour component and floor the minute")
+        check(
+            DashboardUptimeEngine.formattedElapsed(from: dayEnd, to: dayStart) == "0m",
+            "a backwards interval should floor at zero rather than go negative")
+
+        check(
+            DashboardUptimeEngine.formattedCount(0) == "0"
+                && DashboardUptimeEngine.formattedCount(861) == "861"
+                && DashboardUptimeEngine.formattedCount(4182) == "4,182"
+                && DashboardUptimeEngine.formattedCount(1_234_567) == "1,234,567",
+            "counts should group in threes independently of the Mac's locale")
+
         print(failures == 0 ? "Dashboard widgets tests passed" : "\(failures) test(s) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -177,5 +232,13 @@ struct DashboardWidgetsTests {
 
     private static func near(_ value: Double, _ expected: Double) -> Bool {
         abs(value - expected) < 0.0001
+    }
+
+    private static func date(_ stamp: String, _ calendar: Calendar) -> Date {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.date(from: stamp)!
     }
 }

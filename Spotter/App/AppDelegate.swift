@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // The Hyper Key's HID-level caps remap outlives the process; give the key back.
         AppCore.shared.hyperKeyTap.prepareForTermination()
+        // The uptime tallies are coalesced between timer ticks; write the last few seconds out.
+        AppCore.shared.dashboardUptime.flush()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

@@ -186,6 +186,7 @@ run_harness() {
             swiftc -swift-version 6 \
                 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
+                Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
                 Tools/dashboard-widgets-test.swift -o "$output" && "$output"
             ;;
         theme)

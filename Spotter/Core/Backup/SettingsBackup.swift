@@ -33,6 +33,8 @@ struct SettingsBackup: Codable, Sendable {
             var weatherEnabled: Bool?
             var weatherCity: Data?
             var weatherUnit: String?
+            // Same for consent to count input. The tallies themselves stay device-local.
+            var uptimeEnabled: Bool?
         }
 
         var clipboardRetentionDays: Int?
@@ -217,7 +219,8 @@ extension SettingsBackup {
                 clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier ?? "",
                 weatherEnabled: core.dashboardWeather.isEnabled,
                 weatherCity: core.dashboardWeather.encodedCity,
-                weatherUnit: core.dashboardWeather.unit.rawValue))
+                weatherUnit: core.dashboardWeather.unit.rawValue,
+                uptimeEnabled: core.dashboardUptime.isEnabled))
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -471,6 +474,7 @@ extension SettingsBackup {
             count += core.dashboardWeather.applyPreferences(
                 enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
                 unitRawValue: dashboard.weatherUnit)
+            count += core.dashboardUptime.applyPreferences(enabled: dashboard.uptimeEnabled)
         }
         return count
     }
@@ -595,6 +599,7 @@ extension SettingsBackup {
             count += core.dashboardWeather.applyPreferences(
                 enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
                 unitRawValue: dashboard.weatherUnit)
+            count += core.dashboardUptime.applyPreferences(enabled: dashboard.uptimeEnabled)
         }
         return count
     }

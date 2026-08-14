@@ -3,15 +3,19 @@ import SwiftUI
 struct DashboardWidgetsView: View {
     @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var weather: DashboardWeatherStore
+    @ObservedObject var uptime: DashboardUptimeStore
 
     /// The weather card has no widget-kind flag of its own: consent *is* its enable state, so there
     /// is no second switch to drift out of sync with the network gate. The city always resolves —
     /// `WeatherCity.default` stands in until the user picks one — so it never gates the card.
     private var showsWeather: Bool { weather.isEnabled }
 
+    /// The uptime card works the same way: consent to count input *is* its enable state.
+    private var showsUptime: Bool { uptime.isEnabled }
+
     @ViewBuilder
     var body: some View {
-        if store.hasEnabledWidgets || showsWeather {
+        if store.hasEnabledWidgets || showsWeather || showsUptime {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 HStack(spacing: Theme.Spacing.md) {
                     if store.isWidgetEnabled(.clock) {
@@ -19,6 +23,9 @@ struct DashboardWidgetsView: View {
                     }
                     if showsWeather {
                         weatherCard()
+                    }
+                    if showsUptime {
+                        uptimeCard(now: context.date)
                     }
                     if store.isWidgetEnabled(.nextEvent) {
                         eventCard(now: context.date)
@@ -74,6 +81,65 @@ struct DashboardWidgetsView: View {
         guard let reading = weather.reading else { return "—" }
         return DashboardWeatherEngine.formattedTemperature(
             celsius: reading.temperatureCelsius, unit: weather.unit)
+    }
+
+    /// Square, like the clock and weather: today's elapsed time as the headline, then the day's key
+    /// and click tallies.
+    private func uptimeCard(now: Date) -> some View {
+        let snapshot = uptime.snapshot(now: now)
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("UPTIME")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.Colors.textSecondary)
+            // An em dash until the day's first activity, so the card never claims a session it can't date.
+            Text(
+                snapshot.sessionStart
+                    .map { DashboardUptimeEngine.formattedElapsed(from: $0, to: now) } ?? "—"
+            )
+            .font(.title2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            Spacer(minLength: 0)
+            if uptime.needsAccessibility {
+                // Clicks count without the grant, keys can't — offer it rather than showing a zero.
+                Button { Permissions.ensureAccessibility() } label: {
+                    Label("Allow", systemImage: "keyboard")
+                        .font(.caption)
+                }
+                .buttonStyle(.link)
+                .controlSize(.small)
+            } else {
+                statRow(systemImage: "keyboard", count: snapshot.counts.keys)
+            }
+            statRow(systemImage: "cursorarrow.click", count: snapshot.counts.clicks)
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(width: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
+        .dashboardCardSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(uptimeAccessibilityLabel(snapshot, now: now))
+    }
+
+    private func statRow(systemImage: String, count: Int) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: systemImage)
+                .foregroundStyle(Theme.Colors.textSecondary)
+            Text(DashboardUptimeEngine.formattedCount(count))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .font(.caption)
+    }
+
+    private func uptimeAccessibilityLabel(_ snapshot: DashboardUptimeSnapshot, now: Date) -> String {
+        let elapsed =
+            snapshot.sessionStart
+            .map { "Up \(DashboardUptimeEngine.formattedElapsed(from: $0, to: now))" }
+            ?? "Session not started"
+        let keys =
+            uptime.needsAccessibility
+            ? "keyboard counting needs Accessibility" : "\(snapshot.counts.keys) keys"
+        return "\(elapsed), \(keys), \(snapshot.counts.clicks) clicks"
     }
 
     /// The clock is a square, title-free analog face; VoiceOver still reads the exact time and date.

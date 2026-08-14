@@ -103,8 +103,9 @@ Never break these without an explicit task to do so.
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` and
   `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
-  `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift` and
-  `Plugins/DashboardWidgets/DashboardWeatherEngine.swift` stay
+  `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
+  `Plugins/DashboardWidgets/DashboardWeatherEngine.swift` and
+  `Plugins/DashboardWidgets/DashboardUptimeEngine.swift` stay
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
@@ -159,6 +160,13 @@ Never break these without an explicit task to do so.
   resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the card; keep
   that default a constant, since deriving one from the locale or time zone would be location
   inference by another name. Its consent flag, city and unit ride in the trusted v3 snapshot.
+  `Plugins/DashboardWidgets/DashboardUptimeStore.swift` applies the same shape to a feature that is
+  *not* networked, because watching input system-wide earns it: the uptime card ships off, its
+  dialog names exactly what is and isn't recorded, no `NSEvent` monitor is installed until consent,
+  and turning it off deletes the tallies. Its counters must stay counters — key or click and an
+  autorepeat flag are the only facts taken off an event; never read a key code, character, modifier
+  or click location. Count through passive `NSEvent` monitors, never a new `CGEventTap`. Only the
+  consent flag rides in the trusted v3 snapshot; the tallies stay device-local.
   **Deliberate exception (owner decision, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing

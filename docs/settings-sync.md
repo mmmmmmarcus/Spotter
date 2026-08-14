@@ -16,7 +16,7 @@ or disconnected without deleting the file.
 Format v3 covers the complete automatic Settings Sync state:
 
 - General and system-feature settings, plugin enable states and preferences, including every network
-  consent toggle.
+  consent toggle and the dashboard uptime card's input-counting consent.
 - OpenRouter and Google Cloud Translation API keys and all associated model options.
 - Every shortcut. Empty binding maps are authoritative, so unbinding a shortcut propagates.
 - Custom commands, favorites, hidden launcher items, Quicklinks, World Clock cities and Text
@@ -34,7 +34,7 @@ content, the Backup pane and trust dialogs tell the user to keep them in a priva
 
 Alongside Note content, the other state deliberately excluded from automatic Settings Sync is
 device-bound: the palette's concrete screen coordinates, macOS privacy grants, both synchronization
-paths, and Notes' CloudKit engine tokens/system fields. The Notes CloudKit consent flag and the
+paths, Notes' CloudKit engine tokens/system fields, and the uptime card's daily key/click tallies. The Notes CloudKit consent flag and the
 “remember position” preference do sync. Runtime executors, provider response caches, temporary files
 and system-derived data are not backup state.
 

@@ -175,8 +175,9 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + ChatGPT web URL
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
+    Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
     Tools/dashboard-widgets-test.swift \
-    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences, clock hands, weather codes
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences, clock hands, weather codes, uptime rollover
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
