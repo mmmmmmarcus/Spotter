@@ -29,11 +29,10 @@ struct DashboardWidgetsView: View {
                     }
                     if store.isWidgetEnabled(.nextEvent) {
                         eventCard(now: context.date)
-                            .frame(maxWidth: .infinity)
                     }
                 }
                 .frame(height: Theme.Size.launcherDashboardHeight)
-                // Lone square cards hug their width, so pin the strip to the list's leading edge.
+                // Every card is a square that hugs its width, so pin the strip to the list's leading edge.
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .onAppear { store.start() }
@@ -152,58 +151,79 @@ struct DashboardWidgetsView: View {
             .accessibilityLabel("\(formattedTime(now)), \(formattedDate(now))")
     }
 
-    @ViewBuilder
+    /// Square, like the rest of the strip. The 96pt of content between the paddings is the whole
+    /// budget, so the headline carries the state and everything under it stays caption-sized.
     private func eventCard(now: Date) -> some View {
-        DashboardWidgetCard(title: "UP NEXT", systemImage: "calendar.badge.clock") {
-            Spacer(minLength: Theme.Spacing.xs)
-            switch store.calendarAccess {
-            case .fullAccess:
-                if let event = store.nextEvent {
-                    Text(event.title)
-                        .font(.body.weight(.medium))
-                        .lineLimit(2)
-                    Text(eventTime(event, now: now))
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .lineLimit(1)
-                    Text(event.calendarTitle)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                        .lineLimit(1)
-                } else {
-                    Text("No upcoming events")
-                        .font(.body.weight(.medium))
-                    Text("No events in the next year.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                }
-            case .notDetermined, .writeOnly:
-                Text("Calendar access is off")
-                    .font(.body.weight(.medium))
-                if store.isRequestingCalendarAccess {
-                    Text("Waiting for permission…")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                } else {
-                    Button("Allow Calendar") { store.requestCalendarAccess() }
-                        .buttonStyle(.link)
-                        .controlSize(.small)
-                }
-            case .denied:
-                Text("Calendar unavailable")
-                    .font(.body.weight(.medium))
-                Button("Open Settings") { Permissions.openCalendarSettings() }
-                    .buttonStyle(.link)
-                    .controlSize(.small)
-            case .restricted:
-                Text("Calendar restricted")
-                    .font(.body.weight(.medium))
-                Text("Managed by this Mac's policy.")
-                    .font(.caption)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            Text("UP NEXT")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.Colors.textSecondary)
+            eventContent(now: now)
+            // Only at the bottom: a flexible gap above the content too would float it mid-card, out
+            // of line with the clock, weather and uptime squares beside it.
             Spacer(minLength: 0)
         }
+        .padding(Theme.Spacing.lg)
+        .frame(width: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
+        .dashboardCardSurface()
+    }
+
+    @ViewBuilder
+    private func eventContent(now: Date) -> some View {
+        switch store.calendarAccess {
+        case .fullAccess:
+            if let event = store.nextEvent {
+                eventHeadline(event.title)
+                Text(eventTime(event, now: now))
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text(event.calendarTitle)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .lineLimit(1)
+            } else {
+                eventHeadline("No upcoming events")
+                Text("None in the next year.")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(2)
+            }
+        case .notDetermined, .writeOnly:
+            eventHeadline("Calendar access is off")
+            if store.isRequestingCalendarAccess {
+                Text("Waiting…")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            } else {
+                Button("Allow") { store.requestCalendarAccess() }
+                    .buttonStyle(.link)
+                    .controlSize(.small)
+                    .font(.caption)
+            }
+        case .denied:
+            eventHeadline("Calendar unavailable")
+            Button("Settings") { Permissions.openCalendarSettings() }
+                .buttonStyle(.link)
+                .controlSize(.small)
+                .font(.caption)
+        case .restricted:
+            eventHeadline("Calendar restricted")
+            Text("Managed by policy.")
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(2)
+        }
+    }
+
+    /// Two lines at most, and allowed to shrink a little rather than truncate a short event name.
+    private func eventHeadline(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline.weight(.medium))
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func eventTime(_ event: DashboardEvent, now: Date) -> String {
@@ -281,28 +301,6 @@ private struct AnalogClockFace: View {
         CGPoint(
             x: center.x + radius * sin(angle.radians),
             y: center.y - radius * cos(angle.radians))
-    }
-}
-
-private struct DashboardWidgetCard<Content: View>: View {
-    let title: String
-    let systemImage: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            HStack(spacing: Theme.Spacing.xs) {
-                Image(systemName: systemImage)
-                Text(title)
-                    .lineLimit(1)
-            }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Theme.Colors.textSecondary)
-            content
-        }
-        .padding(Theme.Spacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .dashboardCardSurface()
     }
 }
 

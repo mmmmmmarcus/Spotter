@@ -2,10 +2,10 @@
 
 Dashboard Widgets is the card strip above the launcher sections when the palette is on its empty
 query root. It shows an analog clock, the current weather, today's uptime and the next calendar
-event. Each card can be shown or hidden independently. The title-free clock uses a square card,
-follows the selected time zone, draws live hour, minute and second hands, and keeps the dashboard's
-adaptive translucent surface instead of introducing an opaque clock face. The weather and uptime
-cards match that square shape. Typing a query or switching palette mode hides the strip immediately.
+event. Each card can be shown or hidden independently, and every one of them is the same 116-point
+square. The title-free clock follows the selected time zone, draws live hour, minute and second
+hands, and keeps the dashboard's adaptive translucent surface instead of introducing an opaque clock
+face. Typing a query or switching palette mode hides the strip immediately.
 
 ## Architecture
 

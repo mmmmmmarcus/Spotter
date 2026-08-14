@@ -75,8 +75,9 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
-Dashboard Widgets use `launcherDashboardHeight 116`; the title-free clock card is a 116-point square
-containing an 88-point analog face.
+Dashboard Widgets use `launcherDashboardHeight 116`; every card is a 116-point square, and the
+title-free clock contains an 88-point analog face. A square leaves 96 points of content between its
+`Spacing.lg` paddings — the budget every card's copy has to fit.
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
 
@@ -174,9 +175,16 @@ first normal launcher result. The clock widget is a square, title-free analog fa
 (`launcherDashboardHeight` a side): ticks, numerals and hands drawn in the ramp directly over the
 card fill — no opaque dial — with the second hand and hub in the brand violet, the ramp's one hue.
 The weather widget is the same square, title-free card: city, the temperature as the headline, then
-a multicolor SF Symbol over the condition phrase. It appears only once weather consent is granted
-*and* a city is chosen — that pair is its enable state, so there is no separate widget switch to
-drift out of sync with the network gate.
+a multicolor SF Symbol over the condition phrase. It appears once weather consent is granted — that
+consent is its enable state, so there is no separate widget switch to drift out of sync with the
+network gate; an unset city resolves to `WeatherCity.default` rather than hiding the card. The
+uptime and next-event widgets are squares too, each led by a caption (`UPTIME`, `UP NEXT`) instead of
+the icon-and-title header the strip once used for its one wide card. Uptime pins today's elapsed time
+under that caption and its key and click tallies to the bottom edge, the same two-block rhythm as
+weather; the next-event card keeps its title, time and calendar name as one top-anchored block, since
+splitting an event's name from its time would read as two unrelated facts. All four cards anchor
+their first line directly under the caption, so the strip reads as one row rather than four
+independently floating blocks.
 
 Every typed launcher query ends with a `Try With` section after its normal results; when none exist,
 the section replaces the centered empty state. Its four selectable destination rows use the same row
