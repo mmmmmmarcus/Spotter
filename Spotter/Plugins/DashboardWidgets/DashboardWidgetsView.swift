@@ -9,11 +9,7 @@ struct DashboardWidgetsView: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 HStack(spacing: Theme.Spacing.md) {
                     if store.isWidgetEnabled(.clock) {
-                        timeCard(now: context.date)
-                            .frame(
-                                minWidth: Theme.Size.launcherDashboardTimeWidth,
-                                maxWidth: compactWidgetMaximumWidth(
-                                    Theme.Size.launcherDashboardTimeWidth))
+                        clockCard(now: context.date)
                     }
                     if store.isWidgetEnabled(.nextEvent) {
                         eventCard(now: context.date)
@@ -21,25 +17,22 @@ struct DashboardWidgetsView: View {
                     }
                 }
                 .frame(height: Theme.Size.launcherDashboardHeight)
+                // A lone square clock hugs its width, so pin the strip to the list's leading edge.
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .onAppear { store.start() }
             .onDisappear { store.stop() }
         }
     }
 
-    private func timeCard(now: Date) -> some View {
-        DashboardWidgetCard(title: "TIME", systemImage: "clock") {
-            Spacer(minLength: Theme.Spacing.xs)
-            Text(formattedTime(now))
-                .font(.title2.weight(.semibold).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text(formattedDate(now))
-                .font(.caption)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-        }
+    /// The clock is a square, title-free analog face; VoiceOver still reads the exact time and date.
+    private func clockCard(now: Date) -> some View {
+        AnalogClockFace(
+            angles: DashboardWidgetsEngine.clockHandAngles(for: now, timeZone: store.clockTimeZone))
+            .padding(Theme.Spacing.md)
+            .frame(width: Theme.Size.launcherDashboardHeight)
+            .dashboardCardSurface()
+            .accessibilityLabel("\(formattedTime(now)), \(formattedDate(now))")
     }
 
     @ViewBuilder
@@ -103,10 +96,6 @@ struct DashboardWidgetsView: View {
         return "\(day) · \(event.startDate.formatted(.dateTime.hour().minute()))"
     }
 
-    private func compactWidgetMaximumWidth(_ fixedWidth: CGFloat) -> CGFloat {
-        store.isWidgetEnabled(.nextEvent) ? fixedWidth : .infinity
-    }
-
     private func formattedTime(_ date: Date) -> String {
         var style = Date.FormatStyle.dateTime.hour().minute()
         style.timeZone = store.clockTimeZone
@@ -118,6 +107,63 @@ struct DashboardWidgetsView: View {
             .weekday(.abbreviated).month(.abbreviated).day()
         style.timeZone = store.clockTimeZone
         return date.formatted(style)
+    }
+}
+
+/// A Clock-app-style face drawn in the palette's alpha ramp: ramp ticks, numerals and hands over the card fill, with the brand violet as the second hand — no opaque dial.
+private struct AnalogClockFace: View {
+    let angles: ClockHandAngles
+
+    var body: some View {
+        Canvas { context, size in
+            let radius = min(size.width, size.height) / 2
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+
+            for tick in 0..<60 {
+                let isHour = tick.isMultiple(of: 5)
+                context.stroke(
+                    radial(
+                        center: center, angle: .degrees(Double(tick) * 6),
+                        from: radius * (isHour ? 0.87 : 0.93), to: radius * 0.99),
+                    with: .color(isHour ? .primary : Theme.Colors.textTertiary),
+                    style: StrokeStyle(lineWidth: isHour ? 2 : 1, lineCap: .round))
+            }
+
+            for hour in 1...12 {
+                context.draw(
+                    context.resolve(Text("\(hour)").font(.caption2.weight(.semibold))),
+                    at: point(center: center, angle: .degrees(Double(hour) * 30), radius: radius * 0.70))
+            }
+
+            context.stroke(
+                radial(center: center, angle: .degrees(angles.hour), from: -radius * 0.12, to: radius * 0.50),
+                with: .color(.primary), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            context.stroke(
+                radial(center: center, angle: .degrees(angles.minute), from: -radius * 0.12, to: radius * 0.74),
+                with: .color(.primary), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            context.stroke(
+                radial(center: center, angle: .degrees(angles.second), from: -radius * 0.20, to: radius * 0.80),
+                with: .color(Theme.Colors.brand), style: StrokeStyle(lineWidth: 1.25, lineCap: .round))
+
+            let hub = radius * 0.06
+            context.fill(
+                Path(ellipseIn: CGRect(x: center.x - hub, y: center.y - hub, width: hub * 2, height: hub * 2)),
+                with: .color(Theme.Colors.brand))
+        }
+    }
+
+    /// A stroke segment along `angle` (degrees clockwise from 12), spanning `from`→`to` out of `center`; a negative `from` is the hand's counterweight tail.
+    private func radial(center: CGPoint, angle: Angle, from: CGFloat, to: CGFloat) -> Path {
+        var path = Path()
+        path.move(to: point(center: center, angle: angle, radius: from))
+        path.addLine(to: point(center: center, angle: angle, radius: to))
+        return path
+    }
+
+    private func point(center: CGPoint, angle: Angle, radius: CGFloat) -> CGPoint {
+        CGPoint(
+            x: center.x + radius * sin(angle.radians),
+            y: center.y - radius * cos(angle.radians))
     }
 }
 
@@ -139,7 +185,14 @@ private struct DashboardWidgetCard<Content: View>: View {
         }
         .padding(Theme.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
+        .dashboardCardSurface()
+    }
+}
+
+extension View {
+    /// The dashboard cards' shared surface — the same `cardFill`/`cardStroke` language as calculator cards.
+    fileprivate func dashboardCardSurface() -> some View {
+        background(
             RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
                 .fill(Theme.Colors.cardFill)
         )

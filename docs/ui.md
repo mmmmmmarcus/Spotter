@@ -167,7 +167,9 @@ leading gap. Headers are non-selectable display rows, so selection (keyed by id)
 The empty-query launcher places the Dashboard Widgets strip before Background Tasks and Favorites.
 It uses the same `cardFill`/`cardStroke` language as calculator cards, but it remains a zero-row,
 non-selectable surface: keyboard selection starts at the first task when one exists, otherwise the
-first normal launcher result.
+first normal launcher result. The clock widget is a square, title-free analog face
+(`launcherDashboardHeight` a side): ticks, numerals and hands drawn in the ramp directly over the
+card fill — no opaque dial — with the second hand and hub in the brand violet, the ramp's one hue.
 
 Every typed launcher query ends with a `Try With` section after its normal results; when none exist,
 the section replaces the centered empty state. Its four selectable destination rows use the same row
