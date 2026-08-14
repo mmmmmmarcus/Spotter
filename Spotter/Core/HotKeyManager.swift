@@ -30,6 +30,7 @@ final class HotKeyManager: ObservableObject {
     func start(pluginActions: [PluginActionKey], customCommandIDs: Set<UUID>) {
         self.pluginActions = pluginActions
         register(.togglePalette)
+        register(.togglePaletteBackup)
         for action in pluginActions { register(.plugin(action)) }
         for bundleID in boundBundleIDs { register(.app(bundleID: bundleID)) }
         for bundleID in boundPaneBundleIDs { register(.settingsPane(bundleID: bundleID)) }
@@ -112,7 +113,7 @@ final class HotKeyManager: ObservableObject {
             var set = Set(boundCustomCommandIDs)
             if binding == nil { set.remove(id) } else { set.insert(id) }
             persistBoundCustomCommandIDs(set)
-        case .togglePalette, .plugin:
+        case .togglePalette, .togglePaletteBackup, .plugin:
             break
         }
         // A rebuild re-decodes every action; only a double-tap entering or leaving changes the map.
@@ -136,7 +137,7 @@ final class HotKeyManager: ObservableObject {
 
     /// Every action that could currently hold a binding — the search space for conflicts and for rebuilding the double-tap map.
     private var candidateActions: [HotKeyAction] {
-        var actions: [HotKeyAction] = [.togglePalette]
+        var actions: [HotKeyAction] = [.togglePalette, .togglePaletteBackup]
         actions += pluginActions.map(HotKeyAction.plugin)
         actions += boundBundleIDs.map { .app(bundleID: $0) }
         actions += boundPaneBundleIDs.map { .settingsPane(bundleID: $0) }
@@ -159,6 +160,8 @@ final class HotKeyManager: ObservableObject {
         switch action {
         case .togglePalette:
             return "App Launcher"
+        case .togglePaletteBackup:
+            return "App Launcher (Backup)"
         case .plugin(let action):
             return action.title
         case .app(let bundleID):
@@ -183,7 +186,7 @@ final class HotKeyManager: ObservableObject {
 
     private func perform(_ action: HotKeyAction) {
         switch action {
-        case .togglePalette: onTogglePalette?()
+        case .togglePalette, .togglePaletteBackup: onTogglePalette?()
         case .plugin(let action): onRunPluginAction?(action)
         case .app(let bundleID): AppLauncher.toggle(bundleID: bundleID)
         case .settingsPane(let bundleID): AppLauncher.openSettingsPane(bundleID: bundleID)

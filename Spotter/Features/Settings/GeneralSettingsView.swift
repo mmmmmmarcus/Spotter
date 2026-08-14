@@ -49,6 +49,15 @@ struct GeneralSettingsView: View {
                 ) {
                     ShortcutRecorder(action: .togglePalette)
                 }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Backup Shortcut",
+                    subtitle: "A second shortcut that also summons the app launcher.",
+                    systemImage: "magnifyingglass.circle",
+                    tint: .cyan
+                ) {
+                    ShortcutRecorder(action: .togglePaletteBackup)
+                }
             }
 
             SettingsCard(header: "Search") {
