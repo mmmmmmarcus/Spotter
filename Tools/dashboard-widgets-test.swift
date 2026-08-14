@@ -28,6 +28,25 @@ struct DashboardWidgetsTests {
             DashboardWidgetsEngine.resolvedTimeZone(identifier: "Missing/Zone", fallback: fallbackTimeZone)
                 == fallbackTimeZone,
             "an unavailable clock time zone should fall back safely")
+
+        var utcCalendar = Calendar(identifier: .gregorian)
+        let utc = TimeZone(secondsFromGMT: 0)!
+        utcCalendar.timeZone = utc
+        let clockDate = utcCalendar.date(from: DateComponents(
+            year: 2026, month: 8, day: 13, hour: 3, minute: 15, second: 30))!
+        let clockAngles = DashboardWidgetsEngine.clockAngles(
+            at: clockDate, calendar: utcCalendar, timeZone: utc)
+        check(
+            approximatelyEqual(clockAngles.hour, 97.75)
+                && approximatelyEqual(clockAngles.minute, 93)
+                && approximatelyEqual(clockAngles.second, 180),
+            "analog clock hands should include minute and second progress")
+        let shanghaiAngles = DashboardWidgetsEngine.clockAngles(
+            at: clockDate, calendar: utcCalendar, timeZone: fallbackTimeZone)
+        check(
+            approximatelyEqual(shanghaiAngles.hour, 337.75),
+            "analog clock hands should honor the selected time zone")
+
         check(
             DashboardWidgetsEngine.effectiveCalendarSourceIdentifier(
                 selected: "icloud", availableIdentifiers: ["icloud", "exchange"]) == "icloud",
@@ -67,5 +86,9 @@ struct DashboardWidgetsTests {
             failures += 1
             print("FAIL: \(message)")
         }
+    }
+
+    private static func approximatelyEqual(_ lhs: Double, _ rhs: Double) -> Bool {
+        abs(lhs - rhs) < 0.000_001
     }
 }

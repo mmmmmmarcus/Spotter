@@ -101,8 +101,9 @@ analytics or telemetry.
 - **[Signing](docs/signing.md)** — Developer ID, notarization and Gatekeeper verification.
 - **[UI system](docs/ui.md)** — design tokens, surfaces and interaction rules.
 
-The repository includes `$spotter-plugin` and `$spotter-release` under `.codex/skills/` for
-repeatable plugin and release work.
+The repository tracks the `spotter-plugin` and `spotter-release` project skills for repeatable
+plugin and release work — under `.claude/skills/` for Claude Code and mirrored under
+`.codex/skills/` for Codex.
 
 ## Contributing
 

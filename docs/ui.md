@@ -75,6 +75,9 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
+Dashboard Widgets use `launcherDashboardHeight 116`; the title-free clock card is a 116-point square
+containing an 88-point analog face.
+
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
 
 ### Typography (`Theme.Typography`)
@@ -187,6 +190,7 @@ Glass is **only** for floating controls, never the main surface.
 - The glyph is a `PopoverMenuIcon`: `.symbol` (SF Symbol, `hierarchical`, secondary — or **red** when `isDestructive`) or `.file` (a real app icon via `IconCache`, used by the paste rows to show the paste target). `PopoverMenuItem` keeps a `systemImage:` convenience init, so symbol rows read exactly as before.
 - **Both glyph kinds share one square `menuIcon` (20) slot**, which is what makes symbol and app-icon rows read as the same size and pins a single row height. 20 is deliberately larger than the artwork looks: an `IconCache` icon paints only ~85% of its canvas (13pt visible at a 16pt slot), while a `.body` SF Symbol renders 17–18pt tall — at 20 the icon lands on 17pt and the two match. Measure before changing it.
 - Menu rows are the one place that uses `sm` for the icon→label gap instead of the row-standard `lg`, because that slot's built-in slack already contributes 2–3pt of apparent space.
+- The Actions menu supports buffered fuzzy type-ahead: printable keys move its highlight by title without changing the live search field, Backspace edits the buffer, and Return activates through the normal row path. The buffer restarts after 0.8 seconds of inactivity.
 
 ---
 

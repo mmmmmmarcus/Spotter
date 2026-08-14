@@ -137,6 +137,12 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
             vm.prepare(mode: .launcher)
             return true
         }
+        // The update screen replaces the focused search field with a title, so route Return through the panel before the empty SwiftUI focus chain drops it.
+        panel.onBareReturn = { [weak self] in
+            guard let self, self.core.palette.mode == .updates else { return false }
+            self.core.performUpdatePrimaryAction()
+            return true
+        }
         self.panel = panel
         return panel
     }

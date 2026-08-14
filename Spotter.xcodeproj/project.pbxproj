@@ -47,6 +47,7 @@
 		2B010F5FD9357CDF4CDCA8F7 /* TextReplacementPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F34DAE1945EA4030F84B8835 /* TextReplacementPlugin.swift */; };
 		2B4F9D37E9833D15ACD74ECF /* PaletteWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */; };
 		2BC09BC8D0D49669D427471C /* SystemCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E196A0B64D45C449593C4989 /* SystemCommand.swift */; };
+		2BC8BF35FA60D3DFDF009D2A /* PaletteMenuTypeahead.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0159892F08ABA70F62BFBBC /* PaletteMenuTypeahead.swift */; };
 		2D6A4987B4236BAEE8EFAEE3 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC5F2AA5E4C20EC212A2749 /* GeneralSettingsView.swift */; };
 		2E65CBDE4E58A89065A8A832 /* LauncherFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33991D52E55CC9584A33759 /* LauncherFallback.swift */; };
 		2FF224FDF812F1CB95F0587A /* AppLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E060D21F511407E080FA1D1 /* AppLauncher.swift */; };
@@ -331,6 +332,7 @@
 		ACD8626DE6AD0B451E431936 /* ChangeCasePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCasePlugin.swift; sourceTree = "<group>"; };
 		AECE7B47CC7C399897300909 /* DashboardWidgetsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsSettingsView.swift; sourceTree = "<group>"; };
 		AED7227A23155DB3DDD75388 /* NoteSyncDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSyncDocument.swift; sourceTree = "<group>"; };
+		B0159892F08ABA70F62BFBBC /* PaletteMenuTypeahead.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteMenuTypeahead.swift; sourceTree = "<group>"; };
 		B106F55A48529154846D232B /* AppIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIndex.swift; sourceTree = "<group>"; };
 		B20E554F1050B16540CCBF5D /* SelectedTextReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextReader.swift; sourceTree = "<group>"; };
 		B4ADAAF0E7643B2886D05E41 /* SettingsBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBackup.swift; sourceTree = "<group>"; };
@@ -739,6 +741,7 @@
 				7B2B1D180CB11167DFD22ECF /* OnboardingState.swift */,
 				6E9D78AFD2E35C90F7FAB933 /* OpenRouterStore.swift */,
 				2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */,
+				B0159892F08ABA70F62BFBBC /* PaletteMenuTypeahead.swift */,
 				7008824D3AF5652511CB555E /* PalettePanel.swift */,
 				0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */,
 				14AC6BD1CAA98BDDEA059A5A /* Paster.swift */,
@@ -1043,6 +1046,7 @@
 				8500ED4873E0F1311E596B98 /* OnboardingView.swift in Sources */,
 				5C481321CB0146474462D5F0 /* OpenRouterStore.swift in Sources */,
 				B975478C37367538F86BCED9 /* OverlayScroller.swift in Sources */,
+				2BC8BF35FA60D3DFDF009D2A /* PaletteMenuTypeahead.swift in Sources */,
 				D1407E0293929CCBB47C64F9 /* PalettePanel.swift in Sources */,
 				2B4F9D37E9833D15ACD74ECF /* PaletteWindowController.swift in Sources */,
 				B4BF4401E903EDB2AF48CA5C /* Paster.swift in Sources */,

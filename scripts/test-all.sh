@@ -35,6 +35,7 @@ TESTS=(
     theme
     quicklink
     hotkey
+    menu-typeahead
 )
 
 usage() {
@@ -198,6 +199,11 @@ run_harness() {
         hotkey)
             swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
                 Spotter/Core/HotKey/DoubleTapModifier.swift Tools/hotkey-test.swift \
+                -o "$output" && "$output"
+            ;;
+        menu-typeahead)
+            swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
+                Spotter/Core/PaletteMenuTypeahead.swift Tools/menu-typeahead-test.swift \
                 -o "$output" && "$output"
             ;;
         *)

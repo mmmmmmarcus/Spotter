@@ -169,7 +169,7 @@ Never break these without an explicit task to do so.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
-  [`docs/plugins.md`](docs/plugins.md) and use the tracked `$spotter-plugin` skill.
+  [`docs/plugins.md`](docs/plugins.md) and use the tracked `spotter-plugin` skill.
 - **AI Chat and Dashboard Widgets are system features; Commands is a plugin.** Both system features
   reuse registry wiring with `settingsPlacement: .system`, stay always enabled, and never export an
   enable state. Dashboard visibility comes only from its individual widget switches. Commands
@@ -237,8 +237,9 @@ Never break these without an explicit task to do so.
 - `Spotter/App/` — `@main` app + delegate.
 - `Tools/` — standalone test harnesses and the emoji generator.
 - `scripts/release-preflight.sh` — version-mirror and publication prerequisite validation.
-- `.codex/skills/spotter-plugin/` — tracked project skill for all built-in plugin lifecycle work.
-- `.codex/skills/spotter-release/` — tracked release preparation, publication and audit workflow.
+- `.claude/skills/` and `.codex/skills/` — the tracked `spotter-plugin` (all built-in plugin
+  lifecycle work) and `spotter-release` (release preparation, publication and audit) project skills;
+  the two directories mirror each other for Claude Code and Codex — edit both together.
 - `.github/workflows/release.yml` — the entire release pipeline (see `docs/development.md`).
 
 ## Additional Documentation

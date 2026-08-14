@@ -413,14 +413,15 @@ struct RootPaletteView: View {
                 showAppMenu = false
                 menuSelection = 0
             }
-            vm.menuOpen = menuOpen || confirmOpen
+            vm.resetMenuTypeahead()
+            syncMenuInputState()
         }
         .onChange(of: showAppMenu) {
             if showAppMenu {
                 showActions = false
                 menuSelection = 0
             }
-            vm.menuOpen = menuOpen || confirmOpen
+            syncMenuInputState()
         }
         // The confirmation rides the same input-freeze channel as the menus: caret hidden, typing swallowed, nav keys through. Highlight always starts on Cancel.
         .onChange(of: confirmOpen) {
@@ -428,7 +429,14 @@ struct RootPaletteView: View {
                 closeMenus()
                 confirmSelection = 0
             }
-            vm.menuOpen = menuOpen || confirmOpen
+            syncMenuInputState()
+        }
+        .onChange(of: vm.menuTypeaheadQuery) {
+            guard showActions, let items = actionsContent?.items,
+                let index = PaletteMenuTypeahead.bestMatch(
+                    query: vm.menuTypeaheadQuery, titles: items.map(\.title))
+            else { return }
+            menuSelection = index
         }
         // Follow a row the store moved: a fresh capture (or promote-on-paste) lands at the head of its section, and pinning lifts a row into the Pinned section. With a query typed the highlight stays put; `AppCore` has already placed it for pin/paste.
         .onChange(of: clipFollow) { old, new in
@@ -524,10 +532,6 @@ struct RootPaletteView: View {
             }
             if menuOpen, !command, !option {
                 activateMenuItem(menuSelection)
-                return .handled
-            }
-            if vm.mode == .updates, !command, !option {
-                activateSelection()
                 return .handled
             }
             guard command || option else { return .ignored }
@@ -1032,6 +1036,11 @@ struct RootPaletteView: View {
             showActions = false
             showAppMenu = false
         }
+    }
+
+    private func syncMenuInputState() {
+        vm.menuOpen = menuOpen || confirmOpen
+        vm.menuTypeaheadEnabled = showActions && !confirmOpen
     }
 
     /// Inset of the menu panels from the window's bottom corners, kept just inside the rounded corner so the menu's own corner isn't clipped.

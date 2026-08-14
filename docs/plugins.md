@@ -174,10 +174,12 @@ answers copy their payload but do not enter calculator history.
 
 ## Working with a plugin
 
-The repository tracks a project skill at `.codex/skills/spotter-plugin/`. In Codex, invoke
-`$spotter-plugin` to create, modify, migrate, debug, or remove a plugin; the skill applies the relevant
-lifecycle checklist and project invariants. Because it is committed with the repository, it is
-available after cloning Spotter on another computer.
+The repository tracks the `spotter-plugin` project skill in two mirrored homes:
+`.claude/skills/spotter-plugin/` for Claude Code (invoke `/spotter-plugin`) and
+`.codex/skills/spotter-plugin/` for Codex (invoke `$spotter-plugin`). The skill creates, modifies,
+migrates, debugs, or removes a plugin by applying the relevant lifecycle checklist and project
+invariants. Because it is committed with the repository, it is available after cloning Spotter on
+another computer; keep the two copies in sync when editing the skill.
 
 The manual creation flow is:
 
@@ -250,8 +252,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   definition and grammar checks start follow-up-ready conversations. The launcher's final query
   destination rows reuse both paths without adding registry commands.
 - **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature
-  shown under Settings → System. It adds independently toggleable local time and next calendar event
-  cards above the empty launcher. The clock supports an explicit time zone; Calendar can filter by
+  shown under Settings → System. It adds independently toggleable analog clock and next calendar
+  event cards above the empty launcher. The clock supports an explicit time zone; Calendar can filter by
   EventKit account and exclude all-day events. Calendar data is permission-gated.
 
 ## Current plugins

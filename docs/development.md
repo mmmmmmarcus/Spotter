@@ -271,10 +271,11 @@ Plugin-specific code belongs under `Spotter/Plugins/<Name>/`; the shared contrac
 `Spotter/Plugins/Infrastructure/`. Read [plugins.md](plugins.md) for the registration contract,
 performance rules and full checklist.
 
-The repository includes a project-local Codex skill at `.codex/skills/spotter-plugin/`. Invoke
-`$spotter-plugin` to create, modify, migrate, debug, or remove a native plugin consistently. The
-directory is tracked by git, so cloning the repository on another computer brings the skill with the
-source.
+The repository includes a project-local skill at `.claude/skills/spotter-plugin/` (Claude Code;
+invoke `/spotter-plugin`), mirrored at `.codex/skills/spotter-plugin/` (Codex; invoke
+`$spotter-plugin`), to create, modify, migrate, debug, or remove a native plugin consistently. Both
+directories are tracked by git, so cloning the repository on another computer brings the skill with
+the source.
 
 ## Packaging a DMG
 
@@ -308,8 +309,9 @@ replacement and failure contracts are documented in [updates.md](updates.md).
 
 `.github/workflows/release.yml` builds and publishes a DMG from GitHub Actions — no local machine
 needed. `MARKETING_VERSION` in `project.yml` is the release version's single source of truth. Change
-it, run `xcodegen generate`, commit both files, and run the repository's `$spotter-release` skill to
-perform the release preflight. Its checked-in entry point is:
+it, run `xcodegen generate`, commit both files, and run the repository's `spotter-release` skill
+(`/spotter-release` in Claude Code, `$spotter-release` in Codex) to perform the release preflight.
+Its checked-in entry point is:
 
 ```sh
 scripts/release-preflight.sh --expected <x.y.z>

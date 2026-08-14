@@ -6,6 +6,8 @@ import SwiftUI
 final class PalettePanel: NSPanel {
     /// Called for a bare backspace before it reaches the field editor (return true to consume); the field editor swallows plain backspace itself, so SwiftUI `onKeyPress` up the hierarchy never sees it.
     var onBareBackspace: (() -> Bool)?
+    /// Called for a bare Return when no footer menu owns the keyboard; focus-free palette screens otherwise never enter SwiftUI's key-press chain.
+    var onBareReturn: (() -> Bool)?
     /// Arms the hover highlight from `sendEvent` — the one place both event streams pass through, so a keyboard-driven scroll under a still pointer never fires `.mouseMoved` and hover stays disarmed. Also carries the caret-hide hook fired when a footer menu opens.
     weak var paletteViewModel: PaletteViewModel? {
         didSet {
@@ -18,6 +20,11 @@ final class PalettePanel: NSPanel {
         kVK_UpArrow, kVK_DownArrow, kVK_LeftArrow, kVK_RightArrow,
         kVK_Return, kVK_ANSI_KeypadEnter, kVK_Escape, kVK_Tab,
     ]
+
+    private static func isTypeaheadText(_ value: String) -> Bool {
+        !value.isEmpty
+            && value.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) }
+    }
 
     /// Hide/show the caret on SwiftUI's *own* live field editor (the current first responder) without replacing it — SwiftUI force-casts the field editor to a private subclass, so vending our own crashes; we can only tune the existing one. The field never resigns first responder, so its text/placeholder never reflows.
     private func setSearchCaretHidden(_ hidden: Bool) {
@@ -33,11 +40,35 @@ final class PalettePanel: NSPanel {
         case .keyDown: paletteViewModel?.hoverHighlightArmed = false
         default: break
         }
+        // Keep the live search field untouched while an Actions menu is open, but reuse its key window to collect native-style menu type-ahead.
+        if event.type == .keyDown,
+            paletteViewModel?.menuTypeaheadEnabled == true,
+            event.modifierFlags.intersection([.command, .option, .control]).isEmpty
+        {
+            if Int(event.keyCode) == kVK_Delete {
+                paletteViewModel?.deleteLastMenuTypeaheadCharacter()
+                return
+            }
+            if let characters = event.charactersIgnoringModifiers,
+                Self.isTypeaheadText(characters)
+            {
+                paletteViewModel?.appendMenuTypeahead(characters)
+                return
+            }
+        }
         // A footer menu owns the keyboard: the search field stays first responder (no focus swap, so nothing reflows) with only its caret hidden; swallow text-editing keystrokes before the field editor consumes them, but let shortcut chords (⌘K, ⌘⌫) and menu-nav keys reach SwiftUI's onKeyPress.
         if event.type == .keyDown,
             paletteViewModel?.menuOpen == true,
             event.modifierFlags.intersection([.command, .control]).isEmpty,
             !Self.menuNavKeys.contains(Int(event.keyCode))
+        {
+            return
+        }
+        if event.type == .keyDown,
+            paletteViewModel?.menuOpen != true,
+            [kVK_Return, kVK_ANSI_KeypadEnter].contains(Int(event.keyCode)),
+            event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+            onBareReturn?() == true
         {
             return
         }

@@ -48,7 +48,7 @@ group, persists plugin enable states, routes
 launcher commands and shortcut actions, declares permission use, keeps a precomputed enabled
 query-provider list, and hosts plugin palette-screen registrations. AI Chat and Dashboard Widgets
 are always-available system features that reuse this wiring; Commands is a disableable plugin. See
-[plugins.md](plugins.md) for the contract, directory rules, `$spotter-plugin` project skill and plugin
+[plugins.md](plugins.md) for the contract, directory rules, `spotter-plugin` project skill and plugin
 lifecycle checklists.
 
 ## Entry points and windows

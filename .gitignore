@@ -50,6 +50,9 @@ Carthage/Build/
 # Tuist (if ever added)
 Tuist/.build/
 
+# Agent scratch worktrees (the skills alongside them are tracked)
+.claude/worktrees/
+
 # Temporary files
 *.swp
 *.tmp

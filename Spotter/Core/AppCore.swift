@@ -113,9 +113,28 @@ final class PaletteViewModel: ObservableObject {
     var hoverHighlightArmed = false
     /// True while a footer popover menu (⌘K Actions or the app menu) is open, so `PalettePanel.sendEvent` swallows text-editing keystrokes the field editor would otherwise consume — the query must stay frozen while a menu owns the keyboard (matches Raycast). Plain, not `@Published` — read at event time, mirrored from the view's menu state.
     var menuOpen = false { didSet { onMenuOpenChanged?(menuOpen) } }
+    /// True only while the Actions menu can consume printable keys for title matching; confirmations and the app menu still freeze arbitrary typing.
+    var menuTypeaheadEnabled = false
+    @Published private(set) var menuTypeaheadQuery = ""
+    private var menuTypeaheadBuffer = PaletteMenuTypeaheadBuffer()
     /// Fired when `menuOpen` flips so `PalettePanel` can hide/show the search field's caret while it keeps first-responder status (no focus swap, so the placeholder never reflows).
     var onMenuOpenChanged: ((Bool) -> Void)?
     var onModeChanged: ((PaletteMode, PaletteMode) -> Void)?
+
+    func appendMenuTypeahead(_ characters: String, at now: Date = Date()) {
+        menuTypeaheadBuffer.append(characters, at: now)
+        menuTypeaheadQuery = menuTypeaheadBuffer.query
+    }
+
+    func deleteLastMenuTypeaheadCharacter() {
+        menuTypeaheadBuffer.deleteLast()
+        menuTypeaheadQuery = menuTypeaheadBuffer.query
+    }
+
+    func resetMenuTypeahead() {
+        menuTypeaheadBuffer.reset()
+        menuTypeaheadQuery = ""
+    }
 
     func prepare(mode: PaletteMode) {
         self.mode = mode
@@ -124,6 +143,8 @@ final class PaletteViewModel: ObservableObject {
         forceExpanded = false
         hoverHighlightArmed = false
         menuOpen = false
+        menuTypeaheadEnabled = false
+        resetMenuTypeahead()
         confirmation = nil
         focusToken = UUID()
         resetToken = UUID()
