@@ -14,7 +14,7 @@ enum WeatherUnit: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-/// A place the user explicitly chose from a search. Spotter never reads the Mac's location.
+/// A place chosen from a search, or the fixed default below. Spotter never reads the Mac's location.
 struct WeatherCity: Codable, Equatable, Identifiable, Sendable {
     let id: Int
     let name: String
@@ -27,6 +27,13 @@ struct WeatherCity: Codable, Equatable, Identifiable, Sendable {
     var detailLabel: String {
         [region, country].compactMap { $0?.nilIfBlank }.joined(separator: ", ")
     }
+
+    /// Shown until the user picks their own. A fixed place, not a guess at where this Mac is —
+    /// deriving one from the locale or time zone would be location inference by another name.
+    /// The identifier is Open-Meteo's, so searching Tokyo marks this row as already selected.
+    static let `default` = WeatherCity(
+        id: 1_850_147, name: "Tokyo", latitude: 35.6895, longitude: 139.69171,
+        country: "Japan", region: "Tokyo")
 }
 
 /// One rendered weather state: an SF Symbol and the short phrase beneath it.
@@ -136,8 +143,8 @@ enum DashboardWeatherEngine {
 
     /// A snapshot for a city the user has since changed is stale beyond refreshing — the card must not
     /// caption a new city with the previous city's reading.
-    static func isSnapshot(_ snapshot: WeatherSnapshot, current city: WeatherCity?) -> Bool {
-        snapshot.cityID == city?.id
+    static func isSnapshot(_ snapshot: WeatherSnapshot, current city: WeatherCity) -> Bool {
+        snapshot.cityID == city.id
     }
 
     static func forecastURL(latitude: Double, longitude: Double) -> URL? {

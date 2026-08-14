@@ -155,8 +155,10 @@ Never break these without an explicit task to do so.
   consent shape; its consent flag and API key are included in the trusted v3 backup/sync snapshot.
   `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the dashboard weather card
   ships off, both the forecast fetch and the city search are refused without consent, and the card's
-  enable state *is* consent plus a user-chosen city — never the Mac's location, which Spotter never
-  reads. Its consent flag, city and unit ride in the trusted v3 snapshot.
+  enable state *is* consent — never the Mac's location, which Spotter never reads. An unset city
+  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the card; keep
+  that default a constant, since deriving one from the locale or time zone would be location
+  inference by another name. Its consent flag, city and unit ride in the trusted v3 snapshot.
   **Deliberate exception (owner decision, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing

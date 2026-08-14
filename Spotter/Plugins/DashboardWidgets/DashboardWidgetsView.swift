@@ -4,9 +4,10 @@ struct DashboardWidgetsView: View {
     @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var weather: DashboardWeatherStore
 
-    /// The weather card has no widget-kind flag of its own: consent plus a chosen city *is* its
-    /// enable state, so there is no second switch to drift out of sync with the network gate.
-    private var showsWeather: Bool { weather.isEnabled && weather.city != nil }
+    /// The weather card has no widget-kind flag of its own: consent *is* its enable state, so there
+    /// is no second switch to drift out of sync with the network gate. The city always resolves —
+    /// `WeatherCity.default` stands in until the user picks one — so it never gates the card.
+    private var showsWeather: Bool { weather.isEnabled }
 
     @ViewBuilder
     var body: some View {
@@ -36,7 +37,7 @@ struct DashboardWidgetsView: View {
     /// Square, like the clock: city, the temperature as the headline, then the condition.
     private func weatherCard() -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(weather.snapshot?.cityName ?? weather.city?.name ?? "")
+            Text(weather.snapshot?.cityName ?? weather.city.name)
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .lineLimit(1)

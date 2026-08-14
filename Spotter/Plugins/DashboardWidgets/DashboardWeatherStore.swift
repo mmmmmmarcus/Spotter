@@ -24,7 +24,8 @@ final class DashboardWeatherStore: ObservableObject {
     @Published private(set) var isEnabled: Bool
     /// The newest reading, or nil when none has landed — and always nil while consent is withheld.
     @Published private(set) var snapshot: WeatherSnapshot?
-    @Published private(set) var city: WeatherCity?
+    /// Never absent: an unset city reads as `WeatherCity.default` rather than hiding the card.
+    @Published private(set) var city: WeatherCity
     @Published private(set) var unit: WeatherUnit
     @Published private(set) var isSearching = false
     @Published private(set) var searchResults: [WeatherCity] = []
@@ -45,9 +46,10 @@ final class DashboardWeatherStore: ObservableObject {
         // Absent reads as false, which is the only safe default for a network feature.
         isEnabled = defaults.bool(forKey: Keys.consent)
         unit = DashboardWeatherEngine.resolvedUnit(from: defaults.string(forKey: Keys.unit))
-        if let data = defaults.data(forKey: Keys.city) {
-            city = try? JSONDecoder().decode(WeatherCity.self, from: data)
-        }
+        city =
+            (defaults.data(forKey: Keys.city)
+            .flatMap { try? JSONDecoder().decode(WeatherCity.self, from: $0) })
+            ?? .default
 
         let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
         let base = FileManager.default
@@ -63,19 +65,19 @@ final class DashboardWeatherStore: ObservableObject {
         snapshot = cached.flatMap { DashboardWeatherEngine.isSnapshot($0, current: city) ? $0 : nil }
     }
 
-    /// What the widget may render: nil whenever consent is withheld or no city is chosen.
-    var reading: WeatherSnapshot? { isEnabled && city != nil ? snapshot : nil }
+    /// What the widget may render: nil whenever consent is withheld.
+    var reading: WeatherSnapshot? { isEnabled ? snapshot : nil }
 
     /// Starts the refresh loop: fetch whenever the cached reading is older than `refreshInterval`,
-    /// otherwise sleep exactly until it expires. Guard 3 — no consent (or no city), no loop, so
+    /// otherwise sleep exactly until it expires. Guard 3 — no consent, no loop, so
     /// `AppCore.start()` can call this unconditionally.
     func start() {
-        guard isEnabled, city != nil else { return }
+        guard isEnabled else { return }
         // Replace rather than bail on a live pump: a loop that has already exited still leaves a
         // non-nil task behind, and a `pump == nil` guard would let that dead task block every restart.
         pump?.cancel()
         pump = Task { [weak self] in
-            while !Task.isCancelled, let self, self.isEnabled, self.city != nil {
+            while !Task.isCancelled, let self, self.isEnabled {
                 // Clamped: a reading stamped in the future (clock skew, an edited cache file) must
                 // not park the loop for longer than one interval.
                 let age = max(
@@ -111,10 +113,10 @@ final class DashboardWeatherStore: ObservableObject {
         }
     }
 
-    func setCity(_ city: WeatherCity?) {
+    func setCity(_ city: WeatherCity) {
         guard city != self.city else { return }
         self.city = city
-        if let city, let data = try? JSONEncoder().encode(city) {
+        if let data = try? JSONEncoder().encode(city) {
             defaults.set(data, forKey: Keys.city)
         } else {
             defaults.removeObject(forKey: Keys.city)
@@ -145,8 +147,9 @@ final class DashboardWeatherStore: ObservableObject {
             count += 1
         }
         if let cityData {
+            // Empty data is how an older backup recorded "no city"; that restores as the default.
             setCity(
-                cityData.isEmpty ? nil : try? JSONDecoder().decode(WeatherCity.self, from: cityData))
+                (try? JSONDecoder().decode(WeatherCity.self, from: cityData)) ?? .default)
             count += 1
         }
         if let enabled {
@@ -156,15 +159,15 @@ final class DashboardWeatherStore: ObservableObject {
         return count
     }
 
-    /// Encoded chosen city for a backup snapshot; empty data means "no city".
+    /// Encoded city for a backup snapshot.
     var encodedCity: Data {
-        city.flatMap { try? JSONEncoder().encode($0) } ?? Data()
+        (try? JSONEncoder().encode(city)) ?? Data()
     }
 
     /// Manual "Update Now" from Settings. Returns whether a fresh reading landed, so the pane can say
     /// the fetch failed instead of leaving the button to spring back with nothing changed.
     func refreshNow() async -> Bool {
-        guard isEnabled, city != nil else { return false }
+        guard isEnabled else { return false }
         return await fetchAndStore()
     }
 
@@ -199,14 +202,16 @@ final class DashboardWeatherStore: ObservableObject {
     private func fetchAndStore() async -> Bool {
         // Guard 4 — re-checked at the network boundary itself: the pump may have been sleeping when
         // the user revoked consent, and this is the last line before a request goes out.
-        guard isEnabled, let city,
+        // Held locally so the post-await check compares against the city this request was built for.
+        let city = self.city
+        guard isEnabled,
             let url = DashboardWeatherEngine.forecastURL(
                 latitude: city.latitude, longitude: city.longitude),
             let current = try? await Self.fetch(url: url)
         else { return false }
         // Re-check after the await: consent can be withdrawn, or the city changed, while the request
         // is in flight — a late response must not resurrect the feature or mislabel a new city.
-        guard isEnabled, self.city?.id == city.id else { return false }
+        guard isEnabled, self.city.id == city.id else { return false }
 
         let fetched = WeatherSnapshot(
             cityID: city.id, cityName: city.name, temperatureCelsius: current.temperature,

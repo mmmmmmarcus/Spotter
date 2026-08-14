@@ -178,13 +178,13 @@ struct DashboardWidgetsSettingsView: View {
                     title: result.name, subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
                     systemImage: "location", tint: .secondary
                 ) {
-                    Button(weather.city?.id == result.id ? "Selected" : "Choose") {
+                    Button(weather.city.id == result.id ? "Selected" : "Choose") {
                         weather.setCity(result)
                         citySearch = ""
                         weather.clearSearch()
                     }
                     .controlSize(.small)
-                    .disabled(weather.city?.id == result.id)
+                    .disabled(weather.city.id == result.id)
                 }
             }
 
@@ -218,7 +218,7 @@ struct DashboardWidgetsSettingsView: View {
                     }
                 }
                 .controlSize(.small)
-                .disabled(refreshingWeather || weather.city == nil)
+                .disabled(refreshingWeather)
             }
         }
     }
@@ -229,9 +229,10 @@ struct DashboardWidgetsSettingsView: View {
     }
 
     private var selectedCitySubtitle: String {
-        guard let city = weather.city else { return "No city chosen yet — the card stays hidden." }
+        let city = weather.city
         let detail = city.detailLabel
-        return detail.isEmpty ? city.name : "\(city.name), \(detail)"
+        let place = detail.isEmpty ? city.name : "\(city.name), \(detail)"
+        return city == .default ? "\(place) — the default until you choose another." : place
     }
 
     private var weatherReadingStatus: String {

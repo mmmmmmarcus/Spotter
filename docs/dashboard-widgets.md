@@ -48,9 +48,11 @@ ships off. Nothing reaches the network until the user accepts a dialog naming th
 at every entry point rather than trusting a caller, including on both sides of the `await` around a
 request, since consent can be withdrawn mid-flight.
 
-Spotter never reads Location Services. The user picks a city explicitly, and the city search is
-itself gated — typing into the field before consent is refused rather than quietly geocoded. Only the
-chosen city's coordinates leave the machine. Requests go out on a private ephemeral `URLSession` with
+Spotter never reads Location Services. Until the user picks a city, the card uses
+`WeatherCity.default` — a fixed place (Tokyo, Japan), deliberately a constant rather than something
+derived from the locale or time zone, which would be location inference by another name. The city
+search is itself gated: typing into the field before consent is refused rather than quietly
+geocoded. Only the current city's coordinates leave the machine. Requests go out on a private ephemeral `URLSession` with
 `urlCache = nil`, never `URLSession.shared`, so a cacheable response cannot leave a second copy in
 the shared on-disk `URLCache` that opting out would not delete.
 

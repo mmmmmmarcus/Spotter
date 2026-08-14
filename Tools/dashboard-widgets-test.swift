@@ -138,8 +138,18 @@ struct DashboardWidgetsTests {
             DashboardWeatherEngine.isSnapshot(reading, current: guangzhou),
             "a reading should match the city it was fetched for")
         check(
-            !DashboardWeatherEngine.isSnapshot(reading, current: nil),
-            "clearing the city should invalidate its reading")
+            !DashboardWeatherEngine.isSnapshot(reading, current: .default),
+            "changing the city should invalidate the previous city's reading")
+
+        // An unset city resolves to a fixed place, never one inferred from the Mac.
+        check(
+            WeatherCity.default.name == "Tokyo" && WeatherCity.default.country == "Japan",
+            "the default city should be Tokyo, Japan")
+        check(
+            DashboardWeatherEngine.forecastURL(
+                latitude: WeatherCity.default.latitude,
+                longitude: WeatherCity.default.longitude) != nil,
+            "the default city should produce a usable forecast URL")
 
         let forecast = DashboardWeatherEngine.forecastURL(latitude: 23.11667, longitude: 113.25)
         check(
