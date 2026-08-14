@@ -62,6 +62,7 @@ struct SettingsBackup: Codable, Sendable {
 
     struct HotkeyBackup: Codable, Sendable {
         var togglePalette: HotKeyBinding?
+        var togglePaletteBackup: HotKeyBinding?
         // Legacy per-action fields, read on import only; `pluginActions` supersedes both on export.
         var toggleClipboard: HotKeyBinding?
         var toggleEmoji: HotKeyBinding?
@@ -214,6 +215,7 @@ extension SettingsBackup {
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
         hotkeys.togglePalette = hk.binding(for: .togglePalette)
+        hotkeys.togglePaletteBackup = hk.binding(for: .togglePaletteBackup)
         // Covers every plugin action, clipboard/emoji included — their legacy fields are import-only now.
         hotkeys.pluginActions = Dictionary(
             uniqueKeysWithValues: core.plugins.shortcutActions.compactMap { key in
@@ -597,6 +599,7 @@ extension SettingsBackup {
         }
         if mode == .replace {
             hk.setBinding(nil, for: .togglePalette)
+            hk.setBinding(nil, for: .togglePaletteBackup)
             for key in core.plugins.shortcutActions { hk.setBinding(nil, for: .plugin(key)) }
             let remoteAppIDs = Set(hotkeys.apps?.keys.map { $0 } ?? [])
             for id in Set(hk.boundBundleIDs).union(remoteAppIDs) {
@@ -613,6 +616,7 @@ extension SettingsBackup {
             }
         }
         if let s = hotkeys.togglePalette { apply(s, .togglePalette) }
+        if let s = hotkeys.togglePaletteBackup { apply(s, .togglePaletteBackup) }
         // Legacy single-action fields from older files; `pluginActions` below carries these in new exports.
         if let s = hotkeys.toggleClipboard { apply(s, .plugin(.openClipboard)) }
         if let s = hotkeys.toggleEmoji { apply(s, .plugin(.openEmoji)) }

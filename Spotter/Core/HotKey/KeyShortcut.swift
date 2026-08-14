@@ -148,6 +148,8 @@ extension KeyShortcut: Codable {
 /// Everything in Spotter a global shortcut can be bound to.
 enum HotKeyAction: Hashable, Sendable {
     case togglePalette
+    // A second, independent binding for the same palette toggle — either shortcut summons it.
+    case togglePaletteBackup
     case plugin(PluginActionKey)
     case app(bundleID: String)
     case settingsPane(bundleID: String)
@@ -157,6 +159,7 @@ enum HotKeyAction: Hashable, Sendable {
     var defaultsKey: String {
         switch self {
         case .togglePalette: "KeyboardShortcuts_togglePalette"
+        case .togglePaletteBackup: "KeyboardShortcuts_togglePaletteBackup"
         case .plugin(let action): action.defaultsKey
         case .app(let bundleID): "KeyboardShortcuts_appHotkey." + bundleID
         case .settingsPane(let bundleID): "KeyboardShortcuts_paneHotkey." + bundleID
