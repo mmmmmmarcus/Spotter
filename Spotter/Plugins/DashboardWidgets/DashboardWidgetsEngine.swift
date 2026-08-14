@@ -23,6 +23,13 @@ struct DashboardCalendarAccount: Equatable, Identifiable, Sendable {
     let title: String
 }
 
+/// Analog clock hand rotations in degrees clockwise from 12 o'clock.
+struct ClockHandAngles: Equatable, Sendable {
+    var hour: Double
+    var minute: Double
+    var second: Double
+}
+
 struct DashboardEvent: Equatable, Sendable {
     let id: String
     let title: String
@@ -31,12 +38,6 @@ struct DashboardEvent: Equatable, Sendable {
     let isAllDay: Bool
     let calendarTitle: String
     let location: String?
-}
-
-struct DashboardClockAngles: Equatable, Sendable {
-    let hour: Double
-    let minute: Double
-    let second: Double
 }
 
 enum DashboardWidgetsEngine {
@@ -50,23 +51,6 @@ enum DashboardWidgetsEngine {
             return fallback
         }
         return timeZone
-    }
-
-    static func clockAngles(
-        at date: Date, calendar: Calendar, timeZone: TimeZone
-    ) -> DashboardClockAngles {
-        var calendar = calendar
-        calendar.timeZone = timeZone
-        let components = calendar.dateComponents(
-            [.hour, .minute, .second, .nanosecond], from: date)
-        let second = Double(components.second ?? 0)
-            + Double(components.nanosecond ?? 0) / 1_000_000_000
-        let minute = Double(components.minute ?? 0) + second / 60
-        let hour = Double((components.hour ?? 0) % 12) + minute / 60
-        return DashboardClockAngles(
-            hour: hour * 30,
-            minute: minute * 6,
-            second: second * 6)
     }
 
     static func effectiveCalendarSourceIdentifier(
@@ -83,5 +67,22 @@ enum DashboardWidgetsEngine {
         if isAllDay && !includesAllDayEvents { return false }
         guard let selectedSourceIdentifier else { return true }
         return sourceIdentifier == selectedSourceIdentifier
+    }
+
+    /// Hands sweep continuously — the hour hand advances with the minutes, the minute hand with the seconds — so the face never shows the top-of-hour snap of a components-only clock.
+    static func clockHandAngles(
+        for date: Date, timeZone: TimeZone,
+        calendar: Calendar = Calendar(identifier: .gregorian)
+    ) -> ClockHandAngles {
+        var calendar = calendar
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.hour, .minute, .second], from: date)
+        let hour = Double(components.hour ?? 0)
+        let minute = Double(components.minute ?? 0)
+        let second = Double(components.second ?? 0)
+        return ClockHandAngles(
+            hour: (hour.truncatingRemainder(dividingBy: 12) + minute / 60 + second / 3600) * 30,
+            minute: (minute + second / 60) * 6,
+            second: second * 6)
     }
 }

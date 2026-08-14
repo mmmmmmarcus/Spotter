@@ -62,10 +62,8 @@ enum Theme {
         static let menuButton: CGFloat = 36
         static let clipboardListWidth: CGFloat = 290
         static let emojiCell: CGFloat = 56
-        /// Empty-launcher dashboard cards share one compact height; the clock is a matching square.
+        /// Empty-launcher dashboard cards share one compact height; the analog clock card is this square.
         static let launcherDashboardHeight: CGFloat = 116
-        static let launcherDashboardClockSize = launcherDashboardHeight
-        static let launcherDashboardClockFace: CGFloat = 88
         static let menuWidth: CGFloat = 276
         /// Square slot for a popover-menu row's leading glyph. 20 (not the 16 the artwork suggests) because an `IconCache` app icon only paints ~85% of its canvas: at 20 its visible artwork is 17pt, matching the 17–18pt a `.body` SF Symbol renders at, so symbol and app-icon rows read the same size.
         static let menuIcon: CGFloat = 20
@@ -137,7 +135,7 @@ enum Theme {
         /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
         /// and a dark tint over light glass would read as a shadow instead of frost.
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
-        /// The violet of the app mark. The one hue in the system, used only to tint the About support callout.
+        /// The violet of the app mark. The one hue in the system: the About support callout's tint and the dashboard clock's second hand.
         static let brand = Color(red: 0.525, green: 0.231, blue: 1.0)
 
         /// Resolved per appearance by AppKit, so every call site stays a plain `Color` and the whole

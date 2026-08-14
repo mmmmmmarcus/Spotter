@@ -12,7 +12,7 @@ struct DashboardWidgetsSettingsView: View {
             SettingsCard(header: "Widgets") {
                 SettingsRow(
                     title: "Clock",
-                    subtitle: "Analog time in the selected time zone.",
+                    subtitle: "An analog clock face in the selected time zone.",
                     systemImage: "clock", tint: .orange
                 ) {
                     widgetToggle(.clock)

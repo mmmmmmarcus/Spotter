@@ -28,25 +28,6 @@ struct DashboardWidgetsTests {
             DashboardWidgetsEngine.resolvedTimeZone(identifier: "Missing/Zone", fallback: fallbackTimeZone)
                 == fallbackTimeZone,
             "an unavailable clock time zone should fall back safely")
-
-        var utcCalendar = Calendar(identifier: .gregorian)
-        let utc = TimeZone(secondsFromGMT: 0)!
-        utcCalendar.timeZone = utc
-        let clockDate = utcCalendar.date(from: DateComponents(
-            year: 2026, month: 8, day: 13, hour: 3, minute: 15, second: 30))!
-        let clockAngles = DashboardWidgetsEngine.clockAngles(
-            at: clockDate, calendar: utcCalendar, timeZone: utc)
-        check(
-            approximatelyEqual(clockAngles.hour, 97.75)
-                && approximatelyEqual(clockAngles.minute, 93)
-                && approximatelyEqual(clockAngles.second, 180),
-            "analog clock hands should include minute and second progress")
-        let shanghaiAngles = DashboardWidgetsEngine.clockAngles(
-            at: clockDate, calendar: utcCalendar, timeZone: fallbackTimeZone)
-        check(
-            approximatelyEqual(shanghaiAngles.hour, 337.75),
-            "analog clock hands should honor the selected time zone")
-
         check(
             DashboardWidgetsEngine.effectiveCalendarSourceIdentifier(
                 selected: "icloud", availableIdentifiers: ["icloud", "exchange"]) == "icloud",
@@ -77,6 +58,28 @@ struct DashboardWidgetsTests {
                 selectedSourceIdentifier: "icloud", includesAllDayEvents: true),
             "a selected calendar account should include its own events")
 
+        let utc = TimeZone(identifier: "UTC")!
+        // 1970-01-01 12:00:00 UTC — every hand straight up.
+        let noon = DashboardWidgetsEngine.clockHandAngles(
+            for: Date(timeIntervalSince1970: 43200), timeZone: utc)
+        check(noon == ClockHandAngles(hour: 0, minute: 0, second: 0),
+            "noon should point every hand at 12")
+
+        // 21:45:15 UTC — the hour hand rides the minutes, the minute hand the seconds.
+        let evening = DashboardWidgetsEngine.clockHandAngles(
+            for: Date(timeIntervalSince1970: 21 * 3600 + 45 * 60 + 15), timeZone: utc)
+        check(near(evening.hour, 292.625), "21:45:15 hour hand should sit at 292.625°")
+        check(near(evening.minute, 271.5), "21:45:15 minute hand should sit at 271.5°")
+        check(near(evening.second, 90), "21:45:15 second hand should sit at 90°")
+
+        // The same instant three hours west lands the hour hand a quarter turn back.
+        let shifted = DashboardWidgetsEngine.clockHandAngles(
+            for: Date(timeIntervalSince1970: 21 * 3600 + 45 * 60 + 15),
+            timeZone: TimeZone(secondsFromGMT: -3 * 3600)!)
+        check(near(shifted.hour, 202.625), "the clock should follow the selected time zone")
+        check(near(shifted.minute, evening.minute) && near(shifted.second, evening.second),
+            "a whole-hour zone offset should move only the hour hand")
+
         print(failures == 0 ? "Dashboard widgets tests passed" : "\(failures) test(s) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -88,7 +91,7 @@ struct DashboardWidgetsTests {
         }
     }
 
-    private static func approximatelyEqual(_ lhs: Double, _ rhs: Double) -> Bool {
-        abs(lhs - rhs) < 0.000_001
+    private static func near(_ value: Double, _ expected: Double) -> Bool {
+        abs(value - expected) < 0.0001
     }
 }
