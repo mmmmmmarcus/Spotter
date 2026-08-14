@@ -80,6 +80,80 @@ struct DashboardWidgetsTests {
         check(near(shifted.minute, evening.minute) && near(shifted.second, evening.second),
             "a whole-hour zone offset should move only the hour hand")
 
+        // Weather: WMO 4677 mapping, including the day/night symbol split and the unknown-code floor.
+        check(
+            DashboardWeatherEngine.condition(forWeatherCode: 0, isDay: true).symbolName
+                == "sun.max.fill",
+            "a clear day should render the sun")
+        check(
+            DashboardWeatherEngine.condition(forWeatherCode: 0, isDay: false).symbolName
+                == "moon.stars.fill",
+            "a clear night should render the moon")
+        check(
+            DashboardWeatherEngine.condition(forWeatherCode: 95, isDay: true).description
+                == "Thunderstorm",
+            "code 95 should read as a thunderstorm")
+        check(
+            DashboardWeatherEngine.condition(forWeatherCode: 99, isDay: true).description
+                == "Thunderstorm with Hail",
+            "code 99 should name the hail")
+        check(
+            DashboardWeatherEngine.condition(forWeatherCode: 65, isDay: true).symbolName
+                == "cloud.heavyrain.fill",
+            "heavy rain should escalate the symbol")
+        check(
+            DashboardWeatherEngine.condition(forWeatherCode: 3, isDay: true)
+                == DashboardWeatherEngine.condition(forWeatherCode: 3, isDay: false),
+            "overcast should not vary by day or night")
+        check(
+            DashboardWeatherEngine.condition(forWeatherCode: 7777, isDay: true).description
+                == "Unknown",
+            "an unrecognized code should still render a card")
+
+        check(
+            DashboardWeatherEngine.formattedTemperature(celsius: 28.4, unit: .celsius) == "28°",
+            "a Celsius reading should render whole degrees")
+        check(
+            DashboardWeatherEngine.formattedTemperature(celsius: 100, unit: .fahrenheit) == "212°",
+            "Fahrenheit should convert from the stored Celsius")
+        check(
+            DashboardWeatherEngine.formattedTemperature(celsius: -0.4, unit: .celsius) == "0°",
+            "a rounding artifact should never print as -0°")
+        check(
+            DashboardWeatherEngine.resolvedUnit(from: nil) == .celsius
+                && DashboardWeatherEngine.resolvedUnit(from: "nonsense") == .celsius
+                && DashboardWeatherEngine.resolvedUnit(from: "fahrenheit") == .fahrenheit,
+            "an unknown unit should fall back to Celsius")
+
+        let guangzhou = WeatherCity(
+            id: 1809858, name: "Guangzhou", latitude: 23.11667, longitude: 113.25,
+            country: "China", region: "Guangdong")
+        check(
+            guangzhou.detailLabel == "Guangdong, China",
+            "a city should describe itself by region and country")
+        let reading = WeatherSnapshot(
+            cityID: guangzhou.id, cityName: guangzhou.name, temperatureCelsius: 28,
+            weatherCode: 95, isDay: true, fetchedAt: Date(timeIntervalSince1970: 0))
+        check(
+            DashboardWeatherEngine.isSnapshot(reading, current: guangzhou),
+            "a reading should match the city it was fetched for")
+        check(
+            !DashboardWeatherEngine.isSnapshot(reading, current: nil),
+            "clearing the city should invalidate its reading")
+
+        let forecast = DashboardWeatherEngine.forecastURL(latitude: 23.11667, longitude: 113.25)
+        check(
+            forecast?.host() == "api.open-meteo.com"
+                && forecast?.absoluteString.contains("latitude=23.11667") == true,
+            "the forecast URL should carry the chosen coordinates")
+        check(
+            DashboardWeatherEngine.geocodingURL(query: "  ") == nil,
+            "a blank search should never become a request")
+        check(
+            DashboardWeatherEngine.geocodingURL(query: "São Paulo")?
+                .absoluteString.contains("name=S%C3%A3o%20Paulo") == true,
+            "a search term should be percent-encoded")
+
         print(failures == 0 ? "Dashboard widgets tests passed" : "\(failures) test(s) failed")
         exit(failures == 0 ? 0 : 1)
     }

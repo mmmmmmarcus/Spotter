@@ -2,14 +2,22 @@ import SwiftUI
 
 struct DashboardWidgetsView: View {
     @ObservedObject var store: DashboardWidgetsStore
+    @ObservedObject var weather: DashboardWeatherStore
+
+    /// The weather card has no widget-kind flag of its own: consent plus a chosen city *is* its
+    /// enable state, so there is no second switch to drift out of sync with the network gate.
+    private var showsWeather: Bool { weather.isEnabled && weather.city != nil }
 
     @ViewBuilder
     var body: some View {
-        if store.hasEnabledWidgets {
+        if store.hasEnabledWidgets || showsWeather {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 HStack(spacing: Theme.Spacing.md) {
                     if store.isWidgetEnabled(.clock) {
                         clockCard(now: context.date)
+                    }
+                    if showsWeather {
+                        weatherCard()
                     }
                     if store.isWidgetEnabled(.nextEvent) {
                         eventCard(now: context.date)
@@ -17,12 +25,54 @@ struct DashboardWidgetsView: View {
                     }
                 }
                 .frame(height: Theme.Size.launcherDashboardHeight)
-                // A lone square clock hugs its width, so pin the strip to the list's leading edge.
+                // Lone square cards hug their width, so pin the strip to the list's leading edge.
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .onAppear { store.start() }
             .onDisappear { store.stop() }
         }
+    }
+
+    /// Square, like the clock: city, the temperature as the headline, then the condition.
+    private func weatherCard() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(weather.snapshot?.cityName ?? weather.city?.name ?? "")
+                .font(.caption)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(1)
+            Text(temperatureText)
+                .font(.largeTitle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            // No floor: the condition may wrap to two lines, and the gap is the first thing that should give.
+            Spacer(minLength: 0)
+            Image(systemName: condition?.symbolName ?? "cloud.fill")
+                .symbolRenderingMode(.multicolor)
+                .font(.title3)
+            Text(condition?.description ?? "Updating…")
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            alignment: .topLeading)
+        .dashboardCardSurface()
+    }
+
+    private var condition: WeatherCondition? {
+        weather.reading.map {
+            DashboardWeatherEngine.condition(forWeatherCode: $0.weatherCode, isDay: $0.isDay)
+        }
+    }
+
+    /// An em dash until the first reading lands, so the card never implies a temperature it doesn't have.
+    private var temperatureText: String {
+        guard let reading = weather.reading else { return "—" }
+        return DashboardWeatherEngine.formattedTemperature(
+            celsius: reading.temperatureCelsius, unit: weather.unit)
     }
 
     /// The clock is a square, title-free analog face; VoiceOver still reads the exact time and date.

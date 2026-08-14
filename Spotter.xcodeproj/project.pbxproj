@@ -82,6 +82,7 @@
 		66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 307535C846A5B39643CCB935 /* UpdateViews.swift */; };
 		6780976D52AB15577C5C61BA /* TextReplacementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322BD1E0F51E36F6E499FFC5 /* TextReplacementStore.swift */; };
 		67AF4C032DBB83701E991791 /* CommandHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */; };
+		688C8EDEC59BCD200CB9F870 /* DashboardWeatherStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7CDE08D2DEEAA6D2430D819 /* DashboardWeatherStore.swift */; };
 		68AFA52CCCB116233710ECA0 /* PluginTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E593DC8B2FFDB3E7D4E269BC /* PluginTypes.swift */; };
 		699D13262D38B7B15A26A38A /* ImageModificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98AACEC8AA42B16A4CE3807 /* ImageModificationSettingsView.swift */; };
 		69BD79349289B95B2234BF09 /* WorldClockSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B6EECF92F4DE89914475EF /* WorldClockSettingsView.swift */; };
@@ -91,6 +92,7 @@
 		6D4682A4982558F99F9A4AD7 /* ChangeCasePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD8626DE6AD0B451E431936 /* ChangeCasePlugin.swift */; };
 		6D5096957C4200DB3CDDB5A1 /* ImageModificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 059A3D52209A061BF964889D /* ImageModificationManager.swift */; };
 		6E7C4F133C9AF9F7B047E601 /* MoleProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B590051A5FE30D7212F64D8 /* MoleProcessRunner.swift */; };
+		6F317CF7D762C41794F3A96C /* DashboardWeatherEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A5104C40D9A6C6391AE462 /* DashboardWeatherEngine.swift */; };
 		7161D5259A6692748A0D2B86 /* ShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C97BF8A52FC54B377D0C496E /* ShortcutRecorder.swift */; };
 		71E3F659347380D0A3ABF809 /* Permissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A0C1A043D1F093E46AA103 /* Permissions.swift */; };
 		7230335FA792AF534AD29D7B /* DoubleTapMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A97E9B542219C092058C0457 /* DoubleTapMonitor.swift */; };
@@ -327,6 +329,7 @@
 		A6919806BEBF9D1E830E9E0A /* CurrencyConversionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyConversionSettingsView.swift; sourceTree = "<group>"; };
 		A6CBE0957D598ECB37D61A23 /* QuicklinkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkManager.swift; sourceTree = "<group>"; };
 		A79BCC858A42FEC5901581AC /* HyperKeyTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperKeyTap.swift; sourceTree = "<group>"; };
+		A7CDE08D2DEEAA6D2430D819 /* DashboardWeatherStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWeatherStore.swift; sourceTree = "<group>"; };
 		A8FDA359F35C67B15CF90C46 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		A97E9B542219C092058C0457 /* DoubleTapMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapMonitor.swift; sourceTree = "<group>"; };
 		ACD8626DE6AD0B451E431936 /* ChangeCasePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCasePlugin.swift; sourceTree = "<group>"; };
@@ -364,6 +367,7 @@
 		DBB3757FA662D508E113F837 /* VisibilityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisibilityStore.swift; sourceTree = "<group>"; };
 		E125CBC3DB4E52844834C201 /* WorldClockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockPlugin.swift; sourceTree = "<group>"; };
 		E196A0B64D45C449593C4989 /* SystemCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCommand.swift; sourceTree = "<group>"; };
+		E1A5104C40D9A6C6391AE462 /* DashboardWeatherEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWeatherEngine.swift; sourceTree = "<group>"; };
 		E1BAC44EF4725782ADE2FE16 /* DiagnosticsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsSettingsView.swift; sourceTree = "<group>"; };
 		E593DC8B2FFDB3E7D4E269BC /* PluginTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginTypes.swift; sourceTree = "<group>"; };
 		E60BBD1CC79B91F4D0ECBB66 /* WindowManagementPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManagementPlugin.swift; sourceTree = "<group>"; };
@@ -557,6 +561,8 @@
 		841A200113BD0473AE302EF2 /* DashboardWidgets */ = {
 			isa = PBXGroup;
 			children = (
+				E1A5104C40D9A6C6391AE462 /* DashboardWeatherEngine.swift */,
+				A7CDE08D2DEEAA6D2430D819 /* DashboardWeatherStore.swift */,
 				2FABAD3BE47CB4272128AAD7 /* DashboardWidgetsEngine.swift */,
 				85927C817E199488DB61F16D /* DashboardWidgetsPlugin.swift */,
 				AECE7B47CC7C399897300909 /* DashboardWidgetsSettingsView.swift */,
@@ -984,6 +990,8 @@
 				47A4F4B3A29972F313691960 /* CurrencyRateStore.swift in Sources */,
 				13A0645369C0B5377D7251D3 /* CustomCommand.swift in Sources */,
 				E591CD83E6A221D17006D15F /* CustomCommandsSettingsView.swift in Sources */,
+				6F317CF7D762C41794F3A96C /* DashboardWeatherEngine.swift in Sources */,
+				688C8EDEC59BCD200CB9F870 /* DashboardWeatherStore.swift in Sources */,
 				36246E0AA712FC57D048E1CB /* DashboardWidgetsEngine.swift in Sources */,
 				97076BD1FFA1DBFCECADCE5C /* DashboardWidgetsPlugin.swift in Sources */,
 				AA38B51E42696B407B4DB749 /* DashboardWidgetsSettingsView.swift in Sources */,

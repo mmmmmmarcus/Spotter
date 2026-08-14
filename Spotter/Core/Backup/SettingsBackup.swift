@@ -29,6 +29,10 @@ struct SettingsBackup: Codable, Sendable {
             var calendarSourceIdentifier: String?
             var includesAllDayEvents: Bool?
             var clockTimeZoneIdentifier: String?
+            // Weather consent travels with the trusted file: restoring one is itself the consent act.
+            var weatherEnabled: Bool?
+            var weatherCity: Data?
+            var weatherUnit: String?
         }
 
         var clipboardRetentionDays: Int?
@@ -210,7 +214,10 @@ extension SettingsBackup {
                 enabledWidgets: dashboard.enabledWidgets.map(\DashboardWidgetKind.rawValue).sorted(),
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier ?? "",
                 includesAllDayEvents: dashboard.includesAllDayEvents,
-                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier ?? ""))
+                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier ?? "",
+                weatherEnabled: core.dashboardWeather.isEnabled,
+                weatherCity: core.dashboardWeather.encodedCity,
+                weatherUnit: core.dashboardWeather.unit.rawValue))
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -461,6 +468,9 @@ extension SettingsBackup {
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
                 includesAllDayEvents: dashboard.includesAllDayEvents,
                 clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
+            count += core.dashboardWeather.applyPreferences(
+                enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
+                unitRawValue: dashboard.weatherUnit)
         }
         return count
     }
@@ -582,6 +592,9 @@ extension SettingsBackup {
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
                 includesAllDayEvents: dashboard.includesAllDayEvents,
                 clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
+            count += core.dashboardWeather.applyPreferences(
+                enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
+                unitRawValue: dashboard.weatherUnit)
         }
         return count
     }

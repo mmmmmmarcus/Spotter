@@ -7,7 +7,7 @@ enum DashboardWidgetsPlugin {
             metadata: PluginMetadata(
                 id: .dashboardWidgets,
                 name: "Dashboard Widgets",
-                summary: "See the time and next event above launcher results.",
+                summary: "See the time, weather and next event above launcher results.",
                 systemImage: "rectangle.3.group",
                 tint: .purple,
                 settingsPlacement: .system),
@@ -16,11 +16,15 @@ enum DashboardWidgetsPlugin {
             exportsEnabledState: false,
             permissions: [.calendar],
             launcherDashboard: PluginLauncherDashboardRegistration {
-                AnyView(DashboardWidgetsView(store: core.dashboardWidgets))
+                AnyView(
+                    DashboardWidgetsView(
+                        store: core.dashboardWidgets, weather: core.dashboardWeather))
             },
             readEnabled: { true },
             settingsView: {
-                AnyView(DashboardWidgetsSettingsView(store: core.dashboardWidgets))
+                AnyView(
+                    DashboardWidgetsSettingsView(
+                        store: core.dashboardWidgets, weather: core.dashboardWeather))
             })
     }
 }

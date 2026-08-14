@@ -103,7 +103,8 @@ Never break these without an explicit task to do so.
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` and
   `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
-  `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift` stays
+  `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift` and
+  `Plugins/DashboardWidgets/DashboardWeatherEngine.swift` stay
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
@@ -150,6 +151,10 @@ Never break these without an explicit task to do so.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
   rather than inventing a second shape. Selection Tools' Google Translation path follows that
   consent shape; its consent flag and API key are included in the trusted v3 backup/sync snapshot.
+  `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the dashboard weather card
+  ships off, both the forecast fetch and the city search are refused without consent, and the card's
+  enable state *is* consent plus a user-chosen city — never the Mac's location, which Spotter never
+  reads. Its consent flag, city and unit ride in the trusted v3 snapshot.
   **Deliberate exception (owner decision, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing

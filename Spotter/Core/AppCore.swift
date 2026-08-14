@@ -179,6 +179,7 @@ final class AppCore: ObservableObject {
     let plugins = PluginRegistry()
     let worldClock = WorldClockStore()
     let dashboardWidgets = DashboardWidgetsStore()
+    let dashboardWeather = DashboardWeatherStore()
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
     let openRouter = OpenRouterStore()
@@ -336,6 +337,8 @@ final class AppCore: ObservableObject {
         // Terminate through NSApp so applicationWillTerminate still runs (Hyper Key remap cleanup) before the relaunch helper brings the new build up.
         updates.terminateForRelaunch = { NSApp.terminate(nil) }
         updates.start()
+        // No-ops without consent and a chosen city, so it is safe to call unconditionally.
+        dashboardWeather.start()
 
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
         hotKeys.onRunPluginAction = { [weak self] action in self?.plugins.perform(action) }
