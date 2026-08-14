@@ -54,6 +54,7 @@ Spotter requires **macOS 26 or later**.
 ### Calculate and look things up
 
 - Evaluate arithmetic, units and opt-in live currency conversions inline.
+- Glance at an analog clock, opt-in weather and your next calendar event on the empty launcher.
 - Query world clocks with phrases such as `time in Tokyo`.
 - Use AI Chat and selected-text AI actions with your own OpenRouter API key, or hand a prompt to
   ChatGPT on the web with Shift-Tab.

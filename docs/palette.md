@@ -115,6 +115,25 @@ frozen instead:
   force-casts its field editor to a private subclass, so vending a custom one crashes — only the
   existing one can be tuned.
 
+## Actions menu type-ahead
+
+The Actions menu is the one place where the frozen keystrokes are reused rather than dropped, so it
+matches the type-ahead of a native menu. `menuTypeaheadEnabled` gates this **narrower** than
+`menuOpen`: only the Actions menu opts in, so a confirmation card and the app menu still swallow
+arbitrary typing and a reflexive keystroke can never drive them.
+
+While it is armed, `PalettePanel.sendEvent` routes unmodified alphanumeric keys into
+`PaletteMenuTypeaheadBuffer` instead of the field editor, and Backspace edits that buffer. The live
+search field is never touched — the query behind the menu is unchanged when the menu closes.
+`RootPaletteView` observes `menuTypeaheadQuery` and moves the menu's highlight to
+`PaletteMenuTypeahead.bestMatch`; Return then activates through the normal row path, so type-ahead
+selects but never activates on its own.
+
+The buffer restarts after `resetInterval` (0.8s) of inactivity, so a pause begins a new search rather
+than appending to a stale one. Matching reuses `FuzzyMatch.score` from `Core/SearchRelevance.swift`
+— the same scorer the launcher uses, not a second copy. `PaletteMenuTypeahead.swift` stays
+Foundation-only and pure for `Tools/menu-typeahead-test.swift`.
+
 ## Focus restoration (load-bearing)
 
 `PaletteWindowController` records `previousApp` (the frontmost app) on show. Paste then targets that

@@ -129,7 +129,9 @@ Never break these without an explicit task to do so.
   `Tools/app-version-test.swift`.
 - **`Core/SearchRelevance.swift` stays Foundation-only and pure** — `Tools/fuzz-test.swift` compiles
   the real scorer, so there is no copy to keep in sync (the old mirrored-`FuzzyMatch` invariant is
-  retired). `Core/SpotlightNames.swift` owns the only Spotlight read; keep its per-bundle
+  retired). `Core/PaletteMenuTypeahead.swift` reuses that same scorer for Actions-menu matching and
+  stays Foundation-only and pure for `Tools/menu-typeahead-test.swift`.
+  `Core/SpotlightNames.swift` owns the only Spotlight read; keep its per-bundle
   modification-date cache, since the scan reruns on every launcher open.
 - **`EmojiData.generated.swift` is emitted by `node Tools/gen-emoji.js` and
   `CurrencyData.generated.swift` by `node Tools/gen-currencies.js`** — never edit either by hand.

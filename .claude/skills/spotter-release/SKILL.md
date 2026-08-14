@@ -1,6 +1,6 @@
 ---
 name: spotter-release
-description: Prepare, validate, build, sign, notarize, publish, and verify stable Spotter releases end to end, optionally merging release-ready pull requests first. Use when merging a PR and cutting a release, bumping Spotter's version, preparing or publishing a release, producing Developer ID DMGs, running the GitHub Release workflow, checking release credentials, or auditing a published Spotter release.
+description: Prepare, validate, build, sign, notarize, publish, and verify stable Spotter releases end to end. Use when cutting a release, bumping Spotter's version, preparing or publishing a release, producing Developer ID DMGs, running the GitHub Release workflow, checking release credentials, or auditing a published Spotter release.
 ---
 
 # Spotter Release
@@ -14,28 +14,11 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
 2. Run `scripts/release.sh context` for branch, remote, release, worktree and Actions-secret-name
    checks. Never print or request secret values.
 3. Treat a request to release through this skill as authorization for the complete stable workflow:
-   merge requested pull requests, prepare, validate, commit, push, dispatch and verify. Do not stop
-   to ask whether preparation is sufficient or whether publishing should begin. An explicitly
-   read-only audit, local artifact, merge-only or prepare-only request remains limited to that scope.
+   prepare, validate, commit, push, dispatch and verify. Do not stop to ask whether preparation is
+   sufficient or whether publishing should begin. An explicitly read-only audit, local artifact or
+   prepare-only request remains limited to that scope.
 4. Publish only `stable`. Never ask which channel to use and never dispatch `beta`. Stable versions
    remain plain numeric `x.y.z` values; the Debug-only `SPOTTER_VERSION_SUFFIX` is never published.
-
-## Merge pull requests
-
-Run this phase when the request includes merging — "merge and release", a named PR, or open pull
-requests the user wants shipped. Do not pause between a completed merge and the release phases.
-
-1. Resolve the merge set: the pull requests the user names, otherwise every open PR. State the set
-   before acting.
-2. Verify each PR before merging — the repository runs no CI on PR branches, and a PR description's
-   claims are not verification. In a detached scratch worktree at the PR head, outside the working
-   tree: require the head to sit on top of `origin/main`, review the full diff against `AGENTS.md`
-   invariants, run `scripts/test-all.sh --jobs 4`, and complete a Debug `xcodebuild` build.
-3. Squash-merge each verified PR (`gh pr merge <n> --squash`) to keep `main` linear, then delete its
-   remote branch. Skip a PR that fails verification and report its blocker; a failed PR blocks only
-   itself — but when it is the reason for the release, stop instead of publishing without it.
-4. Fast-forward the local `main` checkout, remove the scratch worktree, and continue with the
-   release so the merged work ships in the published version.
 
 ## Manage the version
 
@@ -51,11 +34,20 @@ requests the user wants shipped. Do not pause between a completed merge and the 
 
 ## Validate
 
-1. Review the complete intended diff once and preserve unrelated user work.
-2. Run `scripts/release.sh prepare <version>`. It executes every standalone harness with four bounded
+The repository keeps a single branch: work lands on `main` directly, so a release ships whatever
+`main` already holds. There is no pull request to merge or verify first, and no CI runs on pushes —
+this phase is the only gate.
+
+1. Release from `main`. Confirm the checkout is on it, clean, and level with `origin/main`.
+2. Review the complete intended diff once and preserve unrelated user work. Review it against the
+   `AGENTS.md` invariants, since nothing else reviews the code before it ships.
+3. Run `scripts/release.sh prepare <version>`. It executes every standalone harness with four bounded
    workers, validates version mirrors and runs website lint/build only for website changes beyond the
    checked version fallback. Do not replace this full gate with change-selected tests.
-3. Review the final diff after preparation and before committing.
+4. Complete a Debug `xcodebuild` build into a scratch `-derivedDataPath`. `prepare` compiles the
+   standalone harnesses but never the app itself, so this is the only check that catches a broken
+   build before it is published.
+5. Review the final diff after preparation and before committing.
 
 ## Publish through GitHub Actions
 
