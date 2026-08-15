@@ -19,7 +19,8 @@ for `Tools/dashboard-widgets-test.swift`.
 Uptime is its own pair for the same reason — the half that watches input stays isolated.
 `DashboardUptimeStore`, owned by `AppCore`, owns consent, the input monitors, the day's tallies and
 the coalescing flush timer. `DashboardUptimeEngine.swift` stays Foundation-only and pure: it resolves
-the day rollover and formats the elapsed time and counts.
+the day rollover and formats the elapsed time and the tally lines, pluralization included — the
+card spells them out ("383 keys pressed", "16 mouse clicks") rather than labelling them with a glyph.
 
 Weather is a separate pair so the networked half stays isolated. `DashboardWeatherStore`, also owned
 by `AppCore`, owns consent, the chosen city, the unit, the cached reading and the refresh loop.
@@ -41,7 +42,9 @@ shows a non-actionable restricted state instead of an empty-event claim.
 After full access is granted, the store exposes EventKit calendar sources as accounts. The user can
 include all accounts or one source such as iCloud, Google or Exchange, and can independently exclude
 all-day entries. The store queries EventKit from now through one year ahead and shows the earliest
-matching non-cancelled event. A selected account that is temporarily unavailable falls back to all
+matching non-cancelled event. The card's date heading is formatted from the current instant rather
+than from EventKit, so every access state below `fullAccess` replaces only the card's bottom row —
+the day of the week and the date stay right whether or not Spotter can read a calendar. A selected account that is temporarily unavailable falls back to all
 available calendars rather than producing a false empty result. Calendar work starts when the
 dashboard becomes visible and stops when it leaves the palette.
 

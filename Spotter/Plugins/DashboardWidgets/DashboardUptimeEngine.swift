@@ -46,6 +46,16 @@ enum DashboardUptimeEngine {
         return hours == 0 ? "\(remainder)m" : "\(hours)h \(remainder)m"
     }
 
+    /// The card spells its tallies out rather than leaning on a glyph, so each line says what it
+    /// counts. Both pluralize, since a day's first keystroke would otherwise read "1 keys pressed".
+    static func keysLabel(_ count: Int) -> String {
+        "\(formattedCount(count)) \(count == 1 ? "key" : "keys") pressed"
+    }
+
+    static func clicksLabel(_ count: Int) -> String {
+        "\(formattedCount(count)) mouse \(count == 1 ? "click" : "clicks")"
+    }
+
     /// Grouped by hand rather than through a locale format, so the engine stays pure — its output
     /// can't shift with the Mac's region — and the harness can assert one stable string.
     static func formattedCount(_ count: Int) -> String {

@@ -101,16 +101,14 @@ struct DashboardWidgetsView: View {
             Spacer(minLength: 0)
             if uptime.needsAccessibility {
                 // Clicks count without the grant, keys can't — offer it rather than showing a zero.
-                Button { Permissions.ensureAccessibility() } label: {
-                    Label("Allow", systemImage: "keyboard")
-                        .font(.caption)
-                }
-                .buttonStyle(.link)
-                .controlSize(.small)
+                Button("Allow keys") { Permissions.ensureAccessibility() }
+                    .buttonStyle(.link)
+                    .controlSize(.small)
+                    .font(.caption2)
             } else {
-                statRow(systemImage: "keyboard", count: snapshot.counts.keys)
+                countLine(DashboardUptimeEngine.keysLabel(snapshot.counts.keys))
             }
-            statRow(systemImage: "cursorarrow.click", count: snapshot.counts.clicks)
+            countLine(DashboardUptimeEngine.clicksLabel(snapshot.counts.clicks))
         }
         .padding(Theme.Spacing.lg)
         .frame(width: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
@@ -119,15 +117,13 @@ struct DashboardWidgetsView: View {
         .accessibilityLabel(uptimeAccessibilityLabel(snapshot, now: now))
     }
 
-    private func statRow(systemImage: String, count: Int) -> some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: systemImage)
-                .foregroundStyle(Theme.Colors.textSecondary)
-            Text(DashboardUptimeEngine.formattedCount(count))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .font(.caption)
+    /// A spelled-out tally. The longest realistic line ("123,456 mouse clicks") overruns the square's
+    /// 96 points, so it shrinks rather than truncating the word that says what was counted.
+    private func countLine(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
     }
 
     private func uptimeAccessibilityLabel(_ snapshot: DashboardUptimeSnapshot, now: Date) -> String {
@@ -137,8 +133,9 @@ struct DashboardWidgetsView: View {
             ?? "Session not started"
         let keys =
             uptime.needsAccessibility
-            ? "keyboard counting needs Accessibility" : "\(snapshot.counts.keys) keys"
-        return "\(elapsed), \(keys), \(snapshot.counts.clicks) clicks"
+            ? "keyboard counting needs Accessibility"
+            : DashboardUptimeEngine.keysLabel(snapshot.counts.keys)
+        return "\(elapsed), \(keys), \(DashboardUptimeEngine.clicksLabel(snapshot.counts.clicks))"
     }
 
     /// The clock is a square, title-free analog face; VoiceOver still reads the exact time and date.
@@ -151,17 +148,21 @@ struct DashboardWidgetsView: View {
             .accessibilityLabel("\(formattedTime(now)), \(formattedDate(now))")
     }
 
-    /// Square, like the rest of the strip. The 96pt of content between the paddings is the whole
-    /// budget, so the headline carries the state and everything under it stays caption-sized.
+    /// Structured like a calendar app's own widget: today's date at the top, the next event pinned to
+    /// the bottom. The date comes from the clock rather than EventKit, so it stays correct even
+    /// without calendar access — the bottom row carries the access state instead of the whole card.
     private func eventCard(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("UP NEXT")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Theme.Colors.textSecondary)
-            eventContent(now: now)
-            // Only at the bottom: a flexible gap above the content too would float it mid-card, out
-            // of line with the clock, weather and uptime squares beside it.
-            Spacer(minLength: 0)
+            Text(now.formatted(.dateTime.weekday(.wide)).localizedUppercase)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.red)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(now.formatted(.dateTime.day()))
+                .font(.largeTitle)
+                .lineLimit(1)
+            Spacer(minLength: Theme.Spacing.xs)
+            eventFooter(now: now)
         }
         .padding(Theme.Spacing.lg)
         .frame(width: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
@@ -169,68 +170,69 @@ struct DashboardWidgetsView: View {
     }
 
     @ViewBuilder
-    private func eventContent(now: Date) -> some View {
+    private func eventFooter(now: Date) -> some View {
         switch store.calendarAccess {
         case .fullAccess:
             if let event = store.nextEvent {
-                eventHeadline(event.title)
+                eventPill(event.title)
                 Text(eventTime(event, now: now))
                     .font(.caption2)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                Text(event.calendarTitle)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .lineLimit(1)
             } else {
-                eventHeadline("No upcoming events")
-                Text("None in the next year.")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .lineLimit(2)
+                footerNote("No events ahead")
             }
         case .notDetermined, .writeOnly:
-            eventHeadline("Calendar access is off")
             if store.isRequestingCalendarAccess {
-                Text("Waiting…")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.Colors.textSecondary)
+                footerNote("Waiting…")
             } else {
-                Button("Allow") { store.requestCalendarAccess() }
-                    .buttonStyle(.link)
-                    .controlSize(.small)
-                    .font(.caption)
+                footerButton("Allow Calendar") { store.requestCalendarAccess() }
             }
         case .denied:
-            eventHeadline("Calendar unavailable")
-            Button("Settings") { Permissions.openCalendarSettings() }
-                .buttonStyle(.link)
-                .controlSize(.small)
-                .font(.caption)
+            footerButton("Open Settings") { Permissions.openCalendarSettings() }
         case .restricted:
-            eventHeadline("Calendar restricted")
-            Text("Managed by policy.")
-                .font(.caption2)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .lineLimit(2)
+            footerNote("Calendar restricted")
         }
     }
 
-    /// Two lines at most, and allowed to shrink a little rather than truncate a short event name.
-    private func eventHeadline(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline.weight(.medium))
-            .lineLimit(2)
-            .minimumScaleFactor(0.8)
-            .fixedSize(horizontal: false, vertical: true)
+    /// The event itself, as a filled row — the one piece of the card that isn't plain text, so the
+    /// date above it reads as the heading rather than as another line of the same block.
+    private func eventPill(_ title: String) -> some View {
+        HStack(spacing: Theme.Spacing.xxs) {
+            Image(systemName: "calendar")
+            Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .font(.caption2.weight(.medium))
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.vertical, Theme.Spacing.xxs)
+        .background(Capsule().fill(Theme.Colors.controlSurface))
     }
 
+    private func footerNote(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .lineLimit(2)
+    }
+
+    private func footerButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.link)
+            .controlSize(.small)
+            .font(.caption2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+    }
+
+    /// The card already shows today's date, so a same-day event needs only its time.
     private func eventTime(_ event: DashboardEvent, now: Date) -> String {
         if event.isAllDay { return "All day" }
-        let day = Calendar.current.isDate(event.startDate, inSameDayAs: now)
-            ? "Today" : event.startDate.formatted(.dateTime.weekday(.abbreviated))
-        return "\(day) · \(event.startDate.formatted(.dateTime.hour().minute()))"
+        let time = event.startDate.formatted(.dateTime.hour().minute())
+        guard !Calendar.current.isDate(event.startDate, inSameDayAs: now) else { return time }
+        return "\(event.startDate.formatted(.dateTime.weekday(.abbreviated))) · \(time)"
     }
 
     private func formattedTime(_ date: Date) -> String {

@@ -178,13 +178,19 @@ The weather widget is the same square, title-free card: city, the temperature as
 a multicolor SF Symbol over the condition phrase. It appears once weather consent is granted — that
 consent is its enable state, so there is no separate widget switch to drift out of sync with the
 network gate; an unset city resolves to `WeatherCity.default` rather than hiding the card. The
-uptime and next-event widgets are squares too, each led by a caption (`UPTIME`, `UP NEXT`) instead of
-the icon-and-title header the strip once used for its one wide card. Uptime pins today's elapsed time
-under that caption and its key and click tallies to the bottom edge, the same two-block rhythm as
-weather; the next-event card keeps its title, time and calendar name as one top-anchored block, since
-splitting an event's name from its time would read as two unrelated facts. All four cards anchor
-their first line directly under the caption, so the strip reads as one row rather than four
-independently floating blocks.
+uptime and next-event widgets are squares too. Uptime is led by a `UPTIME` caption, with today's
+elapsed time under it and its tallies on the bottom edge — the same two-block rhythm as weather;
+those tallies are spelled out ("383 keys pressed", "16 mouse clicks") rather than carried by a glyph,
+since a keyboard and a cursor symbol read as controls on a card that isn't clickable.
+
+The next-event card follows a calendar app's own widget rather than a caption: the weekday in red
+above a `largeTitle` day number, with the next event pinned to the bottom edge as a filled capsule
+(`controlSurface`) carrying a `calendar` glyph and the event title, and its time in `caption2` beneath
+it. That capsule is the card's one non-text element, which is what lets the date read as a heading
+instead of as another line of the same block. The date is formatted from the current instant, not
+from EventKit, so it stays correct while calendar access is off, denied or restricted — those states
+replace only the bottom row, never the whole card. Since the date is already on the card, a same-day
+event shows only its time; a later one keeps its weekday prefix.
 
 Every typed launcher query ends with a `Try With` section after its normal results; when none exist,
 the section replaces the centered empty state. Its four selectable destination rows use the same row

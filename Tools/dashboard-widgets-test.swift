@@ -219,6 +219,19 @@ struct DashboardWidgetsTests {
                 && DashboardUptimeEngine.formattedCount(1_234_567) == "1,234,567",
             "counts should group in threes independently of the Mac's locale")
 
+        check(
+            DashboardUptimeEngine.keysLabel(480) == "480 keys pressed"
+                && DashboardUptimeEngine.clicksLabel(128) == "128 mouse clicks",
+            "tallies should spell out what they counted")
+        check(
+            DashboardUptimeEngine.keysLabel(1) == "1 key pressed"
+                && DashboardUptimeEngine.clicksLabel(1) == "1 mouse click",
+            "the day's first key or click should read in the singular")
+        check(
+            DashboardUptimeEngine.keysLabel(0) == "0 keys pressed"
+                && DashboardUptimeEngine.clicksLabel(12_345) == "12,345 mouse clicks",
+            "zero should stay plural and a large tally should stay grouped")
+
         print(failures == 0 ? "Dashboard widgets tests passed" : "\(failures) test(s) failed")
         exit(failures == 0 ? 0 : 1)
     }
