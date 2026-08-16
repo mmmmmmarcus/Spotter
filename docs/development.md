@@ -213,7 +213,7 @@ It uses shell fixtures for the runner and never executes Mole or changes user da
 The Launcher Fallbacks harness pins the four query destinations and verifies that arbitrary shell
 text reaches Terminal as one exact `osascript` argument rather than interpolated AppleScript source.
 
-The Dashboard Widgets harness compiles the real Foundation-only engine. It pins widget preference
+The Widgets harness compiles the real Foundation-only engine. It pins widget preference
 fallbacks, calendar-account/all-day filtering, time-zone resolution and analog-clock hand geometry
 without touching EventKit or the user's files.
 

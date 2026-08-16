@@ -1,93 +1,25 @@
 import SwiftUI
 
-struct DashboardWidgetsSettingsView: View {
+/// Each widget configures itself in its own pane under Settings → Widgets. There is deliberately no
+/// combined pane: a single list of every widget's switches was the thing these replaced.
+struct ClockWidgetSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
-    @ObservedObject var weather: DashboardWeatherStore
-    @ObservedObject var uptime: DashboardUptimeStore
     private static let timeZoneIdentifiers = TimeZone.knownTimeZoneIdentifiers.sorted()
-
-    @State private var askingUptimeConsent = false
-    @State private var askingWeatherConsent = false
-    @State private var citySearch = ""
-    @State private var refreshingWeather = false
-    @State private var weatherRefreshFailed = false
 
     var body: some View {
         SettingsPane(
-            title: "Dashboard Widgets",
-            subtitle: "At-a-glance information above launcher results when the search is empty."
+            title: "Clock",
+            subtitle: "An analog clock face above launcher results when the search is empty."
         ) {
-            SettingsCard(header: "Widgets") {
+            SettingsCard(header: "Widget") {
                 SettingsRow(
-                    title: "Clock",
-                    subtitle: "An analog clock face in the selected time zone.",
+                    title: "Show Clock",
+                    subtitle: "A live analog face in the selected time zone.",
                     systemImage: "clock", tint: .orange
                 ) {
-                    widgetToggle(.clock)
+                    widgetToggle(store: store, widget: .clock)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Weather",
-                    subtitle: weatherStatus,
-                    systemImage: "cloud.sun", tint: .cyan
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { weather.isEnabled },
-                            set: { wantsOn in
-                                if wantsOn {
-                                    askingWeatherConsent = true
-                                } else {
-                                    weather.setEnabled(false)
-                                }
-                            })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Uptime",
-                    subtitle: uptimeStatus,
-                    systemImage: "timer", tint: .green
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { uptime.isEnabled },
-                            set: { wantsOn in
-                                if wantsOn {
-                                    askingUptimeConsent = true
-                                } else {
-                                    uptime.setEnabled(false)
-                                }
-                            })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Next Event",
-                    subtitle: "The next event from the selected calendar account.",
-                    systemImage: "calendar.badge.clock", tint: .blue
-                ) {
-                    widgetToggle(.nextEvent)
-                }
-            }
-
-            if weather.isEnabled {
-                weatherDetailsCard
-            }
-
-            if uptime.isEnabled {
-                uptimeDetailsCard
-            }
-
-            SettingsCard(header: "Clock Details") {
                 SettingsRow(
                     title: "Time Zone",
                     subtitle: "System Default follows changes made in macOS Settings.",
@@ -105,11 +37,263 @@ struct DashboardWidgetsSettingsView: View {
                     .frame(width: 250)
                 }
             }
+        }
+    }
 
-            SettingsCard(header: "Calendar Details") {
+    private var clockTimeZoneBinding: Binding<String> {
+        Binding(
+            get: { store.preferences.clockTimeZoneIdentifier ?? "" },
+            set: { store.setClockTimeZoneIdentifier($0) })
+    }
+}
+
+struct WeatherWidgetSettingsView: View {
+    @ObservedObject var weather: DashboardWeatherStore
+
+    @State private var askingConsent = false
+    @State private var citySearch = ""
+    @State private var refreshing = false
+    @State private var refreshFailed = false
+
+    var body: some View {
+        SettingsPane(
+            title: "Weather",
+            subtitle: "Current conditions for a city you choose, above launcher results."
+        ) {
+            SettingsCard(header: "Widget") {
+                SettingsRow(
+                    title: "Show Weather",
+                    subtitle: status,
+                    systemImage: "cloud.sun", tint: .cyan
+                ) {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { weather.isEnabled },
+                            set: { wantsOn in
+                                if wantsOn {
+                                    askingConsent = true
+                                } else {
+                                    weather.setEnabled(false)
+                                }
+                            })
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+            }
+
+            if weather.isEnabled { detailsCard }
+        }
+        .sheet(isPresented: $askingConsent) {
+            WeatherConsentSheet(
+                onCancel: { askingConsent = false },
+                onAccept: {
+                    askingConsent = false
+                    weather.setEnabled(true)
+                })
+        }
+    }
+
+    private var detailsCard: some View {
+        SettingsCard(header: "Details") {
+            SettingsRow(
+                title: "City",
+                subtitle: selectedCitySubtitle,
+                systemImage: "mappin.and.ellipse", tint: .cyan
+            ) {
+                HStack(spacing: Theme.Spacing.sm) {
+                    if weather.isSearching { ProgressView().controlSize(.small) }
+                    TextField("Search a city", text: $citySearch)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                        .onChange(of: citySearch) { _, query in weather.search(query) }
+                }
+            }
+
+            // Results replace the list in place; picking one clears the field so the card settles back.
+            ForEach(weather.searchResults) { result in
+                SettingsDivider()
+                SettingsRow(
+                    title: result.name, subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
+                    systemImage: "location", tint: .secondary
+                ) {
+                    Button(weather.city.id == result.id ? "Selected" : "Choose") {
+                        weather.setCity(result)
+                        citySearch = ""
+                        weather.clearSearch()
+                    }
+                    .controlSize(.small)
+                    .disabled(weather.city.id == result.id)
+                }
+            }
+
+            SettingsDivider()
+            SettingsRow(
+                title: "Units",
+                subtitle: "Readings are downloaded in Celsius and converted on this Mac.",
+                systemImage: "thermometer.medium", tint: .cyan
+            ) {
+                Picker("", selection: unitBinding) {
+                    ForEach(WeatherUnit.allCases, id: \.self) { unit in
+                        Text(unit.label).tag(unit)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 220)
+            }
+
+            SettingsDivider()
+            SettingsRow(
+                title: "Conditions",
+                subtitle: readingStatus,
+                systemImage: "arrow.clockwise", tint: .secondary
+            ) {
+                Button("Update Now") {
+                    refreshing = true
+                    Task {
+                        let landed = await weather.refreshNow()
+                        refreshFailed = !landed
+                        refreshing = false
+                    }
+                }
+                .controlSize(.small)
+                .disabled(refreshing)
+            }
+        }
+    }
+
+    private var status: String {
+        let summary = "Current conditions for a city you choose."
+        return weather.isEnabled ? summary : "\(summary) Off — no service is contacted."
+    }
+
+    private var selectedCitySubtitle: String {
+        let city = weather.city
+        let detail = city.detailLabel
+        let place = detail.isEmpty ? city.name : "\(city.name), \(detail)"
+        return city == .default ? "\(place) — the default until you choose another." : place
+    }
+
+    private var readingStatus: String {
+        if refreshing { return "Updating…" }
+        if refreshFailed { return "Couldn't reach \(DashboardWeatherStore.provider). Try again." }
+        guard let fetched = weather.reading?.fetchedAt else {
+            return "\(DashboardWeatherStore.provider) · not downloaded yet."
+        }
+        let stamp = fetched.formatted(date: .abbreviated, time: .shortened)
+        return "\(DashboardWeatherStore.provider) · updated \(stamp). Refreshes every 30 minutes."
+    }
+
+    private var unitBinding: Binding<WeatherUnit> {
+        Binding(get: { weather.unit }, set: { weather.setUnit($0) })
+    }
+}
+
+struct UptimeWidgetSettingsView: View {
+    @ObservedObject var uptime: DashboardUptimeStore
+
+    @State private var askingConsent = false
+
+    var body: some View {
+        SettingsPane(
+            title: "Uptime",
+            subtitle: "How long today's session has run, with key and click counts."
+        ) {
+            SettingsCard(header: "Widget") {
+                SettingsRow(
+                    title: "Show Uptime",
+                    subtitle: status,
+                    systemImage: "timer", tint: .green
+                ) {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { uptime.isEnabled },
+                            set: { wantsOn in
+                                if wantsOn {
+                                    askingConsent = true
+                                } else {
+                                    uptime.setEnabled(false)
+                                }
+                            })
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+            }
+
+            if uptime.isEnabled {
+                SettingsCard(header: "Details") {
+                    SettingsRow(
+                        title: "Keyboard Counting",
+                        subtitle: uptime.needsAccessibility
+                            ? "Clicks are counted. Counting keys needs the Accessibility permission."
+                            : "Spotter counts that a key was pressed — never which one.",
+                        systemImage: "keyboard", tint: .green
+                    ) {
+                        if uptime.needsAccessibility {
+                            Button("Allow…") { Permissions.ensureAccessibility() }
+                                .controlSize(.small)
+                        } else {
+                            Label("Granted", systemImage: "checkmark.circle.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+
+                    SettingsDivider()
+                    SettingsRow(
+                        title: "Today's Counts",
+                        subtitle: "Tallies clear on their own at midnight.",
+                        systemImage: "arrow.counterclockwise", tint: .secondary
+                    ) {
+                        Button("Reset Today") { uptime.resetCounts() }
+                            .controlSize(.small)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $askingConsent) {
+            UptimeConsentSheet(
+                onCancel: { askingConsent = false },
+                onAccept: {
+                    askingConsent = false
+                    uptime.setEnabled(true)
+                })
+        }
+    }
+
+    private var status: String {
+        let summary = "Hours since the screen first came on today, with key and click counts."
+        return uptime.isEnabled ? summary : "\(summary) Off — no input is counted."
+    }
+}
+
+struct CalendarWidgetSettingsView: View {
+    @ObservedObject var store: DashboardWidgetsStore
+
+    var body: some View {
+        SettingsPane(
+            title: "Calendar",
+            subtitle: "Today's date and the next event, above launcher results."
+        ) {
+            SettingsCard(header: "Widget") {
+                SettingsRow(
+                    title: "Show Calendar",
+                    subtitle: "Today's date, over the next event from the selected account.",
+                    systemImage: "calendar", tint: .blue
+                ) {
+                    widgetToggle(store: store, widget: .nextEvent)
+                }
+            }
+
+            SettingsCard(header: "Details") {
                 SettingsRow(
                     title: "Calendar Access",
-                    subtitle: calendarSubtitle,
+                    subtitle: accessSubtitle,
                     systemImage: "lock.open", tint: .blue
                 ) {
                     switch store.calendarAccess {
@@ -170,158 +354,11 @@ struct DashboardWidgetsSettingsView: View {
                         .controlSize(.small)
                 }
             }
-
         }
         .task { store.refresh() }
-        .sheet(isPresented: $askingWeatherConsent) {
-            WeatherConsentSheet(
-                onCancel: { askingWeatherConsent = false },
-                onAccept: {
-                    askingWeatherConsent = false
-                    weather.setEnabled(true)
-                })
-        }
-        .sheet(isPresented: $askingUptimeConsent) {
-            UptimeConsentSheet(
-                onCancel: { askingUptimeConsent = false },
-                onAccept: {
-                    askingUptimeConsent = false
-                    uptime.setEnabled(true)
-                })
-        }
     }
 
-    private var uptimeDetailsCard: some View {
-        SettingsCard(header: "Uptime Details") {
-            SettingsRow(
-                title: "Keyboard Counting",
-                subtitle: uptime.needsAccessibility
-                    ? "Clicks are counted. Counting keys needs the Accessibility permission."
-                    : "Spotter counts that a key was pressed — never which one.",
-                systemImage: "keyboard", tint: .green
-            ) {
-                if uptime.needsAccessibility {
-                    Button("Allow…") { Permissions.ensureAccessibility() }
-                        .controlSize(.small)
-                } else {
-                    Label("Granted", systemImage: "checkmark.circle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.green)
-                }
-            }
-
-            SettingsDivider()
-            SettingsRow(
-                title: "Today's Counts",
-                subtitle: "Tallies clear on their own at midnight.",
-                systemImage: "arrow.counterclockwise", tint: .secondary
-            ) {
-                Button("Reset Today") { uptime.resetCounts() }
-                    .controlSize(.small)
-            }
-        }
-    }
-
-    private var uptimeStatus: String {
-        let summary = "Hours since the screen first came on today, with key and click counts."
-        return uptime.isEnabled ? summary : "\(summary) Off — no input is counted."
-    }
-
-    private var weatherDetailsCard: some View {
-        SettingsCard(header: "Weather Details") {
-            SettingsRow(
-                title: "City",
-                subtitle: selectedCitySubtitle,
-                systemImage: "mappin.and.ellipse", tint: .cyan
-            ) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    if weather.isSearching { ProgressView().controlSize(.small) }
-                    TextField("Search a city", text: $citySearch)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
-                        .onChange(of: citySearch) { _, query in weather.search(query) }
-                }
-            }
-
-            // Results replace the list in place; picking one clears the field so the card settles back.
-            ForEach(weather.searchResults) { result in
-                SettingsDivider()
-                SettingsRow(
-                    title: result.name, subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
-                    systemImage: "location", tint: .secondary
-                ) {
-                    Button(weather.city.id == result.id ? "Selected" : "Choose") {
-                        weather.setCity(result)
-                        citySearch = ""
-                        weather.clearSearch()
-                    }
-                    .controlSize(.small)
-                    .disabled(weather.city.id == result.id)
-                }
-            }
-
-            SettingsDivider()
-            SettingsRow(
-                title: "Units",
-                subtitle: "Readings are downloaded in Celsius and converted on this Mac.",
-                systemImage: "thermometer.medium", tint: .cyan
-            ) {
-                Picker("", selection: unitBinding) {
-                    ForEach(WeatherUnit.allCases, id: \.self) { unit in
-                        Text(unit.label).tag(unit)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 220)
-            }
-
-            SettingsDivider()
-            SettingsRow(
-                title: "Conditions",
-                subtitle: weatherReadingStatus,
-                systemImage: "arrow.clockwise", tint: .secondary
-            ) {
-                Button("Update Now") {
-                    refreshingWeather = true
-                    Task {
-                        let landed = await weather.refreshNow()
-                        weatherRefreshFailed = !landed
-                        refreshingWeather = false
-                    }
-                }
-                .controlSize(.small)
-                .disabled(refreshingWeather)
-            }
-        }
-    }
-
-    private var weatherStatus: String {
-        let summary = "Current conditions for a city you choose."
-        return weather.isEnabled ? summary : "\(summary) Off — no service is contacted."
-    }
-
-    private var selectedCitySubtitle: String {
-        let city = weather.city
-        let detail = city.detailLabel
-        let place = detail.isEmpty ? city.name : "\(city.name), \(detail)"
-        return city == .default ? "\(place) — the default until you choose another." : place
-    }
-
-    private var weatherReadingStatus: String {
-        if refreshingWeather { return "Updating…" }
-        if weatherRefreshFailed { return "Couldn't reach \(DashboardWeatherStore.provider). Try again." }
-        guard let fetched = weather.reading?.fetchedAt else {
-            return "\(DashboardWeatherStore.provider) · not downloaded yet."
-        }
-        let stamp = fetched.formatted(date: .abbreviated, time: .shortened)
-        return "\(DashboardWeatherStore.provider) · updated \(stamp). Refreshes every 30 minutes."
-    }
-
-    private var unitBinding: Binding<WeatherUnit> {
-        Binding(get: { weather.unit }, set: { weather.setUnit($0) })
-    }
-
-    private var calendarSubtitle: String {
+    private var accessSubtitle: String {
         switch store.calendarAccess {
         case .notDetermined: return "Allow read access to show the next event."
         case .denied: return "Calendar access was denied. You can change it in System Settings."
@@ -329,19 +366,6 @@ struct DashboardWidgetsSettingsView: View {
         case .writeOnly: return "Write-only access cannot show events; grant full access to continue."
         case .fullAccess: return "Spotter can read upcoming events from your macOS calendars."
         }
-    }
-
-    private func widgetToggle(_ widget: DashboardWidgetKind) -> some View {
-        Toggle("", isOn: widgetBinding(widget))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
-    }
-
-    private func widgetBinding(_ widget: DashboardWidgetKind) -> Binding<Bool> {
-        Binding(
-            get: { store.isWidgetEnabled(widget) },
-            set: { store.setWidgetEnabled(widget, enabled: $0) })
     }
 
     private var calendarSourceBinding: Binding<String> {
@@ -355,12 +379,18 @@ struct DashboardWidgetsSettingsView: View {
             get: { store.preferences.includesAllDayEvents },
             set: { store.setIncludesAllDayEvents($0) })
     }
+}
 
-    private var clockTimeZoneBinding: Binding<String> {
-        Binding(
-            get: { store.preferences.clockTimeZoneIdentifier ?? "" },
-            set: { store.setClockTimeZoneIdentifier($0) })
-    }
+private func widgetToggle(store: DashboardWidgetsStore, widget: DashboardWidgetKind) -> some View {
+    Toggle(
+        "",
+        isOn: Binding(
+            get: { store.isWidgetEnabled(widget) },
+            set: { store.setWidgetEnabled(widget, enabled: $0) })
+    )
+    .labelsHidden()
+    .toggleStyle(.switch)
+    .controlSize(.small)
 }
 
 /// Nothing here reaches the network, but a system-wide input counter is asked for as plainly as one

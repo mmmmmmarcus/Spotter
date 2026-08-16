@@ -92,10 +92,12 @@ is optional:
   quicklinks or shell commands — and is re-read on every rebuild instead of captured once. Call
   `PluginRegistry.reloadDynamicCommands(for:)` whenever the underlying store changes; registration
   seeds the routing table so entries restored from disk are launchable before any change fires.
-- `metadata.settingsPlacement` places a registration under Settings → System or Settings → Plugins.
-  System features may reuse the registry's command, shortcut and Settings routing without being
-  presented as optional plugins.
-- `canDisable` (default true) pins a registration on. AI Chat and Dashboard Widgets set it false
+- `metadata.settingsPlacement` places a registration under Settings → System, Settings → Widgets or
+  Settings → Plugins. System features may reuse the registry's command, shortcut and Settings routing
+  without being presented as optional plugins. `.widgets` is the launcher dashboard's own placement:
+  the owner gets no sidebar row and no `settingsView`, supplying a `PluginWidgetRegistration` per
+  card instead, each of which becomes one row and one pane under the Widgets section.
+- `canDisable` (default true) pins a registration on. AI Chat and Widgets set it false
   because they are system features rather than optional plugins.
 - `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
   renders the recorded keycap.
@@ -251,10 +253,12 @@ shell-command feature; do not use shell commands as an internal plugin API.
   Shift-Tab opens the same query at `https://chatgpt.com/?q=…` in the default browser. Selected-text
   definition and grammar checks start follow-up-ready conversations. The launcher's final query
   destination rows reuse both paths without adding registry commands.
-- **Dashboard Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature
-  shown under Settings → System. It adds independently toggleable analog clock and next calendar
-  event cards above the empty launcher. The clock supports an explicit time zone; Calendar can filter by
-  EventKit account and exclude all-day events. Calendar data is permission-gated.
+- **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
+  the launcher dashboard and contributes the Settings → Widgets section. It adds four independently
+  toggleable square cards above the empty launcher — Clock, Weather, Uptime and Calendar — each with
+  its own pane. The clock supports an explicit time zone; Calendar can filter by EventKit account and
+  exclude all-day events. Calendar data is permission-gated, and Weather and Uptime are
+  consent-gated.
 
 ## Current plugins
 
@@ -308,7 +312,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
-Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Dashboard Widgets](dashboard-widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
+Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),

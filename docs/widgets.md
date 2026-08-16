@@ -1,6 +1,6 @@
-# Dashboard Widgets
+# Widgets
 
-Dashboard Widgets is the card strip above the launcher sections when the palette is on its empty
+Widgets is the card strip above the launcher sections when the palette is on its empty
 query root. It shows an analog clock, the current weather, today's uptime and the next calendar
 event. Each card can be shown or hidden independently, and every one of them is the same 116-point
 square. The title-free clock follows the selected time zone, draws live hour, minute and second
@@ -102,14 +102,18 @@ the consent act.
 
 ## Settings and lifecycle
 
-Dashboard Widgets is an always-available system feature under Settings → System → Dashboard Widgets.
-Its pane independently toggles Clock, Weather, Uptime and Next Event; switching them all off hides
-the strip. Clock can follow the system time zone or use any IANA zone built into macOS. Weather
-reveals its details card — city search and unit — only while it is on, and Uptime reveals its own —
-keyboard-permission state and Reset Today — the same way. Existing calendar-account, all-day-event
-and time-zone preferences remain unchanged. Saved identifiers for removed widgets are ignored. The
-permission overview exposes Calendar and Accessibility as global permissions, because the next-event
-card and the uptime card's key counting depend on them.
+Widgets is an always-available system feature, and the only registration placed `.widgets`: it has no
+Settings row of its own, contributing the sidebar's **Widgets** section between System and Plugins
+instead. Each card gets one row and one pane there — Clock, Weather, Uptime, Calendar, in the order
+the strip draws them — so a card is configured on its own rather than in a shared list of switches.
+Every pane opens with a `Widget` card holding that one card's show/hide switch, and reveals a
+`Details` card below it: the clock's time zone, the weather's city and unit, the uptime card's
+keyboard-permission state and Reset Today, the calendar's access, account and all-day preference.
+Weather and Uptime show their details only while they are on, since both are consent-gated. Switching
+every card off hides the strip. Existing calendar-account, all-day-event and time-zone preferences
+remain unchanged, and saved identifiers for removed widgets are ignored. The permission overview
+exposes Calendar and Accessibility as global permissions, because the calendar card and the uptime
+card's key counting depend on them.
 Calendar refreshes occur only while the dashboard is visible, while uptime counting runs whenever
 the widget is on — a tally of the whole day would be wrong if it only accrued with the palette open.
 Permission views

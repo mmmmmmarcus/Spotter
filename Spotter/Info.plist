@@ -29,7 +29,7 @@
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Spotter uses Apple Events when you run a command that controls another app or explicitly send a launcher query to Terminal.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Spotter uses calendar access to show your next event and event days in Dashboard Widgets.</string>
+	<string>Spotter uses calendar access to show your next event and event days in Widgets.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Spotter</string>
 </dict>

@@ -38,6 +38,10 @@ builds with the **Xcode 26** toolchain.
 - Respect Swift 6 actor isolation; keep expensive work off the main actor.
 - Remove dead code rather than adding compatibility layers. Leave the codebase cleaner than you found
   it.
+- **Don't verify with computer use that a feature looks right.** Build, install and relaunch as the
+  install contract requires, then hand it over — whether the result is beautifully correct is the
+  user's call, and driving the UI to screenshot it costs more than it settles. Say plainly what you
+  did and did not check rather than implying a look was confirmed.
 - **Comments are single-line** — no stacked / multi-line blocks. Only comment the non-obvious (a
   _why_, a gotcha, a load-bearing invariant); never restate the code.
 
@@ -187,9 +191,12 @@ Never break these without an explicit task to do so.
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
   [`docs/plugins.md`](docs/plugins.md) and use the tracked `spotter-plugin` skill.
-- **AI Chat and Dashboard Widgets are system features; Commands is a plugin.** Both system features
-  reuse registry wiring with `settingsPlacement: .system`, stay always enabled, and never export an
-  enable state. Dashboard visibility comes only from its individual widget switches. Commands
+- **AI Chat and Widgets are system features; Commands is a plugin.** Both reuse registry wiring,
+  stay always enabled, and never export an enable state. AI Chat uses `settingsPlacement: .system`;
+  Widgets uses `.widgets`, which gives it no sidebar row of its own — it supplies one
+  `PluginWidgetRegistration` per card under the Settings sidebar's Widgets section instead, so each
+  card is configured on its own. Do not reintroduce a combined widgets pane. Dashboard visibility
+  comes only from the individual widget switches. Commands
   owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
   data and bindings while hiding entries and making their hotkeys no-op.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a

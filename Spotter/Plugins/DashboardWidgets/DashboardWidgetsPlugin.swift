@@ -6,11 +6,11 @@ enum DashboardWidgetsPlugin {
         PluginRegistration(
             metadata: PluginMetadata(
                 id: .dashboardWidgets,
-                name: "Dashboard Widgets",
+                name: "Widgets",
                 summary: "See the time, weather, uptime and next event above launcher results.",
                 systemImage: "rectangle.3.group",
                 tint: .purple,
-                settingsPlacement: .system),
+                settingsPlacement: .widgets),
             defaultEnabled: true,
             canDisable: false,
             exportsEnabledState: false,
@@ -22,12 +22,25 @@ enum DashboardWidgetsPlugin {
                         store: core.dashboardWidgets, weather: core.dashboardWeather,
                         uptime: core.dashboardUptime))
             },
-            readEnabled: { true },
-            settingsView: {
-                AnyView(
-                    DashboardWidgetsSettingsView(
-                        store: core.dashboardWidgets, weather: core.dashboardWeather,
-                        uptime: core.dashboardUptime))
-            })
+            // One Settings row per card, in the order the strip draws them.
+            widgets: [
+                PluginWidgetRegistration(
+                    id: "clock", name: "Clock", systemImage: "clock", tint: .orange,
+                    settingsView: { AnyView(ClockWidgetSettingsView(store: core.dashboardWidgets)) }),
+                PluginWidgetRegistration(
+                    id: "weather", name: "Weather", systemImage: "cloud.sun", tint: .cyan,
+                    settingsView: {
+                        AnyView(WeatherWidgetSettingsView(weather: core.dashboardWeather))
+                    }),
+                PluginWidgetRegistration(
+                    id: "uptime", name: "Uptime", systemImage: "timer", tint: .green,
+                    settingsView: { AnyView(UptimeWidgetSettingsView(uptime: core.dashboardUptime)) }),
+                PluginWidgetRegistration(
+                    id: "calendar", name: "Calendar", systemImage: "calendar", tint: .blue,
+                    settingsView: {
+                        AnyView(CalendarWidgetSettingsView(store: core.dashboardWidgets))
+                    }),
+            ],
+            readEnabled: { true })
     }
 }

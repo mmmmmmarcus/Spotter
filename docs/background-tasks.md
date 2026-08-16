@@ -18,7 +18,7 @@ tasks do not spawn processes, own network requests or mutate feature state thems
 
 ## Launcher integration
 
-On an empty launcher, the non-selectable Dashboard Widgets strip comes first, background tasks come
+On an empty launcher, the non-selectable Widgets strip comes first, background tasks come
 next, and Favorites follows them. Once a query is typed the dashboard disappears, so tasks again
 become the top visual section. Tasks remain visible while the query changes. Their rows are part of
 the same flat selectable-row model:

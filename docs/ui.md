@@ -75,7 +75,7 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
-Dashboard Widgets use `launcherDashboardHeight 116`; every card is a 116-point square, and the
+Widgets use `launcherDashboardHeight 116`; every card is a 116-point square, and the
 title-free clock contains an 88-point analog face. A square leaves 96 points of content between its
 `Spacing.lg` paddings — the budget every card's copy has to fit.
 
@@ -168,12 +168,16 @@ Spacing lives in `Theme.Spacing`: `sectionHeaderBottom` (header → first row) a
 padding). Each list passes `isFirst: row.id == <rows>.first?.id` so only the very first row skips the
 leading gap. Headers are non-selectable display rows, so selection (keyed by id) is unaffected.
 
-The empty-query launcher places the Dashboard Widgets strip before Background Tasks and Favorites.
+The empty-query launcher places the Widgets strip before Background Tasks and Favorites.
 It uses the same `cardFill`/`cardStroke` language as calculator cards, but it remains a zero-row,
 non-selectable surface: keyboard selection starts at the first task when one exists, otherwise the
 first normal launcher result. The clock widget is a square, title-free analog face
 (`launcherDashboardHeight` a side): ticks, numerals and hands drawn in the ramp directly over the
-card fill — no opaque dial — with the second hand and hub in the brand violet, the ramp's one hue.
+card fill — no opaque dial — with the second hand and its hub in orange, the face's one hue and the
+same tint the Clock widget carries in the Settings sidebar. The face runs its own `TimelineView`
+`.animation` timeline rather than the strip's one-second tick, and `clockHandAngles` carries the
+second's fraction, so the second hand sweeps; driving the whole strip that fast would redraw the
+other three cards for nothing.
 The weather widget is the same square, title-free card: city, the temperature as the headline, then
 a multicolor SF Symbol over the condition phrase. It appears once weather consent is granted — that
 consent is its enable state, so there is no separate widget switch to drift out of sync with the

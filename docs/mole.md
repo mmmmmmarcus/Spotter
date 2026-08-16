@@ -90,7 +90,7 @@ the confirmation:
   reports a failed or partial command as Failed instead of treating non-empty output as success.
 
 After confirmation, Spotter creates a launcher background task and returns to a fresh launcher root.
-The task sits below Dashboard Widgets and above Favorites, then stays above searched results while
+The task sits below Widgets and above Favorites, then stays above searched results while
 Mole runs, even if the palette is closed or the query changes.
 Clean, Optimize and Purge use the preview item count as a progress estimate; Uninstall stays
 indeterminate and reports its latest streamed status rather than inventing a percentage. Closing the

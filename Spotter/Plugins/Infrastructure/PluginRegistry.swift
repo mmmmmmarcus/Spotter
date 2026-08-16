@@ -49,6 +49,19 @@ struct PluginLauncherDashboardRegistration {
     let content: () -> AnyView
 }
 
+/// One card of the launcher dashboard, as it appears in Settings. The dashboard stays owned by a
+/// single registration — these only split its configuration, so each card is set up on its own row
+/// rather than sharing one pane of stacked toggles.
+@MainActor
+struct PluginWidgetRegistration: Identifiable {
+    /// Stable slug, persisted in no user data but used as the Settings destination.
+    let id: String
+    let name: String
+    let systemImage: String
+    let tint: PluginTint
+    let settingsView: () -> AnyView
+}
+
 /// A compiled, signed built-in plugin registration that standardizes discovery without runtime loading.
 @MainActor
 struct PluginRegistration {
@@ -64,11 +77,14 @@ struct PluginRegistration {
     var dynamicLauncherCommands: (() -> [PluginCommandRegistration])?
     var paletteScreen: PluginPaletteScreenRegistration?
     var launcherDashboard: PluginLauncherDashboardRegistration?
+    /// Settings rows under the Widgets section; only a `.widgets`-placed registration supplies these.
+    var widgets: [PluginWidgetRegistration] = []
     var readEnabled: (() -> Bool)?
     var writeEnabled: ((Bool) -> Void)?
     var onEnable: () -> Void = {}
     var onDisable: () -> Void = {}
-    let settingsView: () -> AnyView
+    /// Absent only for a `.widgets` owner, whose configuration lives entirely in `widgets`.
+    var settingsView: (() -> AnyView)?
 }
 
 /// Ordered built-in registry; `AppCore` remains the sole owner of it and all captured managers.
@@ -105,6 +121,14 @@ final class PluginRegistry: ObservableObject {
                 metadata.settingsPlacement == .system
             else { return nil }
             return metadata
+        }
+    }
+
+    /// Every widget row, in catalog order, from the enabled registrations that contribute them.
+    var widgets: [PluginWidgetRegistration] {
+        orderedIDs.flatMap { id -> [PluginWidgetRegistration] in
+            guard isEnabled(id) else { return [] }
+            return registrations[id]?.widgets ?? []
         }
     }
 
@@ -200,7 +224,11 @@ final class PluginRegistry: ObservableObject {
     }
 
     func settingsView(for id: PluginID) -> AnyView {
-        registrations[id]?.settingsView() ?? AnyView(EmptyView())
+        registrations[id]?.settingsView?() ?? AnyView(EmptyView())
+    }
+
+    func widgetSettingsView(for widgetID: String) -> AnyView {
+        widgets.first { $0.id == widgetID }?.settingsView() ?? AnyView(EmptyView())
     }
 
     func launcherDashboardView() -> AnyView? {

@@ -30,7 +30,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
 
 /// The small fixed palette Settings uses for plugin sidebar icon tiles.
 enum PluginTint: String, Sendable {
-    case blue, green, orange, purple, red, teal, yellow
+    case blue, cyan, green, orange, purple, red, teal, yellow
 }
 
 /// System grants a plugin may use. Consent to a network provider is plugin-owned, not a macOS grant.
@@ -52,6 +52,9 @@ struct PluginMetadata: Identifiable, Sendable {
 
 enum PluginSettingsPlacement: Equatable, Sendable {
     case system
+    /// Contributes rows to the Widgets section instead of a pane of its own; the owner supplies
+    /// `widgets` and has no sidebar row, since a combined pane would just repeat those rows.
+    case widgets
     case plugin
 }
 

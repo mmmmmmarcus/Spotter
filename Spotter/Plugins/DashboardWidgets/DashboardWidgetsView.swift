@@ -140,8 +140,7 @@ struct DashboardWidgetsView: View {
 
     /// The clock is a square, title-free analog face; VoiceOver still reads the exact time and date.
     private func clockCard(now: Date) -> some View {
-        AnalogClockFace(
-            angles: DashboardWidgetsEngine.clockHandAngles(for: now, timeZone: store.clockTimeZone))
+        AnalogClockFace(timeZone: store.clockTimeZone)
             .padding(Theme.Spacing.md)
             .frame(width: Theme.Size.launcherDashboardHeight)
             .dashboardCardSurface()
@@ -249,11 +248,21 @@ struct DashboardWidgetsView: View {
     }
 }
 
-/// A Clock-app-style face drawn in the palette's alpha ramp: ramp ticks, numerals and hands over the card fill, with the brand violet as the second hand — no opaque dial.
+/// A Clock-app-style face drawn in the palette's alpha ramp: ramp ticks, numerals and hands over the card fill, with an orange second hand — no opaque dial.
 private struct AnalogClockFace: View {
-    let angles: ClockHandAngles
+    let timeZone: TimeZone
 
     var body: some View {
+        // Its own timeline, at the display's refresh rate: the strip's one-second tick would step the
+        // second hand instead of sweeping it, and raising that cadence would redraw every other card too.
+        TimelineView(.animation) { context in
+            face(
+                angles: DashboardWidgetsEngine.clockHandAngles(
+                    for: context.date, timeZone: timeZone))
+        }
+    }
+
+    private func face(angles: ClockHandAngles) -> some View {
         Canvas { context, size in
             let radius = min(size.width, size.height) / 2
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -282,12 +291,13 @@ private struct AnalogClockFace: View {
                 with: .color(.primary), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
             context.stroke(
                 radial(center: center, angle: .degrees(angles.second), from: -radius * 0.20, to: radius * 0.80),
-                with: .color(Theme.Colors.brand), style: StrokeStyle(lineWidth: 1.25, lineCap: .round))
+                with: .color(.orange), style: StrokeStyle(lineWidth: 1.25, lineCap: .round))
 
+            // Same orange as the hand it caps — the two read as one element, so they can't diverge.
             let hub = radius * 0.06
             context.fill(
                 Path(ellipseIn: CGRect(x: center.x - hub, y: center.y - hub, width: hub * 2, height: hub * 2)),
-                with: .color(Theme.Colors.brand))
+                with: .color(.orange))
         }
     }
 

@@ -70,16 +70,19 @@ enum DashboardWidgetsEngine {
     }
 
     /// Hands sweep continuously — the hour hand advances with the minutes, the minute hand with the seconds — so the face never shows the top-of-hour snap of a components-only clock.
+    /// The second itself carries its fraction, so a caller redrawing faster than 1 Hz gets a gliding second hand rather than a tick.
     static func clockHandAngles(
         for date: Date, timeZone: TimeZone,
         calendar: Calendar = Calendar(identifier: .gregorian)
     ) -> ClockHandAngles {
         var calendar = calendar
         calendar.timeZone = timeZone
-        let components = calendar.dateComponents([.hour, .minute, .second], from: date)
+        let components = calendar.dateComponents(
+            [.hour, .minute, .second, .nanosecond], from: date)
         let hour = Double(components.hour ?? 0)
         let minute = Double(components.minute ?? 0)
-        let second = Double(components.second ?? 0)
+        let second =
+            Double(components.second ?? 0) + Double(components.nanosecond ?? 0) / 1_000_000_000
         return ClockHandAngles(
             hour: (hour.truncatingRemainder(dividingBy: 12) + minute / 60 + second / 3600) * 30,
             minute: (minute + second / 60) * 6,

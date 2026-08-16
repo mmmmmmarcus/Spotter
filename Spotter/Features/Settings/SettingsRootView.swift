@@ -46,6 +46,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
 enum SettingsDestination: Hashable {
     case system(SettingsTab)
+    case widget(String)
     case plugin(PluginID)
 }
 
@@ -69,6 +70,7 @@ struct SettingsRootView: View {
                 case .system(.backup): BackupSettingsView()
                 case .system(.diagnostics): DiagnosticsSettingsView()
                 case .system(.about): AboutView()
+                case .widget(let id): plugins.widgetSettingsView(for: id)
                 case .plugin(let id): plugins.settingsView(for: id)
                 }
             }
@@ -102,6 +104,16 @@ struct SettingsRootView: View {
                         systemImage: feature.systemImage,
                         tint: feature.tint.color,
                         destination: .plugin(feature.id))
+                }
+
+                sidebarHeader("Widgets")
+                    .padding(.top, Theme.Spacing.md)
+                ForEach(plugins.widgets) { widget in
+                    sidebarRow(
+                        title: widget.name,
+                        systemImage: widget.systemImage,
+                        tint: widget.tint.color,
+                        destination: .widget(widget.id))
                 }
 
                 sidebarHeader("Plugins")
@@ -164,6 +176,7 @@ private extension PluginTint {
     var color: Color {
         switch self {
         case .blue: return .blue
+        case .cyan: return .cyan
         case .green: return .green
         case .orange: return .orange
         case .purple: return .purple

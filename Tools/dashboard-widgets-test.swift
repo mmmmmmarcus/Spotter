@@ -76,6 +76,14 @@ struct DashboardWidgetsTests {
         let shifted = DashboardWidgetsEngine.clockHandAngles(
             for: Date(timeIntervalSince1970: 21 * 3600 + 45 * 60 + 15),
             timeZone: TimeZone(secondsFromGMT: -3 * 3600)!)
+        // Half a second later the second hand has moved 3°, so a faster redraw sweeps it rather than ticking.
+        let halfSecondLater = DashboardWidgetsEngine.clockHandAngles(
+            for: Date(timeIntervalSince1970: 21 * 3600 + 45 * 60 + 15.5), timeZone: utc)
+        check(near(halfSecondLater.second, 93), "a half second should advance the second hand 3°")
+        check(
+            near(halfSecondLater.minute, 271.55) && near(halfSecondLater.hour, 292.6291666),
+            "the sub-second fraction should carry into the minute and hour hands")
+
         check(near(shifted.hour, 202.625), "the clock should follow the selected time zone")
         check(near(shifted.minute, evening.minute) && near(shifted.second, evening.second),
             "a whole-hour zone offset should move only the hour hand")
