@@ -110,6 +110,13 @@ enum Theme {
         static let menuRow = Font.body
         static let menuShortcut = Font.callout
         static let menuIcon = Font.body
+        /// AI Chat reply Markdown. Headings stay close to body size — the palette is a quick-answer
+        /// surface, so a `#` should read as emphasis, not as a document title.
+        static let chatHeading = Font.title3.weight(.semibold)
+        static let chatSubheading = Font.headline
+        static let chatMinorHeading = Font.body.weight(.semibold)
+        static let chatCode = Font.system(.callout, design: .monospaced)
+        static let chatInlineCode = Font.system(.body, design: .monospaced)
     }
 
     /// One alpha ramp, mirrored per appearance: white over the dark surface, black over the light one.

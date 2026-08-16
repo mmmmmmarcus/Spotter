@@ -136,6 +136,94 @@ struct AIChatTests {
             AIChatSelectionPrompts.defaultDefinition.contains("follow-up")
                 && AIChatSelectionPrompts.defaultGrammar.contains("later messages"))
 
+        // Markdown block splitting: inline spans stay in the text, structure becomes blocks.
+        check("plain text is one paragraph", AIChatMarkdown.blocks(in: "just an answer") == [
+            .paragraph("just an answer")
+        ])
+        check("empty text has no blocks", AIChatMarkdown.blocks(in: "  \n\n ").isEmpty)
+        check(
+            "inline emphasis is left to the inline parser",
+            AIChatMarkdown.blocks(in: "**bold** and `code`") == [.paragraph("**bold** and `code`")])
+        check(
+            "a blank line splits paragraphs",
+            AIChatMarkdown.blocks(in: "first\n\nsecond") == [
+                .paragraph("first"), .paragraph("second"),
+            ])
+        check(
+            "soft-wrapped lines stay one paragraph",
+            AIChatMarkdown.blocks(in: "first\nsecond") == [.paragraph("first\nsecond")])
+
+        check(
+            "headings carry their level",
+            AIChatMarkdown.blocks(in: "## Title ##") == [.heading(level: 2, text: "Title")])
+        check("a bare hash is not a heading", AIChatMarkdown.blocks(in: "#tag") == [.paragraph("#tag")])
+        check(
+            "seven hashes are not a heading",
+            AIChatMarkdown.blocks(in: "####### deep") == [.paragraph("####### deep")])
+
+        check(
+            "dash bullets become list items",
+            AIChatMarkdown.blocks(in: "- **Waste disposal** – trash\n- Data dumping") == [
+                .listItem(marker: "•", text: "**Waste disposal** – trash", depth: 0),
+                .listItem(marker: "•", text: "Data dumping", depth: 0),
+            ])
+        check(
+            "numbered lists keep their numbers",
+            AIChatMarkdown.blocks(in: "1. one\n2) two") == [
+                .listItem(marker: "1.", text: "one", depth: 0),
+                .listItem(marker: "2.", text: "two", depth: 0),
+            ])
+        check(
+            "indentation becomes depth, capped",
+            AIChatMarkdown.blocks(in: "  - two spaces\n            - very deep") == [
+                .listItem(marker: "•", text: "two spaces", depth: 1),
+                .listItem(marker: "•", text: "very deep", depth: 3),
+            ])
+        check(
+            "a marker needs its space",
+            AIChatMarkdown.blocks(in: "-not a list") == [.paragraph("-not a list")])
+        check(
+            "task boxes replace the raw brackets",
+            AIChatMarkdown.blocks(in: "- [ ] todo\n- [x] done") == [
+                .listItem(marker: "☐", text: "todo", depth: 0),
+                .listItem(marker: "☑", text: "done", depth: 0),
+            ])
+
+        check(
+            "fenced code keeps its language and body verbatim",
+            AIChatMarkdown.blocks(in: "```swift\nlet x = 1\n\n  indented\n```") == [
+                .code(language: "swift", text: "let x = 1\n\n  indented")
+            ])
+        check(
+            "an unterminated fence still renders as code",
+            AIChatMarkdown.blocks(in: "```\nlet x = 1") == [.code(language: nil, text: "let x = 1")])
+        check(
+            "a fence interrupts the paragraph around it",
+            AIChatMarkdown.blocks(in: "before\n```\ncode\n```\nafter") == [
+                .paragraph("before"), .code(language: nil, text: "code"), .paragraph("after"),
+            ])
+        check(
+            "an inline code span never opens a fence",
+            AIChatMarkdown.blocks(in: "``code`` here") == [.paragraph("``code`` here")])
+
+        check(
+            "consecutive quoted lines are one block",
+            AIChatMarkdown.blocks(in: "> first\n> second") == [.quote("first\nsecond")])
+        check("a rule is its own block", AIChatMarkdown.blocks(in: "a\n\n---\n\nb") == [
+            .paragraph("a"), .rule, .paragraph("b"),
+        ])
+
+        check(
+            "a delimiter row makes a table",
+            AIChatMarkdown.blocks(in: "| A | B |\n| --- | :-: |\n| 1 | 2 |\n| 3 |") == [
+                .table(header: ["A", "B"], rows: [["1", "2"], ["3"]])
+            ])
+        check(
+            "a pipe without a delimiter row stays prose",
+            AIChatMarkdown.blocks(in: "use a | pipe\nnot a table") == [
+                .paragraph("use a | pipe\nnot a table")
+            ])
+
         print(failures == 0 ? "\nAI Chat: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

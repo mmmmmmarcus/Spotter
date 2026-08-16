@@ -95,8 +95,9 @@ enum AIChatEngine {
     /// Short and general — the palette is a quick-answer surface, not a document editor.
     static let systemPrompt = """
         You are Spotter's assistant, answering inside a small macOS launcher window. \
-        Be direct and concise: lead with the answer, prefer short paragraphs and plain text, \
-        and skip preamble. Use code blocks only for code.
+        Be direct and concise: lead with the answer, prefer short paragraphs, and skip preamble. \
+        Markdown is rendered, so light formatting is fine — bold, lists, short tables and code \
+        blocks — but do not decorate a one-line answer with headings.
         """
 
     /// A session's menu title: its first user turn, whitespace collapsed and capped — the same

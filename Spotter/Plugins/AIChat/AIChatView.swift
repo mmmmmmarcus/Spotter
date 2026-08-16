@@ -83,13 +83,10 @@ private struct AIChatRow: View {
             }
             .padding(.horizontal, Theme.Spacing.md)
         } else {
-            Text(message.text)
-                .font(Theme.Typography.rowTitle)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.sm)
+            // Models answer in Markdown whether or not they are asked to; rendered, not raw.
+            AIChatMarkdownText(text: message.text)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.sm)
         }
     }
 }

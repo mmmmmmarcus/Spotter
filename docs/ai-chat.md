@@ -31,13 +31,29 @@ Settings, command, permission and shortcut plumbing without being presented as a
 | `AIChatTypes.swift` | Foundation-only, pure: portable message/session models, system prompt, transcript windowing and ChatGPT web URL. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
 | `AIChatSelectionPrompts.swift` | Foundation-only follow-up-aware prompt construction. |
+| `AIChatMarkdown.swift` | Foundation-only, pure: splits a reply into Markdown blocks. |
 | `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
 | `AIChatView.swift` | The transcript body, in the palette's own list chrome. |
+| `AIChatMarkdownView.swift` | Renders those blocks; inline spans go through SwiftUI's own parser. |
 | `AIChatSettingsView.swift` | Models, prompts, shortcuts and web-search setting for chat, definition and grammar. |
 
-`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift` and `AIChatSelectionPrompts.swift`
-standalone, so both stay free of AppKit and SwiftUI. The network lives in `OpenRouterStore`, never
-in either pure source.
+`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift`, `AIChatMarkdown.swift` and
+`AIChatSelectionPrompts.swift` standalone, so all three stay free of AppKit and SwiftUI. The network
+lives in `OpenRouterStore`, never in any pure source.
+
+## Reply formatting
+
+Models answer in Markdown whether or not they are asked to, so assistant turns render it.
+`AIChatMarkdown.blocks(in:)` splits a reply into paragraphs, headings, bullet / numbered / task list
+items, block quotes, fenced code, pipe tables and rules; `AIChatMarkdownText` styles each block and
+hands the inline spans — bold, italics, code, strikethrough, links — to SwiftUI's own Markdown
+parser, which keeps the split shallow and the pure half testable. Structure is only recognized where
+Markdown means it: a heading needs its space, a table needs its delimiter row, and unparseable text
+falls back to the literal characters the model sent. A truncated reply's unterminated fence still
+renders as code. User turns stay literal — a typed asterisk is an asterisk.
+
+Because a reply is now several `Text` views, a drag selects within one block rather than across the
+whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw Markdown.
 
 ## Interaction
 

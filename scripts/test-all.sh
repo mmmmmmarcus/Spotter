@@ -179,6 +179,7 @@ run_harness() {
             ;;
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
+                Spotter/Plugins/AIChat/AIChatMarkdown.swift \
                 Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Tools/ai-chat-test.swift \
                 -o "$output" && "$output"
             ;;
@@ -187,6 +188,7 @@ run_harness() {
                 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
+                Spotter/Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift \
                 Tools/dashboard-widgets-test.swift -o "$output" && "$output"
             ;;
         theme)
