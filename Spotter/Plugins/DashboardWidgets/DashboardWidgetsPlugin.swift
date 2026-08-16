@@ -7,7 +7,9 @@ enum DashboardWidgetsPlugin {
             metadata: PluginMetadata(
                 id: .dashboardWidgets,
                 name: "Widgets",
-                summary: "See the time, weather, uptime and next event above launcher results.",
+                summary:
+                    "See the time, weather, uptime, device batteries and next event above launcher "
+                    + "results.",
                 systemImage: "rectangle.3.group",
                 tint: .purple,
                 settingsPlacement: .widgets),
@@ -20,7 +22,7 @@ enum DashboardWidgetsPlugin {
                 AnyView(
                     DashboardWidgetsView(
                         store: core.dashboardWidgets, weather: core.dashboardWeather,
-                        uptime: core.dashboardUptime))
+                        uptime: core.dashboardUptime, battery: core.dashboardDeviceBattery))
             },
             // One Settings row per card, in the order the strip draws them.
             widgets: [
@@ -35,6 +37,14 @@ enum DashboardWidgetsPlugin {
                 PluginWidgetRegistration(
                     id: "uptime", name: "Uptime", systemImage: "timer", tint: .green,
                     settingsView: { AnyView(UptimeWidgetSettingsView(uptime: core.dashboardUptime)) }),
+                PluginWidgetRegistration(
+                    id: "device-battery", name: "Device Battery",
+                    systemImage: "battery.100percent", tint: .yellow,
+                    settingsView: {
+                        AnyView(
+                            DeviceBatteryWidgetSettingsView(
+                                store: core.dashboardWidgets, battery: core.dashboardDeviceBattery))
+                    }),
                 PluginWidgetRegistration(
                     id: "calendar", name: "Calendar", systemImage: "calendar", tint: .blue,
                     settingsView: {

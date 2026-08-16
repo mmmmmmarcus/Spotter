@@ -9,7 +9,7 @@ struct DashboardWidgetsTests {
         check(
             DashboardWidgetsEngine.widgetKinds(from: nil)
                 == Set(DashboardWidgetKind.allCases),
-            "missing widget preferences should preserve the two-widget default")
+            "missing widget preferences should preserve the every-widget default")
         check(
             DashboardWidgetsEngine.widgetKinds(from: []) == [],
             "an explicitly empty widget selection should remain empty")
@@ -160,20 +160,22 @@ struct DashboardWidgetsTests {
                 longitude: WeatherCity.default.longitude) != nil,
             "the default city should produce a usable forecast URL")
 
+        let celsiusEnds = DashboardWeatherEngine.formattedBarEnds(
+            lowCelsius: 26, highCelsius: 33, unit: .celsius)
         check(
-            DashboardWeatherEngine.formattedRange(
-                lowCelsius: 26, highCelsius: 33, unit: .celsius) == "L:26° H:33°",
-            "a complete daily block should render as a low and a high")
+            celsiusEnds?.low == "26°" && celsiusEnds?.high == "33°",
+            "a complete daily block should caption both ends of the bar")
+        let fahrenheitEnds = DashboardWeatherEngine.formattedBarEnds(
+            lowCelsius: 0, highCelsius: 100, unit: .fahrenheit)
         check(
-            DashboardWeatherEngine.formattedRange(
-                lowCelsius: 0, highCelsius: 100, unit: .fahrenheit) == "L:32° H:212°",
-            "the range should convert from the stored Celsius like the reading does")
+            fahrenheitEnds?.low == "32°" && fahrenheitEnds?.high == "212°",
+            "the ends should convert from the stored Celsius like the reading does")
         check(
-            DashboardWeatherEngine.formattedRange(
+            DashboardWeatherEngine.formattedBarEnds(
                 lowCelsius: 26, highCelsius: nil, unit: .celsius) == nil
-                && DashboardWeatherEngine.formattedRange(
+                && DashboardWeatherEngine.formattedBarEnds(
                     lowCelsius: nil, highCelsius: 33, unit: .celsius) == nil,
-            "half a range should render as no range at all")
+            "half a range should caption neither end rather than one")
 
         check(
             DashboardWeatherEngine.temperatureBarPosition(celsius: -10) == 0
@@ -279,6 +281,115 @@ struct DashboardWidgetsTests {
                 && DashboardUptimeEngine.clicksLabel(12_345) == "12,345 mouse clicks",
             "zero should stay plural and a large tally should stay grouped")
 
+        check(
+            DashboardDeviceBatteryEngine.kind(forProductName: "Marcus’s Magic Mouse") == .mouse
+                && DashboardDeviceBatteryEngine.kind(forProductName: "Magic Trackpad") == .trackpad
+                && DashboardDeviceBatteryEngine.kind(forProductName: "Magic Keyboard") == .keyboard,
+            "an owner-prefixed Apple product name should still resolve to its category")
+        check(
+            DashboardDeviceBatteryEngine.kind(forProductName: "MX Master 3S") == .other
+                && DashboardDeviceBatteryEngine.kind(forProductName: "") == .other,
+            "an unrecognized or missing product name should fall back to the generic kind")
+        check(
+            DashboardDeviceBatteryEngine.label(for: battery("Marcus’s Magic Mouse", 40)) == "Mouse"
+                && DashboardDeviceBatteryEngine.label(for: battery("MX Master 3S", 40))
+                    == "MX Master 3S",
+            "a known category should shorten to its noun and anything else should keep its name")
+
+        check(
+            DashboardDeviceBatteryEngine.percentLabel(97) == "97%"
+                && DashboardDeviceBatteryEngine.percentLabel(140) == "100%"
+                && DashboardDeviceBatteryEngine.percentLabel(-3) == "0%",
+            "a level outside 0–100 should clamp rather than be reported as read")
+        check(
+            DashboardDeviceBatteryEngine.isLow(19) && !DashboardDeviceBatteryEngine.isLow(20),
+            "the low threshold should be exclusive")
+        check(
+            DashboardDeviceBatteryEngine.gaugeFraction(0) == 0
+                && DashboardDeviceBatteryEngine.gaugeFraction(50) == 0.5
+                && DashboardDeviceBatteryEngine.gaugeFraction(140) == 1,
+            "the arc should sweep the clamped level as a fraction of the ring")
+
+        check(
+            !DashboardDeviceBatteryEngine.isOnExternalPower(statusFlags: 0)
+                && DashboardDeviceBatteryEngine.isOnExternalPower(statusFlags: 5),
+            "the flags a battery-powered and a cabled device report should read as they were observed")
+        check(
+            !DashboardDeviceBatteryEngine.isOnExternalPower(statusFlags: 6),
+            "the undocumented upper bits alone should not claim external power")
+        check(
+            DashboardDeviceBatteryEngine.accessibilityLabel(
+                for: [battery("Magic Trackpad", 100, charging: true)])
+                == "Battery: Trackpad 100 percent, charging",
+            "a charging device should say so where the bolt can't be read")
+
+        let mouse = battery("Marcus’s Magic Mouse", 97)
+        let trackpad = battery("Magic Trackpad", 100)
+        let keyboard = battery("Magic Keyboard", 12)
+        check(
+            DashboardDeviceBatteryEngine.ordered([trackpad, mouse, keyboard]).map(\.percent)
+                == [12, 97, 100],
+            "devices should order by level so the emptiest headlines the card")
+        check(
+            DashboardDeviceBatteryEngine.ordered([
+                battery("Magic Trackpad", 50, id: "b"), battery("Magic Trackpad", 50, id: "a"),
+            ]).map(\.id) == ["a", "b"],
+            "devices at the same level should hold a stable order between scans")
+
+        let extra = battery("MX Master 3S", 88, id: "extra")
+        let second = battery("Magic Keyboard", 60, id: "second")
+        check(
+            DashboardDeviceBatteryEngine.gaugeSlots(for: [], limit: 4) == [],
+            "no devices should produce no gauges")
+        check(
+            DashboardDeviceBatteryEngine.gaugeSlots(for: [keyboard, mouse, trackpad], limit: 4)
+                == [.device(keyboard), .device(mouse), .device(trackpad)],
+            "devices within the limit should each get their own gauge")
+        check(
+            DashboardDeviceBatteryEngine.gaugeSlots(
+                for: [keyboard, mouse, trackpad, extra, second], limit: 4)
+                == [.device(keyboard), .device(mouse), .device(trackpad), .overflow(2)],
+            "devices past the grid should be counted in the last slot rather than dropped")
+
+        check(
+            DashboardDeviceBatteryEngine.gaugeColumns(slotCount: 1) == 1
+                && DashboardDeviceBatteryEngine.gaugeColumns(slotCount: 2) == 2
+                && DashboardDeviceBatteryEngine.gaugeColumns(slotCount: 4) == 2,
+            "a lone gauge should take the whole square and the rest should pair into two columns")
+        check(
+            DashboardDeviceBatteryEngine.gaugeRows(
+                for: [.device(keyboard), .device(mouse), .device(trackpad)], columns: 2)
+                == [[.device(keyboard), .device(mouse)], [.device(trackpad)]],
+            "an odd count should leave the last row short rather than rebalancing")
+        check(
+            DashboardDeviceBatteryEngine.gaugeRows(for: [.device(keyboard)], columns: 0) == [],
+            "a zero column count should produce no rows rather than loop")
+
+        check(
+            DashboardDeviceBatteryEngine.gaugeDiameter(
+                slotCount: 1, interior: 96, spacing: 8) == 96,
+            "a lone gauge should fill the square's interior")
+        check(
+            DashboardDeviceBatteryEngine.gaugeDiameter(
+                slotCount: 4, interior: 96, spacing: 8) == 44,
+            "a full grid should split the interior evenly around its gap")
+        check(
+            DashboardDeviceBatteryEngine.gaugeDiameter(
+                slotCount: 3, interior: 96, spacing: 8) == 44,
+            "three gauges should size to their two rows, not to the row that holds one")
+        check(
+            DashboardDeviceBatteryEngine.gaugeDiameter(
+                slotCount: 0, interior: 96, spacing: 8) == 0,
+            "no slots should ask for no diameter")
+
+        check(
+            DashboardDeviceBatteryEngine.accessibilityLabel(for: [keyboard, mouse])
+                == "Battery: Keyboard 12 percent, Mouse 97 percent",
+            "the card should read out every device it shows")
+        check(
+            DashboardDeviceBatteryEngine.accessibilityLabel(for: []) == "No device batteries",
+            "an empty reading should not announce a level")
+
         print(failures == 0 ? "Dashboard widgets tests passed" : "\(failures) test(s) failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -292,6 +403,15 @@ struct DashboardWidgetsTests {
 
     private static func near(_ value: Double, _ expected: Double) -> Bool {
         abs(value - expected) < 0.0001
+    }
+
+    private static func battery(
+        _ productName: String, _ percent: Int, id: String = "id", charging: Bool = false
+    ) -> DeviceBattery {
+        DeviceBattery(
+            id: id, productName: productName,
+            kind: DashboardDeviceBatteryEngine.kind(forProductName: productName), percent: percent,
+            isCharging: charging)
     }
 
     private static func date(_ stamp: String, _ calendar: Calendar) -> Date {

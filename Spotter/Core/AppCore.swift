@@ -181,6 +181,7 @@ final class AppCore: ObservableObject {
     let dashboardWidgets = DashboardWidgetsStore()
     let dashboardWeather = DashboardWeatherStore()
     let dashboardUptime = DashboardUptimeStore()
+    let dashboardDeviceBattery = DashboardDeviceBatteryStore()
     let killProcess = KillProcessManager()
     let changeCase = ChangeCaseStore()
     let openRouter = OpenRouterStore()
@@ -406,8 +407,13 @@ final class AppCore: ObservableObject {
         }
         windowController.show()
         if let id = palette.mode.pluginID { plugins.activatePaletteScreen(id) }
-        // Re-scan on open so an app uninstalled since the last scan drops out of the launcher.
-        if palette.mode == .launcher { Task { await appIndex.refresh() } }
+        if palette.mode == .launcher {
+            // Re-scan on open so an app uninstalled since the last scan drops out of the launcher.
+            Task { await appIndex.refresh() }
+            // Here rather than only in the card's own poll: with nothing reporting a level the card
+            // isn't rendered, so it would never run to notice a device that has since connected.
+            dashboardDeviceBattery.refresh()
+        }
     }
 
     func hidePalette(restoreFocus: Bool = true) {

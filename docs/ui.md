@@ -81,7 +81,8 @@ title-free clock contains an 88-point analog face. A square leaves 96 points of 
 square rather than set by hand: five cards, the four `Spacing.md` gaps between them and the launcher
 list's inset on each side come to 628, so the full strip fills the palette edge to edge. Resizing a
 card or seating a sixth widget moves the window with it — which is the point, but check the other
-modes still look right at the new width.
+modes still look right at the new width. Device battery landed as a fifth card without moving it:
+weather merged its condition and temperature squares into one to make the room.
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
 
@@ -191,18 +192,35 @@ The widest headline the strip has to seat is uptime's `23h 59m`, which just fits
 monochrome throughout; the clock's orange second hand and the temperature bar's ramp are the strip's
 only colors, and both are data rather than chrome.
 
-Weather is two squares, not one, and both are centered rather than ranged left. The condition card
-carries the city, the condition symbol as its whole middle, and the phrase underneath. The
-temperature card carries today's `L:26° H:33°` range, the reading as its headline, and a scale bar
-along the bottom: a blue→green→red gradient with a white marker at the current temperature. That
+Weather is one square, centered rather than ranged left and title-free: the reading as its headline,
+the condition symbol under that at 32, and a scale bar along the bottom flanked by today's low and
+high. The city and the condition's phrase both live in the card's accessibility label rather than on
+it — the card shows one city's weather and Settings names it, so a title spent a row repeating
+something already settled, and at this size the card fits the bar or the phrase, not both. The bar is
+a blue→green→red gradient with a white marker at the current temperature. That
 scale is absolute, not today's range — `barMinimumCelsius` (-10) to `barMaximumCelsius` (40) with
 green pinned at 20 — so the same temperature always sits at the same point and the ends never have
 to be read. Its stops and the marker's position both come from `DashboardWeatherEngine`, so they
 cannot drift apart. The marker is a deliberate literal white rather than an adaptive token: the track
 beneath it looks the same in both appearances, so a marker that flipped with the system would be the
-part that looked wrong. Both cards appear together once weather consent is granted — that consent is
-their enable state, so there is no separate widget switch to drift out of sync with the network gate;
-an unset city resolves to `WeatherCity.default` rather than hiding them.
+part that looked wrong. The track is 7.5 points thick with a 13.5-point marker — half again the
+original, which the card can afford now that it isn't one of two. Its captions come as a pair or not
+at all: a reading that predates the daily block leaves the bar uncaptioned rather than labelled at
+one end, which would read as the scale itself starting there. The card appears once weather consent
+is granted — that consent is its enable state, so there is no separate widget switch to drift out of
+sync with the network gate; an unset city resolves to `WeatherCity.default` rather than hiding it.
+
+Device battery is title-free too: its grid of ring gauges fills the square, and a heading would cost
+a row of gauge. Each ring is a faint `controlSurface` track with the level swept clockwise from
+twelve over it — green, red below 20% — around the device's SF Symbol. Stroke and glyph are fractions
+of the diameter (0.1 and 0.34) rather than fixed points, so one gauge filling the 96-point interior
+and four at 44 read as the same object at two scales. The grid takes one column for a lone device and
+two for the rest, and `+2` stands in for a fifth. A charging device breaks its ring at twelve for a
+bolt: the notch is punched with `.destinationOut` between two `compositingGroup()`s rather than
+covered with a disc of `cardFill`, which is translucent and would show the arc through it. Unlike its
+neighbors the card sets an explicit height as well as a width — its content can be shorter than the
+strip, and without it a single row of gauges hugs into a stub. Exact percentages are deliberately
+absent: four numbers at that size read worse than four arcs, and the Settings pane lists them.
 
 Uptime and next-event are squares too. Uptime is led by an `Uptime` title, with today's elapsed time
 under it and its tallies on the bottom edge; those tallies are spelled out ("383 keys pressed",

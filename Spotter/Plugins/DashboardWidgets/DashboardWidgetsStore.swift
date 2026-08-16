@@ -44,8 +44,6 @@ final class DashboardWidgetsStore: ObservableObject {
             clockTimeZoneIdentifier: defaults.string(forKey: Keys.clockTimeZone)?.nilIfEmpty)
     }
 
-    var hasEnabledWidgets: Bool { !preferences.enabledWidgets.isEmpty }
-
     var clockTimeZone: TimeZone {
         DashboardWidgetsEngine.resolvedTimeZone(
             identifier: preferences.clockTimeZoneIdentifier, fallback: .autoupdatingCurrent)

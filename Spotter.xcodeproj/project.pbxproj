@@ -74,6 +74,7 @@
 		4D893C74BF3716AD2A9FEC20 /* FrequentEmojiStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F8D9F0596067673B16F9B3 /* FrequentEmojiStore.swift */; };
 		52755379C29E05805247B689 /* SystemCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F75CA2510EFD6B9EE6E7924 /* SystemCommandRunner.swift */; };
 		5848DB5A8E849BD170C1AC72 /* AIChatPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E71C4DD8183B1A7D86867A /* AIChatPlugin.swift */; };
+		58D500916E6096E589DD4624 /* DashboardDeviceBatteryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4637BB0C57CB0E954EA3ABB5 /* DashboardDeviceBatteryEngine.swift */; };
 		5C481321CB0146474462D5F0 /* OpenRouterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9D78AFD2E35C90F7FAB933 /* OpenRouterStore.swift */; };
 		5D40DCFE0F29E6D10B497D72 /* UpdateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7829EA08561C01C47794D1C /* UpdateStore.swift */; };
 		5F5F4190161FA6569021181C /* EmojiIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B017FD6AEF925DB962DFB5C /* EmojiIndex.swift */; };
@@ -193,6 +194,7 @@
 		F2DF20329882A390AB573647 /* CoffeeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F48018F00ADFBA387FD7461 /* CoffeeSettingsView.swift */; };
 		F36B57DA786E67710926BC6C /* Scrypt.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEA06CE5BB23625D06B9B5B /* Scrypt.swift */; };
 		F3C07430920858A914B1A55F /* BackupSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8587FC279B3EC00C5EC444B /* BackupSettingsView.swift */; };
+		F78FEFEBAB29A0A705CA9E25 /* DashboardDeviceBatteryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC786AEC06A1589BDBAA79F /* DashboardDeviceBatteryStore.swift */; };
 		F83597883221D6F7EEE2A1FF /* RootPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC07C3A56248A192651F6D2 /* RootPaletteView.swift */; };
 		F91F68FE32440D040FB0FCA6 /* UpdateFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B34460791F6B79BDE3717A /* UpdateFeed.swift */; };
 		FA99CFBC1AFC8EF45FC0CA9C /* AIChatSelectionPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA11885FB825987E4522773 /* AIChatSelectionPrompts.swift */; };
@@ -259,6 +261,7 @@
 		434991596DDA129349C5052E /* CurrencyRateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyRateStore.swift; sourceTree = "<group>"; };
 		4357FED8D69C7ECF3A4F69F4 /* CalcCurrency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcCurrency.swift; sourceTree = "<group>"; };
 		437E0B07B1220E4982F75D4D /* DoubleTapModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapModifier.swift; sourceTree = "<group>"; };
+		4637BB0C57CB0E954EA3ABB5 /* DashboardDeviceBatteryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDeviceBatteryEngine.swift; sourceTree = "<group>"; };
 		47202D86B96D27BDE1F3DA65 /* ImageModificationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageModificationEngine.swift; sourceTree = "<group>"; };
 		47DA8CAC7504DE8951D8B3BC /* CalcEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcEngine.swift; sourceTree = "<group>"; };
 		48F8A2108102B779C6DFC13E /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
@@ -399,6 +402,7 @@
 		F7829EA08561C01C47794D1C /* UpdateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateStore.swift; sourceTree = "<group>"; };
 		F98AACEC8AA42B16A4CE3807 /* ImageModificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageModificationSettingsView.swift; sourceTree = "<group>"; };
 		FA46DD0B4EB7F47781AEEF99 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		FAC786AEC06A1589BDBAA79F /* DashboardDeviceBatteryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDeviceBatteryStore.swift; sourceTree = "<group>"; };
 		FCDA408F4ED96D36A992408F /* EmojiData.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiData.generated.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -565,6 +569,8 @@
 		841A200113BD0473AE302EF2 /* DashboardWidgets */ = {
 			isa = PBXGroup;
 			children = (
+				4637BB0C57CB0E954EA3ABB5 /* DashboardDeviceBatteryEngine.swift */,
+				FAC786AEC06A1589BDBAA79F /* DashboardDeviceBatteryStore.swift */,
 				71BB16EFB5D7395674EF19A4 /* DashboardUptimeEngine.swift */,
 				544B2220DAD38109ACFD92F5 /* DashboardUptimeStore.swift */,
 				E1A5104C40D9A6C6391AE462 /* DashboardWeatherEngine.swift */,
@@ -996,6 +1002,8 @@
 				47A4F4B3A29972F313691960 /* CurrencyRateStore.swift in Sources */,
 				13A0645369C0B5377D7251D3 /* CustomCommand.swift in Sources */,
 				E591CD83E6A221D17006D15F /* CustomCommandsSettingsView.swift in Sources */,
+				58D500916E6096E589DD4624 /* DashboardDeviceBatteryEngine.swift in Sources */,
+				F78FEFEBAB29A0A705CA9E25 /* DashboardDeviceBatteryStore.swift in Sources */,
 				A591C73E91A32B3261124600 /* DashboardUptimeEngine.swift in Sources */,
 				EE0E4D5635D550B81C3E65A9 /* DashboardUptimeStore.swift in Sources */,
 				6F317CF7D762C41794F3A96C /* DashboardWeatherEngine.swift in Sources */,

@@ -4,31 +4,40 @@ struct DashboardWidgetsView: View {
     @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var weather: DashboardWeatherStore
     @ObservedObject var uptime: DashboardUptimeStore
+    @ObservedObject var battery: DashboardDeviceBatteryStore
 
-    /// The weather cards have no widget-kind flag of their own: consent *is* their enable state, so
-    /// there is no second switch to drift out of sync with the network gate. Both the condition and
-    /// the temperature square are drawn from one reading and one request, so they share that single
-    /// switch. The city always resolves — `WeatherCity.default` stands in until the user picks one —
-    /// so it never gates them.
+    /// The weather card has no widget-kind flag of its own: consent *is* its enable state, so there
+    /// is no second switch to drift out of sync with the network gate. The city always resolves —
+    /// `WeatherCity.default` stands in until the user picks one — so it never gates the card.
     private var showsWeather: Bool { weather.isEnabled }
 
     /// The uptime card works the same way: consent to count input *is* its enable state.
     private var showsUptime: Bool { uptime.isEnabled }
 
+    /// Switched on but with nothing connected that reports a level, the card would be an empty square
+    /// claiming a reading it doesn't have — a Mac with only its built-in keyboard is the normal case.
+    private var showsBattery: Bool {
+        store.isWidgetEnabled(.deviceBattery) && !battery.devices.isEmpty
+    }
+
     @ViewBuilder
     var body: some View {
-        if store.hasEnabledWidgets || showsWeather || showsUptime {
+        if store.isWidgetEnabled(.clock) || showsWeather || showsUptime || showsBattery
+            || store.isWidgetEnabled(.nextEvent)
+        {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 HStack(spacing: Theme.Spacing.md) {
                     if store.isWidgetEnabled(.clock) {
                         clockCard(now: context.date)
                     }
                     if showsWeather {
-                        conditionCard()
-                        temperatureCard()
+                        weatherCard()
                     }
                     if showsUptime {
                         uptimeCard(now: context.date)
+                    }
+                    if showsBattery {
+                        batteryCard()
                     }
                     if store.isWidgetEnabled(.nextEvent) {
                         eventCard(now: context.date)
@@ -38,14 +47,21 @@ struct DashboardWidgetsView: View {
                 // Every card is a square that hugs its width, so pin the strip to the list's leading edge.
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .onAppear { store.start() }
-            .onDisappear { store.stop() }
+            .onAppear {
+                store.start()
+                battery.start()
+            }
+            .onDisappear {
+                store.stop()
+                battery.stop()
+            }
         }
     }
 
+    /// Back to its original size once the city title came off the merged card and gave the row back.
     private static let conditionSymbolSize: CGFloat = 32
-    private static let temperatureBarHeight: CGFloat = 5
-    private static let temperatureBarMarker: CGFloat = 9
+    private static let temperatureBarHeight: CGFloat = 7.5
+    private static let temperatureBarMarker: CGFloat = 13.5
 
     /// The one title style every card shares, so the strip reads as one row rather than four
     /// designs. Uppercased here rather than at each call site — a city name arrives as typed.
@@ -67,38 +83,20 @@ struct DashboardWidgetsView: View {
             .minimumScaleFactor(0.6)
     }
 
-    /// The first of the two weather squares, centered rather than ranged left: the city, the symbol
-    /// as the card's whole middle, and the phrase it stands for underneath.
-    private func conditionCard() -> some View {
+    /// One square, centered rather than ranged left: the reading as the headline, the condition
+    /// symbol under it, and the scale bar placing that reading between freezing and blazing. Both
+    /// the city and the condition's phrase are carried by the accessibility label rather than by a
+    /// line of their own — the card shows one city's weather and Settings names it, so the title
+    /// slot was spending a row to repeat something already settled.
+    private func weatherCard() -> some View {
         VStack(spacing: 0) {
-            cardTitle(weather.snapshot?.cityName ?? weather.city.name)
-            // No floor on either gap: the phrase may wrap to two lines, and the air is what should give.
             Spacer(minLength: 0)
+            cardHeadline(temperatureText)
             // Monochrome, like every other glyph on the strip — multicolor was the one card that
             // pulled Apple's own palette in instead of the app's.
             Image(systemName: condition?.symbolName ?? "cloud.fill")
                 .symbolRenderingMode(.monochrome)
                 .font(.system(size: Self.conditionSymbolSize))
-            Spacer(minLength: 0)
-            Text(condition?.description ?? "Updating…")
-                .font(.caption2)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(Theme.Spacing.lg)
-        .frame(width: Theme.Size.launcherDashboardHeight)
-        .dashboardCardSurface()
-    }
-
-    /// The second weather square: today's range up top, the current reading as the headline, and the
-    /// scale bar under it placing that reading between freezing and blazing.
-    private func temperatureCard() -> some View {
-        VStack(spacing: 0) {
-            cardTitle(rangeText ?? "Today")
-            Spacer(minLength: 0)
-            cardHeadline(temperatureText)
             Spacer(minLength: 0)
             // No reading, no marker — an empty track would still imply a temperature somewhere on it.
             if let reading = weather.reading {
@@ -108,12 +106,39 @@ struct DashboardWidgetsView: View {
         .padding(Theme.Spacing.lg)
         .frame(width: Theme.Size.launcherDashboardHeight)
         .dashboardCardSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(weatherAccessibilityLabel)
     }
 
-    /// The scale itself: a cold-to-hot ramp with the reading marked on it. The ends and the green
-    /// midpoint come from `DashboardWeatherEngine`, so the stops can't drift from the math that
-    /// places the marker.
+    private var weatherAccessibilityLabel: String {
+        let city = weather.snapshot?.cityName ?? weather.city.name
+        guard let condition, weather.reading != nil else { return "\(city), updating" }
+        let range = barEnds.map { ", low \($0.low), high \($0.high)" } ?? ""
+        return "\(city), \(temperatureText), \(condition.description)\(range)"
+    }
+
+    /// The scale itself: a cold-to-hot ramp with the reading marked on it, flanked by today's low and
+    /// high. The ends and the green midpoint come from `DashboardWeatherEngine`, so the stops can't
+    /// drift from the math that places the marker.
+    @ViewBuilder
     private func temperatureBar(celsius: Double) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            if let barEnds { barEndLabel(barEnds.low) }
+            temperatureTrack(celsius: celsius)
+            if let barEnds { barEndLabel(barEnds.high) }
+        }
+    }
+
+    /// Today's range, captioning the ends of the scale rather than titling the card. Deliberately not
+    /// shrinkable: a degree that shrank to fit would be the thing the eye reads as the temperature.
+    private func barEndLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .lineLimit(1)
+    }
+
+    private func temperatureTrack(celsius: Double) -> some View {
         let position = DashboardWeatherEngine.temperatureBarPosition(celsius: celsius)
         return GeometryReader { geometry in
             ZStack(alignment: .leading) {
@@ -143,14 +168,16 @@ struct DashboardWidgetsView: View {
             }
         }
         .frame(height: Self.temperatureBarMarker)
-        // The one child that claims the full interior width, which is what the rest centers against.
+        // Takes whatever the two end captions leave, so the row spans the card's full interior width
+        // — which is what the headline and glyph above it center against.
         .frame(maxWidth: .infinity)
     }
 
-    /// Nil until a reading carrying a daily block lands; the card titles itself "Today" until then.
-    private var rangeText: String? {
+    /// Nil until a reading carrying a daily block lands; until then the bar runs uncaptioned rather
+    /// than claiming a range it doesn't have.
+    private var barEnds: (low: String, high: String)? {
         guard let reading = weather.reading else { return nil }
-        return DashboardWeatherEngine.formattedRange(
+        return DashboardWeatherEngine.formattedBarEnds(
             lowCelsius: reading.lowCelsius, highCelsius: reading.highCelsius, unit: weather.unit)
     }
 
@@ -194,6 +221,102 @@ struct DashboardWidgetsView: View {
         .dashboardCardSurface()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(uptimeAccessibilityLabel(snapshot, now: now))
+    }
+
+    private static let batteryGaugeSpacing = Theme.Spacing.md
+    /// Ring thickness and glyph size as fractions of the gauge, so a lone full-square gauge and four
+    /// quarter-square ones read as the same object at different scales.
+    private static let batteryGaugeStrokeRatio: CGFloat = 0.1
+    private static let batteryGaugeIconRatio: CGFloat = 0.34
+
+    /// Title-free and filled edge to edge, like the clock: the grid of rings *is* the card, and a
+    /// heading would cost a row of gauge. Exact levels live in Settings and the accessibility label —
+    /// at this size a ring answers "does anything need charging" better than four small numbers.
+    private func batteryCard() -> some View {
+        let slots = DashboardDeviceBatteryEngine.gaugeSlots(
+            for: battery.devices, limit: DashboardDeviceBatteryEngine.gaugeSlotLimit)
+        let interior = Theme.Size.launcherDashboardHeight - 2 * Theme.Spacing.lg
+        let diameter = DashboardDeviceBatteryEngine.gaugeDiameter(
+            slotCount: slots.count, interior: interior, spacing: Self.batteryGaugeSpacing)
+        let columns = DashboardDeviceBatteryEngine.gaugeColumns(slotCount: slots.count)
+        return VStack(spacing: Self.batteryGaugeSpacing) {
+            // Keyed by position: a row is a group of gauges, not an identity of its own.
+            ForEach(
+                Array(
+                    DashboardDeviceBatteryEngine.gaugeRows(for: slots, columns: columns)
+                        .enumerated()), id: \.offset
+            ) { _, row in
+                HStack(spacing: Self.batteryGaugeSpacing) {
+                    ForEach(row) { slot in
+                        batteryGauge(slot, diameter: diameter)
+                    }
+                }
+            }
+        }
+        .padding(Theme.Spacing.lg)
+        // Square like every other card. Without the explicit height a grid shorter than the strip —
+        // one row of gauges — would hug its content and sit as a stub between full-height neighbors.
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            height: Theme.Size.launcherDashboardHeight)
+        .dashboardCardSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(DashboardDeviceBatteryEngine.accessibilityLabel(for: battery.devices))
+    }
+
+    /// One ring: a faint full track with the level swept clockwise from twelve over it, the device's
+    /// SF Symbol in the middle. Red under the low threshold, which is the whole point of the glance.
+    /// A charging device breaks the ring at twelve for a bolt to sit in.
+    private func batteryGauge(_ slot: DeviceBatterySlot, diameter: CGFloat) -> some View {
+        let stroke = diameter * Self.batteryGaugeStrokeRatio
+        let isCharging = slot.isCharging
+        return ZStack {
+            ZStack {
+                Circle()
+                    .stroke(Theme.Colors.controlSurface, lineWidth: stroke)
+                if case .device(let device) = slot {
+                    Circle()
+                        .trim(
+                            from: 0, to: DashboardDeviceBatteryEngine.gaugeFraction(device.percent)
+                        )
+                        .stroke(
+                            DashboardDeviceBatteryEngine.isLow(device.percent) ? Color.red : .green,
+                            style: StrokeStyle(lineWidth: stroke, lineCap: .round))
+                        // `trim` starts at three o'clock; a level reads from the top.
+                        .rotationEffect(.degrees(-90))
+                }
+            }
+            // Punched rather than drawn over: the bolt sits on the arc it reports, and a translucent
+            // card fill behind it would let the green through instead of clearing a notch for it.
+            .compositingGroup()
+            .overlay(alignment: .top) {
+                if isCharging {
+                    Circle()
+                        .frame(width: stroke * 2.6, height: stroke * 2.6)
+                        .offset(y: -stroke * 1.3)
+                        .blendMode(.destinationOut)
+                }
+            }
+            .compositingGroup()
+
+            if isCharging {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: stroke * 1.9))
+                    .frame(width: stroke * 2.6, height: stroke * 2.6)
+                    .offset(y: -diameter / 2)
+            }
+
+            switch slot {
+            case .device(let device):
+                Image(systemName: device.kind.systemImage)
+                    .font(.system(size: diameter * Self.batteryGaugeIconRatio))
+            case .overflow(let count):
+                Text("+\(count)")
+                    .font(.system(size: diameter * Self.batteryGaugeIconRatio, weight: .medium))
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            }
+        }
+        .frame(width: diameter, height: diameter)
     }
 
     /// A spelled-out tally. The longest realistic line ("123,456 mouse clicks") overruns the square's

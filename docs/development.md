@@ -176,8 +176,9 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
+    Spotter/Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift \
     Tools/dashboard-widgets-test.swift \
-    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences, clock hands, weather codes, uptime rollover
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences, clock hands, weather codes, uptime rollover, device battery lines
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \

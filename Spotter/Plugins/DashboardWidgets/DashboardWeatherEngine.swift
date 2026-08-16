@@ -141,15 +141,17 @@ enum DashboardWeatherEngine {
         return "\(Int(rounded == 0 ? 0 : rounded))°"
     }
 
-    /// Today's low and high for the temperature card's title slot, or nil when the reading predates
-    /// the daily fetch — the card says so rather than printing half a range.
-    static func formattedRange(lowCelsius: Double?, highCelsius: Double?, unit: WeatherUnit)
-        -> String?
+    /// Today's low and high, captioning the two ends of the temperature bar. Nil when the reading
+    /// predates the daily fetch — the bar loses both captions rather than being labelled at one end,
+    /// which would read as the scale itself running from that number.
+    static func formattedBarEnds(lowCelsius: Double?, highCelsius: Double?, unit: WeatherUnit)
+        -> (low: String, high: String)?
     {
         guard let lowCelsius, let highCelsius else { return nil }
-        let low = formattedTemperature(celsius: lowCelsius, unit: unit)
-        let high = formattedTemperature(celsius: highCelsius, unit: unit)
-        return "L:\(low) H:\(high)"
+        return (
+            formattedTemperature(celsius: lowCelsius, unit: unit),
+            formattedTemperature(celsius: highCelsius, unit: unit)
+        )
     }
 
     /// The temperature bar's fixed ends and its green midpoint, in Celsius. An absolute scale rather

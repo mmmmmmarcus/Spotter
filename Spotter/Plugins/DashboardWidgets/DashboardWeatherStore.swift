@@ -239,7 +239,7 @@ final class DashboardWeatherStore: ObservableObject {
         let decoded = try JSONDecoder().decode(ForecastResponse.self, from: data)
         guard decoded.current.temperature2m.isFinite else { throw URLError(.cannotParseResponse) }
         // The range is a nice-to-have, not the reading: a missing or non-finite daily block leaves the
-        // temperature card without its bar caption rather than failing the whole fetch.
+        // card's bar without its end captions rather than failing the whole fetch.
         return CurrentWeather(
             temperature: decoded.current.temperature2m,
             weatherCode: decoded.current.weatherCode,

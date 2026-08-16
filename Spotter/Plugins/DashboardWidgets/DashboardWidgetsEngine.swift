@@ -2,6 +2,7 @@ import Foundation
 
 enum DashboardWidgetKind: String, CaseIterable, Equatable, Hashable, Sendable {
     case clock
+    case deviceBattery = "device-battery"
     case nextEvent = "next-event"
 }
 

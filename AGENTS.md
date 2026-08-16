@@ -108,8 +108,9 @@ Never break these without an explicit task to do so.
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` and
   `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
   `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
-  `Plugins/DashboardWidgets/DashboardWeatherEngine.swift` and
-  `Plugins/DashboardWidgets/DashboardUptimeEngine.swift` stay
+  `Plugins/DashboardWidgets/DashboardWeatherEngine.swift`,
+  `Plugins/DashboardWidgets/DashboardUptimeEngine.swift` and
+  `Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift` stay
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
@@ -158,13 +159,13 @@ Never break these without an explicit task to do so.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
   rather than inventing a second shape. Selection Tools' Google Translation path follows that
   consent shape; its consent flag and API key are included in the trusted v3 backup/sync snapshot.
-  `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the dashboard weather cards
-  (condition and temperature — two squares off one reading and one request) ship off, both the
-  forecast fetch and the city search are refused without consent, and their shared
+  `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the dashboard weather card
+  (one square off one reading and one request) ships off, both the
+  forecast fetch and the city search are refused without consent, and its
   enable state *is* consent — never the Mac's location, which Spotter never reads. The forecast
   request asks for the city's own day (`timezone=auto`), which is derived from the coordinates it
   already carries; don't widen it to anything the chosen city doesn't already imply. An unset city
-  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the cards; keep
+  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the card; keep
   that default a constant, since deriving one from the locale or time zone would be location
   inference by another name. Its consent flag, city and unit ride in the trusted v3 snapshot.
   `Plugins/DashboardWidgets/DashboardUptimeStore.swift` applies the same shape to a feature that is
@@ -174,6 +175,13 @@ Never break these without an explicit task to do so.
   autorepeat flag are the only facts taken off an event; never read a key code, character, modifier
   or click location. Count through passive `NSEvent` monitors, never a new `CGEventTap`. Only the
   consent flag rides in the trusted v3 snapshot; the tallies stay device-local.
+  `Plugins/DashboardWidgets/DashboardDeviceBatteryStore.swift` is deliberately *not* gated, and the
+  contrast with uptime is the point: reading `BatteryPercent` off the IOKit registry needs no TCC
+  grant, no entitlement and no monitor, persists nothing and sends nothing, so there is no ongoing
+  access for a switch to withdraw. Do not add a consent dialog to it, and do not reach for
+  IOBluetooth or CoreBluetooth to cover AirPods — that route demands
+  `NSBluetoothAlwaysUsageDescription` and prompts for Bluetooth access process-wide, which is a
+  system permission for one card and needs an explicit owner decision.
   **Deliberate exception (owner decision, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing

@@ -272,6 +272,61 @@ struct UptimeWidgetSettingsView: View {
     }
 }
 
+struct DeviceBatteryWidgetSettingsView: View {
+    @ObservedObject var store: DashboardWidgetsStore
+    @ObservedObject var battery: DashboardDeviceBatteryStore
+
+    var body: some View {
+        SettingsPane(
+            title: "Device Battery",
+            subtitle: "Battery levels for connected mice, keyboards and trackpads."
+        ) {
+            SettingsCard(header: "Widget") {
+                SettingsRow(
+                    title: "Show Device Battery",
+                    subtitle:
+                        "The lowest level of any connected device, over the rest. Hidden while "
+                        + "nothing connected reports one.",
+                    systemImage: "battery.100percent", tint: .yellow
+                ) {
+                    widgetToggle(store: store, widget: .deviceBattery)
+                }
+            }
+
+            SettingsCard(header: "Detected") {
+                if battery.devices.isEmpty {
+                    SettingsRow(
+                        title: "No Devices",
+                        subtitle:
+                            "Nothing connected reports a battery level. Built-in keyboards and "
+                            + "trackpads have none, and AirPods report theirs somewhere Spotter "
+                            + "doesn't read.",
+                        systemImage: "questionmark.circle", tint: .secondary
+                    ) {
+                        EmptyView()
+                    }
+                } else {
+                    ForEach(Array(battery.devices.enumerated()), id: \.element.id) { index, device in
+                        if index > 0 { SettingsDivider() }
+                        SettingsRow(
+                            title: DashboardDeviceBatteryEngine.label(for: device),
+                            subtitle: device.productName.isEmpty ? nil : device.productName,
+                            systemImage: device.kind.systemImage, tint: .yellow
+                        ) {
+                            Text(DashboardDeviceBatteryEngine.percentLabel(device.percent))
+                                .font(.body.monospacedDigit())
+                                .foregroundStyle(
+                                    DashboardDeviceBatteryEngine.isLow(device.percent)
+                                        ? Color.red : .secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .task { battery.refresh() }
+    }
+}
+
 struct CalendarWidgetSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
 
