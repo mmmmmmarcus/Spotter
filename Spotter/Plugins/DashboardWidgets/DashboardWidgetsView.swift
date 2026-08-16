@@ -83,15 +83,17 @@ struct DashboardWidgetsView: View {
             .minimumScaleFactor(0.6)
     }
 
-    /// One square, centered rather than ranged left: the reading as the headline, the condition
-    /// symbol under it, and the scale bar placing that reading between freezing and blazing. Both
-    /// the city and the condition's phrase are carried by the accessibility label rather than by a
-    /// line of their own — the card shows one city's weather and Settings names it, so the title
-    /// slot was spending a row to repeat something already settled.
+    /// One square, centered rather than ranged left: the reading in the title slot, the condition
+    /// symbol as the card's whole middle, and the scale bar along the bottom placing that reading
+    /// between freezing and blazing. The reading takes the title's style rather than the headline's
+    /// so it sits level with `UPTIME` and `SUNDAY` across the strip — the symbol is what this card
+    /// leads with. Both the city and the condition's phrase are carried by the accessibility label
+    /// rather than by a line of their own: the card shows one city's weather and Settings names it,
+    /// so a title spent a row repeating something already settled.
     private func weatherCard() -> some View {
         VStack(spacing: 0) {
+            cardTitle(temperatureText)
             Spacer(minLength: 0)
-            cardHeadline(temperatureText)
             // Monochrome, like every other glyph on the strip — multicolor was the one card that
             // pulled Apple's own palette in instead of the app's.
             Image(systemName: condition?.symbolName ?? "cloud.fill")

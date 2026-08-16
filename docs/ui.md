@@ -192,12 +192,14 @@ The widest headline the strip has to seat is uptime's `23h 59m`, which just fits
 monochrome throughout; the clock's orange second hand and the temperature bar's ramp are the strip's
 only colors, and both are data rather than chrome.
 
-Weather is one square, centered rather than ranged left and title-free: the reading as its headline,
-the condition symbol under that at 32, and a scale bar along the bottom flanked by today's low and
-high. The city and the condition's phrase both live in the card's accessibility label rather than on
-it — the card shows one city's weather and Settings names it, so a title spent a row repeating
-something already settled, and at this size the card fits the bar or the phrase, not both. The bar is
-a blue→green→red gradient with a white marker at the current temperature. That
+Weather is one square, centered rather than ranged left: the reading in the title slot, the condition
+symbol as the card's whole middle at 32, and a scale bar along the bottom flanked by today's low and
+high. The reading takes `cardTitle`'s style rather than `cardHeadline`'s, so it sits level with
+`UPTIME` and `SUNDAY` across the strip — this is the one card whose glyph, not its number, is what it
+leads with. The city and the condition's phrase both live in the card's accessibility label rather
+than on it — the card shows one city's weather and Settings names it, so a title spent a row
+repeating something already settled, and at this size the card fits the bar or the phrase, not both.
+The bar is a blue→green→red gradient with a white marker at the current temperature. That
 scale is absolute, not today's range — `barMinimumCelsius` (-10) to `barMaximumCelsius` (40) with
 green pinned at 20 — so the same temperature always sits at the same point and the ends never have
 to be read. Its stops and the marker's position both come from `DashboardWeatherEngine`, so they
