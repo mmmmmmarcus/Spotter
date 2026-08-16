@@ -172,8 +172,9 @@ swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-te
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     Spotter/Plugins/AIChat/AIChatMarkdown.swift \
-    Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Tools/ai-chat-test.swift \
-    -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + Markdown blocks + ChatGPT web URL
+    Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
+    Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
+    -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + Markdown blocks + ChatGPT web URL + model catalog
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \

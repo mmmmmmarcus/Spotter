@@ -1,4 +1,4 @@
-// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
+// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
 import Foundation
 
 @main
@@ -223,6 +223,54 @@ struct AIChatTests {
             AIChatMarkdown.blocks(in: "use a | pipe\nnot a table") == [
                 .paragraph("use a | pipe\nnot a table")
             ])
+
+        // The OpenRouter model catalog behind the Settings brand → model menus.
+        let payload = """
+            {"data": [
+              {"id": "openai/gpt-legacy", "name": "OpenAI: GPT Legacy", "created": 100,
+               "architecture": {"output_modalities": ["text"]}},
+              {"id": "anthropic/claude-old", "name": "Anthropic: Claude Old", "created": 200,
+               "architecture": {"output_modalities": ["text"]}},
+              {"id": "anthropic/claude-new", "name": "Anthropic: Claude New", "created": 900,
+               "architecture": {"output_modalities": ["text"]}},
+              {"id": "black-forest-labs/flux", "name": "Black Forest Labs: FLUX", "created": 800,
+               "architecture": {"output_modalities": ["image"]}},
+              {"id": "anthropic/claude-new", "name": "Anthropic: Duplicate", "created": 950,
+               "architecture": {"output_modalities": ["text"]}},
+              {"id": "deep-mind/bare-id", "created": 300}
+            ]}
+            """
+        let brands = (try? OpenRouterModelCatalog.brands(fromJSON: Data(payload.utf8))) ?? []
+        check("brands are grouped by the id prefix", brands.map(\.id) == [
+            "anthropic", "deep-mind", "openai",
+        ])
+        check("brands sort by title", brands.map(\.title) == ["Anthropic", "Deep Mind", "OpenAI"])
+        check(
+            "an image-only model can't answer a chat turn",
+            !brands.contains { $0.id == "black-forest-labs" })
+        check(
+            "models are newest first with the brand prefix stripped",
+            brands.first?.models.map(\.name) == ["Claude New", "Claude Old"])
+        check(
+            "a repeated id keeps only its first entry",
+            brands.first?.models.count == 2)
+        check(
+            "a nameless entry falls back to the id tail and a prettified brand",
+            brands[1].models.map(\.name) == ["bare-id"])
+        check(
+            "a catalogued id gets a brand-qualified label",
+            OpenRouterModelCatalog.label(for: "anthropic/claude-new", in: brands)
+                == "Anthropic · Claude New")
+        check(
+            "an unknown id has no catalog label",
+            OpenRouterModelCatalog.label(for: "anthropic/claude-gone", in: brands) == nil)
+        check(
+            "an empty payload yields no brands",
+            (try? OpenRouterModelCatalog.brands(fromJSON: Data(#"{"data": []}"#.utf8)))?.isEmpty
+                == true)
+        check(
+            "a malformed payload throws instead of guessing",
+            (try? OpenRouterModelCatalog.brands(fromJSON: Data("not json".utf8))) == nil)
 
         print(failures == 0 ? "\nAI Chat: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)

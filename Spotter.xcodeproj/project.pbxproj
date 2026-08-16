@@ -139,6 +139,7 @@
 		AD72C2D37BA4F8FCE7E86070 /* TextReplacementSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EFDA506189C9DCA0F620DB2 /* TextReplacementSettingsView.swift */; };
 		ADAFB70B2B138E3D9C6F10EE /* CalcFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1967625FDA4755E1E418949 /* CalcFormatter.swift */; };
 		AEB7604D67D1D7671F189A7F /* WindowManagementSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 243E445935B0D89932B55D26 /* WindowManagementSettingsView.swift */; };
+		AF7FD2F23A7551D226B68064 /* OpenRouterModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C05FD6E0B2F1E7D0123EE0 /* OpenRouterModelCatalog.swift */; };
 		B045027536A0E515FE689F96 /* EmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6BCD53FEC24E0276B722CEB /* EmojiCatalog.swift */; };
 		B0C094B6F69225388968BF06 /* SelectionToolsResults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCD067CF03771680ED94C60 /* SelectionToolsResults.swift */; };
 		B3E1B073D04A69B1C80330E1 /* NoteSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA6658947F332E55343E683 /* NoteSyncManager.swift */; };
@@ -310,6 +311,7 @@
 		80B34460791F6B79BDE3717A /* UpdateFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateFeed.swift; sourceTree = "<group>"; };
 		80E4DF7799638EECF937F60F /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageModificationTypes.swift; sourceTree = "<group>"; };
+		81C05FD6E0B2F1E7D0123EE0 /* OpenRouterModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterModelCatalog.swift; sourceTree = "<group>"; };
 		8371E36A600160243AD8A686 /* MoleTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoleTypes.swift; sourceTree = "<group>"; };
 		85927C817E199488DB61F16D /* DashboardWidgetsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsPlugin.swift; sourceTree = "<group>"; };
 		86AB7F80FD918C4318C2DB52 /* ChangeCaseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCaseEngine.swift; sourceTree = "<group>"; };
@@ -761,6 +763,7 @@
 				0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */,
 				669FECA0B11D71E765DC0F0D /* NotificationToken.swift */,
 				7B2B1D180CB11167DFD22ECF /* OnboardingState.swift */,
+				81C05FD6E0B2F1E7D0123EE0 /* OpenRouterModelCatalog.swift */,
 				6E9D78AFD2E35C90F7FAB933 /* OpenRouterStore.swift */,
 				2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */,
 				B0159892F08ABA70F62BFBBC /* PaletteMenuTypeahead.swift */,
@@ -1076,6 +1079,7 @@
 				31BAEAEA3C34CE65BF4F0518 /* NotificationToken.swift in Sources */,
 				D772C9006C6B07197B04ECCD /* OnboardingState.swift in Sources */,
 				8500ED4873E0F1311E596B98 /* OnboardingView.swift in Sources */,
+				AF7FD2F23A7551D226B68064 /* OpenRouterModelCatalog.swift in Sources */,
 				5C481321CB0146474462D5F0 /* OpenRouterStore.swift in Sources */,
 				B975478C37367538F86BCED9 /* OverlayScroller.swift in Sources */,
 				2BC8BF35FA60D3DFDF009D2A /* PaletteMenuTypeahead.swift in Sources */,

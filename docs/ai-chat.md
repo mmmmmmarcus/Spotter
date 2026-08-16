@@ -37,9 +37,33 @@ Settings, command, permission and shortcut plumbing without being presented as a
 | `AIChatMarkdownView.swift` | Renders those blocks; inline spans go through SwiftUI's own parser. |
 | `AIChatSettingsView.swift` | Models, prompts, shortcuts and web-search setting for chat, definition and grammar. |
 
-`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift`, `AIChatMarkdown.swift` and
-`AIChatSelectionPrompts.swift` standalone, so all three stay free of AppKit and SwiftUI. The network
-lives in `OpenRouterStore`, never in any pure source.
+`Core/OpenRouterModelCatalog.swift` is Foundation-only and pure too: it turns the `/models` payload
+into the brand → model menus.
+
+`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift`, `AIChatMarkdown.swift`,
+`AIChatSelectionPrompts.swift` and `Core/OpenRouterModelCatalog.swift` standalone, so all four stay
+free of AppKit and SwiftUI. The network lives in `OpenRouterStore`, never in any pure source.
+
+## Choosing a model
+
+Chat, definition and grammar each pick from a two-level menu — brand, then model — rather than a
+typed identifier: OpenRouter publishes hundreds of models across dozens of vendors, which is a list
+to browse, not a string to remember. Opening Settings → System → AI Chat reloads the catalog from
+`https://openrouter.ai/api/v1/models` so the menu is what the provider offers right now; a Reload
+button forces it, and the result is cached for 15 minutes and never persisted, so no stale list
+outlives the app.
+
+`OpenRouterModelCatalog` groups by the id's vendor prefix, strips the brand from the entry's
+`"Anthropic: Claude Sonnet 5"` name, drops models that can't answer in text, orders brands
+alphabetically and each brand's models newest first. The stored value is still the plain model id,
+so existing settings, backups and sync are unchanged. A stored model the live catalog doesn't carry
+— an older pick, or one OpenRouter has withdrawn — stays selected and stays selectable in a
+**Current** section at the top of the menu, so nothing is silently rewritten.
+
+The list is fetched only once a key exists: the key remains the gate, an absent key clears the
+catalog, and the request itself is unauthenticated and carries nothing about this Mac or its
+conversations — it reads the same public catalog anyone can. It rides the same cacheless session as
+every other OpenRouter call.
 
 ## Reply formatting
 

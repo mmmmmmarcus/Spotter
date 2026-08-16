@@ -41,12 +41,21 @@ final class OpenRouterStore: ObservableObject {
         string: "https://openrouter.ai/api/v1/chat/completions")!
     private nonisolated static let keyEndpoint = URL(
         string: "https://openrouter.ai/api/v1/auth/key")!
+    private nonisolated static let modelsEndpoint = URL(
+        string: "https://openrouter.ai/api/v1/models")!
 
     enum Validation: Equatable {
         case unknown
         case checking
         case valid(String)
         case invalid(String)
+    }
+
+    enum CatalogState: Equatable {
+        case idle
+        case loading
+        case ready
+        case failed(String)
     }
 
     @Published private(set) var apiKey: String
@@ -57,6 +66,10 @@ final class OpenRouterStore: ObservableObject {
     /// each search adds a small per-request cost on the same key.
     @Published private(set) var chatWebSearch: Bool
     @Published private(set) var validation: Validation = .unknown
+    /// The published model list behind the Settings brand → model menus. Session-only: never
+    /// persisted, so a stale catalog can't outlive the app.
+    @Published private(set) var catalog: [OpenRouterModelBrand] = []
+    @Published private(set) var catalogState: CatalogState = .idle
 
     private static let keyKey = "openrouter.api-key"
     private static let legacyModelKey = "openrouter.model"
@@ -65,6 +78,8 @@ final class OpenRouterStore: ObservableObject {
     private static let chatModelKey = "openrouter.chat-model"
     private static let chatWebSearchKey = "openrouter.chat-web-search"
     private let defaults = UserDefaults.standard
+    private var catalogTask: Task<Void, Never>?
+    private var catalogFetchedAt: Date?
 
     init() {
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
@@ -90,6 +105,14 @@ final class OpenRouterStore: ObservableObject {
         apiKey = trimmed
         defaults.set(trimmed, forKey: Self.keyKey)
         validation = .unknown
+        // The key is the gate, so losing it also ends the catalog's reason to exist.
+        if trimmed.isEmpty {
+            catalogTask?.cancel()
+            catalogTask = nil
+            catalogFetchedAt = nil
+            catalog = []
+            catalogState = .idle
+        }
     }
 
     func setDefinitionModel(_ newModel: String) {
@@ -160,6 +183,57 @@ final class OpenRouterStore: ObservableObject {
             validation = .invalid("Couldn't reach \(Self.provider) — check your connection.")
         }
     }
+
+    /// Loads the brand → model menu, refreshing whenever Settings opens the AI Chat pane so the list
+    /// is what OpenRouter publishes right now. Reads the public catalog only — no key is sent, and
+    /// nothing about this Mac or its conversations leaves with the request. Still gated on a key
+    /// present: without one the models can't be used, so there is no reason to reach out.
+    func refreshCatalog(force: Bool = false) {
+        guard isReady else { return }
+        if !force, let fetched = catalogFetchedAt, !catalog.isEmpty,
+            Date().timeIntervalSince(fetched) < Self.catalogFreshness
+        { return }
+        guard catalogTask == nil else { return }
+        catalogState = .loading
+        catalogTask = Task { [weak self] in
+            await self?.loadCatalog()
+            self?.catalogTask = nil
+        }
+    }
+
+    private func loadCatalog() async {
+        do {
+            var request = URLRequest(url: Self.modelsEndpoint, timeoutInterval: 20)
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            let (data, response) = try await Self.session.data(for: request)
+            try Task.checkCancellation()
+            // The key can be cleared while the list is in flight; a late catalog must not arrive
+            // for a store that no longer has a reason to hold one.
+            guard isReady else { return }
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                catalogState = .failed("\(Self.provider) couldn't list its models.")
+                return
+            }
+            let brands = try OpenRouterModelCatalog.brands(fromJSON: data)
+            guard !brands.isEmpty else {
+                catalogState = .failed("\(Self.provider) returned no models.")
+                return
+            }
+            catalog = brands
+            catalogFetchedAt = Date()
+            catalogState = .ready
+        } catch is CancellationError {
+            catalogState = .idle
+        } catch {
+            guard isReady else { return }
+            AppLog.error("openrouter", "model catalog failed: \(error.localizedDescription)")
+            catalogState = .failed("Couldn't reach \(Self.provider) — check your connection.")
+        }
+    }
+
+    /// Long enough that reopening Settings doesn't re-fetch, short enough that a day-old app still
+    /// sees today's models.
+    private nonisolated static let catalogFreshness: TimeInterval = 15 * 60
 
     /// One chat completion against the given model, any number of turns. The key is re-checked on both sides of the request: it can be cleared from Settings while a reply is in flight, and a late response must not be surfaced.
     func chat(

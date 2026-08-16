@@ -105,9 +105,10 @@ Never break these without an explicit task to do so.
   `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
-  `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift` and
-  `Plugins/AIChat/AIChatSelectionPrompts.swift` stay Foundation-only and pure for
-  `Tools/ai-chat-test.swift`, `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
+  `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift`,
+  `Plugins/AIChat/AIChatSelectionPrompts.swift` and `Core/OpenRouterModelCatalog.swift` stay
+  Foundation-only and pure for `Tools/ai-chat-test.swift`,
+  `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
   `Plugins/DashboardWidgets/DashboardWeatherEngine.swift`,
   `Plugins/DashboardWidgets/DashboardUptimeEngine.swift` and
   `Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift` stay
@@ -186,7 +187,9 @@ Never break these without an explicit task to do so.
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing
   a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
-  not copy this shape for new networked features without an explicit owner decision.
+  not copy this shape for new networked features without an explicit owner decision. The Settings
+  model menu's catalog read (`/models`) stays behind the same gate — no key, no fetch, and clearing
+  the key drops the list — and stays unauthenticated and free of anything about this Mac.
   `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a
   consent dialog and its saved choice syncs; the manual Check for Updates click is itself the consent for that
   one request. Stable and beta feeds stay channel-isolated, and installs only happen on an explicit
