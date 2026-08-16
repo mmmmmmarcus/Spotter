@@ -215,7 +215,8 @@ final class DashboardWeatherStore: ObservableObject {
 
         let fetched = WeatherSnapshot(
             cityID: city.id, cityName: city.name, temperatureCelsius: current.temperature,
-            weatherCode: current.weatherCode, isDay: current.isDay, fetchedAt: Date())
+            weatherCode: current.weatherCode, isDay: current.isDay, fetchedAt: Date(),
+            lowCelsius: current.lowCelsius, highCelsius: current.highCelsius)
         snapshot = fetched
         if let data = try? JSONEncoder().encode(fetched) {
             try? data.write(to: fileURL, options: .atomic)
@@ -237,10 +238,14 @@ final class DashboardWeatherStore: ObservableObject {
         let data = try await get(url)
         let decoded = try JSONDecoder().decode(ForecastResponse.self, from: data)
         guard decoded.current.temperature2m.isFinite else { throw URLError(.cannotParseResponse) }
+        // The range is a nice-to-have, not the reading: a missing or non-finite daily block leaves the
+        // temperature card without its bar caption rather than failing the whole fetch.
         return CurrentWeather(
             temperature: decoded.current.temperature2m,
             weatherCode: decoded.current.weatherCode,
-            isDay: decoded.current.isDay == 1)
+            isDay: decoded.current.isDay == 1,
+            lowCelsius: decoded.daily?.temperature2mMin.first.flatMap { $0.isFinite ? $0 : nil },
+            highCelsius: decoded.daily?.temperature2mMax.first.flatMap { $0.isFinite ? $0 : nil })
     }
 
     private nonisolated static func geocode(url: URL) async throws -> [WeatherCity] {
@@ -266,6 +271,8 @@ final class DashboardWeatherStore: ObservableObject {
         let temperature: Double
         let weatherCode: Int
         let isDay: Bool
+        let lowCelsius: Double?
+        let highCelsius: Double?
     }
 
     private struct ForecastResponse: Decodable {
@@ -280,7 +287,17 @@ final class DashboardWeatherStore: ObservableObject {
                 case isDay = "is_day"
             }
         }
+        struct Daily: Decodable {
+            let temperature2mMax: [Double]
+            let temperature2mMin: [Double]
+
+            enum CodingKeys: String, CodingKey {
+                case temperature2mMax = "temperature_2m_max"
+                case temperature2mMin = "temperature_2m_min"
+            }
+        }
         let current: Current
+        let daily: Daily?
     }
 
     private struct GeocodingResponse: Decodable {

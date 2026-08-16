@@ -5,9 +5,11 @@ struct DashboardWidgetsView: View {
     @ObservedObject var weather: DashboardWeatherStore
     @ObservedObject var uptime: DashboardUptimeStore
 
-    /// The weather card has no widget-kind flag of its own: consent *is* its enable state, so there
-    /// is no second switch to drift out of sync with the network gate. The city always resolves —
-    /// `WeatherCity.default` stands in until the user picks one — so it never gates the card.
+    /// The weather cards have no widget-kind flag of their own: consent *is* their enable state, so
+    /// there is no second switch to drift out of sync with the network gate. Both the condition and
+    /// the temperature square are drawn from one reading and one request, so they share that single
+    /// switch. The city always resolves — `WeatherCity.default` stands in until the user picks one —
+    /// so it never gates them.
     private var showsWeather: Bool { weather.isEnabled }
 
     /// The uptime card works the same way: consent to count input *is* its enable state.
@@ -22,7 +24,8 @@ struct DashboardWidgetsView: View {
                         clockCard(now: context.date)
                     }
                     if showsWeather {
-                        weatherCard()
+                        conditionCard()
+                        temperatureCard()
                     }
                     if showsUptime {
                         uptimeCard(now: context.date)
@@ -40,33 +43,115 @@ struct DashboardWidgetsView: View {
         }
     }
 
-    /// Square, like the clock: city, the temperature as the headline, then the condition.
-    private func weatherCard() -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(weather.snapshot?.cityName ?? weather.city.name)
-                .font(.caption)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .lineLimit(1)
-            Text(temperatureText)
-                .font(.largeTitle)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            // No floor: the condition may wrap to two lines, and the gap is the first thing that should give.
+    private static let conditionSymbolSize: CGFloat = 32
+    private static let temperatureBarHeight: CGFloat = 5
+    private static let temperatureBarMarker: CGFloat = 9
+
+    /// The one title style every card shares, so the strip reads as one row rather than four
+    /// designs. Uppercased here rather than at each call site — a city name arrives as typed.
+    private func cardTitle(_ text: String) -> some View {
+        Text(text.localizedUppercase)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+    }
+
+    /// The headline every card shares, one step below the title in the same rhythm. The widest
+    /// realistic string is uptime's "23h 59m", which just fits the square's 96-point interior —
+    /// the scale floor is the guard for the outliers rather than the normal case.
+    private func cardHeadline(_ text: String) -> some View {
+        Text(text)
+            .font(.largeTitle)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+    }
+
+    /// The first of the two weather squares, centered rather than ranged left: the city, the symbol
+    /// as the card's whole middle, and the phrase it stands for underneath.
+    private func conditionCard() -> some View {
+        VStack(spacing: 0) {
+            cardTitle(weather.snapshot?.cityName ?? weather.city.name)
+            // No floor on either gap: the phrase may wrap to two lines, and the air is what should give.
             Spacer(minLength: 0)
+            // Monochrome, like every other glyph on the strip — multicolor was the one card that
+            // pulled Apple's own palette in instead of the app's.
             Image(systemName: condition?.symbolName ?? "cloud.fill")
-                .symbolRenderingMode(.multicolor)
-                .font(.title3)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: Self.conditionSymbolSize))
+            Spacer(minLength: 0)
             Text(condition?.description ?? "Updating…")
                 .font(.caption2)
                 .foregroundStyle(Theme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Theme.Spacing.lg)
-        .frame(
-            width: Theme.Size.launcherDashboardHeight,
-            alignment: .topLeading)
+        .frame(width: Theme.Size.launcherDashboardHeight)
         .dashboardCardSurface()
+    }
+
+    /// The second weather square: today's range up top, the current reading as the headline, and the
+    /// scale bar under it placing that reading between freezing and blazing.
+    private func temperatureCard() -> some View {
+        VStack(spacing: 0) {
+            cardTitle(rangeText ?? "Today")
+            Spacer(minLength: 0)
+            cardHeadline(temperatureText)
+            Spacer(minLength: 0)
+            // No reading, no marker — an empty track would still imply a temperature somewhere on it.
+            if let reading = weather.reading {
+                temperatureBar(celsius: reading.temperatureCelsius)
+            }
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(width: Theme.Size.launcherDashboardHeight)
+        .dashboardCardSurface()
+    }
+
+    /// The scale itself: a cold-to-hot ramp with the reading marked on it. The ends and the green
+    /// midpoint come from `DashboardWeatherEngine`, so the stops can't drift from the math that
+    /// places the marker.
+    private func temperatureBar(celsius: Double) -> some View {
+        let position = DashboardWeatherEngine.temperatureBarPosition(celsius: celsius)
+        return GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .blue, location: 0),
+                                .init(
+                                    color: .green,
+                                    location: DashboardWeatherEngine.temperatureBarMiddlePosition),
+                                .init(color: .red, location: 1),
+                            ],
+                            startPoint: .leading, endPoint: .trailing)
+                    )
+                    .frame(height: Self.temperatureBarHeight)
+                    .frame(maxHeight: .infinity)
+                // Deliberately a literal white rather than a theme token: it sits on a track whose
+                // colors are the same in both appearances, so a marker that flipped with the system
+                // would be the part that looked wrong. The ring keeps it legible over the warm middle.
+                Circle()
+                    .fill(.white)
+                    .overlay(Circle().strokeBorder(Color.black.opacity(0.2), lineWidth: 0.5))
+                    .frame(width: Self.temperatureBarMarker, height: Self.temperatureBarMarker)
+                    // Inset by its own width so the marker stays on the track at both extremes.
+                    .offset(x: (geometry.size.width - Self.temperatureBarMarker) * position)
+            }
+        }
+        .frame(height: Self.temperatureBarMarker)
+        // The one child that claims the full interior width, which is what the rest centers against.
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Nil until a reading carrying a daily block lands; the card titles itself "Today" until then.
+    private var rangeText: String? {
+        guard let reading = weather.reading else { return nil }
+        return DashboardWeatherEngine.formattedRange(
+            lowCelsius: reading.lowCelsius, highCelsius: reading.highCelsius, unit: weather.unit)
     }
 
     private var condition: WeatherCondition? {
@@ -87,17 +172,11 @@ struct DashboardWidgetsView: View {
     private func uptimeCard(now: Date) -> some View {
         let snapshot = uptime.snapshot(now: now)
         return VStack(alignment: .leading, spacing: 0) {
-            Text("UPTIME")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Theme.Colors.textSecondary)
+            cardTitle("Uptime")
             // An em dash until the day's first activity, so the card never claims a session it can't date.
-            Text(
+            cardHeadline(
                 snapshot.sessionStart
-                    .map { DashboardUptimeEngine.formattedElapsed(from: $0, to: now) } ?? "—"
-            )
-            .font(.title2)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
+                    .map { DashboardUptimeEngine.formattedElapsed(from: $0, to: now) } ?? "—")
             Spacer(minLength: 0)
             if uptime.needsAccessibility {
                 // Clicks count without the grant, keys can't — offer it rather than showing a zero.
@@ -152,14 +231,8 @@ struct DashboardWidgetsView: View {
     /// without calendar access — the bottom row carries the access state instead of the whole card.
     private func eventCard(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(now.formatted(.dateTime.weekday(.wide)).localizedUppercase)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.red)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(now.formatted(.dateTime.day()))
-                .font(.largeTitle)
-                .lineLimit(1)
+            cardTitle(now.formatted(.dateTime.weekday(.wide)))
+            cardHeadline(now.formatted(.dateTime.day()))
             Spacer(minLength: Theme.Spacing.xs)
             eventFooter(now: now)
         }
@@ -173,7 +246,10 @@ struct DashboardWidgetsView: View {
         switch store.calendarAccess {
         case .fullAccess:
             if let event = store.nextEvent {
-                eventPill(event.title)
+                Text(event.title)
+                    .font(.caption2.weight(.medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Text(eventTime(event, now: now))
                     .font(.caption2)
                     .foregroundStyle(Theme.Colors.textSecondary)
@@ -193,21 +269,6 @@ struct DashboardWidgetsView: View {
         case .restricted:
             footerNote("Calendar restricted")
         }
-    }
-
-    /// The event itself, as a filled row — the one piece of the card that isn't plain text, so the
-    /// date above it reads as the heading rather than as another line of the same block.
-    private func eventPill(_ title: String) -> some View {
-        HStack(spacing: Theme.Spacing.xxs) {
-            Image(systemName: "calendar")
-            Text(title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .font(.caption2.weight(.medium))
-        .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, Theme.Spacing.xxs)
-        .background(Capsule().fill(Theme.Colors.controlSurface))
     }
 
     private func footerNote(_ text: String) -> some View {

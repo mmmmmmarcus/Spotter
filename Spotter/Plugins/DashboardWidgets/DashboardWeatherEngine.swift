@@ -50,6 +50,10 @@ struct WeatherSnapshot: Codable, Equatable, Sendable {
     let weatherCode: Int
     let isDay: Bool
     let fetchedAt: Date
+    /// Today's low and high, in the city's own day. Optional on purpose: a file cached before the
+    /// daily fetch existed still decodes, and the provider may answer without a daily block.
+    var lowCelsius: Double?
+    var highCelsius: Double?
 }
 
 enum DashboardWeatherEngine {
@@ -137,6 +141,37 @@ enum DashboardWeatherEngine {
         return "\(Int(rounded == 0 ? 0 : rounded))°"
     }
 
+    /// Today's low and high for the temperature card's title slot, or nil when the reading predates
+    /// the daily fetch — the card says so rather than printing half a range.
+    static func formattedRange(lowCelsius: Double?, highCelsius: Double?, unit: WeatherUnit)
+        -> String?
+    {
+        guard let lowCelsius, let highCelsius else { return nil }
+        let low = formattedTemperature(celsius: lowCelsius, unit: unit)
+        let high = formattedTemperature(celsius: highCelsius, unit: unit)
+        return "L:\(low) H:\(high)"
+    }
+
+    /// The temperature bar's fixed ends and its green midpoint, in Celsius. An absolute scale rather
+    /// than today's range: the same temperature always sits at the same point, so the marker reads as
+    /// "how hot is it" without the ends having to be read. Defined in Celsius whatever the display
+    /// unit, since the position is a physical fact and converting would move the dot for no reason.
+    static let barMinimumCelsius = -10.0
+    static let barMiddleCelsius = 20.0
+    static let barMaximumCelsius = 40.0
+
+    /// Where a reading sits along the bar, 0 (cold end) to 1 (hot end). Clamped, so a record-breaking
+    /// reading parks the marker at an end instead of sliding off the track.
+    static func temperatureBarPosition(celsius: Double) -> Double {
+        let span = barMaximumCelsius - barMinimumCelsius
+        return min(1, max(0, (celsius - barMinimumCelsius) / span))
+    }
+
+    /// The green stop's location, derived from the same scale so the gradient can't drift from it.
+    static var temperatureBarMiddlePosition: Double {
+        temperatureBarPosition(celsius: barMiddleCelsius)
+    }
+
     static func resolvedUnit(from rawValue: String?) -> WeatherUnit {
         WeatherUnit(rawValue: rawValue ?? "") ?? .celsius
     }
@@ -153,8 +188,13 @@ enum DashboardWeatherEngine {
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "current", value: "temperature_2m,weather_code,is_day"),
+            URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
+            URLQueryItem(name: "forecast_days", value: "1"),
             URLQueryItem(name: "temperature_unit", value: "celsius"),
-            URLQueryItem(name: "timezone", value: "UTC"),
+            // `auto` rather than UTC so "today" is the city's own day — a UTC range would roll over
+            // mid-afternoon in Asia. It is derived from the coordinates already in this URL, so
+            // nothing further about this Mac leaves it.
+            URLQueryItem(name: "timezone", value: "auto"),
         ]
         return components?.url
     }

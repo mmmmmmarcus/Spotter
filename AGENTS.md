@@ -158,10 +158,13 @@ Never break these without an explicit task to do so.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
   rather than inventing a second shape. Selection Tools' Google Translation path follows that
   consent shape; its consent flag and API key are included in the trusted v3 backup/sync snapshot.
-  `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the dashboard weather card
-  ships off, both the forecast fetch and the city search are refused without consent, and the card's
-  enable state *is* consent — never the Mac's location, which Spotter never reads. An unset city
-  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the card; keep
+  `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the dashboard weather cards
+  (condition and temperature — two squares off one reading and one request) ship off, both the
+  forecast fetch and the city search are refused without consent, and their shared
+  enable state *is* consent — never the Mac's location, which Spotter never reads. The forecast
+  request asks for the city's own day (`timezone=auto`), which is derived from the coordinates it
+  already carries; don't widen it to anything the chosen city doesn't already imply. An unset city
+  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the cards; keep
   that default a constant, since deriving one from the locale or time zone would be location
   inference by another name. Its consent flag, city and unit ride in the trusted v3 snapshot.
   `Plugins/DashboardWidgets/DashboardUptimeStore.swift` applies the same shape to a feature that is

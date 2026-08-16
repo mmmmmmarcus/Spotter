@@ -70,14 +70,18 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 
 ### Size (`Theme.Size`)
 
-`panelWidth 750` · `panelHeight 475` · `headerHeight 44` · `bottomBarHeight 52` · `rowIcon 24` ·
+`panelWidth 628` · `panelHeight 475` · `headerHeight 44` · `bottomBarHeight 52` · `rowIcon 24` ·
 `keyCap 18` · `recorderKeyCap 16` · `menuButton 36` · `clipboardListWidth 290` ·
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
 Widgets use `launcherDashboardHeight 116`; every card is a 116-point square, and the
 title-free clock contains an 88-point analog face. A square leaves 96 points of content between its
-`Spacing.lg` paddings — the budget every card's copy has to fit.
+`Spacing.lg` paddings — the budget every card's copy has to fit. `panelWidth` is derived from that
+square rather than set by hand: five cards, the four `Spacing.md` gaps between them and the launcher
+list's inset on each side come to 628, so the full strip fills the palette edge to edge. Resizing a
+card or seating a sixth widget moves the window with it — which is the point, but check the other
+modes still look right at the new width.
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
 
@@ -177,21 +181,36 @@ card fill — no opaque dial — with the second hand and its hub in orange, the
 same tint the Clock widget carries in the Settings sidebar. The face runs its own `TimelineView`
 `.animation` timeline rather than the strip's one-second tick, and `clockHandAngles` carries the
 second's fraction, so the second hand sweeps; driving the whole strip that fast would redraw the
-other three cards for nothing.
-The weather widget is the same square, title-free card: city, the temperature as the headline, then
-a multicolor SF Symbol over the condition phrase. It appears once weather consent is granted — that
-consent is its enable state, so there is no separate widget switch to drift out of sync with the
-network gate; an unset city resolves to `WeatherCity.default` rather than hiding the card. The
-uptime and next-event widgets are squares too. Uptime is led by a `UPTIME` caption, with today's
-elapsed time under it and its tallies on the bottom edge — the same two-block rhythm as weather;
-those tallies are spelled out ("383 keys pressed", "16 mouse clicks") rather than carried by a glyph,
-since a keyboard and a cursor symbol read as controls on a card that isn't clickable.
+other cards for nothing.
 
-The next-event card follows a calendar app's own widget rather than a caption: the weekday in red
-above a `largeTitle` day number, with the next event pinned to the bottom edge as a filled capsule
-(`controlSurface`) carrying a `calendar` glyph and the event title, and its time in `caption2` beneath
-it. That capsule is the card's one non-text element, which is what lets the date read as a heading
-instead of as another line of the same block. The date is formatted from the current instant, not
+Every other card shares one title and one headline style, so the strip reads as a single row rather
+than a set of separate designs: `cardTitle` is an uppercased `caption2` semibold in `textSecondary`,
+`cardHeadline` is a `largeTitle`, and both hold one line, shrinking to fit rather than truncating.
+The widest headline the strip has to seat is uptime's `23h 59m`, which just fits the square's
+96-point interior — the scale floor is there for the outliers, not the normal case. Card glyphs are
+monochrome throughout; the clock's orange second hand and the temperature bar's ramp are the strip's
+only colors, and both are data rather than chrome.
+
+Weather is two squares, not one, and both are centered rather than ranged left. The condition card
+carries the city, the condition symbol as its whole middle, and the phrase underneath. The
+temperature card carries today's `L:26° H:33°` range, the reading as its headline, and a scale bar
+along the bottom: a blue→green→red gradient with a white marker at the current temperature. That
+scale is absolute, not today's range — `barMinimumCelsius` (-10) to `barMaximumCelsius` (40) with
+green pinned at 20 — so the same temperature always sits at the same point and the ends never have
+to be read. Its stops and the marker's position both come from `DashboardWeatherEngine`, so they
+cannot drift apart. The marker is a deliberate literal white rather than an adaptive token: the track
+beneath it looks the same in both appearances, so a marker that flipped with the system would be the
+part that looked wrong. Both cards appear together once weather consent is granted — that consent is
+their enable state, so there is no separate widget switch to drift out of sync with the network gate;
+an unset city resolves to `WeatherCity.default` rather than hiding them.
+
+Uptime and next-event are squares too. Uptime is led by an `Uptime` title, with today's elapsed time
+under it and its tallies on the bottom edge; those tallies are spelled out ("383 keys pressed",
+"16 mouse clicks") rather than carried by a glyph, since a keyboard and a cursor symbol read as
+controls on a card that isn't clickable. The next-event card follows a calendar app's own widget:
+the weekday above a `largeTitle` day number, with the next event pinned to the bottom edge as plain
+text — the title in `caption2` medium, its time in `caption2` secondary beneath. The date is
+formatted from the current instant, not
 from EventKit, so it stays correct while calendar access is off, denied or restricted — those states
 replace only the bottom row, never the whole card. Since the date is already on the card, a same-day
 event shows only its time; a later one keeps its weekday prefix.

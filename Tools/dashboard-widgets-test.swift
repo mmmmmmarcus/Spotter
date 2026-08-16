@@ -141,7 +141,8 @@ struct DashboardWidgetsTests {
             "a city should describe itself by region and country")
         let reading = WeatherSnapshot(
             cityID: guangzhou.id, cityName: guangzhou.name, temperatureCelsius: 28,
-            weatherCode: 95, isDay: true, fetchedAt: Date(timeIntervalSince1970: 0))
+            weatherCode: 95, isDay: true, fetchedAt: Date(timeIntervalSince1970: 0),
+            lowCelsius: 26, highCelsius: 33)
         check(
             DashboardWeatherEngine.isSnapshot(reading, current: guangzhou),
             "a reading should match the city it was fetched for")
@@ -159,11 +160,49 @@ struct DashboardWidgetsTests {
                 longitude: WeatherCity.default.longitude) != nil,
             "the default city should produce a usable forecast URL")
 
+        check(
+            DashboardWeatherEngine.formattedRange(
+                lowCelsius: 26, highCelsius: 33, unit: .celsius) == "L:26° H:33°",
+            "a complete daily block should render as a low and a high")
+        check(
+            DashboardWeatherEngine.formattedRange(
+                lowCelsius: 0, highCelsius: 100, unit: .fahrenheit) == "L:32° H:212°",
+            "the range should convert from the stored Celsius like the reading does")
+        check(
+            DashboardWeatherEngine.formattedRange(
+                lowCelsius: 26, highCelsius: nil, unit: .celsius) == nil
+                && DashboardWeatherEngine.formattedRange(
+                    lowCelsius: nil, highCelsius: 33, unit: .celsius) == nil,
+            "half a range should render as no range at all")
+
+        check(
+            DashboardWeatherEngine.temperatureBarPosition(celsius: -10) == 0
+                && DashboardWeatherEngine.temperatureBarPosition(celsius: 40) == 1,
+            "the bar's ends should sit at the ends of the scale")
+        check(
+            abs(DashboardWeatherEngine.temperatureBarPosition(celsius: 15) - 0.5) < 0.0001,
+            "the scale's own midpoint should land halfway along the bar")
+        check(
+            DashboardWeatherEngine.temperatureBarPosition(celsius: -40) == 0
+                && DashboardWeatherEngine.temperatureBarPosition(celsius: 90) == 1,
+            "a reading beyond the scale should clamp to an end rather than slide off the track")
+        check(
+            abs(DashboardWeatherEngine.temperatureBarMiddlePosition - 0.6) < 0.0001,
+            "green should sit where 20°C falls on the scale")
+
         let forecast = DashboardWeatherEngine.forecastURL(latitude: 23.11667, longitude: 113.25)
         check(
             forecast?.host() == "api.open-meteo.com"
                 && forecast?.absoluteString.contains("latitude=23.11667") == true,
             "the forecast URL should carry the chosen coordinates")
+        check(
+            forecast?.absoluteString.contains("daily=temperature_2m_max,temperature_2m_min") == true
+                || forecast?.absoluteString.contains(
+                    "daily=temperature_2m_max%2Ctemperature_2m_min") == true,
+            "the forecast URL should ask for today's high and low")
+        check(
+            forecast?.absoluteString.contains("timezone=auto") == true,
+            "the daily range should be the city's own day, not UTC's")
         check(
             DashboardWeatherEngine.geocodingURL(query: "  ") == nil,
             "a blank search should never become a request")

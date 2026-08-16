@@ -42,7 +42,11 @@ enum Theme {
     }
 
     enum Size {
-        static let panelWidth: CGFloat = 750
+        /// Cut to the widgets strip: five `launcherDashboardHeight` squares, the four gaps between
+        /// them, and the launcher list's own horizontal inset on both sides. Derived rather than
+        /// written out, so resizing a card or seating a sixth widget moves the window with it.
+        static let panelWidth: CGFloat =
+            5 * launcherDashboardHeight + 4 * Theme.Spacing.md + 2 * Theme.Spacing.md
         static let panelHeight: CGFloat = 475
         /// Fraction of the active screen's visible height between the top of the visible area and the palette's top edge; the window grows downward from this edge (Spotlight-style upper placement).
         static let paletteTopMarginFraction: CGFloat = 0.18
