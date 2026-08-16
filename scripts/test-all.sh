@@ -180,7 +180,8 @@ run_harness() {
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AIChatMarkdown.swift \
-                Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Tools/ai-chat-test.swift \
+                Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
+                Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
                 -o "$output" && "$output"
             ;;
         dashboard-widgets)
