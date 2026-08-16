@@ -60,8 +60,9 @@ struct DashboardWidgetsView: View {
 
     /// Back to its original size once the city title came off the merged card and gave the row back.
     private static let conditionSymbolSize: CGFloat = 32
-    private static let temperatureBarHeight: CGFloat = 7.5
-    private static let temperatureBarMarker: CGFloat = 13.5
+    private static let temperatureBarHeight: CGFloat = 8
+    /// Rides inside the track rather than straddling it, so the bar reads as one object.
+    private static let temperatureBarMarker: CGFloat = 4.5
 
     /// The one title style every card shares, so the strip reads as one row rather than four
     /// designs. Uppercased here rather than at each call site — a city name arrives as typed.
@@ -100,9 +101,13 @@ struct DashboardWidgetsView: View {
                 .symbolRenderingMode(.monochrome)
                 .font(.system(size: Self.conditionSymbolSize))
             Spacer(minLength: 0)
-            // No reading, no marker — an empty track would still imply a temperature somewhere on it.
-            if let reading = weather.reading {
-                temperatureBar(celsius: reading.temperatureCelsius)
+            // The track spans today's low to high, so without them there is nothing to span: no
+            // reading or no daily block means no bar rather than one drawn on a borrowed scale.
+            if let reading = weather.reading, let low = reading.lowCelsius,
+                let high = reading.highCelsius
+            {
+                temperatureBar(
+                    celsius: reading.temperatureCelsius, low: min(low, high), high: max(low, high))
             }
         }
         .padding(Theme.Spacing.lg)
@@ -119,15 +124,16 @@ struct DashboardWidgetsView: View {
         return "\(city), \(temperatureText), \(condition.description)\(range)"
     }
 
-    /// The scale itself: a cold-to-hot ramp with the reading marked on it, flanked by today's low and
-    /// high. The ends and the green midpoint come from `DashboardWeatherEngine`, so the stops can't
-    /// drift from the math that places the marker.
-    @ViewBuilder
-    private func temperatureBar(celsius: Double) -> some View {
+    /// The scale itself: today's range end to end, painted with the slice of the fixed ramp that range
+    /// covers, and captioned by the two temperatures it runs between. Both the slice and the marker
+    /// come from `DashboardWeatherEngine`, so the colours can't drift from the position.
+    private func temperatureBar(celsius: Double, low: Double, high: Double) -> some View {
         HStack(spacing: Theme.Spacing.xs) {
-            if let barEnds { barEndLabel(barEnds.low) }
-            temperatureTrack(celsius: celsius)
-            if let barEnds { barEndLabel(barEnds.high) }
+            barEndLabel(
+                DashboardWeatherEngine.formattedTemperature(celsius: low, unit: weather.unit))
+            temperatureTrack(celsius: celsius, low: low, high: high)
+            barEndLabel(
+                DashboardWeatherEngine.formattedTemperature(celsius: high, unit: weather.unit))
         }
     }
 
@@ -140,8 +146,13 @@ struct DashboardWidgetsView: View {
             .lineLimit(1)
     }
 
-    private func temperatureTrack(celsius: Double) -> some View {
-        let position = DashboardWeatherEngine.temperatureBarPosition(celsius: celsius)
+    private func temperatureTrack(celsius: Double, low: Double, high: Double) -> some View {
+        let position = DashboardWeatherEngine.markerPosition(
+            celsius: celsius, lowCelsius: low, highCelsius: high)
+        // Start and end sit outside the track on purpose — that is what crops the ramp to today's slice.
+        let window = DashboardWeatherEngine.rampWindow(lowCelsius: low, highCelsius: high)
+        // Keeps the marker clear of the capsule's rounded caps, so it never breaks the track's edge.
+        let capInset = (Self.temperatureBarHeight - Self.temperatureBarMarker) / 2
         return GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule()
@@ -151,25 +162,25 @@ struct DashboardWidgetsView: View {
                                 .init(color: .blue, location: 0),
                                 .init(
                                     color: .green,
-                                    location: DashboardWeatherEngine.temperatureBarMiddlePosition),
+                                    location: DashboardWeatherEngine.temperatureRampMiddleLocation),
                                 .init(color: .red, location: 1),
                             ],
-                            startPoint: .leading, endPoint: .trailing)
+                            startPoint: UnitPoint(x: window.start, y: 0.5),
+                            endPoint: UnitPoint(x: window.end, y: 0.5))
                     )
-                    .frame(height: Self.temperatureBarHeight)
-                    .frame(maxHeight: .infinity)
                 // Deliberately a literal white rather than a theme token: it sits on a track whose
                 // colors are the same in both appearances, so a marker that flipped with the system
-                // would be the part that looked wrong. The ring keeps it legible over the warm middle.
+                // would be the part that looked wrong.
                 Circle()
                     .fill(.white)
-                    .overlay(Circle().strokeBorder(Color.black.opacity(0.2), lineWidth: 0.5))
                     .frame(width: Self.temperatureBarMarker, height: Self.temperatureBarMarker)
-                    // Inset by its own width so the marker stays on the track at both extremes.
-                    .offset(x: (geometry.size.width - Self.temperatureBarMarker) * position)
+                    .offset(
+                        x: capInset
+                            + (geometry.size.width - Self.temperatureBarMarker - capInset * 2)
+                            * position)
             }
         }
-        .frame(height: Self.temperatureBarMarker)
+        .frame(height: Self.temperatureBarHeight)
         // Takes whatever the two end captions leave, so the row spans the card's full interior width
         // — which is what the headline and glyph above it center against.
         .frame(maxWidth: .infinity)

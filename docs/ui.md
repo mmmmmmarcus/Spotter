@@ -199,16 +199,22 @@ high. The reading takes `cardTitle`'s style rather than `cardHeadline`'s, so it 
 leads with. The city and the condition's phrase both live in the card's accessibility label rather
 than on it — the card shows one city's weather and Settings names it, so a title spent a row
 repeating something already settled, and at this size the card fits the bar or the phrase, not both.
-The bar is a blue→green→red gradient with a white marker at the current temperature. That
-scale is absolute, not today's range — `barMinimumCelsius` (-10) to `barMaximumCelsius` (40) with
-green pinned at 20 — so the same temperature always sits at the same point and the ends never have
-to be read. Its stops and the marker's position both come from `DashboardWeatherEngine`, so they
-cannot drift apart. The marker is a deliberate literal white rather than an adaptive token: the track
-beneath it looks the same in both appearances, so a marker that flipped with the system would be the
-part that looked wrong. The track is 7.5 points thick with a 13.5-point marker — half again the
-original, which the card can afford now that it isn't one of two. Its captions come as a pair or not
-at all: a reading that predates the daily block leaves the bar uncaptioned rather than labelled at
-one end, which would read as the scale itself starting there. The card appears once weather consent
+The bar runs today's low to today's high, with a white marker where the current reading falls between
+them. Only the *colours* are absolute: `barMinimumCelsius` (-10) blue → `barMiddleCelsius` (20) green
+→ `barMaximumCelsius` (40) red is a fixed ramp, and the track shows the slice of it today's range
+covers — so a 25→33 day runs orange to red rather than starting at blue. That slice is cut by
+`rampWindow`, which returns the gradient's start and end in the track's own unit space; both land
+outside 0…1, which is the mechanism rather than a bug — it pushes the ramp's ends off the track so
+only the slice is on screen, and a day past either end lands wholly beyond the last stop and paints
+flat. Marker and slice both come from `DashboardWeatherEngine`, so the colours cannot drift from the
+position. A narrow range is a nearly flat wash by design; `barRange` widens anything under
+`minimumBarSpanCelsius` (1) around its own middle so a flat forecast still has a direction, and a
+reading that beat its own forecast clamps to an end rather than leaving the track. The marker is a
+deliberate literal white rather than an adaptive token: the track beneath it looks the same in both
+appearances, so a marker that flipped with the system would be the part that looked wrong. The track
+is 8 points thick with a 4.5-point marker riding *inside* it, clear of the capsule's caps, so the bar
+reads as one object. No range, no bar: a reading that predates the daily block drops the row
+entirely rather than borrowing a scale it can't caption. The card appears once weather consent
 is granted — that consent is its enable state, so there is no separate widget switch to drift out of
 sync with the network gate; an unset city resolves to `WeatherCity.default` rather than hiding it.
 

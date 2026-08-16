@@ -154,24 +154,59 @@ enum DashboardWeatherEngine {
         )
     }
 
-    /// The temperature bar's fixed ends and its green midpoint, in Celsius. An absolute scale rather
-    /// than today's range: the same temperature always sits at the same point, so the marker reads as
-    /// "how hot is it" without the ends having to be read. Defined in Celsius whatever the display
-    /// unit, since the position is a physical fact and converting would move the dot for no reason.
+    /// The fixed colour ramp the bar paints with: blue at `barMinimumCelsius`, green at
+    /// `barMiddleCelsius`, red at `barMaximumCelsius`. Only the colours are absolute — the track
+    /// spans today's range and shows the slice of this ramp that range covers, so a warm day starts
+    /// orange rather than blue. Held in Celsius whatever the display unit, since the colour of a
+    /// temperature is a physical fact and converting would repaint the bar for no reason.
     static let barMinimumCelsius = -10.0
     static let barMiddleCelsius = 20.0
     static let barMaximumCelsius = 40.0
 
-    /// Where a reading sits along the bar, 0 (cold end) to 1 (hot end). Clamped, so a record-breaking
-    /// reading parks the marker at an end instead of sliding off the track.
-    static func temperatureBarPosition(celsius: Double) -> Double {
-        let span = barMaximumCelsius - barMinimumCelsius
-        return min(1, max(0, (celsius - barMinimumCelsius) / span))
+    /// A range narrower than this is drawn this wide, centred on itself: a forecast whose low equals
+    /// its high still needs a track with a direction rather than a division by zero.
+    static let minimumBarSpanCelsius = 1.0
+
+    /// Where a temperature falls on the ramp, 0 (blue end) to 1 (red end). Deliberately unclamped: a
+    /// range sitting past either end still needs a direction for `rampWindow` to work from.
+    static func temperatureRampLocation(celsius: Double) -> Double {
+        (celsius - barMinimumCelsius) / (barMaximumCelsius - barMinimumCelsius)
     }
 
     /// The green stop's location, derived from the same scale so the gradient can't drift from it.
-    static var temperatureBarMiddlePosition: Double {
-        temperatureBarPosition(celsius: barMiddleCelsius)
+    static var temperatureRampMiddleLocation: Double {
+        temperatureRampLocation(celsius: barMiddleCelsius)
+    }
+
+    /// Today's range as the bar actually draws it: ordered, and never narrower than
+    /// `minimumBarSpanCelsius`. Only the geometry uses this — the captions still show the real low
+    /// and high, since widening a flat day is a drawing concession, not a forecast.
+    static func barRange(lowCelsius: Double, highCelsius: Double) -> (low: Double, high: Double) {
+        let low = min(lowCelsius, highCelsius)
+        let high = max(lowCelsius, highCelsius)
+        guard high - low < minimumBarSpanCelsius else { return (low, high) }
+        let middle = (low + high) / 2
+        return (middle - minimumBarSpanCelsius / 2, middle + minimumBarSpanCelsius / 2)
+    }
+
+    /// Where the reading sits along today's range, 0 (low) to 1 (high). Clamped, so an afternoon that
+    /// beat its own forecast parks the marker at an end instead of sliding off the track.
+    static func markerPosition(celsius: Double, lowCelsius: Double, highCelsius: Double) -> Double {
+        let range = barRange(lowCelsius: lowCelsius, highCelsius: highCelsius)
+        return min(1, max(0, (celsius - range.low) / (range.high - range.low)))
+    }
+
+    /// The gradient's start and end in the track's own unit space, placed so the visible track shows
+    /// exactly the ramp slice today's range covers. Both land outside 0...1 whenever the day covers
+    /// less than the whole ramp, and that is the mechanism rather than a bug: it pushes the ramp's own
+    /// ends off the track so only the slice between them is on screen. A range past either end of the
+    /// ramp puts the whole track beyond the last stop, which paints it that end's flat colour.
+    static func rampWindow(lowCelsius: Double, highCelsius: Double) -> (start: Double, end: Double) {
+        let range = barRange(lowCelsius: lowCelsius, highCelsius: highCelsius)
+        let low = temperatureRampLocation(celsius: range.low)
+        // Never zero: `barRange` guarantees the span, so this can't divide by zero.
+        let span = temperatureRampLocation(celsius: range.high) - low
+        return (-low / span, (1 - low) / span)
     }
 
     static func resolvedUnit(from rawValue: String?) -> WeatherUnit {

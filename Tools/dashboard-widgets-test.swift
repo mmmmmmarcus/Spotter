@@ -178,19 +178,74 @@ struct DashboardWidgetsTests {
             "half a range should caption neither end rather than one")
 
         check(
-            DashboardWeatherEngine.temperatureBarPosition(celsius: -10) == 0
-                && DashboardWeatherEngine.temperatureBarPosition(celsius: 40) == 1,
-            "the bar's ends should sit at the ends of the scale")
+            DashboardWeatherEngine.temperatureRampLocation(celsius: -10) == 0
+                && DashboardWeatherEngine.temperatureRampLocation(celsius: 40) == 1,
+            "the ramp's ends should sit at the ends of the colour scale")
         check(
-            abs(DashboardWeatherEngine.temperatureBarPosition(celsius: 15) - 0.5) < 0.0001,
-            "the scale's own midpoint should land halfway along the bar")
+            abs(DashboardWeatherEngine.temperatureRampMiddleLocation - 0.6) < 0.0001,
+            "green should sit where 20°C falls on the ramp")
         check(
-            DashboardWeatherEngine.temperatureBarPosition(celsius: -40) == 0
-                && DashboardWeatherEngine.temperatureBarPosition(celsius: 90) == 1,
-            "a reading beyond the scale should clamp to an end rather than slide off the track")
+            DashboardWeatherEngine.temperatureRampLocation(celsius: 90) > 1
+                && DashboardWeatherEngine.temperatureRampLocation(celsius: -40) < 0,
+            "the ramp location stays unclamped, so a range past an end still has a direction")
+
         check(
-            abs(DashboardWeatherEngine.temperatureBarMiddlePosition - 0.6) < 0.0001,
-            "green should sit where 20°C falls on the scale")
+            DashboardWeatherEngine.markerPosition(celsius: 25, lowCelsius: 25, highCelsius: 33) == 0
+                && DashboardWeatherEngine.markerPosition(
+                    celsius: 33, lowCelsius: 25, highCelsius: 33) == 1,
+            "the marker should sit at the ends of today's own range, not the ramp's")
+        check(
+            abs(
+                DashboardWeatherEngine.markerPosition(
+                    celsius: 29, lowCelsius: 25, highCelsius: 33) - 0.5) < 0.0001,
+            "the middle of today's range should land halfway along the track")
+        check(
+            DashboardWeatherEngine.markerPosition(celsius: 36, lowCelsius: 25, highCelsius: 33) == 1
+                && DashboardWeatherEngine.markerPosition(
+                    celsius: 20, lowCelsius: 25, highCelsius: 33) == 0,
+            "a reading that beat its own forecast should clamp to an end, not leave the track")
+        check(
+            DashboardWeatherEngine.markerPosition(celsius: 30, lowCelsius: 30, highCelsius: 30)
+                == 0.5,
+            "a flat forecast should centre the marker rather than divide by zero")
+
+        let flat = DashboardWeatherEngine.barRange(lowCelsius: 30, highCelsius: 30)
+        check(
+            flat.high - flat.low == DashboardWeatherEngine.minimumBarSpanCelsius
+                && abs((flat.low + flat.high) / 2 - 30) < 0.0001,
+            "a range narrower than the floor should widen around its own middle")
+        let reversed = DashboardWeatherEngine.barRange(lowCelsius: 33, highCelsius: 25)
+        check(
+            reversed.low == 25 && reversed.high == 33,
+            "a range arriving the wrong way round should be ordered before it is drawn")
+
+        // The window maps the track's 0...1 onto exactly the ramp slice the day covers: solving the
+        // gradient at each end must give back the ramp locations of today's low and high.
+        let window = DashboardWeatherEngine.rampWindow(lowCelsius: 25, highCelsius: 33)
+        let atStart = window.start
+        let atEnd = window.end
+        func rampLocation(atTrack x: Double) -> Double { (x - atStart) / (atEnd - atStart) }
+        check(
+            abs(
+                rampLocation(atTrack: 0)
+                    - DashboardWeatherEngine.temperatureRampLocation(celsius: 25)) < 0.0001,
+            "the track's left edge should paint the colour of today's low")
+        check(
+            abs(
+                rampLocation(atTrack: 1)
+                    - DashboardWeatherEngine.temperatureRampLocation(celsius: 33)) < 0.0001,
+            "the track's right edge should paint the colour of today's high")
+        check(
+            rampLocation(atTrack: 0) > DashboardWeatherEngine.temperatureRampMiddleLocation,
+            "a warm day should start past green rather than at the ramp's blue end")
+        // Both ends beyond the ramp's hot stop, which paints the whole track that flat colour.
+        let scorching = DashboardWeatherEngine.rampWindow(lowCelsius: 42, highCelsius: 46)
+        func scorchingLocation(atTrack x: Double) -> Double {
+            (x - scorching.start) / (scorching.end - scorching.start)
+        }
+        check(
+            scorchingLocation(atTrack: 0) > 1 && scorchingLocation(atTrack: 1) > 1,
+            "a day past the ramp's hot end should sit entirely beyond it, painting a flat red")
 
         let forecast = DashboardWeatherEngine.forecastURL(latitude: 23.11667, longitude: 113.25)
         check(
