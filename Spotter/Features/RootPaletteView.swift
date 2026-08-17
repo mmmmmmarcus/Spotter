@@ -98,8 +98,10 @@ struct RootPaletteView: View {
         guard vm.mode == .launcher else { return [] }
         return LauncherFallback.suggestions(for: vm.query)
     }
+    /// Tasks are a resting-state surface, not a search result: typing a query is asking for something
+    /// else, so the rows step aside rather than sitting above every match.
     private var launcherTaskCount: Int {
-        vm.mode == .launcher ? backgroundTasks.tasks.count : 0
+        vm.mode == .launcher && isQueryEmpty ? backgroundTasks.tasks.count : 0
     }
 
     private var resultCount: Int {
@@ -132,7 +134,7 @@ struct RootPaletteView: View {
         return inlineResult
     }
     private var selectedBackgroundTask: BackgroundTaskItem? {
-        guard vm.mode == .launcher, backgroundTasks.tasks.indices.contains(selection) else {
+        guard selection < launcherTaskCount, backgroundTasks.tasks.indices.contains(selection) else {
             return nil
         }
         return backgroundTasks.tasks[selection]
@@ -243,7 +245,7 @@ struct RootPaletteView: View {
     var body: some View {
         // Filter once per render for the active mode only, so the matcher/search doesn't run several times per render (rare event handlers use the computed properties above).
         let apps = vm.mode == .launcher ? appResults : []
-        let tasks = vm.mode == .launcher ? backgroundTasks.tasks : []
+        let tasks = vm.mode == .launcher && isQueryEmpty ? backgroundTasks.tasks : []
         let clips = vm.mode == .clipboard ? clipResults : []
         let hist = vm.mode == .calculatorHistory ? histResults : []
         let emojiSections = vm.mode == .emoji ? emojiSections : []
@@ -282,7 +284,7 @@ struct RootPaletteView: View {
         let pillLabel = actionPillLabel(
             selectedTask: selectedTask, selectedApp: selectedApp, selectedPlugin: selectedPlugin,
             selectedFallback: selectedFallback, inlineActionTitle: inlineActionTitle)
-        let showActionGroup = selectedTask.map(\.isDismissible)
+        let showActionGroup = selectedTask.map { $0.isDismissible || backgroundTasks.canOpen(id: $0.id) }
             ?? (((count > 0 || vm.mode == .aiChat)
                 && !(inlineSelected && inlineActionTitle == nil))
                 || (vm.mode == .updates && updatePrimaryActionTitle != nil))
@@ -989,7 +991,10 @@ struct RootPaletteView: View {
         case .calculatorHistory:
             return "Copy Answer"
         case .launcher:
-            if selectedTask?.isDismissible == true { return "Dismiss" }
+            if let selectedTask {
+                if selectedTask.isDismissible { return "Dismiss" }
+                if backgroundTasks.canOpen(id: selectedTask.id) { return "Open" }
+            }
             if let inlineActionTitle { return inlineActionTitle }
             if let selectedFallback { return selectedFallback.action.title }
             switch selectedApp?.kind {
@@ -1168,7 +1173,8 @@ struct RootPaletteView: View {
         switch vm.mode {
         case .launcher:
             if let task = selectedBackgroundTask {
-                backgroundTasks.dismiss(id: task.id)
+                // Running: jump to the surface doing the work. Finished: the only action is Dismiss.
+                if !backgroundTasks.open(id: task.id) { backgroundTasks.dismiss(id: task.id) }
                 return
             }
             if let inline = selectedInlineResult {

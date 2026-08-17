@@ -337,7 +337,8 @@ AI Chat is the asynchronous selected-text surface for definition and grammar act
 the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
 shared composer for follow-ups. Its footer exposes the two draft destinations side by side: Tab for
 Spotter's OpenRouter chat and Shift-Tab for ChatGPT on the web. Selection Tools uses the shared
-plugin list for browser-search failures and its fixed original → Chinese → English translation rows.
+plugin list for browser-search failures and for its original → one-row-per-target translation rows,
+which are the one place a palette row carries no title line limit.
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the
@@ -349,7 +350,13 @@ the window control, with only notes-list and New Note actions at the right.
 The list appears as an inset material card over the editor, temporarily grows the window vertically,
 and uses selection-over-hover precedence. The overlay-scrolling `NSTextView` presents live Markdown
 and handles common formatting shortcuts, while the shared window owner grows the single-note
-workspace from three visible editor lines to twenty before scrolling. Notes has no separate title
+workspace from three visible editor lines to twenty before scrolling. Inline spans are styled through
+the text storage's attributes, so a heading's line box and caret grow with it — temporary layout-manager
+attributes are drawing-only and would leave both at body height. A block's fill is instead painted
+behind the text by `NoteLayoutManager`: a
+`controlSurface` panel at `card` radius behind a fenced code block, a 2-point `border` bar beside a
+blockquote, and a `separator` hairline across a horizontal rule. Those are the same tokens AI Chat's
+rendered replies use, so a code block reads the same in both surfaces. Notes has no separate title
 input, formatting buttons, preview mode or bottom status row; persistence remains automatic. Height
 changes use short live-frame interpolation from the anchored top edge so SwiftUI redraws the fixed
 panel radius throughout instead of letting AppKit bitmap-scale the rounded surface.

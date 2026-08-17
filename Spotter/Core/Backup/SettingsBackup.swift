@@ -61,7 +61,9 @@ struct SettingsBackup: Codable, Sendable {
         var openRouterChatModel: String?
         var openRouterChatWebSearch: Bool?
         var googleTranslationAPIKey: String?
+        /// Decode-only: the separate translation consent toggle is gone, the API key is the gate.
         var googleTranslationEnabled: Bool?
+        var googleTranslationTargets: [String]?
         var updateAutoCheckEnabled: Bool?
         var dashboardWidgets: DashboardWidgets?
     }
@@ -210,7 +212,7 @@ extension SettingsBackup {
             openRouterChatModel: core.openRouter.chatModel,
             openRouterChatWebSearch: core.openRouter.chatWebSearch,
             googleTranslationAPIKey: core.selectionTools.apiKey,
-            googleTranslationEnabled: core.selectionTools.isTranslationEnabled,
+            googleTranslationTargets: core.selectionTools.targetCodes,
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
             dashboardWidgets: SettingsData.DashboardWidgets(
                 enabledWidgets: dashboard.enabledWidgets.map(\DashboardWidgetKind.rawValue).sorted(),
@@ -582,8 +584,8 @@ extension SettingsBackup {
             core.selectionTools.setAPIKey("")
             count += 1
         }
-        if let enabled = s.googleTranslationEnabled {
-            core.selectionTools.setTranslationEnabled(enabled)
+        if let targets = s.googleTranslationTargets {
+            core.selectionTools.setTargets(targets)
             count += 1
         }
         if let enabled = s.updateAutoCheckEnabled {

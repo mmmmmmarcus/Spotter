@@ -84,8 +84,8 @@ imperatively from AppKit.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
-  Selection Tools uses this route for browser-search failures and its three-row Google translation
-  result. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
+  Selection Tools uses this route for browser-search failures and for its Google translation result,
+  one row per configured target language. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
 - **Launcher dashboard** — the registered system feature that owns `launcherDashboard` contributes one
   non-selectable view above the empty-query launcher sections. `RootPaletteView` keeps the dashboard
   inside the palette's existing scroll view and selection model; the plugin owns only its local data

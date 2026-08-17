@@ -4,12 +4,11 @@ struct SelectionToolsSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var selectionTools = AppCore.shared.selectionTools
     @State private var apiKeyDraft = AppCore.shared.selectionTools.apiKey
-    @State private var askingConsent = false
 
     var body: some View {
         SettingsPane(
             title: "Selection Tools",
-            subtitle: "Search selected text or translate it into Chinese and English."
+            subtitle: "Search selected text or translate it into the languages you choose."
         ) {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
@@ -29,43 +28,24 @@ struct SelectionToolsSettingsView: View {
                 }
             }
 
-            if selectionTools.isTranslationEnabled && selectionTools.apiKey.isEmpty {
+            if selectionTools.apiKey.isEmpty {
                 SettingsCallout(
                     title: "Google Translate needs an API key.",
                     message:
-                        "Create a Google Cloud project, enable Cloud Translation Basic, then paste its API key below.",
+                        "Create a Google Cloud project, enable Cloud Translation Basic, then paste its "
+                        + "API key below. Without a key Spotter sends nothing to Google and Translate "
+                        + "Selected Text stays unavailable.",
                     systemImage: "key", tint: .orange)
             }
 
             SettingsCard(header: "Google Translate") {
                 SettingsRow(
-                    title: "Cloud Translation Basic",
-                    subtitle: translationStatus,
-                    systemImage: "translate", tint: .teal
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { selectionTools.isTranslationEnabled },
-                            set: { wantsOn in
-                                if wantsOn {
-                                    askingConsent = true
-                                } else {
-                                    selectionTools.setTranslationEnabled(false)
-                                }
-                            })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(!plugins.isEnabled(.selectionTools))
-                }
-
-                SettingsDivider()
-                SettingsRow(
                     title: "API Key",
-                    subtitle: "Stored in bundle-scoped preferences and included in trusted sync or backup files.",
-                    systemImage: "key", tint: .secondary
+                    subtitle:
+                        "Each translation sends the selected text and this key to Google Cloud "
+                        + "Translation Basic — one billable request per target language. Stored in "
+                        + "bundle-scoped preferences and included in trusted sync or backup files.",
+                    systemImage: "key", tint: .teal
                 ) {
                     SecureField("Google Cloud API key", text: $apiKeyDraft)
                         .textFieldStyle(.roundedBorder)
@@ -75,20 +55,72 @@ struct SelectionToolsSettingsView: View {
                         .onChange(of: apiKeyDraft) { selectionTools.setAPIKey(apiKeyDraft) }
                 }
 
-                if selectionTools.isTranslationEnabled {
-                    SettingsDivider()
-                    SettingsRow(
-                        title: "Connection",
-                        subtitle: validationStatus,
-                        systemImage: "network", tint: .secondary
-                    ) {
-                        Button("Test API Key") {
-                            Task { await selectionTools.validateAPIKey() }
-                        }
-                        .disabled(
-                            selectionTools.apiKey.isEmpty
-                                || selectionTools.validation == .checking)
+                SettingsDivider()
+                SettingsRow(
+                    title: "Connection",
+                    subtitle: validationStatus,
+                    systemImage: "network", tint: .secondary
+                ) {
+                    Button("Test API Key") {
+                        Task { await selectionTools.validateAPIKey() }
                     }
+                    .disabled(
+                        selectionTools.apiKey.isEmpty || selectionTools.validation == .checking)
+                }
+
+                SettingsDivider()
+                SettingsRow(
+                    title: "Google Cloud setup",
+                    subtitle: "Enable Cloud Translation and create a key for your project.",
+                    systemImage: "arrow.up.right.square", tint: .secondary
+                ) {
+                    Link("Open Guide", destination: SelectionToolsManager.providerURL)
+                }
+            }
+
+            SettingsCard(header: "Translate Into") {
+                if selectionTools.targets.isEmpty {
+                    SettingsRow(
+                        title: "No target languages",
+                        subtitle: "Add one below — without a target there is nothing to translate into.",
+                        systemImage: "exclamationmark.triangle", tint: .orange
+                    ) {
+                        EmptyView()
+                    }
+                } else {
+                    ForEach(Array(selectionTools.targets.enumerated()), id: \.element.id) {
+                        index, language in
+                        if index > 0 { SettingsDivider() }
+                        SettingsRow(
+                            title: language.name,
+                            subtitle:
+                                "Skipped when the selection is already written in \(language.name).",
+                            systemImage: "character.book.closed", tint: .teal
+                        ) {
+                            Button(role: .destructive) {
+                                selectionTools.removeTarget(language.code)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove \(language.name)")
+                        }
+                    }
+                }
+
+                SettingsDivider()
+                SettingsRow(
+                    title: "Add a Language",
+                    subtitle: "Every target gets its own row in the translation results.",
+                    systemImage: "plus.circle", tint: .secondary
+                ) {
+                    Menu("Add") {
+                        ForEach(selectionTools.availableTargets) { language in
+                            Button(language.name) { selectionTools.addTarget(language.code) }
+                        }
+                    }
+                    .frame(width: 120)
+                    .disabled(selectionTools.availableTargets.isEmpty)
                 }
             }
 
@@ -110,24 +142,9 @@ struct SelectionToolsSettingsView: View {
                 }
             }
         }
-        .sheet(isPresented: $askingConsent) {
-            GoogleTranslationConsentSheet(
-                onCancel: { askingConsent = false },
-                onAccept: {
-                    askingConsent = false
-                    selectionTools.setTranslationEnabled(true)
-                })
-        }
         .onChange(of: selectionTools.apiKey) {
             if selectionTools.apiKey != apiKeyDraft { apiKeyDraft = selectionTools.apiKey }
         }
-    }
-
-    private var translationStatus: String {
-        if selectionTools.isTranslationEnabled {
-            return "On · selected text is sent on demand for Chinese and English translation."
-        }
-        return "Off · no selected text is sent to Google."
     }
 
     private var validationStatus: String {
@@ -136,49 +153,5 @@ struct SelectionToolsSettingsView: View {
         case .checking: "Testing Google Cloud Translation…"
         case .valid(let message), .invalid(let message): message
         }
-    }
-}
-
-private struct GoogleTranslationConsentSheet: View {
-    let onCancel: () -> Void
-    let onAccept: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            HStack(spacing: Theme.Spacing.lg) {
-                Image(systemName: "translate")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(.teal)
-                Text("Turn on Google Translate?")
-                    .font(.headline)
-            }
-
-            Text(
-                "Each time you run Translate Selected Text, Spotter sends the selected text and your "
-                    + "API key to Google Cloud Translation Basic. It makes two requests—one for "
-                    + "Simplified Chinese and one for English—using your project's billing and quota. "
-                    + "Spotter does not cache the text or translations."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: Theme.Spacing.lg) {
-                Link(destination: SelectionToolsManager.providerURL) {
-                    HStack(spacing: Theme.Spacing.xs) {
-                        Text("Google Cloud setup")
-                        Image(systemName: "arrow.up.right.square")
-                    }
-                    .font(.callout)
-                }
-                Spacer()
-                Button("Not Now", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                Button("Enable", action: onAccept)
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(Theme.Spacing.xxl)
-        .frame(width: 440)
     }
 }

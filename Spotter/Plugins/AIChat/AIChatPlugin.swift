@@ -135,6 +135,13 @@ extension AppCore {
         showPalette(mode: .aiChat)
     }
 
+    /// Return on a running "Asking Spotter AI" row: back into the conversation that is waiting.
+    func openAIChat(sessionID: UUID) {
+        aiChat.switchTo(sessionID)
+        palette.prepare(mode: .aiChat)
+        showPalette(mode: .aiChat)
+    }
+
     func startAIChat(prompt rawPrompt: String) {
         aiChat.startNewSession()
         palette.mode = .aiChat

@@ -198,6 +198,8 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
 
     var hasOpenWindows: Bool { !windows.isEmpty }
 
+    func isShowing(id: String) -> Bool { windows[id] != nil }
+
     /// Returns `true` when a new window was created, `false` when an existing one was re-raised.
     @discardableResult
     func show<Content: View>(

@@ -320,16 +320,25 @@ final class AppCore: ObservableObject {
             self?.backgroundTasks.discard(id: taskID)
         }
 
-        aiChat.onRequestStarted = { [weak self] sessionTitle in
-            self?.backgroundTasks.begin(
+        aiChat.onRequestStarted = { [weak self] sessionID, sessionTitle in
+            guard let self else { return UUID() }
+            return self.backgroundTasks.begin(
                 title: "Asking Spotter AI", detail: "Waiting for \(sessionTitle)…",
-                systemImage: "sparkles") ?? UUID()
+                systemImage: "sparkles",
+                onOpen: { [weak self] in self?.openAIChat(sessionID: sessionID) })
         }
-        aiChat.onRequestFinished = { [weak self] taskID, succeeded, detail in
+        aiChat.onRequestFinished = { [weak self] taskID, sessionID, succeeded, detail in
+            guard let self else { return }
+            // The row exists to carry a reply the user walked away from. Landing in front of them,
+            // in that very conversation, is the reply being read — there is nothing to come back to.
+            if isPaletteShowing, palette.mode == .aiChat, aiChat.currentID == sessionID {
+                backgroundTasks.discard(id: taskID)
+                return
+            }
             if succeeded {
-                self?.backgroundTasks.complete(id: taskID, detail: detail)
+                backgroundTasks.complete(id: taskID, detail: detail)
             } else {
-                self?.backgroundTasks.fail(id: taskID, detail: detail)
+                backgroundTasks.fail(id: taskID, detail: detail)
             }
         }
         aiChat.onRequestCancelled = { [weak self] taskID in
@@ -531,6 +540,10 @@ final class AppCore: ObservableObject {
 
     func closePluginWindow(id: String) {
         auxWindows.close(id: "plugin." + id)
+    }
+
+    func isPluginWindowShowing(id: String) -> Bool {
+        auxWindows.isShowing(id: "plugin." + id)
     }
 
     func resizePluginWindow(id: String, height: CGFloat, animated: Bool = true) {

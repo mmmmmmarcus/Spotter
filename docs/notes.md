@@ -10,8 +10,11 @@ sync replicates each Note and deletion through the user's private Apple CloudKit
 
 The plugin registers two launcher commands and two independently bindable global shortcut actions:
 
-- **Open Notes** focuses the last selected note.
-- **New Note** creates an empty note and focuses it immediately.
+- **Open Notes** focuses the last selected note, and is a toggle: pressing it again closes the
+  window. The window floats over everything, so the shortcut that summoned it is the obvious way to
+  put it away.
+- **New Note** creates an empty note and focuses it immediately. It always opens, never toggles,
+  since it has a new note to show.
 
 Both routes call `AppCore.openNotes`, which guards plugin enablement, dismisses the launcher when
 needed and opens the shared `AuxWindowController` workspace. The translucent window opts into
@@ -19,12 +22,19 @@ resizing, `.floating` level and all-Spaces visibility, but the plugin never crea
 `NSWindow`. The native window backdrop stays clear while its host neutralizes the title-bar safe-area
 inset, leaving the clipped Note material as the only rounded surface. The surface and toolbar extend
 through one seamless title bar, with the lone close button directly left of the centered note title
-in the same native-height row; minimize and zoom controls are hidden. The workspace opens as a
+in the same native-height row; minimize and zoom controls are hidden. Nothing separates that row from
+the editor — the window is one continuous surface, so a rule under the title would be the only hard
+edge on it. An empty note shows the current date and time in place of a prompt to start writing: it
+is what most notes open with anyway. The workspace opens as a
 440-point-wide editor with four matching 20-point continuous corners.
 Its centered toolbar title is derived from the selected note's first line; the right side contains
 only the notes-list and New Note actions. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting
-a row returns to the single-note editor. The shared window owner keeps the top edge anchored while the
+a row returns to the single-note editor. The toolbar row is a sibling *above* the animated container
+holding the editor and that card, never inside it: within it, toggling the list ran the title and its
+buttons through the same animated relayout as the list and they visibly drifted. The title is also
+centred against the full toolbar width rather than its own measured width, so nothing beside it can
+re-centre it. The shared window owner keeps the top edge anchored while the
 editor grows from three visible lines to a maximum of twenty, after which the native overlay scroller
 takes over. Programmatic height changes interpolate real window frames from the anchored top edge
 instead of asking AppKit to scale a cached window image, so the window does not jump and its corner
@@ -87,11 +97,52 @@ so it exercises local Notes and pure sync tests without contacting iCloud.
 ## Editor
 
 `NoteMarkdownEditor` wraps one native `NSTextView` with overlay scrolling, undo and Find support.
-The persisted source is ordinary Markdown. Temporary TextKit attributes provide live first-line
-title, heading, bold, italic, inline-code, link, list and completed-task presentation without changing
-the source string. Syntax markers collapse when the caret is outside their span, and a leading `- `
-is rendered as a bullet. Return continues bulleted, numbered and checklist items; Return on an empty
-item exits the list.
+The persisted source is ordinary Markdown.
+
+**Styling lives in the text storage's attributes, never in `NSLayoutManager` temporary attributes.**
+Temporary attributes are drawing-only — a temporary largeTitle font leaves the line fragment at the
+body's 16 points while painting 26-point glyphs, so headings rendered big with a body-height line box
+and a body-height caret. Storage attributes are not characters: `textView.string`, and therefore
+everything persisted, is still exactly the Markdown the user typed. Each pass resets the whole
+document to the base font and label color, then re-applies first-line title, heading, bold, italic,
+strikethrough, inline-code, link, list and completed-task presentation. Syntax markers collapse when
+the caret is outside their span — and now genuinely collapse, taking no width rather than being drawn
+small — and a leading `- ` is rendered as a bullet.
+
+Headings carry a real hierarchy that the line box follows: `#` is largeTitle (a 32-point line), `##`
+title1 (26), `###` title3 (20, only just above the body's 16), and deeper levels take weight instead
+of more size. The regex allows an empty body, so the line and caret grow the moment the marker and
+its space are typed, before any text follows.
+
+A `- [ ] ` or `- [x] ` marker renders as a real checkbox. The syntax either side of the state
+character is collapsed and the state character itself is kerned out to a square, which
+`NoteLayoutManager` draws a rounded box into — filled with a checkmark in the accent color when done.
+Clicking the box toggles it through `shouldChangeText`, so the change is undoable and the source
+stays `[ ]`/`[x]`. Unlike every other marker the box never hides while the caret is on its line: it is
+a control, not decoration.
+
+Three input rules fire from `shouldChangeTextIn`, each keyed to one typed character:
+
+- **Return** continues bulleted, numbered and checklist items; Return on an empty item exits the list.
+- **Space** after a bare `[]` becomes `- [ ] `, the one list marker Markdown makes awkward to type.
+  It works at any indentation and replaces an existing bullet rather than nesting inside it.
+- **`=`** after an arithmetic expression appends the answer, so `129+92=` finishes itself.
+  `NoteEngine.arithmeticExpression` finds the expression and stays pure; the editor evaluates it
+  through `CalcEngine`, which keeps arithmetic in its single owner. A list or numbered marker is
+  stripped first, since `-` and `.` are also operators, and digits glued to a word (`rev2+3`) are an
+  identifier rather than a sum. Typing `=` after anything else still just types an `=`.
+
+Block constructs are found by `NoteEngine.blockSpans`, a pure line scan returning UTF-16 ranges for
+fenced code, blockquotes, horizontal rules and pipe tables. A fenced block shadows everything inside
+it, so a rule, table or `# ` written in an example stays literal text and its `- ` keeps its dash
+rather than becoming a bullet. Code and table lines are set monospaced — a table's own pipes are what
+align its columns — a quote is indented and secondary, and a rule's dashes are hidden while the caret
+is elsewhere.
+
+The fills those blocks imply are *drawn*, not inserted: `NoteLayoutManager` overrides background
+drawing to paint the code panel, the quote bar and the rule hairline behind the text. That is the
+whole reason the editor builds its TextKit 1 stack by hand. Nothing about it reaches the note's
+source string, so the file on disk stays the Markdown the user typed.
 
 The minimal toolbar only exposes New Note and the notes-list toggle. Formatting stays in the
 writing flow: Command-B applies bold, Command-I applies italic and Command-K inserts a link, while

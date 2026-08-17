@@ -39,6 +39,8 @@ enum Theme {
         static let recorderKeyCap: CGFloat = 4
         /// The user chat bubble — rounder than a row, iMessage-adjacent.
         static let chatBubble: CGFloat = 14
+        /// A note's todo box. Small enough that anything rounder reads as a circle, not a checkbox.
+        static let noteCheckbox: CGFloat = 4
     }
 
     enum Size {

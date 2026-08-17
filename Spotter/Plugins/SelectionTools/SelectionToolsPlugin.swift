@@ -46,7 +46,7 @@ enum SelectionToolsPlugin {
             metadata: PluginMetadata(
                 id: .selectionTools,
                 name: "Selection Tools",
-                summary: "Search selected text or translate it into Chinese and English.",
+                summary: "Search selected text or translate it into the languages you choose.",
                 systemImage: "selection.pin.in.out",
                 tint: .teal),
             defaultEnabled: true,
@@ -134,9 +134,7 @@ extension AppCore {
         guard plugins.isEnabled(.selectionTools) else { return }
         guard selectionTools.isTranslationReady else {
             showSelectionTranslationFailure(
-                selectionTools.isTranslationEnabled
-                    ? GoogleTranslationError.missingAPIKey.localizedDescription
-                    : GoogleTranslationError.disabled.localizedDescription)
+                GoogleTranslationError.missingAPIKey.localizedDescription)
             return
         }
         Task { @MainActor [weak self] in
@@ -149,9 +147,7 @@ extension AppCore {
         guard plugins.isEnabled(.selectionTools) else { return }
         guard selectionTools.isTranslationReady else {
             showSelectionTranslationFailure(
-                selectionTools.isTranslationEnabled
-                    ? GoogleTranslationError.missingAPIKey.localizedDescription
-                    : GoogleTranslationError.disabled.localizedDescription)
+                GoogleTranslationError.missingAPIKey.localizedDescription)
             return
         }
         guard palette.mode == .launcher else {

@@ -7,6 +7,7 @@ struct NoteView: View {
     @State private var query = ""
     @State private var showsNoteList = false
     @State private var editorHeight: CGFloat
+    @State private var placeholderStamp = Date()
     @FocusState private var searchIsFocused: Bool
 
     init(store: NoteStore, resizeHeight: @escaping (CGFloat) -> Void) {
@@ -20,20 +21,32 @@ struct NoteView: View {
     private var visibleNotes: [SpotterNote] { store.filteredNotes(query: query) }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            editor
+        VStack(spacing: 0) {
+            // Deliberately outside the animated container below: inside it, every list toggle put the
+            // title and its trailing buttons through the same animated relayout as the list, so the
+            // toolbar drifted on a change that has nothing to do with it.
+            editorToolbar
 
-            if showsNoteList {
-                noteList
-                    .padding(.horizontal, Theme.Spacing.xxl)
-                    .padding(.top, Theme.Size.noteListTopInset)
-                    .padding(.bottom, Theme.Spacing.xxl)
-                    .transition(
-                        .scale(scale: 0.98, anchor: .topTrailing).combined(with: .opacity))
+            ZStack(alignment: .top) {
+                editorContent
+
+                if showsNoteList {
+                    noteList
+                        .padding(.horizontal, Theme.Spacing.xxl)
+                        // The token measures from the window's top edge; the toolbar is now a sibling
+                        // above this container, so its height comes out of the inset.
+                        .padding(.top, Theme.Size.noteListTopInset - Theme.Size.noteToolbarHeight)
+                        .padding(.bottom, Theme.Spacing.xxl)
+                        .transition(
+                            .scale(scale: 0.98, anchor: .topTrailing).combined(with: .opacity))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .animation(.easeOut(duration: Theme.Animation.quick), value: showsNoteList)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.easeOut(duration: Theme.Animation.quick), value: showsNoteList)
+        .onAppear { placeholderStamp = Date() }
+        .onChange(of: store.selectedID) { placeholderStamp = Date() }
         .ignoresSafeArea(edges: .top)
         .background(Theme.Colors.panelScrim)
         .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
@@ -104,18 +117,17 @@ struct NoteView: View {
         .shadow(color: .black.opacity(0.25), radius: 24, y: 12)
     }
 
-    private var editor: some View {
+    private var editorContent: some View {
         VStack(spacing: 0) {
-            editorToolbar
-            Rectangle().fill(Theme.Colors.separator).frame(height: 1)
-
             if let note = store.selectedNote {
                 ZStack(alignment: .topLeading) {
                     NoteMarkdownEditor(
                         text: selectedContent,
                         onContentHeightChange: updateEditorHeight)
                     if note.content.isEmpty {
-                        Text("Start writing…")
+                        // An empty note opens on the moment it was opened — a date line is usually
+                        // the first thing typed anyway, and it beats a nag to start writing.
+                        Text(placeholderStamp.formatted(date: .long, time: .shortened))
                             .font(.body)
                             .foregroundStyle(.tertiary)
                             .padding(Theme.Spacing.xxl)
@@ -139,11 +151,14 @@ struct NoteView: View {
 
     private var editorToolbar: some View {
         ZStack {
+            // Centred against the full toolbar width rather than against its own measured width, so
+            // the title cannot re-centre when anything beside it changes.
             Text(store.selectedNote?.title ?? "Notes")
                 .font(.headline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .padding(.horizontal, Theme.Size.noteToolbarTitleInset)
+                .frame(maxWidth: .infinity)
                 .allowsHitTesting(false)
 
             HStack(spacing: Theme.Spacing.xs) {
@@ -168,7 +183,11 @@ struct NoteView: View {
             }
             .padding(.horizontal, Theme.Spacing.xl)
         }
-        .frame(height: Theme.Size.noteToolbarHeight)
+        .frame(
+            maxWidth: .infinity, minHeight: Theme.Size.noteToolbarHeight,
+            maxHeight: Theme.Size.noteToolbarHeight)
+        // Belt and braces: the list toggle must never animate this row, whatever transaction is live.
+        .animation(nil, value: showsNoteList)
     }
 
     private var selectedContent: Binding<String> {

@@ -56,6 +56,9 @@ final class BackgroundTaskStore: ObservableObject {
     @Published private(set) var tasks: [BackgroundTaskItem] = []
     private let ownerID: UUID
     private var executingIDs: Set<UUID> = []
+    /// Where Return sends the user while a row is still running. Process-local by necessity: a
+    /// closure cannot be synced, and a row mirrored from another Mac has no local work to open.
+    private var activations: [UUID: () -> Void] = [:]
 
     init(defaults: UserDefaults = .standard) {
         let key = "background-tasks.owner-id"
@@ -71,9 +74,10 @@ final class BackgroundTaskStore: ObservableObject {
     @discardableResult
     func begin(
         title: String, detail: String = "Starting…", systemImage: String = "gearshape.2",
-        id: UUID = UUID()
+        id: UUID = UUID(), onOpen: (() -> Void)? = nil
     ) -> UUID {
         executingIDs.insert(id)
+        activations[id] = onOpen
         tasks.insert(
             BackgroundTaskItem(
                 id: id, title: title, systemImage: systemImage, detail: detail,
@@ -100,13 +104,26 @@ final class BackgroundTaskStore: ObservableObject {
 
     func dismiss(id: UUID) {
         guard let task = tasks.first(where: { $0.id == id }), task.isDismissible else { return }
+        activations[id] = nil
         tasks.removeAll { $0.id == id }
     }
 
     func discard(id: UUID) {
         executingIDs.remove(id)
+        activations[id] = nil
         tasks.removeAll { $0.id == id }
     }
+
+    /// Return on a running row jumps to whatever surface owns the work. Reports `false` when the row
+    /// has no interface to show — a remote row, or a feature whose work has no screen of its own.
+    @discardableResult
+    func open(id: UUID) -> Bool {
+        guard let activation = activations[id] else { return false }
+        activation()
+        return true
+    }
+
+    func canOpen(id: UUID) -> Bool { activations[id] != nil }
 
     /// A remote snapshot mirrors rows without detaching live work or reviving this Mac's dead executor.
     func replace(tasks newTasks: [BackgroundTaskItem]) {
@@ -121,6 +138,7 @@ final class BackgroundTaskStore: ObservableObject {
             return interrupted
         }
         tasks = liveLocal + imported
+        activations = activations.filter { liveIDs.contains($0.key) }
     }
 
     private func finish(id: UUID, detail: String, state: BackgroundTaskItem.State) {
@@ -131,5 +149,7 @@ final class BackgroundTaskStore: ObservableObject {
         tasks[index].progress = state == .done ? 1 : nil
         tasks[index].state = state
         executingIDs.remove(id)
+        // A finished row's only action is Dismiss; the work it pointed at is over.
+        activations[id] = nil
     }
 }

@@ -79,6 +79,53 @@ struct NoteTests {
                 .link, to: "Read Spotter", selection: NSRange(location: 5, length: 7)
             ).text)
 
+        check("bare brackets become a todo", "- [ ] ", NoteEngine.checklistInputRule(forLinePrefix: "[]"))
+        check(
+            "brackets keep their indentation", "  - [ ] ",
+            NoteEngine.checklistInputRule(forLinePrefix: "  []"))
+        check(
+            "brackets replace an existing bullet", "- [ ] ",
+            NoteEngine.checklistInputRule(forLinePrefix: "- []"))
+        check("text before brackets is left alone", nil, NoteEngine.checklistInputRule(forLinePrefix: "a []"))
+        check("a lone bracket is not a todo", nil, NoteEngine.checklistInputRule(forLinePrefix: "["))
+
+        check("plain sum", "129+92", NoteEngine.arithmeticExpression(inLinePrefix: "129+92"))
+        check(
+            "sum after prose", "129+92",
+            NoteEngine.arithmeticExpression(inLinePrefix: "Total: 129+92"))
+        check(
+            "a bullet is not a negation", "12+3",
+            NoteEngine.arithmeticExpression(inLinePrefix: "- 12+3"))
+        check(
+            "a numbered marker is not part of the sum", "12+3",
+            NoteEngine.arithmeticExpression(inLinePrefix: "3. 12+3"))
+        check("a decimal survives", "1.5*2", NoteEngine.arithmeticExpression(inLinePrefix: "1.5*2"))
+        check("digits glued to a word are an identifier", nil, NoteEngine.arithmeticExpression(inLinePrefix: "rev2+3"))
+        check("a bare number is not a sum", nil, NoteEngine.arithmeticExpression(inLinePrefix: "129"))
+        check("prose does not calculate", nil, NoteEngine.arithmeticExpression(inLinePrefix: "meeting"))
+        check("a trailing operator is incomplete", nil, NoteEngine.arithmeticExpression(inLinePrefix: "129+"))
+
+        let blocks = "Title\n> quoted\n---\n```swift\n- kept\n```\n| a | b |\n| --- | --- |\n| 1 | 2 |"
+        let spans = NoteEngine.blockSpans(in: blocks)
+        check(
+            "block kinds in source order",
+            [.quote, .rule, .codeBlock, .codeFence, .codeFence, .tableRow, .tableRow, .tableRow],
+            spans.map(\.kind))
+        check("quote marker covers \"> \"", NSRange(location: 6, length: 2), spans[0].markerRange)
+        check("rule spans its own line", NSRange(location: 15, length: 3), spans[1].range)
+        check("code block spans both fences", NSRange(location: 19, length: 19), spans[2].range)
+        check("table starts at its header", NSRange(location: 39, length: 9), spans[5].range)
+        check(
+            "a fence shadows the blocks inside it", [.codeBlock, .codeFence, .codeFence],
+            NoteEngine.blockSpans(in: "```\n---\n> not a quote\n```").map(\.kind))
+        check(
+            "an unterminated fence runs to the end", [.codeBlock, .codeFence],
+            NoteEngine.blockSpans(in: "```\nstill code").map(\.kind))
+        check("a bullet is not a rule", [], NoteEngine.blockSpans(in: "- item\n- item").map(\.kind))
+        check(
+            "a pipe needs a delimiter row to be a table", [],
+            NoteEngine.blockSpans(in: "cats | dogs\nboth are fine").map(\.kind))
+
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("spotter-note-tests-\(UUID().uuidString)", isDirectory: true)
         let fileURL = directory.appendingPathComponent("notes.json")

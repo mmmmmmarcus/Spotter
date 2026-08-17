@@ -183,11 +183,18 @@ Never break these without an explicit task to do so.
   IOBluetooth or CoreBluetooth to cover AirPods — that route demands
   `NSBluetoothAlwaysUsageDescription` and prompts for Bluetooth access process-wide, which is a
   system permission for one card and needs an explicit owner decision.
-  **Deliberate exception (owner decision, Aug 2026):**
+  **Deliberate exceptions (owner decisions, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing
   a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
-  not copy this shape for new networked features without an explicit owner decision. The Settings
+  not copy this shape for new networked features without an explicit owner decision.
+  `Plugins/SelectionTools/SelectionToolsManager.swift` was moved onto that same shape: its separate
+  Cloud Translation consent toggle was removed and the Google API key is now the only gate. No key,
+  no request and no Translate Selected Text. The Settings key row still names the provider, what is
+  sent and the per-target billing, and the key and the target-language list ride the trusted v3
+  snapshot. The source language is detected **on device** with `NLLanguageRecognizer` before anything
+  is sent, so a target the selection is already written in costs no request at all — keep that
+  detection local and never add a network round trip to discover the language or the language list. The Settings
   model menu's catalog read (`/models`) stays behind the same gate — no key, no fetch, and clearing
   the key drops the list — and stays unauthenticated and free of anything about this Mac.
   `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a

@@ -13,8 +13,10 @@ final class AIChatStore: ObservableObject {
     private let defaults: UserDefaults
     private var task: Task<Void, Never>?
     private var backgroundTaskID: UUID?
-    var onRequestStarted: ((String) -> UUID)?
-    var onRequestFinished: ((UUID, Bool, String) -> Void)?
+    /// The session ID rides along so the launcher row can offer a way back into that conversation,
+    /// and so a reply that lands while the user is already reading it needs no row at all.
+    var onRequestStarted: ((UUID, String) -> UUID)?
+    var onRequestFinished: ((UUID, UUID, Bool, String) -> Void)?
     var onRequestCancelled: ((UUID) -> Void)?
     // Keep the existing keys so prompt customizations survive the ownership move from Selection Tools.
     private static let definitionPromptKey = "selection-tools.definition-prompt"
@@ -115,7 +117,7 @@ final class AIChatStore: ObservableObject {
         guard requests.begin(sessionID: sessionID) else { return false }
         append(AIChatMessage(role: .user, text: trimmed), to: sessionID)
         let sessionTitle = sessions.first { $0.id == sessionID }?.title ?? "AI Chat"
-        backgroundTaskID = onRequestStarted?(sessionTitle)
+        backgroundTaskID = onRequestStarted?(sessionID, sessionTitle)
         let window = AIChatEngine.transcriptWindow(messages)
         let sessionPrompt = current.systemPrompt
         let requestModel = model ?? openRouter.chatModel
@@ -206,7 +208,7 @@ final class AIChatStore: ObservableObject {
         self.backgroundTaskID = nil
         let sessionTitle = sessions.first { $0.id == sessionID }?.title ?? "AI Chat"
         onRequestFinished?(
-            backgroundTaskID, failure == nil,
+            backgroundTaskID, sessionID, failure == nil,
             failure ?? "Reply ready in \(sessionTitle).")
     }
 

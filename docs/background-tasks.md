@@ -19,17 +19,22 @@ tasks do not spawn processes, own network requests or mutate feature state thems
 ## Launcher integration
 
 On an empty launcher, the non-selectable Widgets strip comes first, background tasks come
-next, and Favorites follows them. Once a query is typed the dashboard disappears, so tasks again
-become the top visual section. Tasks remain visible while the query changes. Their rows are part of
-the same flat selectable-row model:
+next, and Favorites follows them. Tasks are a resting-state surface, not a search result: **typing a
+query hides them**, because a query is a request for something else and the rows would otherwise sit
+above every match. They return the moment the query is cleared. On the empty launcher their rows are
+part of the same flat selectable-row model:
 
 1. background tasks, newest first;
 2. the optional inline calculator/plugin answer;
 3. ordinary launcher results.
 
 A running row shows determinate progress when its feature can estimate a total and an indeterminate
-indicator otherwise. A Done or Failed row exposes only **Dismiss**; it has no Actions menu. Any task
-keeps compact mode expanded so progress cannot be hidden in the slim search bar.
+indicator otherwise. Return on a running row **opens the surface doing the work** — the footer reads
+Open — when its feature registered an activation with `begin(onOpen:)`. Activations are process-local
+by necessity: a closure cannot be synced, and a row mirrored from another Mac has no local work to
+open, so those rows stay inert. A Done or Failed row exposes only **Dismiss**; it has no Actions menu,
+and its activation is dropped when it finishes. Any task keeps compact mode expanded so progress
+cannot be hidden in the slim search bar.
 
 ## Integrated work
 
@@ -39,7 +44,10 @@ The current one-shot work integrated with this surface is:
 - every Image Modification operation, including multi-image batches and Vision work;
 - every user-authored shell command, which intentionally has no timeout;
 - Empty Trash, Eject All Disks and Dismiss Notifications from Commands; and
-- the one in-flight Spotter AI reply.
+- the one in-flight Spotter AI reply, which is also the only task with an activation today: Return
+  switches to that conversation and opens the chat. The row exists to carry a reply the user walked
+  away from, so a reply that lands while the palette is showing that very session is **discarded
+  rather than completed** — they have already read it, and there is nothing to come back to.
 
 Mole and image batches publish determinate progress when they have a trustworthy total. Uninstall,
 custom commands, system commands and AI requests stay indeterminate rather than inventing a

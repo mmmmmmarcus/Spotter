@@ -46,6 +46,12 @@ enum NotePlugin {
 extension AppCore {
     func openNotes(creatingNewNote: Bool = false) {
         guard plugins.isEnabled(.note) else { return }
+        // Open Notes is a toggle — the window floats over everything, so the shortcut that summoned
+        // it is the obvious way to put it away. New Note always opens, since it has a note to show.
+        if !creatingNewNote, isPluginWindowShowing(id: "notes") {
+            closePluginWindow(id: "notes")
+            return
+        }
         if creatingNewNote { notes.createNote() }
         if palette.mode == .launcher { hidePalette(restoreFocus: false) }
         let initialEditorHeight = NoteEditorMetrics.estimatedEditorHeight(

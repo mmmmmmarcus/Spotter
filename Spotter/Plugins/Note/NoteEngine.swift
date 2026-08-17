@@ -39,6 +39,32 @@ struct NoteEditResult: Equatable, Sendable {
     let selection: NSRange
 }
 
+/// A block-level Markdown construct the editor styles in place. Inline spans stay with the editor's
+/// own expressions; only these need a line-by-line scan to be found.
+enum NoteBlockKind: Equatable, Sendable {
+    /// A whole fenced block, both fence lines included — the range the code panel is drawn behind.
+    case codeBlock
+    /// One ``` or ~~~ line, dimmed inside its own block.
+    case codeFence
+    case quote
+    case rule
+    case tableRow
+}
+
+struct NoteBlockSpan: Equatable, Sendable {
+    let kind: NoteBlockKind
+    /// UTF-16, and never includes the line break — a background drawn over one runs to the next line.
+    let range: NSRange
+    /// Leading syntax the editor hides while the caret sits elsewhere; empty when there is none.
+    let markerRange: NSRange
+
+    init(kind: NoteBlockKind, range: NSRange, markerRange: NSRange = NSRange(location: 0, length: 0)) {
+        self.kind = kind
+        self.range = range
+        self.markerRange = markerRange
+    }
+}
+
 enum NoteEngine {
     static func title(in markdown: String) -> String {
         let firstLine = markdown.components(separatedBy: .newlines).first ?? ""
@@ -85,6 +111,130 @@ enum NoteEngine {
         guard !meaningful.isEmpty else { return "No additional text" }
         let body = meaningful.dropFirst().prefix(2).joined(separator: " ")
         return body.isEmpty ? "No additional text" : String(body.prefix(120))
+    }
+
+    /// The `[]` + space input rule. Given everything on the line up to the caret, returns the text
+    /// that replaces it, or nil when the line is not a bare `[]`.
+    static func checklistInputRule(forLinePrefix prefix: String) -> String? {
+        let indentation = String(prefix.prefix(while: { $0 == " " || $0 == "\t" }))
+        var body = Substring(prefix.dropFirst(indentation.count))
+        if let marker = ["- ", "* ", "+ "].first(where: { body.hasPrefix($0) }) {
+            body = body.dropFirst(marker.count)
+        }
+        guard body == "[]" else { return nil }
+        return indentation + "- [ ] "
+    }
+
+    /// The arithmetic sitting immediately before a typed `=`, or nil when the line does not end in
+    /// one. Only the substring is found here — evaluating it is the editor's job, so this stays pure
+    /// and `Core/Calculator` keeps its single owner.
+    static func arithmeticExpression(inLinePrefix prefix: String) -> String? {
+        var line = Substring(prefix)
+        while line.last == " " || line.last == "\t" { line = line.dropLast() }
+        guard let last = line.last, last.isNumber || last == ")" || last == "%" else { return nil }
+
+        var start = line.endIndex
+        while start > line.startIndex, Self.arithmeticCharacters.contains(line[line.index(before: start)]) {
+            start = line.index(before: start)
+        }
+        // Whitespace is inside the set so `1 + 2` scans as one expression; step back over whatever it
+        // swallowed at the front before judging what precedes the sum.
+        while start < line.endIndex, line[start] == " " || line[start] == "\t" {
+            start = line.index(after: start)
+        }
+        // Anything glued to a word ("rev2+3") is an identifier, not a sum the user wants evaluated.
+        if start > line.startIndex {
+            let preceding = line[line.index(before: start)]
+            guard preceding == " " || preceding == "\t" else { return nil }
+        }
+
+        var body = line[start...]
+        // The operator set contains the list markers, so a bulleted or numbered line would otherwise
+        // swallow its own marker and evaluate `- 12+3` as a negation.
+        while true {
+            if body.first == " " || body.first == "\t" {
+                body = body.dropFirst()
+            } else if ["- ", "* ", "+ "].contains(where: { body.hasPrefix($0) }) {
+                body = body.dropFirst(2)
+            } else if let marker = numberedListMarker(in: body) {
+                body = body.dropFirst(marker)
+            } else {
+                break
+            }
+        }
+
+        let expression = String(body)
+        guard expression.count >= 3, expression.contains(where: { "+-*/×÷^%".contains($0) }),
+            expression.contains(where: \.isNumber)
+        else { return nil }
+        return expression
+    }
+
+    private static let arithmeticCharacters = Set("0123456789.,+-*/×÷()%^ \t")
+
+    /// The length of a leading `12. ` marker — the trailing space is what separates it from `1.5`.
+    private static func numberedListMarker(in body: Substring) -> Int? {
+        let digits = body.prefix(while: \.isNumber)
+        guard !digits.isEmpty, body.dropFirst(digits.count).hasPrefix(". ") else { return nil }
+        return digits.count + 2
+    }
+
+    /// Locates every block-level construct in a note, in source order. A fenced block shadows
+    /// everything inside it, so a rule or table drawn in an example stays literal text.
+    static func blockSpans(in markdown: String) -> [NoteBlockSpan] {
+        let source = markdown as NSString
+        let lines = lineContentRanges(in: source)
+        var spans: [NoteBlockSpan] = []
+        var index = 0
+
+        while index < lines.count {
+            let line = lines[index]
+            let trimmed = source.substring(with: line).trimmingCharacters(in: .whitespaces)
+
+            if let marker = fenceMarker(in: trimmed) {
+                let opening = index
+                index += 1
+                while index < lines.count, !isFence(trimmedLine(index, lines, source), marker: marker) {
+                    index += 1
+                }
+                // An unterminated fence still reads as code: the block runs to the end of the note.
+                let closing = min(index, lines.count - 1)
+                spans.append(
+                    NoteBlockSpan(
+                        kind: .codeBlock,
+                        range: NSRange(
+                            location: line.location, length: NSMaxRange(lines[closing]) - line.location)))
+                spans.append(NoteBlockSpan(kind: .codeFence, range: lines[opening]))
+                if index < lines.count {
+                    spans.append(NoteBlockSpan(kind: .codeFence, range: lines[index]))
+                    index += 1
+                }
+                continue
+            }
+
+            if isRule(trimmed) {
+                spans.append(NoteBlockSpan(kind: .rule, range: line))
+                index += 1
+                continue
+            }
+
+            if let marker = quoteMarker(in: line, source: source) {
+                spans.append(NoteBlockSpan(kind: .quote, range: line, markerRange: marker))
+                index += 1
+                continue
+            }
+
+            if let end = tableEnd(from: index, lines: lines, source: source) {
+                for row in index..<end {
+                    spans.append(NoteBlockSpan(kind: .tableRow, range: lines[row]))
+                }
+                index = end
+                continue
+            }
+
+            index += 1
+        }
+        return spans
     }
 
     static func applying(
@@ -215,6 +365,97 @@ enum NoteEngine {
         default: return line
         }
         return indentation + prefix + body
+    }
+
+    private static func lineContentRanges(in source: NSString) -> [NSRange] {
+        var ranges: [NSRange] = []
+        var index = 0
+        while index < source.length {
+            let line = source.lineRange(for: NSRange(location: index, length: 0))
+            index = NSMaxRange(line)
+            var content = line
+            while content.length > 0, isLineBreak(source.character(at: NSMaxRange(content) - 1)) {
+                content.length -= 1
+            }
+            ranges.append(content)
+        }
+        return ranges
+    }
+
+    private static func trimmedLine(_ index: Int, _ lines: [NSRange], _ source: NSString) -> String {
+        source.substring(with: lines[index]).trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func fenceMarker(in trimmed: String) -> Character? {
+        guard let marker = trimmed.first, marker == "`" || marker == "~" else { return nil }
+        let run = trimmed.prefix { $0 == marker }
+        guard run.count >= 3 else { return nil }
+        // An info string may not contain the fence character itself, which is what rules out "``x``".
+        return trimmed.dropFirst(run.count).contains(marker) ? nil : marker
+    }
+
+    private static func isFence(_ trimmed: String, marker: Character) -> Bool {
+        trimmed.count >= 3 && trimmed.allSatisfy { $0 == marker }
+    }
+
+    private static func isRule(_ trimmed: String) -> Bool {
+        guard let first = trimmed.first, first == "-" || first == "*" || first == "_" else {
+            return false
+        }
+        let bare = trimmed.filter { !$0.isWhitespace }
+        return bare.count >= 3 && bare.allSatisfy { $0 == first }
+    }
+
+    private static func quoteMarker(in line: NSRange, source: NSString) -> NSRange? {
+        var offset = line.location
+        let end = NSMaxRange(line)
+        while offset < end, isSpace(source.character(at: offset)) { offset += 1 }
+        guard offset < end, source.character(at: offset) == 0x3E else { return nil }
+        offset += 1
+        while offset < end, source.character(at: offset) == 0x20 { offset += 1 }
+        return NSRange(location: line.location, length: offset - line.location)
+    }
+
+    /// A pipe table only when the row under the header is a delimiter row — otherwise a sentence that
+    /// happens to contain a pipe would swallow the paragraph around it.
+    private static func tableEnd(from start: Int, lines: [NSRange], source: NSString) -> Int? {
+        guard start + 1 < lines.count else { return nil }
+        let header = cells(in: source.substring(with: lines[start]))
+        guard header.count >= 2 else { return nil }
+        let delimiter = cells(in: source.substring(with: lines[start + 1]))
+        guard delimiter.count == header.count, delimiter.allSatisfy(isDelimiterCell) else {
+            return nil
+        }
+        var index = start + 2
+        // Inside a table a ragged row is still a row; a blank or pipe-less line ends it.
+        while index < lines.count, !cells(in: source.substring(with: lines[index])).isEmpty {
+            index += 1
+        }
+        return index
+    }
+
+    private static func cells(in line: String) -> [String] {
+        var trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.contains("|") else { return [] }
+        if trimmed.hasPrefix("|") { trimmed.removeFirst() }
+        if trimmed.hasSuffix("|") { trimmed.removeLast() }
+        return trimmed.components(separatedBy: "|").map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+    }
+
+    private static func isDelimiterCell(_ cell: String) -> Bool {
+        let bare = cell.replacingOccurrences(of: ":", with: "")
+        return !bare.isEmpty && bare.allSatisfy { $0 == "-" }
+    }
+
+    private static func isSpace(_ character: unichar) -> Bool {
+        character == 0x20 || character == 0x09
+    }
+
+    private static func isLineBreak(_ character: unichar) -> Bool {
+        character == 0x0A || character == 0x0D || character == 0x85 || character == 0x2028
+            || character == 0x2029
     }
 
     private static func stripMarkup(_ value: String) -> String {
