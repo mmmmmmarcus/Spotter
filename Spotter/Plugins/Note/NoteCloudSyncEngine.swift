@@ -54,6 +54,28 @@ enum NoteCloudSyncError: LocalizedError {
         }
     }
 
+    static func diagnosticDescription(for error: Error) -> String {
+        var descriptions: [String] = []
+        appendDiagnostic(error, to: &descriptions, depth: 0)
+        return descriptions.joined(separator: " <- ")
+    }
+
+    private static func appendDiagnostic(
+        _ error: Error, to descriptions: inout [String], depth: Int
+    ) {
+        guard depth < 4, descriptions.count < 8 else { return }
+        let cocoa = error as NSError
+        descriptions.append("\(cocoa.domain) \(cocoa.code): \(cocoa.localizedDescription)")
+        if let underlying = cocoa.userInfo[NSUnderlyingErrorKey] as? Error {
+            appendDiagnostic(underlying, to: &descriptions, depth: depth + 1)
+        }
+        if let partial = cocoa.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Error] {
+            for nested in partial.values.prefix(3) where descriptions.count < 8 {
+                appendDiagnostic(nested, to: &descriptions, depth: depth + 1)
+            }
+        }
+    }
+
     private static func cloudError(in error: Error) -> CKError? {
         if let cloud = error as? CKError { return cloud }
         let nsError = error as NSError
@@ -110,6 +132,10 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
     func start() async throws {
         guard await hasConsent() else { return }
         shouldPersistState = true
+        AppLog.info(
+            "note-cloud-sync",
+            "Starting \(NoteCloudCapability.containerEnvironment ?? "unknown") CloudKit sync in "
+                + Self.containerIdentifier)
         let container = CKContainer(identifier: Self.containerIdentifier)
         let accountStatus = try await container.accountStatus()
         guard await hasConsent() else { return }
@@ -384,7 +410,7 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
 
     private func report(_ error: Error) async {
         let message = NoteCloudSyncError.message(for: error)
-        AppLog.error("note-cloud-sync", error.localizedDescription)
+        AppLog.error("note-cloud-sync", NoteCloudSyncError.diagnosticDescription(for: error))
         guard await hasConsent() else { return }
         await onEvent(.error(message))
     }

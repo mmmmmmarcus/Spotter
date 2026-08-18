@@ -85,11 +85,13 @@ and last-known record system fields under the bundle-specific Application Suppor
 Edits debounce for 300 ms, then only changed records are sent. CloudKit's subscription-driven fetches
 hot-apply remote records, and Settings exposes an immediate fetch/send action.
 
-Retryable CloudKit failures keep the engine and its pending changes alive, so temporary network,
-service-unavailable and rate-limit results can recover automatically. **Sync Now** waits for an
-in-progress engine start before fetching and sending instead of reporting a false failure while
-initialization continues. A sync is only called complete when no zone or record changes remain
-pending, and Settings translates CloudKit's numeric errors into actionable messages.
+Retryable CloudKit failures keep pending changes alive. A failure during engine startup discards the
+incomplete engine and recreates it after 5, 15, 30, 60 and then 120 seconds; **Sync Now** cancels that
+wait and retries immediately. Temporary network, service-unavailable and rate-limit results therefore
+do not turn off consent or strand the manager behind a never-started engine. Sync Now also waits for
+an in-progress engine start before fetching and sending. A sync is only called complete when no zone
+or record changes remain pending, and Settings translates CloudKit's numeric errors into actionable
+messages.
 
 Conflicts compare the user edit/deletion timestamp rather than upload arrival time. The newer item
 wins; a deletion wins an exact timestamp tie, and simultaneous Note edits use a deterministic content
@@ -104,10 +106,14 @@ consent; the user must explicitly enable the new service. Automatic Settings Syn
 Note content, while its trusted snapshot may carry the CloudKit consent flag.
 
 Developer ID stable and beta builds share the CloudKit container but use provisioning profiles tied
-to their separate App IDs. The local self-signed Debug build deliberately has no CloudKit entitlement,
-so it exercises local Notes and pure sync tests without contacting iCloud. Settings verifies the
-container, CloudKit service, environment and push entitlements together; an incapable build shows
-the switch off and disabled even if persisted consent should resume in a later signed build.
+to their separate App IDs. The ordinary self-signed Debug build deliberately has no CloudKit
+entitlement, while `scripts/install-cloud-dev.sh` produces an Apple Development-signed dev build
+against the container's Development environment. Development and Production keep separate engine
+state archives so testing cannot reuse an incompatible sync token. Settings verifies the container,
+CloudKit service, environment and push entitlements together; an incapable build shows the switch off
+and disabled even if persisted consent should resume in a later signed build. CloudKit diagnostics
+record the environment plus bounded domain/code/underlying-error chains without logging Note content
+or CloudKit records.
 
 ## Editor
 

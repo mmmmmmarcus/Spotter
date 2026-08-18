@@ -2,8 +2,9 @@
 
 Spotter uses two signing identities for two different purposes:
 
-- Debug builds are local `-dev` versions signed with the stable self-signed `Spotter Self-Signed`
-  identity. This keeps Accessibility and Input Monitoring grants stable across rebuilds.
+- Ordinary Debug builds are local `-dev` versions signed with the stable self-signed
+  `Spotter Self-Signed` identity. This keeps Accessibility and Input Monitoring grants stable across
+  rebuilds. The opt-in CloudKit dev installer uses Apple Development signing instead.
 - Release builds use `Developer ID Application: Round Technology (Shanghai) Co.,Ltd (SM96W8VVK9)`,
   enable Hardened Runtime, include a secure timestamp and are notarized by Apple.
 
@@ -73,6 +74,19 @@ The script verifies the team, stable App ID and shared container before temporar
 profile for `xcodebuild`; it then verifies that the finished app embeds both the profile and CloudKit
 entitlement. The self-signed Debug configuration intentionally continues using
 `Spotter/Spotter.entitlements` without CloudKit so its stable local TCC identity is unchanged.
+
+An installed development-environment build uses the checked-in
+`Spotter/Spotter.Development.entitlements` through:
+
+```sh
+scripts/install-cloud-dev.sh
+```
+
+The installer selects a matching development profile from Xcode's provisioning-profile directory,
+builds with the current team's Apple Development identity, verifies the Development CloudKit and push
+entitlements, then replaces only `/Applications/Spotter.app`. Development and Production CloudKit
+engine state files are separate. Switching between Apple Development, self-signed Debug and Developer
+ID signatures may require re-granting Accessibility and Input Monitoring.
 
 ## 4. Configure local notarization
 

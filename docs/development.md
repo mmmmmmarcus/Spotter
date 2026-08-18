@@ -35,10 +35,14 @@ Xcode, prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (t
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) — after changing project settings in `project.yml`,
 run `xcodegen generate` and commit the result.
 
-The self-signed Debug channel deliberately omits the restricted CloudKit entitlement, so Notes'
-iCloud toggle reports unavailable locally. The same sources compile into Developer ID Release builds,
-which embed the channel-specific provisioning profile described in [signing.md](signing.md). Pure Note
-merge/tombstone coverage remains available in the standalone harness without an iCloud account.
+The ordinary self-signed Debug channel deliberately omits the restricted CloudKit entitlement, so
+Notes' iCloud toggle reports unavailable locally. To exercise the Development CloudKit environment,
+use `scripts/install-cloud-dev.sh`; it discovers a matching development profile, builds the same
+`Spotter.app` / `com.spotter.app1` dev channel with Apple Development signing, verifies its embedded
+profile and entitlements, then safely installs and launches it. The Apple Development signature has a
+different designated requirement, so Accessibility and Input Monitoring may need to be granted again.
+Release builds instead use the Production environment and their channel-specific Developer ID profile.
+Pure Note merge/tombstone coverage remains available without an iCloud account.
 
 One `project.yml` trap worth knowing: the app icon is the Icon Composer bundle `Spotter/spotter.icon`,
 which is a *directory*. It must stay excluded from the recursive `sources` walk and added back as a
@@ -68,6 +72,16 @@ The install contract (see `AGENTS.md`): build into a staging location (e.g.
 Spotter, replace the exact `/Applications/Spotter.app`, and relaunch it. Never delete the working
 installed copy before a new build has succeeded. Since old and new builds share one bundle id, they
 cannot run side-by-side — replace, don't fork.
+
+For an installed CloudKit-capable dev build, run:
+
+```sh
+scripts/install-cloud-dev.sh
+```
+
+It requires an unexpired Apple Development identity and a development provisioning profile for team
+`SM96W8VVK9`, App ID `com.spotter.app1`, push notifications and `iCloud.com.spotter.app`. It never
+changes the ordinary Debug configuration or publishes its Development-environment data.
 
 ### Editor (VS Code) code-intelligence
 

@@ -209,6 +209,7 @@
 
 /* Begin PBXFileReference section */
 		00102833B5166EE72E545325 /* CalcUnits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcUnits.swift; sourceTree = "<group>"; };
+		007082D30D0354BCC8624DD7 /* Spotter.Development.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Spotter.Development.entitlements; sourceTree = "<group>"; };
 		00F7DDECB63C5DAF7722B842 /* MoleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoleSettingsView.swift; sourceTree = "<group>"; };
 		0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteWindowController.swift; sourceTree = "<group>"; };
 		046C81A9351D9CF343F8FCFB /* ClipboardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStore.swift; sourceTree = "<group>"; };
@@ -422,6 +423,7 @@
 				8F1F2936705F9633440C3D5A /* Plugins */,
 				183A61AFFD4D20BA651DBEDF /* Assets.xcassets */,
 				1248EC2C08BF2B00A8C27E0A /* Info.plist */,
+				007082D30D0354BCC8624DD7 /* Spotter.Development.entitlements */,
 				802A2F4849B13621F7B9FCCD /* Spotter.entitlements */,
 				8ACF532BE2B264ADE83FCBBC /* spotter.icon */,
 				3690B9946BB7EF706ADFF846 /* Spotter.Release.entitlements */,
@@ -1211,7 +1213,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.4.24;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1283,7 +1285,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.4.24;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

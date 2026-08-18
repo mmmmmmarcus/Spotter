@@ -61,8 +61,10 @@ final class NoteSyncManager: ObservableObject {
     private var cloud: NoteCloudSyncEngine?
     private var startTask: Task<Void, Never>?
     private var pushTask: Task<Void, Never>?
+    private var retryTask: Task<Void, Never>?
     private var migrationTask: Task<Void, Never>?
     private var isRunning = false
+    private var retryAttempt = 0
 
     init(
         store: NoteStore, defaults: UserDefaults = .standard,
@@ -128,7 +130,11 @@ final class NoteSyncManager: ObservableObject {
 
     func syncNow() async -> Bool {
         guard isRunning, isEnabled, cloudKitAvailable else { return false }
-        if cloud == nil { startCloud() }
+        if cloud == nil {
+            retryTask?.cancel()
+            retryTask = nil
+            startCloud()
+        }
         if let startTask { await startTask.value }
         guard isRunning, isEnabled, let cloud, self.cloud === cloud else { return false }
         isWorking = true
@@ -145,7 +151,8 @@ final class NoteSyncManager: ObservableObject {
             guard isRunning, isEnabled, self.cloud === cloud else { return false }
             isWorking = false
             errorMessage = NoteCloudSyncError.message(for: error)
-            AppLog.error("note-cloud-sync", error.localizedDescription)
+            AppLog.error(
+                "note-cloud-sync", NoteCloudSyncError.diagnosticDescription(for: error))
             return false
         }
     }
@@ -176,11 +183,13 @@ final class NoteSyncManager: ObservableObject {
                 self.isWorking = false
                 self.errorMessage = NoteCloudSyncError.message(for: error)
                 self.startTask = nil
-                AppLog.error("note-cloud-sync", error.localizedDescription)
-                if !NoteCloudSyncError.isRetryable(error) {
-                    self.cloud = nil
-                    await cloud.stop(deleteState: false)
-                }
+                AppLog.error(
+                    "note-cloud-sync", NoteCloudSyncError.diagnosticDescription(for: error))
+                let shouldRetry = NoteCloudSyncError.isRetryable(error)
+                self.cloud = nil
+                await cloud.stop(deleteState: false)
+                guard self.isRunning, self.isEnabled else { return }
+                if shouldRetry { self.scheduleCloudRetry() }
             }
         }
     }
@@ -188,8 +197,11 @@ final class NoteSyncManager: ObservableObject {
     private func stopCloud(deleteState: Bool) {
         startTask?.cancel()
         pushTask?.cancel()
+        retryTask?.cancel()
         startTask = nil
         pushTask = nil
+        retryTask = nil
+        retryAttempt = 0
         isWorking = false
         let cloud = cloud
         self.cloud = nil
@@ -213,8 +225,23 @@ final class NoteSyncManager: ObservableObject {
             } catch {
                 guard self.isRunning, self.isEnabled, self.cloud === cloud else { return }
                 self.errorMessage = NoteCloudSyncError.message(for: error)
-                AppLog.error("note-cloud-sync", error.localizedDescription)
+                AppLog.error(
+                    "note-cloud-sync", NoteCloudSyncError.diagnosticDescription(for: error))
             }
+        }
+    }
+
+    private func scheduleCloudRetry() {
+        retryTask?.cancel()
+        let delays = [5, 15, 30, 60, 120]
+        let delay = delays[min(retryAttempt, delays.count - 1)]
+        retryAttempt += 1
+        retryTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) }
+            catch { return }
+            guard let self, self.isRunning, self.isEnabled, self.cloud == nil else { return }
+            self.retryTask = nil
+            self.startCloud()
         }
     }
 
@@ -225,7 +252,14 @@ final class NoteSyncManager: ObservableObject {
             store.applyCloudSnapshot(snapshot)
         case .didSync:
             errorMessage = nil
+            let isFirstSync = lastSyncedAt == nil
             lastSyncedAt = Date()
+            retryAttempt = 0
+            if isFirstSync {
+                AppLog.info(
+                    "note-cloud-sync",
+                    "\(NoteCloudCapability.containerEnvironment ?? "unknown") CloudKit sync is up to date.")
+            }
         case .error(let message):
             errorMessage = message
         case .accountChanged:

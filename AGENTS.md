@@ -206,8 +206,11 @@ Never break these without an explicit task to do so.
   Notes follows the same safe-default rule for its private CloudKit database: sync ships off,
   `NoteSyncManager` owns consent and re-checks it around every explicit fetch/send, disabling deletes
   only the local CloudKit state, and each Note/deletion is an independent record. Developer ID
-  releases must embed the channel's provisioning profile for `iCloud.com.spotter.app`; the local
-  self-signed Debug build deliberately has no CloudKit entitlement.
+  releases must embed the channel's provisioning profile for `iCloud.com.spotter.app`; the ordinary
+  self-signed Debug build deliberately has no CloudKit entitlement. The opt-in
+  `scripts/install-cloud-dev.sh` path is the one exception: it uses an Apple Development identity,
+  matching development profile and `Spotter.Development.entitlements` to exercise the Development
+  CloudKit environment without changing normal Debug signing.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
