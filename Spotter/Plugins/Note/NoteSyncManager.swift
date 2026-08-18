@@ -17,11 +17,18 @@ enum NoteCloudCapability {
 
     static var isAvailable: Bool {
         guard let task = SecTaskCreateFromSelf(nil),
-            let value = SecTaskCopyValueForEntitlement(
+            let containers = SecTaskCopyValueForEntitlement(
                 task, "com.apple.developer.icloud-container-identifiers" as CFString, nil)
-                as? [String]
+                as? [String],
+            let services = SecTaskCopyValueForEntitlement(
+                task, "com.apple.developer.icloud-services" as CFString, nil) as? [String],
+            let push = SecTaskCopyValueForEntitlement(
+                task, "com.apple.developer.aps-environment" as CFString, nil) as? String,
+            !push.isEmpty,
+            containerEnvironment != nil
         else { return false }
-        return value.contains(NoteCloudSyncEngine.containerIdentifier)
+        return containers.contains(NoteCloudSyncEngine.containerIdentifier)
+            && services.contains("CloudKit")
     }
 }
 
@@ -120,23 +127,24 @@ final class NoteSyncManager: ObservableObject {
     }
 
     func syncNow() async -> Bool {
-        guard isRunning, isEnabled else { return false }
-        guard let cloud else {
-            startCloud()
-            return false
-        }
+        guard isRunning, isEnabled, cloudKitAvailable else { return false }
+        if cloud == nil { startCloud() }
+        if let startTask { await startTask.value }
+        guard isRunning, isEnabled, let cloud, self.cloud === cloud else { return false }
         isWorking = true
         errorMessage = nil
         do {
-            try await cloud.syncNow()
+            let settled = try await cloud.syncNow()
             guard isRunning, isEnabled, self.cloud === cloud else { return false }
-            lastSyncedAt = Date()
             isWorking = false
-            return true
+            if !settled, errorMessage == nil {
+                errorMessage = "iCloud still has pending Note changes. Try again shortly."
+            }
+            return settled
         } catch {
             guard isRunning, isEnabled, self.cloud === cloud else { return false }
             isWorking = false
-            errorMessage = error.localizedDescription
+            errorMessage = NoteCloudSyncError.message(for: error)
             AppLog.error("note-cloud-sync", error.localizedDescription)
             return false
         }
@@ -161,17 +169,18 @@ final class NoteSyncManager: ObservableObject {
             do {
                 try await cloud.start()
                 guard let self, self.isRunning, self.isEnabled, self.cloud === cloud else { return }
-                self.lastSyncedAt = Date()
                 self.isWorking = false
                 self.startTask = nil
             } catch {
                 guard let self, self.isRunning, self.isEnabled, self.cloud === cloud else { return }
                 self.isWorking = false
-                self.errorMessage = error.localizedDescription
+                self.errorMessage = NoteCloudSyncError.message(for: error)
                 self.startTask = nil
-                self.cloud = nil
                 AppLog.error("note-cloud-sync", error.localizedDescription)
-                await cloud.stop(deleteState: false)
+                if !NoteCloudSyncError.isRetryable(error) {
+                    self.cloud = nil
+                    await cloud.stop(deleteState: false)
+                }
             }
         }
     }
@@ -194,16 +203,16 @@ final class NoteSyncManager: ObservableObject {
         pushTask = Task { [weak self, cloud] in
             do { try await Task.sleep(for: .milliseconds(300)) }
             catch { return }
+            if let startTask = self?.startTask { await startTask.value }
             guard let self, self.isRunning, self.isEnabled, self.cloud === cloud else { return }
             await cloud.applyLocalSnapshot(snapshot)
             guard self.isRunning, self.isEnabled, self.cloud === cloud else { return }
             do {
-                try await cloud.sendPendingChanges()
+                _ = try await cloud.sendPendingChanges()
                 guard self.isRunning, self.isEnabled, self.cloud === cloud else { return }
-                self.lastSyncedAt = Date()
             } catch {
                 guard self.isRunning, self.isEnabled, self.cloud === cloud else { return }
-                self.errorMessage = error.localizedDescription
+                self.errorMessage = NoteCloudSyncError.message(for: error)
                 AppLog.error("note-cloud-sync", error.localizedDescription)
             }
         }

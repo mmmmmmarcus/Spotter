@@ -108,6 +108,16 @@ final class NoteStore: ObservableObject {
         selectedID = note.id
     }
 
+    @discardableResult
+    func selectAdjacent(_ direction: NoteNavigationDirection) -> SpotterNote? {
+        guard !notes.isEmpty else { return nil }
+        let current = notes.firstIndex { $0.id == selectedID } ?? 0
+        let offset = direction == .previous ? -1 : 1
+        let next = (current + offset + notes.count) % notes.count
+        selectedID = notes[next].id
+        return notes[next]
+    }
+
     func updateSelectedContent(_ content: String) {
         guard let selectedID, let index = notes.firstIndex(where: { $0.id == selectedID }),
             notes[index].content != content

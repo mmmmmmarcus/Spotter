@@ -20,6 +20,55 @@ enum NoteCloudSyncError: LocalizedError {
         case .unavailable: "Couldn’t determine the current iCloud account."
         }
     }
+
+    static func message(for error: Error) -> String {
+        guard let cloud = cloudError(in: error) else { return error.localizedDescription }
+        switch cloud.code {
+        case .networkUnavailable:
+            return "No network connection. Notes will retry when this Mac is online."
+        case .networkFailure, .serverResponseLost:
+            return "The network is available, but iCloud couldn’t be reached. Try again shortly."
+        case .serviceUnavailable, .zoneBusy, .accountTemporarilyUnavailable:
+            return "iCloud is temporarily unavailable. Notes will retry automatically."
+        case .requestRateLimited:
+            return "iCloud is receiving too many requests. Notes will retry automatically."
+        case .notAuthenticated:
+            return "Sign in to iCloud in System Settings to synchronize Notes."
+        case .missingEntitlement, .badContainer, .permissionFailure:
+            return "This Spotter build isn’t authorized for Notes iCloud Sync."
+        case .quotaExceeded:
+            return "Your iCloud storage is full. Free some space to synchronize Notes."
+        default:
+            return cloud.localizedDescription
+        }
+    }
+
+    static func isRetryable(_ error: Error) -> Bool {
+        guard let code = cloudError(in: error)?.code else { return false }
+        switch code {
+        case .networkUnavailable, .networkFailure, .serverResponseLost, .serviceUnavailable,
+            .zoneBusy, .accountTemporarilyUnavailable, .requestRateLimited:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func cloudError(in error: Error) -> CKError? {
+        if let cloud = error as? CKError { return cloud }
+        let nsError = error as NSError
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error,
+            let cloud = cloudError(in: underlying)
+        {
+            return cloud
+        }
+        if let partial = nsError.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Error] {
+            for nested in partial.values {
+                if let cloud = cloudError(in: nested) { return cloud }
+            }
+        }
+        return nil
+    }
 }
 
 private struct NoteCloudStateArchive: Codable, Sendable {
@@ -43,6 +92,7 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
     private var engineState: CKSyncEngine.State.Serialization?
     private var syncEngine: CKSyncEngine?
     private var shouldPersistState = true
+    private var initialChangesQueued = false
 
     private var zoneID: CKRecordZone.ID { CKRecordZone.ID(zoneName: Self.zoneName) }
 
@@ -82,10 +132,10 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
 
         try await engine.fetchChanges()
         guard await hasConsent(), syncEngine != nil else { return }
-        queueZoneAndAllItems(on: engine)
+        queueInitialChangesIfNeeded(on: engine)
         try await engine.sendChanges()
         guard await hasConsent(), syncEngine != nil else { return }
-        await onEvent(.didSync)
+        _ = await reportSyncIfSettled()
     }
 
     func applyLocalSnapshot(_ snapshot: NoteSyncSnapshot) async {
@@ -103,20 +153,22 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         syncEngine.state.add(pendingRecordZoneChanges: pending)
     }
 
-    func sendPendingChanges() async throws {
-        guard await hasConsent(), let syncEngine else { return }
+    func sendPendingChanges() async throws -> Bool {
+        guard await hasConsent(), let syncEngine else { return false }
+        queueInitialChangesIfNeeded(on: syncEngine)
         try await syncEngine.sendChanges()
-        guard await hasConsent(), self.syncEngine != nil else { return }
-        await onEvent(.didSync)
+        guard await hasConsent(), self.syncEngine != nil else { return false }
+        return await reportSyncIfSettled()
     }
 
-    func syncNow() async throws {
-        guard await hasConsent(), let syncEngine else { return }
+    func syncNow() async throws -> Bool {
+        guard await hasConsent(), let syncEngine else { return false }
         try await syncEngine.fetchChanges()
-        guard await hasConsent(), self.syncEngine != nil else { return }
+        guard await hasConsent(), self.syncEngine != nil else { return false }
+        queueInitialChangesIfNeeded(on: syncEngine)
         try await syncEngine.sendChanges()
-        guard await hasConsent(), self.syncEngine != nil else { return }
-        await onEvent(.didSync)
+        guard await hasConsent(), self.syncEngine != nil else { return false }
+        return await reportSyncIfSettled()
     }
 
     func stop(deleteState: Bool) async {
@@ -153,13 +205,16 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
             await handleFetchedRecordZoneChanges(event, syncEngine: syncEngine)
         case .sentDatabaseChanges(let event):
             for failure in event.failedZoneSaves where failure.zone.zoneID == zoneID {
-                await report(failure.error.localizedDescription)
+                await report(failure.error)
             }
         case .sentRecordZoneChanges(let event):
             await handleSentRecordZoneChanges(event, syncEngine: syncEngine)
-        case .didFetchChanges, .didSendChanges:
+        case .didFetchChanges:
             guard await hasConsent() else { return }
-            await onEvent(.didSync)
+            queueInitialChangesIfNeeded(on: syncEngine)
+            _ = await reportSyncIfSettled()
+        case .didSendChanges:
+            _ = await reportSyncIfSettled()
         case .willFetchChanges, .willFetchRecordZoneChanges, .didFetchRecordZoneChanges,
             .willSendChanges:
             break
@@ -263,10 +318,12 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
                 recordSystemFields.removeValue(forKey: id)
                 retry.append(.saveRecord(record.recordID))
             case .networkFailure, .networkUnavailable, .zoneBusy, .serviceUnavailable,
-                .notAuthenticated, .operationCancelled:
+                .notAuthenticated:
+                await report(failure.error)
+            case .operationCancelled:
                 break
             default:
-                await report(failure.error.localizedDescription)
+                await report(failure.error)
             }
         }
         if !retry.isEmpty { syncEngine.state.add(pendingRecordZoneChanges: retry) }
@@ -275,11 +332,22 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         await onEvent(.received(NoteSyncMerge.snapshot(from: accepted)))
     }
 
-    private func queueZoneAndAllItems(on syncEngine: CKSyncEngine) {
+    private func queueInitialChangesIfNeeded(on syncEngine: CKSyncEngine) {
+        guard !initialChangesQueued else { return }
+        initialChangesQueued = true
         syncEngine.state.add(
             pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: zoneID))])
         syncEngine.state.add(
             pendingRecordZoneChanges: items.keys.map { .saveRecord(recordID(for: $0)) })
+    }
+
+    private func reportSyncIfSettled() async -> Bool {
+        guard initialChangesQueued, await hasConsent(), let syncEngine else { return false }
+        guard syncEngine.state.pendingDatabaseChanges.isEmpty,
+            syncEngine.state.pendingRecordZoneChanges.isEmpty
+        else { return false }
+        await onEvent(.didSync)
+        return true
     }
 
     private func recordID(for id: UUID) -> CKRecord.ID {
@@ -314,8 +382,9 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         }
     }
 
-    private func report(_ message: String) async {
-        AppLog.error("note-cloud-sync", message)
+    private func report(_ error: Error) async {
+        let message = NoteCloudSyncError.message(for: error)
+        AppLog.error("note-cloud-sync", error.localizedDescription)
         guard await hasConsent() else { return }
         await onEvent(.error(message))
     }

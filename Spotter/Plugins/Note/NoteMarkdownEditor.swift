@@ -33,6 +33,7 @@ enum NoteEditorMetrics {
 struct NoteMarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let onContentHeightChange: (CGFloat) -> Void
+    let onNavigate: (NoteNavigationDirection) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -63,8 +64,14 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         textView.markdownCommandHandler = { [weak coordinator = context.coordinator] command in
             coordinator?.apply(command)
         }
+        textView.blockFormatHandler = { [weak coordinator = context.coordinator] format in
+            coordinator?.apply(format)
+        }
         textView.checkboxClickHandler = { [weak coordinator = context.coordinator] index in
             coordinator?.toggleCheckbox(atCharacterIndex: index) ?? false
+        }
+        textView.navigationHandler = { [weak coordinator = context.coordinator] direction in
+            coordinator?.navigate(direction)
         }
         textView.delegate = context.coordinator
         textView.layoutManager?.delegate = context.coordinator
@@ -149,9 +156,11 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             guard !isApplyingInputRule, affectedCharRange.length == 0,
                 let typed = replacementString
             else { return true }
+            if applyChecklistInputRule(in: textView, at: affectedCharRange, inserting: typed) {
+                return false
+            }
             switch typed {
             case "\n": return continueList(in: textView, at: affectedCharRange)
-            case " ": return startChecklist(in: textView, at: affectedCharRange)
             case "=": return evaluateArithmetic(in: textView, at: affectedCharRange)
             default: return true
             }
@@ -178,14 +187,16 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             return !applyInputRule(replacement, over: replacementRange, in: textView)
         }
 
-        /// `[]` then space becomes a todo, the one list marker Markdown makes awkward to type.
-        private func startChecklist(in textView: NSTextView, at caret: NSRange) -> Bool {
+        /// ASCII or Chinese brackets become the same visual todo while the source stays Markdown.
+        private func applyChecklistInputRule(
+            in textView: NSTextView, at caret: NSRange, inserting typedText: String
+        ) -> Bool {
             let source = textView.string as NSString
             let prefixRange = linePrefixRange(before: caret, in: source)
             guard let replacement = NoteEngine.checklistInputRule(
-                forLinePrefix: source.substring(with: prefixRange))
-            else { return true }
-            return !applyInputRule(replacement, over: prefixRange, in: textView)
+                forLinePrefix: source.substring(with: prefixRange), inserting: typedText)
+            else { return false }
+            return applyInputRule(replacement, over: prefixRange, in: textView)
         }
 
         /// `129+92=` answers itself. The calculator engine already owns arithmetic, so a note gets it
@@ -228,6 +239,17 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             guard let textView else { return }
             let result = NoteEngine.applying(
                 command, to: textView.string, selection: textView.selectedRange())
+            apply(result, to: textView)
+        }
+
+        func apply(_ format: NoteBlockFormat) {
+            guard let textView else { return }
+            let result = NoteEngine.applyingBlockFormat(
+                format, to: textView.string, selection: textView.selectedRange())
+            apply(result, to: textView)
+        }
+
+        private func apply(_ result: NoteEditResult, to textView: NSTextView) {
             let wholeDocument = NSRange(location: 0, length: (textView.string as NSString).length)
             guard textView.shouldChangeText(in: wholeDocument, replacementString: result.text) else {
                 return
@@ -237,6 +259,13 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             textView.setSelectedRange(result.selection)
             textView.window?.makeFirstResponder(textView)
             highlight()
+        }
+
+        func navigate(_ direction: NoteNavigationDirection) {
+            parent.onNavigate(direction)
+            DispatchQueue.main.async { [weak textView] in
+                textView?.window?.makeFirstResponder(textView)
+            }
         }
 
         /// Styling lives in the text storage's *attributes*, never in temporary layout-manager
@@ -249,6 +278,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             else { return }
             let source = textView.string as NSString
             let wholeDocument = NSRange(location: 0, length: source.length)
+            var typingAttributes = Self.baseAttributes
             layout.decorations = []
             layout.checkboxes = []
             taskMarkers = []
@@ -259,7 +289,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             defer {
                 storage.endEditing()
                 isHighlighting = false
-                textView.typingAttributes = Self.baseAttributes
+                textView.typingAttributes = typingAttributes
                 reportContentHeight()
             }
 
@@ -339,22 +369,48 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                     case 3: .title3
                     default: .headline
                     }
-                storage.addAttribute(
-                    .font, value: NSFont.preferredFont(forTextStyle: style), range: match.range)
+                let font = NSFont.preferredFont(forTextStyle: style)
+                storage.addAttribute(.font, value: font, range: match.range)
+                let selection = textView.selectedRange()
+                if selection.length == 0, selection.location >= match.range.location,
+                    selection.location <= NSMaxRange(match.range)
+                {
+                    typingAttributes[.font] = font
+                }
                 self.concealSyntax(around: match.range(at: 2), in: match.range, storage: storage)
             }
             apply(Self.listLine, to: textView.string) { match in
+                guard match.numberOfRanges > 2 else { return }
+                let indentation = source.substring(with: match.range(at: 1))
+                let marker = source.substring(with: match.range(at: 2))
+                let font = storage.attribute(
+                    .font, at: match.range.location, effectiveRange: nil) as? NSFont ?? bodyFont
                 let style = NSMutableParagraphStyle()
-                style.headIndent = Theme.Spacing.xxl
                 style.firstLineHeadIndent = 0
+                style.headIndent = Self.listContinuationIndent(
+                    indentation: indentation, marker: marker, font: font)
                 storage.addAttribute(.paragraphStyle, value: style, range: match.range)
             }
         }
 
-        /// `- [ ] ` and `- [x] ` collapse to a real checkbox: the syntax around the state character
-        /// is given no width, and the state character itself is kerned out to a square the layout
-        /// manager draws the box into. Unlike every other marker the box never hides while the caret
-        /// is on its line — it is a control, not decoration.
+        private static func listContinuationIndent(
+            indentation: String, marker: String, font: NSFont
+        ) -> CGFloat {
+            let indentationWidth = (indentation as NSString).size(
+                withAttributes: [.font: font]).width
+            if marker.range(
+                of: #"^[-*+] \[[ xX]\] "#, options: .regularExpression) != nil
+            {
+                let bodyFont = NSFont.preferredFont(forTextStyle: .body)
+                return indentationWidth + (bodyFont.ascender - bodyFont.descender).rounded()
+            }
+            let displayedMarker = marker.range(
+                of: #"^[-*+] "#, options: .regularExpression) != nil ? "• " : marker
+            return indentationWidth + (displayedMarker as NSString).size(
+                withAttributes: [.font: font]).width
+        }
+
+        /// The Markdown task marker collapses into a checkbox that stays visible because it is a control.
         private func applyCheckboxes(
             in text: String, storage: NSTextStorage, layout: NoteLayoutManager
         ) {
@@ -398,7 +454,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private func applyBlocks(
             _ spans: [NoteBlockSpan], storage: NSTextStorage, layout: NoteLayoutManager
         ) {
-            guard let textView else { return }
             let bodyFont = NSFont.preferredFont(forTextStyle: .body)
             let monospaced = NSFont.monospacedSystemFont(
                 ofSize: bodyFont.pointSize, weight: .regular)
@@ -427,8 +482,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                     concealSyntax(around: body, in: span.range, storage: storage)
                 case .rule:
                     layout.decorations.append(.rule(span.range))
-                    // The dashes keep their line height so the drawn hairline has room to sit in.
-                    guard !selectionTouches(span.range, in: textView) else { continue }
                     storage.addAttribute(
                         .foregroundColor, value: NSColor.clear, range: span.range)
                 case .tableRow:
@@ -532,7 +585,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private func concealSyntax(
             around content: NSRange, in fullRange: NSRange, storage: NSTextStorage
         ) {
-            guard let textView, !selectionTouches(fullRange, in: textView) else { return }
             let prefix = NSRange(
                 location: fullRange.location, length: content.location - fullRange.location)
             let suffix = NSRange(
@@ -546,14 +598,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             guard range.length > 0 else { return }
             storage.addAttribute(.font, value: NSFont.systemFont(ofSize: 0.1), range: range)
             storage.addAttribute(.foregroundColor, value: NSColor.clear, range: range)
-        }
-
-        private func selectionTouches(_ range: NSRange, in textView: NSTextView) -> Bool {
-            let selection = textView.selectedRange()
-            if selection.length == 0 {
-                return selection.location >= range.location && selection.location <= NSMaxRange(range)
-            }
-            return NSIntersectionRange(selection, range).length > 0
         }
 
         private func firstCapture(in match: NSTextCheckingResult) -> NSRange? {
@@ -599,7 +643,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private static let heading = try! NSRegularExpression(
             pattern: #"(?m)^(#{1,6})[ \t]+(.*)$"#)
         private static let listLine = try! NSRegularExpression(
-            pattern: #"(?m)^\s*(?:[-*+] |\d+\. |- \[[ xX]\] ).+$"#)
+            pattern: #"(?m)^([ \t]*)([-*+] \[[ xX]\] |[-*+] |\d+\. ).+$"#)
     }
 }
 
@@ -732,6 +776,8 @@ private final class NoteLayoutManager: NSLayoutManager {
 @MainActor
 private final class NoteTextView: NSTextView {
     var markdownCommandHandler: ((NoteMarkdownCommand) -> Void)?
+    var blockFormatHandler: ((NoteBlockFormat) -> Void)?
+    var navigationHandler: ((NoteNavigationDirection) -> Void)?
     /// Reports the character index clicked and whether a todo box was toggled there.
     var checkboxClickHandler: ((Int) -> Bool)?
 
@@ -749,6 +795,66 @@ private final class NoteTextView: NSTextView {
         return layoutManager.characterIndexForGlyph(at: glyph)
     }
 
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard selectedRange().length > 0 else { return super.menu(for: event) }
+
+        let menu = NSMenu()
+        menu.addItem(contextMenuItem("Copy", action: #selector(copy(_:)), keyEquivalent: "c"))
+        menu.addItem(contextMenuItem("Paste", action: #selector(paste(_:)), keyEquivalent: "v"))
+        menu.addItem(.separator())
+
+        let formatItem = NSMenuItem(title: "Format", action: nil, keyEquivalent: "")
+        let formatMenu = NSMenu(title: "Format")
+        formatMenu.addItem(contextMenuItem("Heading 1", action: #selector(formatHeading(_:))))
+        formatMenu.addItem(contextMenuItem("Normal Text", action: #selector(formatBody(_:))))
+        formatMenu.addItem(.separator())
+        formatMenu.addItem(
+            contextMenuItem("Numbered List", action: #selector(formatNumberedList(_:))))
+        formatMenu.addItem(
+            contextMenuItem("Bulleted List", action: #selector(formatBulletedList(_:))))
+        menu.setSubmenu(formatMenu, for: formatItem)
+        menu.addItem(formatItem)
+
+        menu.addItem(.separator())
+        menu.addItem(contextMenuItem("Bold", action: #selector(formatBold(_:)), keyEquivalent: "b"))
+        menu.addItem(
+            contextMenuItem("Italic", action: #selector(formatItalic(_:)), keyEquivalent: "i"))
+        return menu
+    }
+
+    private func contextMenuItem(
+        _ title: String, action: Selector, keyEquivalent: String = ""
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.target = self
+        if !keyEquivalent.isEmpty { item.keyEquivalentModifierMask = [.command] }
+        return item
+    }
+
+    @objc private func formatHeading(_ sender: Any?) {
+        blockFormatHandler?(.heading)
+    }
+
+    @objc private func formatBody(_ sender: Any?) {
+        blockFormatHandler?(.body)
+    }
+
+    @objc private func formatNumberedList(_ sender: Any?) {
+        blockFormatHandler?(.numberedList)
+    }
+
+    @objc private func formatBulletedList(_ sender: Any?) {
+        blockFormatHandler?(.bulletedList)
+    }
+
+    @objc private func formatBold(_ sender: Any?) {
+        markdownCommandHandler?(.bold)
+    }
+
+    @objc private func formatItalic(_ sender: Any?) {
+        markdownCommandHandler?(.italic)
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard modifiers == .command,
@@ -762,6 +868,10 @@ private final class NoteTextView: NSTextView {
             markdownCommandHandler?(.italic)
         case "k":
             markdownCommandHandler?(.link)
+        case "[":
+            navigationHandler?(.previous)
+        case "]":
+            navigationHandler?(.next)
         default:
             return super.performKeyEquivalent(with: event)
         }

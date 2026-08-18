@@ -6,7 +6,6 @@ struct NoteSettingsView: View {
     @ObservedObject var sync: NoteSyncManager
     @State private var askingConsent = false
     @State private var syncing = false
-    @State private var syncFailed = false
 
     var body: some View {
         SettingsPane(
@@ -69,7 +68,7 @@ struct NoteSettingsView: View {
                     Toggle(
                         "",
                         isOn: Binding(
-                            get: { sync.isEnabled },
+                            get: { sync.cloudKitAvailable && sync.isEnabled },
                             set: { wantsOn in
                                 if wantsOn {
                                     askingConsent = true
@@ -82,21 +81,17 @@ struct NoteSettingsView: View {
                         .controlSize(.small)
                         .disabled(!sync.cloudKitAvailable)
                 }
-                if sync.isEnabled {
+                if sync.isEnabled && sync.cloudKitAvailable {
                     SettingsDivider()
                     SettingsRow(
                         title: "Sync Now",
-                        subtitle: syncFailed
-                            ? "Couldn’t reach iCloud. Check your account or connection."
-                            : "Fetch and send pending Note changes immediately.",
+                        subtitle: "Fetch and send pending Note changes immediately.",
                         systemImage: "arrow.triangle.2.circlepath", tint: .teal
                     ) {
                         Button(syncing ? "Syncing…" : "Sync Now") {
                             syncing = true
-                            syncFailed = false
                             Task {
-                                let succeeded = await sync.syncNow()
-                                syncFailed = !succeeded
+                                _ = await sync.syncNow()
                                 syncing = false
                             }
                         }
@@ -126,7 +121,7 @@ struct NoteSettingsView: View {
 
     private var cloudStatus: String {
         guard sync.cloudKitAvailable else {
-            return "Unavailable in this local self-signed build."
+            return "Unavailable in this build. Install a signed release to use CloudKit."
         }
         return sync.statusText
     }

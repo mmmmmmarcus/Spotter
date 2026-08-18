@@ -352,7 +352,13 @@ and uses selection-over-hover precedence. The overlay-scrolling `NSTextView` pre
 and handles common formatting shortcuts, while the shared window owner grows the single-note
 workspace from three visible editor lines to twenty before scrolling. Inline spans are styled through
 the text storage's attributes, so a heading's line box and caret grow with it — temporary layout-manager
-attributes are drawing-only and would leave both at body height. A block's fill is instead painted
+attributes are drawing-only and would leave both at body height. Heading and inline Markdown markers
+stay collapsed even while their content is selected, so the workspace reads as a visual editor while
+its plain source remains portable Markdown. List continuation lines align to the first line's text
+using the measured width of the rendered bullet, number or checkbox rather than a fixed indent. A
+selected range exposes the native editor context menu:
+Copy, Paste, Bold, Italic and a Format submenu whose heading, body, numbered-list and bulleted-list
+choices replace the current paragraph style instead of stacking Markdown prefixes. A block's fill is instead painted
 behind the text by `NoteLayoutManager`: a
 `controlSurface` panel at `card` radius behind a fenced code block, a 2-point `border` bar beside a
 blockquote, and a `separator` hairline across a horizontal rule. Those are the same tokens AI Chat's
@@ -360,8 +366,8 @@ rendered replies use, so a code block reads the same in both surfaces. Notes has
 input, formatting buttons, preview mode or bottom status row; persistence remains automatic. Height
 changes use short live-frame interpolation from the anchored top edge so SwiftUI redraws the fixed
 panel radius throughout instead of letting AppKit bitmap-scale the rounded surface.
-Its Settings pane owns a standard Sync card for the separate Notes JSON file; this file picker,
-pause state, status and disconnect controls never appear in the global Backup pane.
+Its Settings pane owns the consent, status and manual action for private CloudKit sync; Note content
+never enters automatic Settings Sync or the global Backup pane.
 
 The calculator's inline `CalculatorCard` reuses this card language (`cardFill` + `cardStroke`) rather than the row language, since it's a highlighted answer, not a list item. A value answer is normally a **two-column** layout: a source column (input echo) and a target column (result), separated by a centered `arrow.right` glyph (no divider line). A plugin result may add one companion column; World Clock uses it for the local system time after the requested city's time. Each column optionally carries a word-name **badge pill** beneath its value (`keyCap` font, `controlSurface` fill, `keyCap` radius) — `Expression`→`Result` for scalar arithmetic, unit or currency names for typed results (`Expression`→`Kilograms`), and moment labels for a date/time calc (`12:18 AM`→`9:00 AM`, `Friday, 24 July`→`Friday, 9 April, 2027`). A trailing operator keeps the last complete result and its badge visible while the next operand is being typed.
 

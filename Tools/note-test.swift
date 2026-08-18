@@ -74,6 +74,30 @@ struct NoteTests {
                 .numberedList, to: "one\ntwo", selection: NSRange(location: 0, length: 7)
             ).text)
         check(
+            "context format converts mixed blocks to body text", "one\ntwo\nthree\nfour",
+            NoteEngine.applyingBlockFormat(
+                NoteBlockFormat.body, to: "# one\n- two\n3. three\n- [ ] four",
+                selection: NSRange(location: 0, length: 33)
+            ).text)
+        check(
+            "context format converts lines to headings", "# one\n# two",
+            NoteEngine.applyingBlockFormat(
+                NoteBlockFormat.heading, to: "one\n2. two",
+                selection: NSRange(location: 0, length: 10)
+            ).text)
+        check(
+            "context format converts lines to bullets", "- one\n  - two",
+            NoteEngine.applyingBlockFormat(
+                NoteBlockFormat.bulletedList, to: "## one\n  7. two",
+                selection: NSRange(location: 0, length: 15)
+            ).text)
+        check(
+            "context format renumbers nonempty lines", "1. one\n\n2. two",
+            NoteEngine.applyingBlockFormat(
+                NoteBlockFormat.numberedList, to: "- one\n\n# two",
+                selection: NSRange(location: 0, length: 13)
+            ).text)
+        check(
             "link", "Read [Spotter](https://)",
             NoteEngine.applying(
                 .link, to: "Read Spotter", selection: NSRange(location: 5, length: 7)
@@ -86,6 +110,15 @@ struct NoteTests {
         check(
             "brackets replace an existing bullet", "- [ ] ",
             NoteEngine.checklistInputRule(forLinePrefix: "- []"))
+        check(
+            "Chinese brackets become a todo after space", "- [ ] ",
+            NoteEngine.checklistInputRule(forLinePrefix: "【】"))
+        check(
+            "spaced Chinese brackets become a todo when closed", "- [ ] ",
+            NoteEngine.checklistInputRule(forLinePrefix: "【 ", inserting: "】"))
+        check(
+            "full-width spaced Chinese brackets become a todo when closed", "  - [ ] ",
+            NoteEngine.checklistInputRule(forLinePrefix: "  【　", inserting: "】"))
         check("text before brackets is left alone", nil, NoteEngine.checklistInputRule(forLinePrefix: "a []"))
         check("a lone bracket is not a todo", nil, NoteEngine.checklistInputRule(forLinePrefix: "["))
 
@@ -147,6 +180,10 @@ struct NoteTests {
         let secondID = reopened.createNote(content: "Second")
         await reopened.flush()
         check("create selects", secondID, reopened.selectedID)
+        let previousNote = reopened.selectAdjacent(.previous)
+        check("previous note wraps backward through note order", "# Persisted\nBody", previousNote?.content)
+        let nextNote = reopened.selectAdjacent(.next)
+        check("next note wraps forward through note order", secondID, nextNote?.id)
         if let selected = reopened.selectedNote { reopened.delete(selected) }
         await reopened.flush()
         check("delete note", 1, reopened.notes.count)

@@ -123,7 +123,8 @@ struct NoteView: View {
                 ZStack(alignment: .topLeading) {
                     NoteMarkdownEditor(
                         text: selectedContent,
-                        onContentHeightChange: updateEditorHeight)
+                        onContentHeightChange: updateEditorHeight,
+                        onNavigate: navigate)
                     if note.content.isEmpty {
                         // An empty note opens on the moment it was opened — a date line is usually
                         // the first thing typed anyway, and it beats a nag to start writing.
@@ -211,6 +212,12 @@ struct NoteView: View {
         store.select(note)
         editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
         closeNoteList()
+    }
+
+    private func navigate(_ direction: NoteNavigationDirection) {
+        guard let note = store.selectAdjacent(direction) else { return }
+        editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
+        resizeHeight(NoteEditorMetrics.windowHeight(forEditorHeight: editorHeight))
     }
 
     private func updateEditorHeight(_ height: CGFloat) {

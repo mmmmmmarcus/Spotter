@@ -29,9 +29,21 @@ enum NoteMarkdownCommand: Sendable {
     case checklist
 }
 
+enum NoteBlockFormat: Equatable, Sendable {
+    case body
+    case heading
+    case bulletedList
+    case numberedList
+}
+
 enum NoteListContinuation: Equatable, Sendable {
     case continueWith(String)
     case endList
+}
+
+enum NoteNavigationDirection: Equatable, Sendable {
+    case previous
+    case next
 }
 
 struct NoteEditResult: Equatable, Sendable {
@@ -55,7 +67,7 @@ struct NoteBlockSpan: Equatable, Sendable {
     let kind: NoteBlockKind
     /// UTF-16, and never includes the line break — a background drawn over one runs to the next line.
     let range: NSRange
-    /// Leading syntax the editor hides while the caret sits elsewhere; empty when there is none.
+    /// Leading syntax the editor hides behind the rendered block; empty when there is none.
     let markerRange: NSRange
 
     init(kind: NoteBlockKind, range: NSRange, markerRange: NSRange = NSRange(location: 0, length: 0)) {
@@ -113,15 +125,19 @@ enum NoteEngine {
         return body.isEmpty ? "No additional text" : String(body.prefix(120))
     }
 
-    /// The `[]` + space input rule. Given everything on the line up to the caret, returns the text
-    /// that replaces it, or nil when the line is not a bare `[]`.
-    static func checklistInputRule(forLinePrefix prefix: String) -> String? {
+    /// Turns completed ASCII or Chinese brackets into the Markdown source for a visual checkbox.
+    static func checklistInputRule(
+        forLinePrefix prefix: String, inserting typedText: String = " "
+    ) -> String? {
         let indentation = String(prefix.prefix(while: { $0 == " " || $0 == "\t" }))
         var body = Substring(prefix.dropFirst(indentation.count))
         if let marker = ["- ", "* ", "+ "].first(where: { body.hasPrefix($0) }) {
             body = body.dropFirst(marker.count)
         }
-        guard body == "[]" else { return nil }
+        let completed = String(body) + typedText
+        guard completed == "[] " || completed == "【】 " || completed == "【 】"
+            || completed == "【　】"
+        else { return nil }
         return indentation + "- [ ] "
     }
 
@@ -259,6 +275,62 @@ enum NoteEngine {
         case .heading, .bulletedList, .numberedList, .checklist:
             return formattingLines(command, selection: safeSelection, in: text)
         }
+    }
+
+    static func applyingBlockFormat(
+        _ format: NoteBlockFormat, to text: String, selection: NSRange
+    ) -> NoteEditResult {
+        let source = text as NSString
+        let location = min(max(0, selection.location), source.length)
+        let length = min(max(0, selection.length), source.length - location)
+        let lineRange = source.lineRange(for: NSRange(location: location, length: length))
+        let block = source.substring(with: lineRange)
+        let keepsTrailingNewline = block.hasSuffix("\n")
+        var lines = block.components(separatedBy: "\n")
+        if keepsTrailingNewline { lines.removeLast() }
+
+        var listNumber = 1
+        let transformed = lines.map { line in
+            let indentation = String(line.prefix(while: { $0 == " " || $0 == "\t" }))
+            let body = String(line.dropFirst(indentation.count))
+            guard !body.trimmingCharacters(in: .whitespaces).isEmpty else { return line }
+            let plainBody = removingBlockPrefix(from: body)
+
+            let prefix: String
+            switch format {
+            case .body: prefix = ""
+            case .heading: prefix = "# "
+            case .bulletedList: prefix = "- "
+            case .numberedList:
+                prefix = "\(listNumber). "
+                listNumber += 1
+            }
+            return indentation + prefix + plainBody
+        }
+
+        var replacement = transformed.joined(separator: "\n")
+        if keepsTrailingNewline { replacement += "\n" }
+        let result = source.replacingCharacters(in: lineRange, with: replacement)
+        return NoteEditResult(
+            text: result,
+            selection: NSRange(location: lineRange.location, length: (replacement as NSString).length))
+    }
+
+    private static func removingBlockPrefix(from line: String) -> String {
+        let patterns = [
+            #"^#{1,6}[ \t]+"#,
+            #"^[-*+][ \t]+\[[ xX]\][ \t]+"#,
+            #"^\d+\.[ \t]+"#,
+            #"^[-*+][ \t]+"#,
+        ]
+        for pattern in patterns {
+            if line.range(of: pattern, options: .regularExpression) != nil {
+                return line.replacingOccurrences(
+                    of: pattern, with: "", options: .regularExpression,
+                    range: line.startIndex..<line.endIndex)
+            }
+        }
+        return line
     }
 
     private static func wrapping(

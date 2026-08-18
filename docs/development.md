@@ -228,7 +228,8 @@ Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory.
 
 The Notes harness compiles the real Foundation-only model, store, merge rules and Markdown transformer.
-It validates derived titles/previews, UTF-16 selections, formatting toggles, deletion tombstones,
+It validates derived titles/previews, UTF-16 selections, formatting toggles and replacements,
+adjacent-note navigation, ASCII and Chinese-bracket checklist input, deletion tombstones,
 deterministic CloudKit conflict resolution and atomic persistence against a temporary archive without
 opening a window, contacting iCloud or touching the user's notes file.
 

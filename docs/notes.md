@@ -41,6 +41,9 @@ instead of asking AppKit to scale a cached window image, so the window does not 
 radius stays constant during the transition.
 Disabling the plugin closes the window and flushes the latest in-memory snapshot.
 
+While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
+next one. Navigation follows the same newest-first order as the notes list and wraps at either end.
+
 ## Model and persistence
 
 `NoteStore` is `@MainActor` and owned once by `AppCore`. It keeps the ordered note list and active
@@ -78,6 +81,12 @@ and last-known record system fields under the bundle-specific Application Suppor
 Edits debounce for 300 ms, then only changed records are sent. CloudKit's subscription-driven fetches
 hot-apply remote records, and Settings exposes an immediate fetch/send action.
 
+Retryable CloudKit failures keep the engine and its pending changes alive, so temporary network,
+service-unavailable and rate-limit results can recover automatically. **Sync Now** waits for an
+in-progress engine start before fetching and sending instead of reporting a false failure while
+initialization continues. A sync is only called complete when no zone or record changes remain
+pending, and Settings translates CloudKit's numeric errors into actionable messages.
+
 Conflicts compare the user edit/deletion timestamp rather than upload arrival time. The newer item
 wins; a deletion wins an exact timestamp tie, and simultaneous Note edits use a deterministic content
 tiebreak so two devices converge. Server-record conflicts retain the newest CKRecord system fields
@@ -92,7 +101,9 @@ Note content, while its trusted snapshot may carry the CloudKit consent flag.
 
 Developer ID stable and beta builds share the CloudKit container but use provisioning profiles tied
 to their separate App IDs. The local self-signed Debug build deliberately has no CloudKit entitlement,
-so it exercises local Notes and pure sync tests without contacting iCloud.
+so it exercises local Notes and pure sync tests without contacting iCloud. Settings verifies the
+container, CloudKit service, environment and push entitlements together; an incapable build shows
+the switch off and disabled even if persisted consent should resume in a later signed build.
 
 ## Editor
 
@@ -105,27 +116,31 @@ body's 16 points while painting 26-point glyphs, so headings rendered big with a
 and a body-height caret. Storage attributes are not characters: `textView.string`, and therefore
 everything persisted, is still exactly the Markdown the user typed. Each pass resets the whole
 document to the base font and label color, then re-applies first-line title, heading, bold, italic,
-strikethrough, inline-code, link, list and completed-task presentation. Syntax markers collapse when
-the caret is outside their span — and now genuinely collapse, taking no width rather than being drawn
-small — and a leading `- ` is rendered as a bullet.
+strikethrough, inline-code, link, list and completed-task presentation. Inline and heading syntax
+markers always collapse to no width, including while the formatted content is selected or edited;
+the workspace behaves like a visual editor while the stored string remains Markdown. A leading `- `
+is rendered as a bullet. Wrapped list lines use a hanging indent measured from their actual rendered
+marker — bullet, number or checkbox — so every continuation aligns with the first line's content
+rather than a fixed spacing token.
 
 Headings carry a real hierarchy that the line box follows: `#` is largeTitle (a 32-point line), `##`
 title1 (26), `###` title3 (20, only just above the body's 16), and deeper levels take weight instead
-of more size. The regex allows an empty body, so the line and caret grow the moment the marker and
-its space are typed, before any text follows.
+of more size. The regex allows an empty body, so typing `# ` immediately hides the marker and turns
+the insertion point into Heading 1 before any text follows.
 
 A `- [ ] ` or `- [x] ` marker renders as a real checkbox. The syntax either side of the state
 character is collapsed and the state character itself is kerned out to a square, which
 `NoteLayoutManager` draws a rounded box into — filled with a checkmark in the accent color when done.
 Clicking the box toggles it through `shouldChangeText`, so the change is undoable and the source
-stays `[ ]`/`[x]`. Unlike every other marker the box never hides while the caret is on its line: it is
-a control, not decoration.
+stays `[ ]`/`[x]`. The rendered box stays visible while its line is edited because it is a control,
+not decoration.
 
 Three input rules fire from `shouldChangeTextIn`, each keyed to one typed character:
 
 - **Return** continues bulleted, numbered and checklist items; Return on an empty item exits the list.
-- **Space** after a bare `[]` becomes `- [ ] `, the one list marker Markdown makes awkward to type.
-  It works at any indentation and replaces an existing bullet rather than nesting inside it.
+- **Space** after bare `[]` or `【】` becomes `- [ ] `, the one list marker Markdown makes awkward to
+  type. Closing `【 】` does the same, including a full-width interior space. The rule works at any
+  indentation and replaces an existing bullet rather than nesting inside it.
 - **`=`** after an arithmetic expression appends the answer, so `129+92=` finishes itself.
   `NoteEngine.arithmeticExpression` finds the expression and stays pure; the editor evaluates it
   through `CalcEngine`, which keeps arithmetic in its single owner. A list or numbered marker is
@@ -136,8 +151,8 @@ Block constructs are found by `NoteEngine.blockSpans`, a pure line scan returnin
 fenced code, blockquotes, horizontal rules and pipe tables. A fenced block shadows everything inside
 it, so a rule, table or `# ` written in an example stays literal text and its `- ` keeps its dash
 rather than becoming a bullet. Code and table lines are set monospaced — a table's own pipes are what
-align its columns — a quote is indented and secondary, and a rule's dashes are hidden while the caret
-is elsewhere.
+align its columns — a quote is indented and secondary, and a rule's dashes stay hidden behind its
+drawn hairline.
 
 The fills those blocks imply are *drawn*, not inserted: `NoteLayoutManager` overrides background
 drawing to paint the code panel, the quote bar and the rule hairline behind the text. That is the
@@ -145,9 +160,15 @@ whole reason the editor builds its TextKit 1 stack by hand. Nothing about it rea
 source string, so the file on disk stays the Markdown the user typed.
 
 The minimal toolbar only exposes New Note and the notes-list toggle. Formatting stays in the
-writing flow: Command-B applies bold, Command-I applies italic and Command-K inserts a link, while
-ordinary Markdown markers cover strikethrough, inline code, headings, bulleted lists, numbered lists
-and checklists. The Foundation-only `NoteEngine` performs shortcut transformations, derives
+writing flow: Command-B applies visual bold, Command-I applies visual italic and Command-K inserts a
+visual link; their Markdown delimiters are persisted but never shown. Ordinary Markdown markers
+cover strikethrough, inline code, headings, bulleted lists, numbered lists
+and checklists. Selecting text also replaces the generic editor menu with a native contextual menu
+for Copy, Paste, Bold and Italic, plus a Format submenu for Heading 1, Normal Text, Numbered List and
+Bulleted List. Paragraph choices are mutually exclusive: the pure engine removes an existing
+heading, list or checklist prefix before applying the requested format, while preserving indentation
+and keeping numbered lists continuous across nonempty selected lines. The Foundation-only
+`NoteEngine` performs shortcut transformations, derives
 titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and the pure tests use
 identical behavior. There is no separate title field, preview surface, formatting palette,
 word/character counter or save-status footer; persistence remains automatic in the background.
@@ -163,5 +184,6 @@ swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/No
 ```
 
 The harness uses an injected temporary archive and defaults suite, checks archive-v2 tombstones,
-deterministic Note/deletion merges and the former sync document's decode bridge; it never opens the
-floating window, contacts CloudKit or reads real application data.
+context-menu block-format replacement, deterministic Note/deletion merges and the former sync
+document's decode bridge; it never opens the floating window, contacts CloudKit or reads real
+application data.
