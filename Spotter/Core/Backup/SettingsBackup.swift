@@ -127,6 +127,7 @@ struct SettingsBackup: Codable, Sendable {
         }
         struct Note: Codable, Sendable {
             var iCloudSyncEnabled: Bool?
+            var windowTransparency: Double?
         }
         var changeCase: ChangeCase?
         var killProcess: KillProcess?
@@ -321,7 +322,9 @@ extension SettingsBackup {
             gap: d.integer(forKey: WindowManagementDefaults.gapKey),
             cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
         prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
-        prefs.note = PluginPrefs.Note(iCloudSyncEnabled: core.noteSync.isEnabled)
+        prefs.note = PluginPrefs.Note(
+            iCloudSyncEnabled: core.noteSync.isEnabled,
+            windowTransparency: core.notes.windowTransparency)
         return prefs
     }
 
@@ -465,6 +468,10 @@ extension SettingsBackup {
         if let m = prefs.mole, let path = m.binaryPath {
             // Through the manager so `binaryPath` re-resolves; an empty string clears the override.
             core.mole.setBinaryPathOverride(path)
+            count += 1
+        }
+        if let transparency = prefs.note?.windowTransparency {
+            core.notes.setWindowTransparency(transparency)
             count += 1
         }
         if let dashboard = prefs.dashboardWidgets {

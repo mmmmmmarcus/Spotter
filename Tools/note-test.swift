@@ -76,14 +76,26 @@ struct NoteTests {
         check(
             "context format converts mixed blocks to body text", "one\ntwo\nthree\nfour",
             NoteEngine.applyingBlockFormat(
-                NoteBlockFormat.body, to: "# one\n- two\n3. three\n- [ ] four",
+                NoteBlockFormat.text, to: "# one\n- two\n3. three\n- [ ] four",
                 selection: NSRange(location: 0, length: 33)
             ).text)
         check(
-            "context format converts lines to headings", "# one\n# two",
+            "context format converts lines to heading 1", "# one\n# two",
             NoteEngine.applyingBlockFormat(
-                NoteBlockFormat.heading, to: "one\n2. two",
+                NoteBlockFormat.heading1, to: "one\n2. two",
                 selection: NSRange(location: 0, length: 10)
+            ).text)
+        check(
+            "context format converts heading 1 to heading 2", "## one",
+            NoteEngine.applyingBlockFormat(
+                NoteBlockFormat.heading2, to: "# one",
+                selection: NSRange(location: 0, length: 5)
+            ).text)
+        check(
+            "context format converts heading 2 to heading 3", "### one",
+            NoteEngine.applyingBlockFormat(
+                NoteBlockFormat.heading3, to: "## one",
+                selection: NSRange(location: 0, length: 6)
             ).text)
         check(
             "context format converts lines to bullets", "- one\n  - two",
@@ -171,11 +183,15 @@ struct NoteTests {
 
         let fixedDate = Date(timeIntervalSince1970: 1_700_000_000)
         let store = NoteStore(fileURL: fileURL, defaults: defaults, now: { fixedDate })
+        check("window transparency defaults to zero", 0.0, store.windowTransparency)
+        store.setWindowTransparency(0.35)
+        check("window transparency updates", 0.35, store.windowTransparency)
         store.updateSelectedContent("# Persisted\nBody")
         await store.flush()
         let reopened = NoteStore(fileURL: fileURL, defaults: defaults, now: { fixedDate })
         check("persist count", 1, reopened.notes.count)
         check("persist content", "# Persisted\nBody", reopened.selectedNote?.content)
+        check("window transparency persists", 0.35, reopened.windowTransparency)
 
         let secondID = reopened.createNote(content: "Second")
         await reopened.flush()
@@ -190,6 +206,14 @@ struct NoteTests {
         check("delete persists tombstone", 1, reopened.syncSnapshot.tombstones.count)
         let afterDelete = NoteStore(fileURL: fileURL, defaults: defaults, now: { fixedDate })
         check("reopen keeps tombstone", reopened.syncSnapshot.tombstones, afterDelete.syncSnapshot.tombstones)
+
+        let emptyID = reopened.createNote(content: " \n\t")
+        check("exit cleanup removes whitespace-only notes", 1, reopened.deleteEmptyNotes())
+        check("exit cleanup preserves nonempty notes", 1, reopened.notes.count)
+        check("exit cleanup selects a remaining note", reopened.notes.first?.id, reopened.selectedID)
+        check(
+            "exit cleanup records a tombstone", true,
+            reopened.syncSnapshot.tombstones.contains { $0.id == emptyID })
 
         let synced = SpotterNote(content: "# Synced", createdAt: fixedDate)
         reopened.replace(notes: [synced], selectedID: synced.id)

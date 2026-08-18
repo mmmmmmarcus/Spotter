@@ -30,8 +30,10 @@ enum NoteMarkdownCommand: Sendable {
 }
 
 enum NoteBlockFormat: Equatable, Sendable {
-    case body
-    case heading
+    case text
+    case heading1
+    case heading2
+    case heading3
     case bulletedList
     case numberedList
 }
@@ -298,8 +300,10 @@ enum NoteEngine {
 
             let prefix: String
             switch format {
-            case .body: prefix = ""
-            case .heading: prefix = "# "
+            case .text: prefix = ""
+            case .heading1: prefix = "# "
+            case .heading2: prefix = "## "
+            case .heading3: prefix = "### "
             case .bulletedList: prefix = "- "
             case .numberedList:
                 prefix = "\(listNumber). "

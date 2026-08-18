@@ -3,14 +3,14 @@ import SwiftUI
 
 struct NoteView: View {
     @ObservedObject var store: NoteStore
-    let resizeHeight: (CGFloat) -> Void
+    let resizeHeight: (CGFloat, Bool) -> Void
     @State private var query = ""
     @State private var showsNoteList = false
     @State private var editorHeight: CGFloat
     @State private var placeholderStamp = Date()
     @FocusState private var searchIsFocused: Bool
 
-    init(store: NoteStore, resizeHeight: @escaping (CGFloat) -> Void) {
+    init(store: NoteStore, resizeHeight: @escaping (CGFloat, Bool) -> Void) {
         self.store = store
         self.resizeHeight = resizeHeight
         _editorHeight = State(
@@ -46,9 +46,10 @@ struct NoteView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { placeholderStamp = Date() }
+        .onDisappear { store.deleteEmptyNotes() }
         .onChange(of: store.selectedID) { placeholderStamp = Date() }
         .ignoresSafeArea(edges: .top)
-        .background(Theme.Colors.panelScrim)
+        .background(Theme.Colors.panelScrim.opacity(1 - store.windowTransparency))
         .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.noteWindow, style: .continuous))
     }
@@ -96,7 +97,7 @@ struct NoteView: View {
                         ForEach(visibleNotes) { note in
                             NoteListRow(
                                 note: note, isSelected: store.selectedID == note.id,
-                                select: { select(note) }, delete: { confirmDelete(note) })
+                                select: { select(note) }, delete: { store.delete(note) })
                         }
                     }
                     .padding(.horizontal, Theme.Spacing.md)
@@ -217,14 +218,16 @@ struct NoteView: View {
     private func navigate(_ direction: NoteNavigationDirection) {
         guard let note = store.selectAdjacent(direction) else { return }
         editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
-        resizeHeight(NoteEditorMetrics.windowHeight(forEditorHeight: editorHeight))
+        resizeHeight(NoteEditorMetrics.windowHeight(forEditorHeight: editorHeight), true)
     }
 
     private func updateEditorHeight(_ height: CGFloat) {
         guard abs(editorHeight - height) > 0.5 else { return }
         editorHeight = height
         let contentHeight = NoteEditorMetrics.windowHeight(forEditorHeight: height)
-        resizeHeight(showsNoteList ? max(contentHeight, Theme.Size.noteListWindowHeight) : contentHeight)
+        resizeHeight(
+            showsNoteList ? max(contentHeight, Theme.Size.noteListWindowHeight) : contentHeight,
+            false)
     }
 
     private func toggleNoteList() {
@@ -232,7 +235,7 @@ struct NoteView: View {
             closeNoteList()
         } else {
             showsNoteList = true
-            resizeHeight(max(editorWindowHeight, Theme.Size.noteListWindowHeight))
+            resizeHeight(max(editorWindowHeight, Theme.Size.noteListWindowHeight), true)
             DispatchQueue.main.async { searchIsFocused = true }
         }
     }
@@ -240,19 +243,7 @@ struct NoteView: View {
     private func closeNoteList() {
         showsNoteList = false
         searchIsFocused = false
-        resizeHeight(editorWindowHeight)
-    }
-
-    private func confirmDelete(_ note: SpotterNote) {
-        let alert = NSAlert()
-        alert.messageText = "Delete “\(note.title)”?"
-        alert.informativeText = "This note will be permanently deleted."
-        alert.alertStyle = .warning
-        let deleteButton = alert.addButton(withTitle: "Delete")
-        deleteButton.hasDestructiveAction = true
-        deleteButton.keyEquivalent = ""
-        alert.addButton(withTitle: "Cancel").keyEquivalent = "\r"
-        if alert.runModal() == .alertFirstButtonReturn { store.delete(note) }
+        resizeHeight(editorWindowHeight, true)
     }
 }
 

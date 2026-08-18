@@ -42,7 +42,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.scrollerStyle = .overlay
 
@@ -61,6 +61,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         layout.addTextContainer(container)
 
         let textView = NoteTextView(frame: .zero, textContainer: container)
+        textView.identifier = SelectedTextCapture.localSourceIdentifier
         textView.markdownCommandHandler = { [weak coordinator = context.coordinator] command in
             coordinator?.apply(command)
         }
@@ -141,6 +142,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView, !isHighlighting else { return }
             parent.text = textView.string
+            reportContentHeight()
             scheduleHighlight()
         }
 
@@ -302,13 +304,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             setCodeRanges(spans.filter { $0.kind == .codeBlock }.map(\.range), on: layout)
 
             let bodyFont = NSFont.preferredFont(forTextStyle: .body)
-            let firstLine = source.lineRange(for: NSRange(location: 0, length: 0))
-            let firstLineText = source.substring(with: firstLine)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if !firstLineText.isEmpty {
-                storage.addAttribute(
-                    .font, value: NSFont.preferredFont(forTextStyle: .title2), range: firstLine)
-            }
 
             applyBlocks(spans, storage: storage, layout: layout)
 
@@ -516,9 +511,20 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             let usedHeight = max(
                 layout.usedRect(for: container).height,
                 NoteEditorMetrics.minimumEditorHeight - Theme.Spacing.xxl * 2)
+            let unboundedHeight = usedHeight + Theme.Spacing.xxl * 2
             let height = min(
-                max(usedHeight + Theme.Spacing.xxl * 2, NoteEditorMetrics.minimumEditorHeight),
+                max(unboundedHeight, NoteEditorMetrics.minimumEditorHeight),
                 NoteEditorMetrics.maximumEditorHeight)
+            if let scrollView = textView.enclosingScrollView {
+                let needsScroller = unboundedHeight > NoteEditorMetrics.maximumEditorHeight + 0.5
+                if scrollView.hasVerticalScroller != needsScroller {
+                    scrollView.hasVerticalScroller = needsScroller
+                }
+                if !needsScroller {
+                    scrollView.contentView.scroll(to: .zero)
+                    scrollView.reflectScrolledClipView(scrollView.contentView)
+                }
+            }
             guard abs(lastReportedHeight - height) > 0.5 else { return }
             lastReportedHeight = height
             DispatchQueue.main.async { [weak self] in
@@ -803,17 +809,13 @@ private final class NoteTextView: NSTextView {
         menu.addItem(contextMenuItem("Paste", action: #selector(paste(_:)), keyEquivalent: "v"))
         menu.addItem(.separator())
 
-        let formatItem = NSMenuItem(title: "Format", action: nil, keyEquivalent: "")
-        let formatMenu = NSMenu(title: "Format")
-        formatMenu.addItem(contextMenuItem("Heading 1", action: #selector(formatHeading(_:))))
-        formatMenu.addItem(contextMenuItem("Normal Text", action: #selector(formatBody(_:))))
-        formatMenu.addItem(.separator())
-        formatMenu.addItem(
-            contextMenuItem("Numbered List", action: #selector(formatNumberedList(_:))))
-        formatMenu.addItem(
-            contextMenuItem("Bulleted List", action: #selector(formatBulletedList(_:))))
-        menu.setSubmenu(formatMenu, for: formatItem)
-        menu.addItem(formatItem)
+        menu.addItem(.sectionHeader(title: "Format"))
+        menu.addItem(contextMenuItem("Text", action: #selector(formatText(_:))))
+        menu.addItem(contextMenuItem("Heading 1", action: #selector(formatHeading1(_:))))
+        menu.addItem(contextMenuItem("Heading 2", action: #selector(formatHeading2(_:))))
+        menu.addItem(contextMenuItem("Heading 3", action: #selector(formatHeading3(_:))))
+        menu.addItem(contextMenuItem("Numbered List", action: #selector(formatNumberedList(_:))))
+        menu.addItem(contextMenuItem("Bulleted List", action: #selector(formatBulletedList(_:))))
 
         menu.addItem(.separator())
         menu.addItem(contextMenuItem("Bold", action: #selector(formatBold(_:)), keyEquivalent: "b"))
@@ -831,12 +833,20 @@ private final class NoteTextView: NSTextView {
         return item
     }
 
-    @objc private func formatHeading(_ sender: Any?) {
-        blockFormatHandler?(.heading)
+    @objc private func formatText(_ sender: Any?) {
+        blockFormatHandler?(.text)
     }
 
-    @objc private func formatBody(_ sender: Any?) {
-        blockFormatHandler?(.body)
+    @objc private func formatHeading1(_ sender: Any?) {
+        blockFormatHandler?(.heading1)
+    }
+
+    @objc private func formatHeading2(_ sender: Any?) {
+        blockFormatHandler?(.heading2)
+    }
+
+    @objc private func formatHeading3(_ sender: Any?) {
+        blockFormatHandler?(.heading3)
     }
 
     @objc private func formatNumberedList(_ sender: Any?) {

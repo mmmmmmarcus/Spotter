@@ -15,8 +15,12 @@ Settings recommends Hyper + S and Hyper + T.
 ## Selection capture
 
 `AppCore` owns the shared `SelectedTextCapture` in `Core/SelectedTextCapture.swift`. Selection Tools
-and AI Chat both use it. A shortcut snapshots `NSWorkspace.shared.frontmostApplication`
-synchronously before the first `await`, then captures in tiers:
+and AI Chat both use it. The Notes editor explicitly opts its native `NSTextView` into local capture,
+so a selection inside Spotter Notes is read directly without Accessibility or the pasteboard; other
+Spotter fields remain excluded. The selection is snapshotted before the palette takes focus, which
+keeps launcher commands as well as global shortcuts working from Notes. External-app capture
+snapshots `NSWorkspace.shared.frontmostApplication` synchronously before the first `await`, then
+captures in tiers:
 
 1. `SelectedTextReader` reads the focused control through Accessibility.
 2. Chromium accessibility attributes are enabled temporarily and retried while its tree appears.

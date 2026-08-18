@@ -229,7 +229,8 @@ Core Image/ImageIO, then deletes its fixture directory.
 
 The Notes harness compiles the real Foundation-only model, store, merge rules and Markdown transformer.
 It validates derived titles/previews, UTF-16 selections, formatting toggles and replacements,
-adjacent-note navigation, ASCII and Chinese-bracket checklist input, deletion tombstones,
+H1/H2/H3/Text conversion, adjacent-note navigation, ASCII and Chinese-bracket checklist input,
+empty-Note deletion tombstones, window-transparency persistence,
 deterministic CloudKit conflict resolution and atomic persistence against a temporary archive without
 opening a window, contacting iCloud or touching the user's notes file.
 

@@ -5,7 +5,7 @@ non-Note state; choosing an existing file validates and applies it before the pa
 Manual backup and automatic sync share the human-readable `SettingsBackup` format, but manual
 exports/imports include Notes for disaster recovery while automatic Settings Sync always omits and
 ignores Note content. Notes has separate, consented CloudKit replication under Settings → Plugins →
-Notes; only that consent flag belongs to trusted Settings state.
+Notes; its consent flag and window-transparency preference belong to trusted Settings state.
 
 The path can be anywhere. When it is inside iCloud Drive, macOS transports it to the user's other
 Macs; Settings Sync itself uses no network service or CloudKit records. Synchronization can be paused
@@ -34,8 +34,9 @@ content, the Backup pane and trust dialogs tell the user to keep them in a priva
 
 Alongside Note content, the other state deliberately excluded from automatic Settings Sync is
 device-bound: the palette's concrete screen coordinates, macOS privacy grants, both synchronization
-paths, Notes' CloudKit engine tokens/system fields, and the uptime card's daily key/click tallies. The Notes CloudKit consent flag and the
-“remember position” preference do sync. Runtime executors, provider response caches, temporary files
+paths, Notes' CloudKit engine tokens/system fields, and the uptime card's daily key/click tallies. The
+Notes CloudKit consent flag, Notes window transparency and the “remember position” preference do
+sync. Runtime executors, provider response caches, temporary files
 and system-derived data are not backup state.
 
 Older v1/v2 files remain importable. Missing fields are preserved during a manual import, while an

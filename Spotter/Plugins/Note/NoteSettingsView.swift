@@ -58,6 +58,28 @@ struct NoteSettingsView: View {
                 }
             }
 
+            SettingsCard(header: "Appearance") {
+                SettingsRow(
+                    title: "Window Transparency",
+                    subtitle: "Adjusts the Note background without fading text or controls.",
+                    systemImage: "circle.lefthalf.filled", tint: .yellow
+                ) {
+                    HStack(spacing: Theme.Spacing.md) {
+                        Slider(
+                            value: Binding(
+                                get: { store.windowTransparency },
+                                set: { store.setWindowTransparency($0) }),
+                            in: 0...NoteStore.maximumWindowTransparency,
+                            step: 0.05)
+                            .frame(width: 140)
+                        Text(store.windowTransparency.formatted(.percent.precision(.fractionLength(0))))
+                            .font(.callout.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 38, alignment: .trailing)
+                    }
+                }
+            }
+
             SettingsCard(header: "Sync") {
                 SettingsRow(
                     title: "iCloud Sync",

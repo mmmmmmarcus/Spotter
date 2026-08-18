@@ -274,9 +274,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local notes in a translucent,
   content-height floating Markdown editor that opens 440 points wide with a 20-point window radius
   and an inset overlay list, plus `Open Notes` and `New Note` actions. Selected text has a native
-  editing and mutually exclusive paragraph-format context menu, and wrapped list content uses
-  marker-width hanging indents. Its consented private CloudKit sync replicates each Note and deletion
-  independently from automatic Settings Sync.
+  editing and visible H1/H2/H3/Text/list format section, wrapped list content uses marker-width
+  hanging indents, and a background-only transparency preference syncs through trusted Settings.
+  Empty Notes are discarded when the window closes. Its consented private CloudKit sync replicates
+  each Note and deletion independently from automatic Settings Sync.
 - **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — enabled by default; user-saved links, files and
   deep links published as launcher entries through `dynamicLauncherCommands`, with `{argument}`
   placeholders collected one step at a time on a palette screen using `livePlaceholder`.

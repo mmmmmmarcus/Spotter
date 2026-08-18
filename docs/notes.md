@@ -36,9 +36,11 @@ buttons through the same animated relayout as the list and they visibly drifted.
 centred against the full toolbar width rather than its own measured width, so nothing beside it can
 re-centre it. The shared window owner keeps the top edge anchored while the
 editor grows from three visible lines to a maximum of twenty, after which the native overlay scroller
-takes over. Programmatic height changes interpolate real window frames from the anchored top edge
-instead of asking AppKit to scale a cached window image, so the window does not jump and its corner
-radius stays constant during the transition.
+takes over. Typing-driven height changes resize immediately from the anchored top edge, so the text
+viewport never passes through intermediate heights or scrolls the content while catching up. The
+vertical scroller remains disabled until content genuinely exceeds the twenty-line cap, preventing
+the transient scrollbar flash that an about-to-grow viewport would otherwise produce. Explicit UI
+transitions such as opening the notes list still interpolate real window frames.
 Disabling the plugin closes the window and flushes the latest in-memory snapshot.
 
 While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
@@ -49,7 +51,9 @@ next one. Navigation follows the same newest-first order as the notes list and w
 `NoteStore` is `@MainActor` and owned once by `AppCore`. It keeps the ordered note list and active
 selection in memory; the first line is always the note title and later meaningful lines supply the
 list excerpt, so neither is stored as a duplicated field. Creating, editing and deleting notes
-mutate that one store.
+mutate that one store. List-row deletion is immediate rather than confirmation-gated. When the Notes
+window closes, whitespace-only Notes are removed in one batch and recorded as normal deletion
+tombstones; any Note containing text is preserved.
 
 The archive is versioned JSON at:
 
@@ -115,8 +119,10 @@ Temporary attributes are drawing-only — a temporary largeTitle font leaves the
 body's 16 points while painting 26-point glyphs, so headings rendered big with a body-height line box
 and a body-height caret. Storage attributes are not characters: `textView.string`, and therefore
 everything persisted, is still exactly the Markdown the user typed. Each pass resets the whole
-document to the base font and label color, then re-applies first-line title, heading, bold, italic,
-strikethrough, inline-code, link, list and completed-task presentation. Inline and heading syntax
+document to the base font and label color, then re-applies heading, bold, italic,
+strikethrough, inline-code, link, list and completed-task presentation. The first line supplies the
+toolbar title but receives no implicit editor font, so converting a Heading 1 paragraph to Text
+restores the true body size. Inline and heading syntax
 markers always collapse to no width, including while the formatted content is selected or edited;
 the workspace behaves like a visual editor while the stored string remains Markdown. A leading `- `
 is rendered as a bullet. Wrapped list lines use a hanging indent measured from their actual rendered
@@ -164,14 +170,20 @@ writing flow: Command-B applies visual bold, Command-I applies visual italic and
 visual link; their Markdown delimiters are persisted but never shown. Ordinary Markdown markers
 cover strikethrough, inline code, headings, bulleted lists, numbered lists
 and checklists. Selecting text also replaces the generic editor menu with a native contextual menu
-for Copy, Paste, Bold and Italic, plus a Format submenu for Heading 1, Normal Text, Numbered List and
-Bulleted List. Paragraph choices are mutually exclusive: the pure engine removes an existing
+for Copy, Paste, Bold and Italic. Its visible Format section contains Text, Heading 1, Heading 2,
+Heading 3, Numbered List and Bulleted List directly rather than nesting them in a submenu. Paragraph
+choices are mutually exclusive: the pure engine removes an existing
 heading, list or checklist prefix before applying the requested format, while preserving indentation
 and keeping numbered lists continuous across nonempty selected lines. The Foundation-only
 `NoteEngine` performs shortcut transformations, derives
 titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and the pure tests use
 identical behavior. There is no separate title field, preview surface, formatting palette,
 word/character counter or save-status footer; persistence remains automatic in the background.
+
+The Appearance card in Notes Settings owns one live Window Transparency slider from 0–80%. It
+attenuates only the adaptive `panelScrim` above the existing system `.hudWindow` material; editor
+content and controls remain fully opaque. The value is bundle-scoped and rides in trusted Settings
+backup/sync state, while the system material continues to honor macOS appearance and accessibility.
 
 ## Testing
 
@@ -184,6 +196,7 @@ swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/No
 ```
 
 The harness uses an injected temporary archive and defaults suite, checks archive-v2 tombstones,
-context-menu block-format replacement, deterministic Note/deletion merges and the former sync
+H1/H2/H3/Text block-format replacement, empty-Note cleanup, transparency persistence,
+deterministic Note/deletion merges and the former sync
 document's decode bridge; it never opens the floating window, contacts CloudKit or reads real
 application data.

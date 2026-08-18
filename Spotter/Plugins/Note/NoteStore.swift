@@ -33,8 +33,11 @@ private actor NoteWriter {
 
 @MainActor
 final class NoteStore: ObservableObject {
+    static let maximumWindowTransparency = 0.8
+
     @Published private(set) var notes: [SpotterNote]
     @Published private(set) var saveState: NoteSaveState = .saved
+    @Published private(set) var windowTransparency: Double
     @Published var selectedID: UUID? {
         didSet {
             if let selectedID {
@@ -47,6 +50,7 @@ final class NoteStore: ObservableObject {
 
     private let defaults: UserDefaults
     private let selectedKey = "note.selected-id"
+    private static let windowTransparencyKey = "note.window-transparency"
     private let writer: NoteWriter
     private let now: () -> Date
     private var saveTask: Task<Void, Never>?
@@ -62,6 +66,11 @@ final class NoteStore: ObservableObject {
         self.defaults = defaults
         self.writer = NoteWriter(fileURL: resolvedURL)
         self.now = now
+        windowTransparency = defaults.object(forKey: Self.windowTransparencyKey) == nil
+            ? 0
+            : min(
+                max(defaults.double(forKey: Self.windowTransparencyKey), 0),
+                Self.maximumWindowTransparency)
 
         let archive = Self.load(from: resolvedURL)
         let loaded = archive.notes.sorted { $0.updatedAt > $1.updatedAt }
@@ -108,6 +117,13 @@ final class NoteStore: ObservableObject {
         selectedID = note.id
     }
 
+    func setWindowTransparency(_ value: Double) {
+        let clamped = min(max(value, 0), Self.maximumWindowTransparency)
+        guard windowTransparency != clamped else { return }
+        windowTransparency = clamped
+        defaults.set(clamped, forKey: Self.windowTransparencyKey)
+    }
+
     @discardableResult
     func selectAdjacent(_ direction: NoteNavigationDirection) -> SpotterNote? {
         guard !notes.isEmpty else { return nil }
@@ -142,6 +158,26 @@ final class NoteStore: ObservableObject {
         }
         scheduleSave(immediately: true)
         notifySyncSnapshotChanged()
+    }
+
+    @discardableResult
+    func deleteEmptyNotes() -> Int {
+        let emptyNotes = notes.filter {
+            $0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !emptyNotes.isEmpty else { return 0 }
+        let emptyIDs = Set(emptyNotes.map(\.id))
+        let deletedAt = now()
+        notes.removeAll { emptyIDs.contains($0.id) }
+        for id in emptyIDs {
+            tombstones[id] = NoteTombstone(id: id, deletedAt: deletedAt)
+        }
+        if let selectedID, emptyIDs.contains(selectedID) {
+            self.selectedID = notes.first?.id
+        }
+        scheduleSave(immediately: true)
+        notifySyncSnapshotChanged()
+        return emptyNotes.count
     }
 
     /// Full-state replacement follows the synced selection when that note still exists.

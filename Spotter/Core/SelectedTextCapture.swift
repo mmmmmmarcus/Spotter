@@ -51,16 +51,30 @@ enum SelectedTextCaptureFailure: Error, Equatable, Sendable {
 /// `AppCore` owns the instance because both plugins use the same clipboard-history suppression hooks.
 @MainActor
 final class SelectedTextCapture {
+    static let localSourceIdentifier = NSUserInterfaceItemIdentifier(
+        "spotter.selected-text-source")
+
     var suspendClipboardCapture: (() -> Void)?
     var resumeClipboardCapture: (() -> Void)?
+    private var selectionBeforePalette: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>?
+
+    func prepareForPalettePresentation() {
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier
+            == ProcessInfo.processInfo.processIdentifier
+        else {
+            selectionBeforePalette = nil
+            return
+        }
+        selectionBeforePalette = captureLocalSelection()
+    }
 
     func capture() async -> Result<SelectedTextSnapshot, SelectedTextCaptureFailure> {
         // Snapshot before the first await so retries can never switch the capture to Spotter.
         guard let application = NSWorkspace.shared.frontmostApplication else {
             return .failure(.noFrontmostApplication)
         }
-        guard application.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
-            return .failure(.spotterIsFrontmost)
+        if application.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+            return captureLocalSelection()
         }
 
         let source = SelectedTextSourceSnapshot(
@@ -86,6 +100,10 @@ final class SelectedTextCapture {
     func captureAfterRestoringFocus()
         async -> Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     {
+        if let selectionBeforePalette {
+            self.selectionBeforePalette = nil
+            return selectionBeforePalette
+        }
         var lastResult: Result<SelectedTextSnapshot, SelectedTextCaptureFailure> =
             .failure(.noFrontmostApplication)
         for attempt in 0..<6 {
@@ -97,6 +115,26 @@ final class SelectedTextCapture {
             try? await Task.sleep(for: .milliseconds(40))
         }
         return lastResult
+    }
+
+    private func captureLocalSelection()
+        -> Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
+    {
+        guard let textView = NSApp.windows.lazy.compactMap({ $0.firstResponder as? NSTextView })
+            .first(where: { $0.identifier == Self.localSourceIdentifier })
+        else { return .failure(.spotterIsFrontmost) }
+        let selection = textView.selectedRange()
+        guard selection.length > 0 else { return .failure(.emptySelection) }
+        let text = (textView.string as NSString).substring(with: selection)
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.emptySelection)
+        }
+        let application = NSRunningApplication.current
+        let source = SelectedTextSourceSnapshot(
+            processIdentifier: application.processIdentifier,
+            appName: "Spotter Notes",
+            bundleIdentifier: application.bundleIdentifier)
+        return .success(SelectedTextSnapshot(text: text, source: source, capturedAt: Date()))
     }
 
     private func copyFallback(

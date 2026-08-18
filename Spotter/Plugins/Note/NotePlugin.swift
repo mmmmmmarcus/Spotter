@@ -70,8 +70,8 @@ extension AppCore {
         ) {
             NoteView(
                 store: notes,
-                resizeHeight: { [weak self] height in
-                    self?.resizePluginWindow(id: "notes", height: height)
+                resizeHeight: { [weak self] height, animated in
+                    self?.resizePluginWindow(id: "notes", height: height, animated: animated)
                 })
         }
     }
