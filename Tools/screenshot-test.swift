@@ -89,6 +89,33 @@ private enum ScreenshotTest {
             ScreenshotGeometry.roundedCornerRadius(forPixelSize: CGSize(width: 6, height: 20)) == 3,
             "small captures clamp the radius to half their shortest side")
 
+        check(ScreenshotCrosshair.size == CGSize(width: 35, height: 35),
+              "custom crosshair keeps the supplied 35-point canvas")
+        check(ScreenshotCrosshair.center == CGPoint(x: 17.5, y: 17.5),
+              "custom crosshair is centered on the pointer")
+        check(ScreenshotCrosshair.cursorSize == CGSize(width: 43, height: 43),
+              "custom cursor canvas leaves four points for its shadow")
+        check(ScreenshotCrosshair.cursorHotSpot == CGPoint(x: 21.5, y: 21.5),
+              "shadow padding does not move the pointer hotspot")
+        check(ScreenshotCrosshair.outlineWidth == 2,
+              "custom cursor adds a one-point external white outline")
+        check(ScreenshotCrosshair.shadowOffset == CGSize(width: 0, height: -1)
+                && ScreenshotCrosshair.shadowBlur == 2,
+              "custom cursor keeps its subtle downward shadow")
+        check(
+            ScreenshotCrosshair.shadowPadding
+                >= ScreenshotCrosshair.outlineWidth / 2
+                    + ScreenshotCrosshair.shadowBlur
+                    + abs(ScreenshotCrosshair.shadowOffset.height),
+            "custom cursor canvas contains both outline and shadow")
+        let crosshairPath = ScreenshotCrosshair.makePath()
+        check(crosshairPath.boundingBoxOfPath == CGRect(x: 0, y: 0, width: 35, height: 35),
+              "custom crosshair body fills the supplied view box")
+        check(crosshairPath.contains(CGPoint(x: 17.5, y: 17.5), using: .evenOdd),
+              "custom crosshair keeps its solid center")
+        check(!crosshairPath.contains(CGPoint(x: 12, y: 12), using: .evenOdd),
+              "custom crosshair keeps the supplied targeting gap")
+
         let source = solidImage(width: 12, height: 12)
         let roundedData = ScreenshotImageProcessor.tiffData(
             from: source, roundedCorners: true)

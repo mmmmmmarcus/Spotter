@@ -322,7 +322,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   user-editable), the launcher command and the menu-bar menu open the same non-activating crosshair
   overlay, which captures the chosen region through a display-scoped ScreenCaptureKit filter and
   places the image on the system clipboard without taking focus from the current app. Capture is
-  one-shot and protected by macOS Screen Recording permission. The display stays visually unchanged;
+  one-shot and protected by macOS Screen Recording permission. Its custom 35×35 blue
+  cursor replaces the system pointer from compiled Union.svg geometry; Spotter adds a one-point white
+  outline and subtle drop shadow. The display stays visually unchanged;
   a one-alpha-step hit surface keeps the panel interactive, while the selected region receives an
   exact 5%-black overlay. A default-on synced preference gives the overlay, black selection border and
   output pixels a 4px radius.

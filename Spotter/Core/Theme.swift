@@ -155,8 +155,13 @@ enum Theme {
             dark: .black.opacity(1.0 / 255.0), light: .black.opacity(1.0 / 255.0))
         static let screenshotSelectionOverlay = adaptive(
             dark: .black.opacity(0.05), light: .black.opacity(0.05))
-        static let screenshotReticleOuter = adaptive(dark: .black, light: .black)
-        static let screenshotReticleInner = adaptive(dark: .white, light: .white)
+        /// Fixed colors from the supplied Union.svg crosshair artwork.
+        static let screenshotCrosshairFill = adaptive(
+            dark: Color(red: 32.0 / 255.0, green: 118.0 / 255.0, blue: 1),
+            light: Color(red: 32.0 / 255.0, green: 118.0 / 255.0, blue: 1))
+        static let screenshotCrosshairOutline = adaptive(dark: .white, light: .white)
+        static let screenshotCrosshairShadow = adaptive(
+            dark: .black.opacity(0.28), light: .black.opacity(0.28))
         /// The violet of the app mark. The one hue in the system: the About support callout's tint and the dashboard clock's second hand.
         static let brand = Color(red: 0.525, green: 0.231, blue: 1.0)
 

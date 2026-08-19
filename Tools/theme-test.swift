@@ -92,12 +92,27 @@ struct ThemeTests {
         check(
             "screenshotSelectionOverlay", Theme.Colors.screenshotSelectionOverlay,
             darkWhite: false, darkAlpha: 0.05, lightWhite: false, lightAlpha: 0.05)
+        let crosshairDark = resolve(Theme.Colors.screenshotCrosshairFill, .darkAqua)
+        let crosshairLight = resolve(Theme.Colors.screenshotCrosshairFill, .aqua)
+        let crosshairBlue = (CGFloat(32.0 / 255.0), CGFloat(118.0 / 255.0), CGFloat(1.0))
         check(
-            "screenshotReticleOuter", Theme.Colors.screenshotReticleOuter,
-            darkWhite: false, darkAlpha: 1.0, lightWhite: false, lightAlpha: 1.0)
+            "screenshotCrosshairFill matches Union.svg in dark",
+            abs(crosshairDark.r - crosshairBlue.0) < 0.001
+                && abs(crosshairDark.g - crosshairBlue.1) < 0.001
+                && abs(crosshairDark.b - crosshairBlue.2) < 0.001
+                && crosshairDark.a == 1)
         check(
-            "screenshotReticleInner", Theme.Colors.screenshotReticleInner,
+            "screenshotCrosshairFill matches Union.svg in light",
+            abs(crosshairLight.r - crosshairBlue.0) < 0.001
+                && abs(crosshairLight.g - crosshairBlue.1) < 0.001
+                && abs(crosshairLight.b - crosshairBlue.2) < 0.001
+                && crosshairLight.a == 1)
+        check(
+            "screenshotCrosshairOutline", Theme.Colors.screenshotCrosshairOutline,
             darkWhite: true, darkAlpha: 1.0, lightWhite: true, lightAlpha: 1.0)
+        check(
+            "screenshotCrosshairShadow", Theme.Colors.screenshotCrosshairShadow,
+            darkWhite: false, darkAlpha: 0.28, lightWhite: false, lightAlpha: 0.28)
 
         // Selection must always beat hover, in both appearances — the shared row `fill` precedence
         // is meaningless if the two read the same weight.

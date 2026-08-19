@@ -23,7 +23,7 @@ final class ScreenshotManager: ObservableObject {
     private var panels: [ScreenshotSelectionPanel] = []
     private var completion: ((ScreenshotCaptureResult) -> Void)?
     private var captureTask: Task<Void, Never>?
-    private var isSystemCursorHidden = false
+    private var previousCursor: NSCursor?
     private let defaults: UserDefaults
 
     @Published var roundedCorners: Bool {
@@ -61,10 +61,10 @@ final class ScreenshotManager: ObservableObject {
         }
 
         self.completion = completion
+        previousCursor = NSCursor.current
         panels = screens.map(makePanel)
 
         for panel in panels { panel.activate() }
-        hideSystemCursor()
         for panel in panels { panel.prepareForPresentation() }
 
         let frames = panels.map { NSStringFromRect($0.frame) }.joined(separator: ", ")
@@ -166,19 +166,8 @@ final class ScreenshotManager: ObservableObject {
     private func dismissPanels() {
         for panel in panels { panel.deactivate() }
         panels = []
-        restoreSystemCursor()
-    }
-
-    private func hideSystemCursor() {
-        guard !isSystemCursorHidden else { return }
-        NSCursor.hide()
-        isSystemCursorHidden = true
-    }
-
-    private func restoreSystemCursor() {
-        guard isSystemCursorHidden else { return }
-        NSCursor.unhide()
-        isSystemCursorHidden = false
+        previousCursor?.set()
+        previousCursor = nil
     }
 
     private func finish(_ result: ScreenshotCaptureResult) {
@@ -241,8 +230,8 @@ private final class ScreenshotSelectionView: NSView {
 
     private let roundedCorners: Bool
     private var dragStart: CGPoint?
-    private var pointerLocation: CGPoint?
     private var selection: CGRect?
+    private let crosshairCursor = ScreenshotSelectionView.makeCrosshairCursor()
     private static let selectionStrokeWidthPixels: CGFloat = 1
 
     init(frame: NSRect, roundedCorners: Bool) {
@@ -250,7 +239,9 @@ private final class ScreenshotSelectionView: NSView {
         super.init(frame: frame)
         addTrackingArea(NSTrackingArea(
             rect: bounds,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            options: [
+                .mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .activeAlways, .inVisibleRect,
+            ],
             owner: self,
             userInfo: nil))
     }
@@ -261,17 +252,28 @@ private final class ScreenshotSelectionView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: crosshairCursor)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        crosshairCursor.set()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        crosshairCursor.set()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        crosshairCursor.set()
+    }
+
     func prepareForPresentation() {
         guard let window else { return }
-        let screenLocation = NSEvent.mouseLocation
-        guard window.frame.contains(screenLocation) else {
-            pointerLocation = nil
-            return
-        }
-        let windowPoint = window.convertPoint(fromScreen: screenLocation)
-        pointerLocation = ScreenshotGeometry.clampedPoint(convert(windowPoint, from: nil), to: bounds)
-        needsDisplay = true
-        displayIfNeeded()
+        window.invalidateCursorRects(for: self)
+        guard window.frame.contains(NSEvent.mouseLocation) else { return }
+        crosshairCursor.set()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -283,16 +285,16 @@ private final class ScreenshotSelectionView: NSView {
         window?.makeFirstResponder(self)
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         dragStart = point
-        pointerLocation = point
         selection = .zero
+        crosshairCursor.set()
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard let dragStart else { return }
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
-        pointerLocation = point
         selection = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
+        crosshairCursor.set()
         needsDisplay = true
     }
 
@@ -301,27 +303,12 @@ private final class ScreenshotSelectionView: NSView {
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         let rect = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
         self.dragStart = nil
-        pointerLocation = point
         selection = nil
         if ScreenshotGeometry.isCapturable(rect) {
             onSelection?(rect)
         } else {
             onCancel?()
         }
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        updatePointer(with: event)
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        updatePointer(with: event)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        guard dragStart == nil else { return }
-        pointerLocation = nil
-        needsDisplay = true
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -336,19 +323,12 @@ private final class ScreenshotSelectionView: NSView {
         }
     }
 
-    private func updatePointer(with event: NSEvent) {
-        pointerLocation = ScreenshotGeometry.clampedPoint(
-            convert(event.locationInWindow, from: nil), to: bounds)
-        needsDisplay = true
-    }
-
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawHitSurface()
         if let selection, ScreenshotGeometry.isCapturable(selection) {
             drawSelection(selection)
         }
-        if let pointerLocation { drawReticle(at: pointerLocation) }
     }
 
     private func drawHitSurface() {
@@ -389,30 +369,38 @@ private final class ScreenshotSelectionView: NSView {
         border.stroke()
     }
 
-    private func drawReticle(at point: CGPoint) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        let armLength: CGFloat = 12
-        let gap: CGFloat = 3
-        let arms = [
-            (CGPoint(x: point.x, y: point.y + gap), CGPoint(x: point.x, y: point.y + gap + armLength)),
-            (CGPoint(x: point.x, y: point.y - gap), CGPoint(x: point.x, y: point.y - gap - armLength)),
-            (CGPoint(x: point.x + gap, y: point.y), CGPoint(x: point.x + gap + armLength, y: point.y)),
-            (CGPoint(x: point.x - gap, y: point.y), CGPoint(x: point.x - gap - armLength, y: point.y)),
-        ]
-        stroke(arms, in: context, color: NSColor(Theme.Colors.screenshotReticleOuter), width: 3)
-        stroke(arms, in: context, color: NSColor(Theme.Colors.screenshotReticleInner), width: 1)
-    }
+    private static func makeCrosshairCursor() -> NSCursor {
+        let path = ScreenshotCrosshair.makePath()
+        let image = NSImage(size: ScreenshotCrosshair.cursorSize, flipped: false) { _ in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.setShouldAntialias(true)
+            context.saveGState()
+            context.translateBy(
+                x: ScreenshotCrosshair.shadowPadding,
+                y: ScreenshotCrosshair.shadowPadding)
+            context.setShadow(
+                offset: ScreenshotCrosshair.shadowOffset,
+                blur: ScreenshotCrosshair.shadowBlur,
+                color: NSColor(Theme.Colors.screenshotCrosshairShadow).cgColor)
+            context.setFillColor(NSColor(Theme.Colors.screenshotCrosshairFill).cgColor)
+            context.addPath(path)
+            context.drawPath(using: .eoFill)
+            context.restoreGState()
 
-    private func stroke(
-        _ arms: [(CGPoint, CGPoint)], in context: CGContext, color: NSColor, width: CGFloat
-    ) {
-        context.setStrokeColor(color.cgColor)
-        context.setLineWidth(width)
-        for (start, end) in arms {
-            context.move(to: start)
-            context.addLine(to: end)
+            context.translateBy(
+                x: ScreenshotCrosshair.shadowPadding,
+                y: ScreenshotCrosshair.shadowPadding)
+            context.setStrokeColor(NSColor(Theme.Colors.screenshotCrosshairOutline).cgColor)
+            context.setLineWidth(ScreenshotCrosshair.outlineWidth)
+            context.addPath(path)
             context.strokePath()
+            context.setFillColor(NSColor(Theme.Colors.screenshotCrosshairFill).cgColor)
+            context.addPath(path)
+            context.drawPath(using: .eoFill)
+            return true
         }
+        image.isTemplate = false
+        return NSCursor(image: image, hotSpot: ScreenshotCrosshair.cursorHotSpot)
     }
 }
 

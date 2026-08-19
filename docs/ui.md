@@ -114,8 +114,9 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 | `screenshotSelectionBorder` | black 1.00 | black 1.00 | fixed screenshot selection outline        |
 | `screenshotHitSurface` | black 1/255 | black 1/255 | visually clear capture-panel hit surface   |
 | `screenshotSelectionOverlay` | black 0.05 | black 0.05 | selected capture region fill            |
-| `screenshotReticleOuter` | black 1.00 | black 1.00 | screenshot crosshair contrast outline      |
-| `screenshotReticleInner` | white 1.00 | white 1.00 | screenshot crosshair foreground            |
+| `screenshotCrosshairFill` | #2076FF 1.00 | #2076FF 1.00 | supplied Union.svg crosshair body       |
+| `screenshotCrosshairOutline` | white 1.00 | white 1.00 | generated crosshair outer outline       |
+| `screenshotCrosshairShadow` | black 0.28 | black 0.28 | subtle custom-cursor drop shadow       |
 
 `glassFrost` is the one token that stays white in both: it brightens the glass, and a dark tint over
 light glass reads as a shadow rather than frost.
@@ -288,9 +289,14 @@ instead so its state remains available.
 
 Screenshot is deliberately outside the palette surface: one transparent AppKit panel covers each
 display only for the duration of an explicit capture. The panels are non-activating, accept the first
-mouse click and leave the current app frontmost. The system cursor is hidden for the bounded session;
-the overlay draws a two-stroke reticle from `screenshotReticleOuter` and
-`screenshotReticleInner`, so Option-key release and the previous app's cursor rect cannot replace it.
+mouse click and leave the current app frontmost. For the bounded session, an AppKit cursor built once
+per panel from the supplied 35×35 Union.svg geometry replaces the system pointer using
+`screenshotCrosshairFill`; Spotter adds a one-point external `screenshotCrosshairOutline` and a
+two-point shadow one point below the artwork. Four points of transparent canvas padding keep both
+effects unclipped while the hotspot remains at the SVG center. It is not a second shape painted into
+the overlay. Full-display cursor rects plus active-always mouse-move and explicit drag updates prevent
+Option-key release or the previous app's cursor rect from restoring the arrow before mouse-down, and
+every exit restores the exact prior cursor.
 The panel fills with `screenshotHitSurface`, one black 8-bit alpha step that is visually clear but
 keeps the whole panel mouse-hittable on macOS 26; a fully transparent overlay lets presses fall
 through. The selected rectangle replaces that pixel content with `screenshotSelectionOverlay`, an

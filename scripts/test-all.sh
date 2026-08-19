@@ -215,6 +215,7 @@ run_harness() {
         screenshot)
             swiftc -swift-version 6 -framework CoreGraphics -framework ImageIO \
                 -framework UniformTypeIdentifiers \
+                Spotter/Plugins/Screenshot/ScreenshotCrosshair.swift \
                 Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
                 Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
                 Tools/screenshot-test.swift -o "$output" && "$output"
