@@ -322,9 +322,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
   user-editable), the launcher command and the menu-bar menu open the same non-activating crosshair
   overlay, which captures the chosen region through a display-scoped ScreenCaptureKit filter and
   places the image on the system clipboard without taking focus from the current app. Capture is
-  one-shot and protected by macOS Screen Recording permission. A dimmed backdrop keeps the full-screen
-  panel mouse-hittable while the chosen region stays clear; a default-on synced preference gives both
-  the black selection border and output pixels a 4px radius.
+  one-shot and protected by macOS Screen Recording permission. The display stays visually unchanged;
+  a one-alpha-step hit surface keeps the panel interactive, while the selected region receives an
+  exact 5%-black overlay. A default-on synced preference gives the overlay, black selection border and
+  output pixels a 4px radius.
   The overlay architecture is adapted from Capso under BSL 1.1; no Capso service or idle process is
   loaded.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),

@@ -112,7 +112,8 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 | `surfaceGlow`    | white 0.06 | black 0.05 | icon placeholder tile, Onboarding glow           |
 | `glassFrost`     | white 0.05 | white 0.30 | tint layered into the floating glass             |
 | `screenshotSelectionBorder` | black 1.00 | black 1.00 | fixed screenshot selection outline        |
-| `screenshotBackdrop` | black 0.38 | black 0.38 | capture overlay and mouse hit surface       |
+| `screenshotHitSurface` | black 1/255 | black 1/255 | visually clear capture-panel hit surface   |
+| `screenshotSelectionOverlay` | black 0.05 | black 0.05 | selected capture region fill            |
 | `screenshotReticleOuter` | black 1.00 | black 1.00 | screenshot crosshair contrast outline      |
 | `screenshotReticleInner` | white 1.00 | white 1.00 | screenshot crosshair foreground            |
 
@@ -290,13 +291,14 @@ display only for the duration of an explicit capture. The panels are non-activat
 mouse click and leave the current app frontmost. The system cursor is hidden for the bounded session;
 the overlay draws a two-stroke reticle from `screenshotReticleOuter` and
 `screenshotReticleInner`, so Option-key release and the previous app's cursor rect cannot replace it.
-The panel fills with `screenshotBackdrop` and clears the live rectangle, matching Capso and keeping
-the whole panel mouse-hittable on macOS 26; a fully transparent overlay lets presses fall through.
-The rectangle uses `screenshotSelectionBorder`, the deliberate fixed-black token, for a
-one-physical-pixel outline. When Rounded Corners is enabled, its radius is four physical pixels after
-converting through the panel's backing scale, matching the four-pixel alpha mask applied to the copied
-TIFF. There is no custom window chrome or persisted geometry. Hiding all panels before sampling pixels
-is load-bearing; otherwise the selection border becomes part of the screenshot.
+The panel fills with `screenshotHitSurface`, one black 8-bit alpha step that is visually clear but
+keeps the whole panel mouse-hittable on macOS 26; a fully transparent overlay lets presses fall
+through. The selected rectangle replaces that pixel content with `screenshotSelectionOverlay`, an
+exact 5%-black fill, then uses `screenshotSelectionBorder` for a one-physical-pixel outline. When
+Rounded Corners is enabled, both use a four-physical-pixel radius after converting through the panel's
+backing scale, matching the four-pixel alpha mask applied to the copied TIFF. There is no custom window
+chrome or persisted geometry. Hiding all panels before sampling pixels is load-bearing; otherwise the
+selection treatment becomes part of the screenshot.
 
 ## Confirmation card — `Features/ConfirmationCard.swift`
 

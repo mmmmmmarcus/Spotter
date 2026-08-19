@@ -86,8 +86,12 @@ struct ThemeTests {
             "screenshotSelectionBorder", Theme.Colors.screenshotSelectionBorder,
             darkWhite: false, darkAlpha: 1.0, lightWhite: false, lightAlpha: 1.0)
         check(
-            "screenshotBackdrop", Theme.Colors.screenshotBackdrop,
-            darkWhite: false, darkAlpha: 0.38, lightWhite: false, lightAlpha: 0.38)
+            "screenshotHitSurface", Theme.Colors.screenshotHitSurface,
+            darkWhite: false, darkAlpha: 1.0 / 255.0,
+            lightWhite: false, lightAlpha: 1.0 / 255.0)
+        check(
+            "screenshotSelectionOverlay", Theme.Colors.screenshotSelectionOverlay,
+            darkWhite: false, darkAlpha: 0.05, lightWhite: false, lightAlpha: 0.05)
         check(
             "screenshotReticleOuter", Theme.Colors.screenshotReticleOuter,
             darkWhite: false, darkAlpha: 1.0, lightWhite: false, lightAlpha: 1.0)

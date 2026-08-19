@@ -150,8 +150,11 @@ enum Theme {
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
         /// Screenshot selection is a capture affordance, not palette chrome; it stays opaque black in both appearances by design.
         static let screenshotSelectionBorder = adaptive(dark: .black, light: .black)
-        static let screenshotBackdrop = adaptive(
-            dark: .black.opacity(0.38), light: .black.opacity(0.38))
+        /// One 8-bit alpha step keeps the full-screen capture panel mouse-hittable without perceptibly dimming the display.
+        static let screenshotHitSurface = adaptive(
+            dark: .black.opacity(1.0 / 255.0), light: .black.opacity(1.0 / 255.0))
+        static let screenshotSelectionOverlay = adaptive(
+            dark: .black.opacity(0.05), light: .black.opacity(0.05))
         static let screenshotReticleOuter = adaptive(dark: .black, light: .black)
         static let screenshotReticleInner = adaptive(dark: .white, light: .white)
         /// The violet of the app mark. The one hue in the system: the About support callout's tint and the dashboard clock's second hand.

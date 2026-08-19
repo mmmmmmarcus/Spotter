@@ -29,12 +29,13 @@ so AppKit routes pointer and Escape events without bringing Spotter to the front
 The system cursor is hidden once for the short selection session and the overlay draws a black/white
 reticle at the current pointer position. This avoids relying on another application's cursor ownership
 or on Option-key release timing. A left-button drag is clamped to its starting display. The overlay
-draws a 38%-black backdrop and clears the live selection from it. Besides matching Capso's selection
-model, that fill is load-bearing on macOS 26: a fully transparent panel does not provide a reliable
-full-screen mouse hit region. With Rounded Corners on, the selection border uses a four-physical-pixel
-radius on every display scale. Releasing the button accepts any region at least one point in both
-dimensions. Escape, a secondary click or a zero-area click cancels without touching the clipboard,
-and every exit path balances the cursor hide before removing the panels.
+does not dim the screen: the panel's full-screen surface uses only one 8-bit black alpha step, which is
+visually transparent but preserves the mouse hit region that macOS 26 drops for a fully clear panel.
+During a drag, the selected rectangle is replaced with an exact 5%-black overlay so its extent is
+clear without obscuring the source. With Rounded Corners on, both that fill and the selection border
+use a four-physical-pixel radius on every display scale. Releasing the button accepts any region at
+least one point in both dimensions. Escape, a secondary click or a zero-area click cancels without
+touching the clipboard, and every exit path balances the cursor hide before removing the panels.
 
 The pure `ScreenshotGeometry` normalizes drag direction, clamps local points and flips a display-local
 AppKit rectangle into ScreenCaptureKit's display-local top-origin space. Its standalone harness pins

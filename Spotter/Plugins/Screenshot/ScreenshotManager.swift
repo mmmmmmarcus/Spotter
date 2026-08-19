@@ -344,22 +344,18 @@ private final class ScreenshotSelectionView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawBackdrop(clearing: selection)
+        drawHitSurface()
         if let selection, ScreenshotGeometry.isCapturable(selection) {
             drawSelection(selection)
         }
         if let pointerLocation { drawReticle(at: pointerLocation) }
     }
 
-    private func drawBackdrop(clearing selection: CGRect?) {
+    private func drawHitSurface() {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
-        context.setFillColor(NSColor(Theme.Colors.screenshotBackdrop).cgColor)
+        context.setFillColor(NSColor(Theme.Colors.screenshotHitSurface).cgColor)
         context.fill(bounds)
-        if let selection, ScreenshotGeometry.isCapturable(selection) {
-            context.setBlendMode(.clear)
-            context.fill(selection)
-        }
         context.restoreGState()
     }
 
@@ -367,7 +363,24 @@ private final class ScreenshotSelectionView: NSView {
         let scale = max(window?.backingScaleFactor ?? 1, 1)
         let strokeWidth = Self.selectionStrokeWidthPixels / scale
         let borderRect = selection.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
-        let radius = roundedCorners ? ScreenshotGeometry.cornerRadiusPixels / scale : 0
+        let radius = roundedCorners
+            ? ScreenshotGeometry.roundedCornerRadius(
+                forPixelSize: CGSize(
+                    width: selection.width * scale, height: selection.height * scale)) / scale
+            : 0
+        let fillPath = CGPath(
+            roundedRect: selection,
+            cornerWidth: radius,
+            cornerHeight: radius,
+            transform: nil)
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        context.saveGState()
+        context.setBlendMode(.copy)
+        context.setFillColor(NSColor(Theme.Colors.screenshotSelectionOverlay).cgColor)
+        context.addPath(fillPath)
+        context.fillPath()
+        context.restoreGState()
+
         let border = radius > 0
             ? NSBezierPath(roundedRect: borderRect, xRadius: radius, yRadius: radius)
             : NSBezierPath(rect: borderRect)
