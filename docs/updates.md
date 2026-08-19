@@ -21,7 +21,8 @@ The zip contains the same Developer ID-signed, notarized and stapled app as the 
 **Check for Updates** in the launcher and **Settings → General → Check for Updates** are consent for
 one feed request. The launcher command opens the complete Software Update flow inside the palette: it checks immediately,
 reports the active channel and current result, offers the verified in-app install when a zip exists,
-and falls back to the release page for a DMG-only release. The automatic daily check ships disabled;
+and falls back to the release page for a DMG-only release. Escape and the header back button both
+return to a fresh launcher root. The automatic daily check ships disabled;
 enabling it presents a dialog naming GitHub, its cadence and the data sent. Its saved choice enters
 trusted v3 backups and automatic sync; trusting that file is the consent act on another Mac.
 

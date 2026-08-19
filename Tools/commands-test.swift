@@ -25,11 +25,6 @@ struct CommandsTests {
             "destructive commands remain mandatory",
             destructive == [.restart, .shutDown, .logOut, .emptyTrash, .quitAllApps])
 
-        let background = Set(SystemCommandCatalog.all.filter(\.runsInBackground).map(\.id))
-        check(
-            "potentially long commands run in background",
-            background == [.emptyTrash, .ejectAllDisks, .dismissNotifications])
-
         for command in SystemCommandCatalog.all {
             let action = PluginActionKey.systemCommand(command.id)
             check("\(command.name) belongs to Commands", action.pluginID == .commands)

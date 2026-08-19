@@ -114,8 +114,8 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 | `screenshotSelectionBorder` | black 1.00 | black 1.00 | fixed screenshot selection outline        |
 | `screenshotHitSurface` | black 1/255 | black 1/255 | visually clear capture-panel hit surface   |
 | `screenshotSelectionOverlay` | black 0.05 | black 0.05 | selected capture region fill            |
-| `screenshotCrosshairFill` | #2076FF 1.00 | #2076FF 1.00 | supplied Union.svg crosshair body       |
-| `screenshotCrosshairOutline` | white 1.00 | white 1.00 | generated crosshair outer outline       |
+| `screenshotCrosshairFill` | #2076FF 1.00 | #2076FF 1.00 | capture cursor symbol body              |
+| `screenshotCrosshairOutline` | white 1.00 | white 1.00 | generated capture-cursor outline        |
 | `screenshotCrosshairShadow` | black 0.28 | black 0.28 | subtle custom-cursor drop shadow       |
 
 `glassFrost` is the one token that stays white in both: it brightens the glass, and a dark tint over
@@ -282,21 +282,28 @@ clears the Dock — the placement macOS uses for its own volume HUD. It picks th
 cursor, holds for 1.4s, then fades over 0.22s; a second command mid-fade resets it to full opacity
 rather than resuming the dissolve. Same glass as `PopoverMenu` (`menuPanel` radius, no hand shadow).
 A no-op's glyph is `.secondary` — it reports that nothing happened. Beyond system commands, any
-subsystem can call `hud.show(title:symbol:)`; long-running work uses launcher background-task rows
-instead so its state remains available.
+subsystem can call `hud.show(title:symbol:)`. Built-in and custom Commands always use this brief
+surface rather than launcher background-task rows; genuinely long-running workflows keep their state
+available through Background Tasks.
 
 ## Screenshot selection overlay — `Plugins/Screenshot/ScreenshotManager.swift`
 
 Screenshot is deliberately outside the palette surface: one transparent AppKit panel covers each
 display only for the duration of an explicit capture. The panels are non-activating, accept the first
-mouse click and leave the current app frontmost. For the bounded session, an AppKit cursor built once
-per panel from the supplied 35×35 Union.svg geometry replaces the system pointer using
-`screenshotCrosshairFill`; Spotter adds a one-point external `screenshotCrosshairOutline` and a
-two-point shadow one point below the artwork. Four points of transparent canvas padding keep both
-effects unclipped while the hotspot remains at the SVG center. It is not a second shape painted into
-the overlay. Full-display cursor rects plus active-always mouse-move and explicit drag updates prevent
-Option-key release or the previous app's cursor rect from restoring the arrow before mouse-down, and
-every exit restores the exact prior cursor.
+mouse click and leave the current app frontmost. For the bounded session the system pointer is replaced
+by one of two AppKit cursors built once from SF Symbols — `dot.crosshair` for region selection,
+`camera.viewfinder` for window selection — both drawn at 24-point `.medium` in
+`screenshotCrosshairFill`. Spotter dilates each glyph into a one-point external
+`screenshotCrosshairOutline` by stamping it around a 24-step circle, then draws the outlined artwork
+once through a two-point `screenshotCrosshairShadow` one point below it; three points of transparent
+canvas padding keep that shadow unclipped. Both symbols are ink-centered in their own canvas, so the
+hotspot is the canvas center. It is not a second shape painted into the overlay. Full-display cursor
+rects plus active-always mouse-move and explicit drag updates prevent Option-key release or the
+previous app's cursor rect from restoring the arrow before mouse-down, the window server is allowed
+to honor a background app's cursor for the session, and every exit restores the exact prior cursor.
+Window mode reuses the region overlay tokens: the hovered window is filled with
+`screenshotSelectionOverlay` and outlined with `screenshotSelectionBorder`, so both modes read as one
+surface.
 The panel fills with `screenshotHitSurface`, one black 8-bit alpha step that is visually clear but
 keeps the whole panel mouse-hittable on macOS 26; a fully transparent overlay lets presses fall
 through. The selected rectangle replaces that pixel content with `screenshotSelectionOverlay`, an

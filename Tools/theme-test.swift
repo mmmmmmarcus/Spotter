@@ -96,13 +96,13 @@ struct ThemeTests {
         let crosshairLight = resolve(Theme.Colors.screenshotCrosshairFill, .aqua)
         let crosshairBlue = (CGFloat(32.0 / 255.0), CGFloat(118.0 / 255.0), CGFloat(1.0))
         check(
-            "screenshotCrosshairFill matches Union.svg in dark",
+            "screenshotCrosshairFill keeps the capture-cursor blue in dark",
             abs(crosshairDark.r - crosshairBlue.0) < 0.001
                 && abs(crosshairDark.g - crosshairBlue.1) < 0.001
                 && abs(crosshairDark.b - crosshairBlue.2) < 0.001
                 && crosshairDark.a == 1)
         check(
-            "screenshotCrosshairFill matches Union.svg in light",
+            "screenshotCrosshairFill keeps the capture-cursor blue in light",
             abs(crosshairLight.r - crosshairBlue.0) < 0.001
                 && abs(crosshairLight.g - crosshairBlue.1) < 0.001
                 && abs(crosshairLight.b - crosshairBlue.2) < 0.001

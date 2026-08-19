@@ -27,10 +27,9 @@ command is one ↵ away in the palette, and a reflexive second ↵ must not rest
 fired with the palette closed shows the palette first. Commands whose effect is otherwise invisible
 ("Trash Emptied", "No Disks to Eject") report through the command HUD when they finish.
 
-Empty Trash, Eject All Disks and Dismiss Notifications can take long enough to outlive a normal
-launcher interaction. Those three return to a fresh launcher with a background-task row and finish
-as Done or Failed; their existing HUD and permission-aware failure alert remain intact. The catalog
-harness pins this set so adding a new long system action requires an explicit policy choice.
+Empty Trash, Eject All Disks and Dismiss Notifications also stay out of Background Tasks. They
+execute asynchronously after the palette closes, then report completion through the HUD;
+permission-aware failures keep their actionable alert.
 
 All 30 commands ship visible in the launcher — unlike Window Management and Change Case, nothing here
 uses `defaultVisible: false`.
@@ -64,5 +63,5 @@ swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
     -o /tmp/commands-test && /tmp/commands-test
 ```
 
-The harness pins the built-in count, stable launcher IDs, mandatory confirmation and background-task
-sets, Commands ownership and legacy shortcut-storage keys without executing a system action.
+The harness pins the built-in count, stable launcher IDs, mandatory confirmation, Commands ownership
+and legacy shortcut-storage keys without executing a system action.

@@ -42,17 +42,16 @@ The current one-shot work integrated with this surface is:
 
 - every state-changing Mole action: Clean, Optimize, Purge and Uninstall;
 - every Image Modification operation, including multi-image batches and Vision work;
-- every user-authored shell command, which intentionally has no timeout;
-- Empty Trash, Eject All Disks and Dismiss Notifications from Commands; and
 - the one in-flight Spotter AI reply, which is also the only task with an activation today: Return
   switches to that conversation and opens the chat. The row exists to carry a reply the user walked
   away from, so a reply that lands while the palette is showing that very session is **discarded
   rather than completed** — they have already read it, and there is nothing to come back to.
 
-Mole and image batches publish determinate progress when they have a trustworthy total. Uninstall,
-custom commands, system commands and AI requests stay indeterminate rather than inventing a
-percentage. Feature-owned cancellation (such as Stop Waiting or disabling Image Modification)
-discards the running row; user dismissal remains limited to Done and Failed rows.
+Mole and image batches publish determinate progress when they have a trustworthy total. Uninstall
+and AI requests stay indeterminate rather than inventing a percentage. Feature-owned cancellation
+(such as Stop Waiting or disabling Image Modification) discards the running row; user dismissal
+remains limited to Done and Failed rows. Built-in and custom Commands deliberately use the brief HUD
+instead of this persistent surface.
 
 Updater installation is deliberately excluded because it replaces and relaunches Spotter. Mole previews and disk analysis remain attached to their
 result screens because their output is the screen itself and those reads are cancellable. Caffeinate

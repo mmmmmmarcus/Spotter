@@ -89,32 +89,58 @@ private enum ScreenshotTest {
             ScreenshotGeometry.roundedCornerRadius(forPixelSize: CGSize(width: 6, height: 20)) == 3,
             "small captures clamp the radius to half their shortest side")
 
-        check(ScreenshotCrosshair.size == CGSize(width: 35, height: 35),
-              "custom crosshair keeps the supplied 35-point canvas")
-        check(ScreenshotCrosshair.center == CGPoint(x: 17.5, y: 17.5),
-              "custom crosshair is centered on the pointer")
-        check(ScreenshotCrosshair.cursorSize == CGSize(width: 43, height: 43),
-              "custom cursor canvas leaves four points for its shadow")
-        check(ScreenshotCrosshair.cursorHotSpot == CGPoint(x: 21.5, y: 21.5),
-              "shadow padding does not move the pointer hotspot")
-        check(ScreenshotCrosshair.outlineWidth == 2,
-              "custom cursor adds a one-point external white outline")
-        check(ScreenshotCrosshair.shadowOffset == CGSize(width: 0, height: -1)
-                && ScreenshotCrosshair.shadowBlur == 2,
-              "custom cursor keeps its subtle downward shadow")
+        let candidates = [
+            ScreenshotWindowCandidate(
+                id: 1, ownerPID: 501, layer: 0, alpha: 1,
+                bounds: CGRect(x: 100, y: 100, width: 400, height: 300)),
+            ScreenshotWindowCandidate(
+                id: 2, ownerPID: 502, layer: 0, alpha: 1,
+                bounds: CGRect(x: 0, y: 0, width: 1440, height: 900)),
+        ]
         check(
-            ScreenshotCrosshair.shadowPadding
-                >= ScreenshotCrosshair.outlineWidth / 2
-                    + ScreenshotCrosshair.shadowBlur
-                    + abs(ScreenshotCrosshair.shadowOffset.height),
-            "custom cursor canvas contains both outline and shadow")
-        let crosshairPath = ScreenshotCrosshair.makePath()
-        check(crosshairPath.boundingBoxOfPath == CGRect(x: 0, y: 0, width: 35, height: 35),
-              "custom crosshair body fills the supplied view box")
-        check(crosshairPath.contains(CGPoint(x: 17.5, y: 17.5), using: .evenOdd),
-              "custom crosshair keeps its solid center")
-        check(!crosshairPath.contains(CGPoint(x: 12, y: 12), using: .evenOdd),
-              "custom crosshair keeps the supplied targeting gap")
+            ScreenshotWindowPicker.target(
+                at: CGPoint(x: 200, y: 200), in: candidates, excluding: 999)?.id == 1,
+            "the front-most window under the pointer wins")
+        check(
+            ScreenshotWindowPicker.target(
+                at: CGPoint(x: 800, y: 200), in: candidates, excluding: 999)?.id == 2,
+            "the pointer outside the front window falls through to the one below")
+        check(
+            ScreenshotWindowPicker.target(
+                at: CGPoint(x: 200, y: 200), in: candidates, excluding: 501)?.id == 2,
+            "Spotter's own overlay panels are never a capture target")
+        check(
+            ScreenshotWindowPicker.target(
+                at: CGPoint(x: 2000, y: 2000), in: candidates, excluding: 999) == nil,
+            "the pointer over no window highlights nothing")
+
+        let rejected = [
+            ScreenshotWindowCandidate(
+                id: 3, ownerPID: 503, layer: 25, alpha: 1,
+                bounds: CGRect(x: 0, y: 0, width: 400, height: 300)),
+            ScreenshotWindowCandidate(
+                id: 4, ownerPID: 504, layer: 0, alpha: 0,
+                bounds: CGRect(x: 0, y: 0, width: 400, height: 300)),
+            ScreenshotWindowCandidate(
+                id: 5, ownerPID: 505, layer: 0, alpha: 1,
+                bounds: CGRect(x: 0, y: 0, width: 400, height: 12)),
+        ]
+        check(
+            ScreenshotWindowPicker.target(
+                at: CGPoint(x: 10, y: 10), in: rejected, excluding: 999) == nil,
+            "menu-bar layers, invisible windows and slivers are skipped")
+
+        let flipped = ScreenshotWindowPicker.appKitRect(
+            fromDisplaySpace: CGRect(x: 120, y: 100, width: 300, height: 200),
+            primaryScreenMaxY: 900)
+        check(
+            flipped == CGRect(x: 120, y: 600, width: 300, height: 200),
+            "a top-origin window rectangle flips into AppKit's global space")
+        check(
+            ScreenshotWindowPicker.displaySpacePoint(
+                fromAppKit: CGPoint(x: 120, y: 600), primaryScreenMaxY: 900)
+                == CGPoint(x: 120, y: 300),
+            "an AppKit pointer location flips into window-server space")
 
         let source = solidImage(width: 12, height: 12)
         let roundedData = ScreenshotImageProcessor.tiffData(

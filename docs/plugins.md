@@ -287,9 +287,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Commands** (`Spotter/Plugins/Commands/`) — enabled by default; provides 30 read-only built-in
   macOS actions and publishes the user's editable persisted shell commands through
   `dynamicLauncherCommands`. Disabling it preserves custom commands and every binding, removes both
-  command sources from the launcher, and makes their global shortcuts no-op. Custom commands plus
-  Empty Trash, Eject All Disks and Dismiss Notifications report as background tasks; work already
-  running is not terminated when Commands is disabled.
+  command sources from the launcher, and makes their global shortcuts no-op. Commands never create
+  background-task rows; successful invisible work reports through the brief command HUD, while
+  failures preserve their detailed alerts. Work already running is not terminated when Commands is
+  disabled.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
   Foundation catalog when enabled.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS

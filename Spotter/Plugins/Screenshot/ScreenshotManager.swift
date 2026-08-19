@@ -9,10 +9,24 @@ enum ScreenshotCaptureResult {
     case failed
 }
 
+/// Region selection is where every capture starts; Space swaps to picking a whole window and back.
+enum ScreenshotCaptureMode {
+    case region
+    case window
+
+    var toggled: ScreenshotCaptureMode { self == .region ? .window : .region }
+}
+
 private enum ScreenshotCaptureFailure: LocalizedError {
     case displayUnavailable
+    case windowUnavailable
 
-    var errorDescription: String? { "The selected display is no longer available." }
+    var errorDescription: String? {
+        switch self {
+        case .displayUnavailable: "The selected display is no longer available."
+        case .windowUnavailable: "The selected window is no longer available."
+        }
+    }
 }
 
 /// Owns the short-lived selection panels and the one-shot ScreenCaptureKit request.
@@ -24,6 +38,8 @@ final class ScreenshotManager: ObservableObject {
     private var completion: ((ScreenshotCaptureResult) -> Void)?
     private var captureTask: Task<Void, Never>?
     private var previousCursor: NSCursor?
+    private var mode: ScreenshotCaptureMode = .region
+    private var hoveredWindow: ScreenshotWindowCandidate?
     private let defaults: UserDefaults
 
     @Published var roundedCorners: Bool {
@@ -61,7 +77,10 @@ final class ScreenshotManager: ObservableObject {
         }
 
         self.completion = completion
+        mode = .region
+        hoveredWindow = nil
         previousCursor = NSCursor.current
+        BackgroundCursor.setAllowed(true)
         panels = screens.map(makePanel)
 
         for panel in panels { panel.activate() }
@@ -77,15 +96,74 @@ final class ScreenshotManager: ObservableObject {
 
     private func makePanel(for screen: NSScreen) -> ScreenshotSelectionPanel {
         let view = ScreenshotSelectionView(
-            frame: NSRect(origin: .zero, size: screen.frame.size),
+            screenFrame: screen.frame,
             roundedCorners: roundedCorners)
         let panel = ScreenshotSelectionPanel(screen: screen, contentView: view)
         view.onSelection = { [weak self, weak screen] localRect in
             guard let self, let screen else { return }
             finishSelection(localRect, on: screen)
         }
+        view.onWindowSelection = { [weak self] in self?.captureHoveredWindow() }
+        view.onToggleMode = { [weak self] in self?.toggleMode() }
+        view.onPointerMoved = { [weak self] in self?.refreshHoveredWindow() }
         view.onCancel = { [weak self] in self?.cancel() }
         return panel
+    }
+
+    private func toggleMode() {
+        mode = mode.toggled
+        AppLog.info("screenshot", "Capture mode is now \(mode == .window ? "window" : "region").")
+        for panel in panels { panel.apply(mode: mode) }
+        refreshHoveredWindow()
+    }
+
+    /// Window mode highlights whatever sits under the pointer, so this reruns on every pointer move.
+    private func refreshHoveredWindow() {
+        guard mode == .window else {
+            guard hoveredWindow != nil else { return }
+            hoveredWindow = nil
+            applyHighlight(nil)
+            return
+        }
+        let primaryScreenMaxY = NSScreen.screens.first?.frame.maxY ?? 0
+        let point = ScreenshotWindowPicker.displaySpacePoint(
+            fromAppKit: NSEvent.mouseLocation, primaryScreenMaxY: primaryScreenMaxY)
+        let target = ScreenshotWindowPicker.target(
+            at: point,
+            in: Self.windowCandidates(),
+            excluding: ProcessInfo.processInfo.processIdentifier)
+        guard target != hoveredWindow else { return }
+        hoveredWindow = target
+        applyHighlight(
+            target.map {
+                ScreenshotWindowPicker.appKitRect(
+                    fromDisplaySpace: $0.bounds, primaryScreenMaxY: primaryScreenMaxY)
+            })
+    }
+
+    private func applyHighlight(_ globalRect: CGRect?) {
+        for panel in panels { panel.apply(highlight: globalRect) }
+    }
+
+    private static func windowCandidates() -> [ScreenshotWindowCandidate] {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return entries.compactMap { entry in
+            guard
+                let id = entry[kCGWindowNumber as String] as? Int,
+                let ownerPID = entry[kCGWindowOwnerPID as String] as? Int,
+                let layer = entry[kCGWindowLayer as String] as? Int,
+                let boundsEntry = entry[kCGWindowBounds as String] as? NSDictionary,
+                let bounds = CGRect(dictionaryRepresentation: boundsEntry as CFDictionary)
+            else { return nil }
+            return ScreenshotWindowCandidate(
+                id: CGWindowID(id),
+                ownerPID: Int32(ownerPID),
+                layer: layer,
+                alpha: entry[kCGWindowAlpha as String] as? CGFloat ?? 1,
+                bounds: bounds)
+        }
     }
 
     private func finishSelection(_ localRect: CGRect, on screen: NSScreen) {
@@ -95,6 +173,7 @@ final class ScreenshotManager: ObservableObject {
         }
         let captureRect = ScreenshotGeometry.captureRect(
             fromScreenLocal: localRect, screenHeight: screen.frame.height)
+        let roundedCorners = roundedCorners
         dismissPanels()
 
         captureTask = Task { [weak self] in
@@ -103,25 +182,50 @@ final class ScreenshotManager: ObservableObject {
             guard !Task.isCancelled else { return }
             do {
                 let image = try await Self.captureImage(in: captureRect, displayID: displayID)
-                guard !Task.isCancelled else { return }
-                let roundedCorners = self.roundedCorners
-                let tiff = await Task.detached(priority: .userInitiated) {
-                    ScreenshotImageProcessor.tiffData(
-                        from: image, roundedCorners: roundedCorners)
-                }.value
-                guard !Task.isCancelled, let tiff, writeToPasteboard(tiff) else {
-                    captureTask = nil
-                    finish(.failed)
-                    return
-                }
-                captureTask = nil
-                finish(.copied)
+                await deliver(image, roundedCorners: roundedCorners)
             } catch {
                 AppLog.error("screenshot", "ScreenCaptureKit failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
             }
         }
+    }
+
+    /// A window image already carries its own rounded alpha corners, so it skips the corner pass.
+    private func captureHoveredWindow() {
+        refreshHoveredWindow()
+        guard let target = hoveredWindow else {
+            cancel()
+            return
+        }
+        dismissPanels()
+
+        captureTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            do {
+                let image = try await Self.captureImage(windowID: target.id)
+                await deliver(image, roundedCorners: false)
+            } catch {
+                AppLog.error("screenshot", "Window capture failed: \(error.localizedDescription)")
+                captureTask = nil
+                finish(.failed)
+            }
+        }
+    }
+
+    private func deliver(_ image: CGImage, roundedCorners: Bool) async {
+        let tiff = await Task.detached(priority: .userInitiated) {
+            ScreenshotImageProcessor.tiffData(from: image, roundedCorners: roundedCorners)
+        }.value
+        guard !Task.isCancelled, let tiff, writeToPasteboard(tiff) else {
+            captureTask = nil
+            finish(.failed)
+            return
+        }
+        captureTask = nil
+        finish(.copied)
     }
 
     private static func captureImage(
@@ -141,6 +245,26 @@ final class ScreenshotManager: ObservableObject {
         configuration.sourceRect = rect
         configuration.width = max(Int((rect.width * scale).rounded()), 1)
         configuration.height = max(Int((rect.height * scale).rounded()), 1)
+        return try await SCScreenshotManager.captureImage(
+            contentFilter: filter, configuration: configuration)
+    }
+
+    private static func captureImage(windowID: CGWindowID) async throws -> CGImage {
+        let content = try await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: true)
+        guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+            throw ScreenshotCaptureFailure.windowUnavailable
+        }
+
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+        let configuration = SCStreamConfiguration()
+        let scale = max(CGFloat(filter.pointPixelScale), 1)
+        let contentRect = filter.contentRect
+        configuration.captureResolution = .best
+        configuration.showsCursor = false
+        configuration.ignoreShadowsSingleWindow = true
+        configuration.width = max(Int((contentRect.width * scale).rounded()), 1)
+        configuration.height = max(Int((contentRect.height * scale).rounded()), 1)
         return try await SCScreenshotManager.captureImage(
             contentFilter: filter, configuration: configuration)
     }
@@ -166,14 +290,39 @@ final class ScreenshotManager: ObservableObject {
     private func dismissPanels() {
         for panel in panels { panel.deactivate() }
         panels = []
+        hoveredWindow = nil
         previousCursor?.set()
         previousCursor = nil
+        BackgroundCursor.setAllowed(false)
     }
 
     private func finish(_ result: ScreenshotCaptureResult) {
         let completion = completion
         self.completion = nil
         completion?(result)
+    }
+}
+
+/// The window server drops cursor changes from a background app, so the crosshair would only take
+/// hold once a drag grabbed the pointer. Capso's connection property lifts that for the session.
+private enum BackgroundCursor {
+    private typealias MainConnectionID = @convention(c) () -> UInt32
+    private typealias SetConnectionProperty =
+        @convention(c) (UInt32, UInt32, CFString, CFTypeRef) -> Int32
+
+    static func setAllowed(_ allowed: Bool) {
+        guard let handle = dlopen(nil, RTLD_LAZY) else { return }
+        defer { dlclose(handle) }
+        guard let connectionSymbol = dlsym(handle, "CGSMainConnectionID"),
+            let propertySymbol = dlsym(handle, "CGSSetConnectionProperty")
+        else {
+            AppLog.info("screenshot", "Background cursor updates are unavailable on this system.")
+            return
+        }
+        let connection = unsafeBitCast(connectionSymbol, to: MainConnectionID.self)()
+        _ = unsafeBitCast(propertySymbol, to: SetConnectionProperty.self)(
+            connection, connection, "SetsCursorInBackground" as CFString,
+            allowed ? kCFBooleanTrue as CFTypeRef : kCFBooleanFalse as CFTypeRef)
     }
 }
 
@@ -219,6 +368,14 @@ private final class ScreenshotSelectionPanel: NSPanel {
         selectionView.prepareForPresentation()
     }
 
+    func apply(mode: ScreenshotCaptureMode) {
+        selectionView.apply(mode: mode)
+    }
+
+    func apply(highlight: CGRect?) {
+        selectionView.apply(highlight: highlight)
+    }
+
     func deactivate() {
         orderOut(nil)
     }
@@ -226,17 +383,23 @@ private final class ScreenshotSelectionPanel: NSPanel {
 
 private final class ScreenshotSelectionView: NSView {
     var onSelection: ((CGRect) -> Void)?
+    var onWindowSelection: (() -> Void)?
+    var onToggleMode: (() -> Void)?
+    var onPointerMoved: (() -> Void)?
     var onCancel: (() -> Void)?
 
     private let roundedCorners: Bool
+    private let screenFrame: CGRect
+    private var mode: ScreenshotCaptureMode = .region
+    private var highlight: CGRect?
     private var dragStart: CGPoint?
     private var selection: CGRect?
-    private let crosshairCursor = ScreenshotSelectionView.makeCrosshairCursor()
     private static let selectionStrokeWidthPixels: CGFloat = 1
 
-    init(frame: NSRect, roundedCorners: Bool) {
+    init(screenFrame: CGRect, roundedCorners: Bool) {
         self.roundedCorners = roundedCorners
-        super.init(frame: frame)
+        self.screenFrame = screenFrame
+        super.init(frame: NSRect(origin: .zero, size: screenFrame.size))
         addTrackingArea(NSTrackingArea(
             rect: bounds,
             options: [
@@ -252,28 +415,51 @@ private final class ScreenshotSelectionView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    private var cursor: NSCursor {
+        mode == .window ? ScreenshotCursor.window : ScreenshotCursor.region
+    }
+
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: crosshairCursor)
+        addCursorRect(bounds, cursor: cursor)
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        crosshairCursor.set()
+        cursor.set()
     }
 
     override func mouseMoved(with event: NSEvent) {
-        crosshairCursor.set()
+        cursor.set()
+        onPointerMoved?()
     }
 
     override func mouseEntered(with event: NSEvent) {
-        crosshairCursor.set()
+        cursor.set()
+        onPointerMoved?()
     }
 
     func prepareForPresentation() {
         guard let window else { return }
         window.invalidateCursorRects(for: self)
         guard window.frame.contains(NSEvent.mouseLocation) else { return }
-        crosshairCursor.set()
+        cursor.set()
+    }
+
+    func apply(mode: ScreenshotCaptureMode) {
+        guard mode != self.mode else { return }
+        self.mode = mode
+        dragStart = nil
+        selection = nil
+        window?.invalidateCursorRects(for: self)
+        if window?.frame.contains(NSEvent.mouseLocation) == true { cursor.set() }
+        needsDisplay = true
+    }
+
+    func apply(highlight rect: CGRect?) {
+        let local = rect.map { $0.offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY) }
+        guard local != highlight else { return }
+        highlight = local
+        needsDisplay = true
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -283,23 +469,29 @@ private final class ScreenshotSelectionView: NSView {
         }
         window?.makeKey()
         window?.makeFirstResponder(self)
+        cursor.set()
+        guard mode == .region else { return }
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         dragStart = point
         selection = .zero
-        crosshairCursor.set()
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let dragStart else { return }
+        guard mode == .region, let dragStart else { return }
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         selection = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
-        crosshairCursor.set()
+        cursor.set()
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard event.buttonNumber == 0, let dragStart else { return }
+        guard event.buttonNumber == 0 else { return }
+        guard mode == .region else {
+            onWindowSelection?()
+            return
+        }
+        guard let dragStart else { return }
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         let rect = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
         self.dragStart = nil
@@ -316,9 +508,12 @@ private final class ScreenshotSelectionView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
+        switch event.keyCode {
+        case 53:
             onCancel?()
-        } else {
+        case 49:
+            onToggleMode?()
+        default:
             super.keyDown(with: event)
         }
     }
@@ -326,7 +521,11 @@ private final class ScreenshotSelectionView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawHitSurface()
-        if let selection, ScreenshotGeometry.isCapturable(selection) {
+        if mode == .window {
+            if let highlight, ScreenshotGeometry.isCapturable(highlight) {
+                drawSelection(highlight)
+            }
+        } else if let selection, ScreenshotGeometry.isCapturable(selection) {
             drawSelection(selection)
         }
     }
@@ -367,40 +566,6 @@ private final class ScreenshotSelectionView: NSView {
         border.lineWidth = strokeWidth
         NSColor(Theme.Colors.screenshotSelectionBorder).setStroke()
         border.stroke()
-    }
-
-    private static func makeCrosshairCursor() -> NSCursor {
-        let path = ScreenshotCrosshair.makePath()
-        let image = NSImage(size: ScreenshotCrosshair.cursorSize, flipped: false) { _ in
-            guard let context = NSGraphicsContext.current?.cgContext else { return false }
-            context.setShouldAntialias(true)
-            context.saveGState()
-            context.translateBy(
-                x: ScreenshotCrosshair.shadowPadding,
-                y: ScreenshotCrosshair.shadowPadding)
-            context.setShadow(
-                offset: ScreenshotCrosshair.shadowOffset,
-                blur: ScreenshotCrosshair.shadowBlur,
-                color: NSColor(Theme.Colors.screenshotCrosshairShadow).cgColor)
-            context.setFillColor(NSColor(Theme.Colors.screenshotCrosshairFill).cgColor)
-            context.addPath(path)
-            context.drawPath(using: .eoFill)
-            context.restoreGState()
-
-            context.translateBy(
-                x: ScreenshotCrosshair.shadowPadding,
-                y: ScreenshotCrosshair.shadowPadding)
-            context.setStrokeColor(NSColor(Theme.Colors.screenshotCrosshairOutline).cgColor)
-            context.setLineWidth(ScreenshotCrosshair.outlineWidth)
-            context.addPath(path)
-            context.strokePath()
-            context.setFillColor(NSColor(Theme.Colors.screenshotCrosshairFill).cgColor)
-            context.addPath(path)
-            context.drawPath(using: .eoFill)
-            return true
-        }
-        image.isTemplate = false
-        return NSCursor(image: image, hotSpot: ScreenshotCrosshair.cursorHotSpot)
     }
 }
 

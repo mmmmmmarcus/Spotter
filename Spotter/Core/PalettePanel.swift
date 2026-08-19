@@ -8,6 +8,8 @@ final class PalettePanel: NSPanel {
     var onBareBackspace: (() -> Bool)?
     /// Called for a bare Return when no footer menu owns the keyboard; focus-free palette screens otherwise never enter SwiftUI's key-press chain.
     var onBareReturn: (() -> Bool)?
+    /// Called for a bare Escape when no footer menu owns the keyboard; focus-free palette screens otherwise never enter SwiftUI's key-press chain.
+    var onBareEscape: (() -> Bool)?
     /// Arms the hover highlight from `sendEvent` — the one place both event streams pass through, so a keyboard-driven scroll under a still pointer never fires `.mouseMoved` and hover stays disarmed. Also carries the caret-hide hook fired when a footer menu opens.
     weak var paletteViewModel: PaletteViewModel? {
         didSet {
@@ -61,6 +63,14 @@ final class PalettePanel: NSPanel {
             paletteViewModel?.menuOpen == true,
             event.modifierFlags.intersection([.command, .control]).isEmpty,
             !Self.menuNavKeys.contains(Int(event.keyCode))
+        {
+            return
+        }
+        if event.type == .keyDown,
+            paletteViewModel?.menuOpen != true,
+            Int(event.keyCode) == kVK_Escape,
+            event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+            onBareEscape?() == true
         {
             return
         }

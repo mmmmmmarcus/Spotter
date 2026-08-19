@@ -207,7 +207,7 @@ swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
     Spotter/Core/PaletteMenuTypeahead.swift Tools/menu-typeahead-test.swift \
     -o /tmp/menu-typeahead-test && /tmp/menu-typeahead-test       # Actions menu type-ahead
 swiftc -swift-version 6 -framework CoreGraphics -framework ImageIO \
-    -framework UniformTypeIdentifiers Spotter/Plugins/Screenshot/ScreenshotCrosshair.swift \
+    -framework UniformTypeIdentifiers Spotter/Plugins/Screenshot/ScreenshotWindowPicker.swift \
     Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
     Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift Tools/screenshot-test.swift \
     -o /tmp/screenshot-test && /tmp/screenshot-test             # crosshair + geometry + rounded TIFF pixels

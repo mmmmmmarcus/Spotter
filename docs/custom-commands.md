@@ -89,12 +89,12 @@ same confirmation surface, so there is no separate dialog path to drift.
 
 ### Reporting
 
-Spotter returns to a fresh launcher and creates a background-task row before starting a custom
-command. Zero exit becomes Done; launch failure or non-zero exit becomes Failed and still activates
-Spotter to show the bounded error detail. When the status is 127 and **Load shell environment** is
-off, the alert adds a one-line hint and an **Open Settings…** button that lands on the Commands
-plugin pane — the hint is gated on the status alone, not on grepping stderr, since 127 is equally a
-plain typo. The command string itself is never shown in the row or logged.
+Spotter closes the palette and starts a custom command without creating a background-task row. A zero
+exit shows a brief completion HUD; launch failure or non-zero exit activates Spotter to show the
+bounded error detail. When the status is 127 and **Load shell environment** is off, the alert adds a
+one-line hint and an **Open Settings…** button that lands on the Commands plugin pane — the hint is
+gated on the status alone, not on grepping stderr, since 127 is equally a plain typo. The command
+string itself is never shown or logged.
 
 ### Manual checks
 

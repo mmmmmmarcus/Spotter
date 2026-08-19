@@ -652,27 +652,14 @@ final class AppCore: ObservableObject {
     }
 
     private func executeCustomCommand(_ command: CustomCommand) {
-        let taskID = backgroundTasks.begin(
-            title: command.name, detail: "Running command…", systemImage: "terminal")
-        palette.prepare(mode: .launcher)
-        showPalette(mode: .launcher)
+        if isPaletteShowing { hidePalette(restoreFocus: true) }
         Task {
             let outcome = await ShellCommandRunner.run(
                 command.command, loadingShellEnvironment: command.loadsShellEnvironment)
             guard outcome != .success else {
-                backgroundTasks.complete(id: taskID, detail: "Command finished.")
+                hud.show(title: "\(command.name) Finished", symbol: "checkmark.circle")
                 return
             }
-            let detail: String
-            switch outcome {
-            case .success:
-                detail = "Command finished."
-            case .launchFailure:
-                detail = "The shell could not be started."
-            case .nonZeroExit(let status, _):
-                detail = "Command exited with status \(status)."
-            }
-            backgroundTasks.fail(id: taskID, detail: detail)
             AppLog.error("custom-commands", "“\(command.name)” failed: \(outcome)")
             self.presentCustomCommandFailure(command: command, outcome: outcome)
         }
