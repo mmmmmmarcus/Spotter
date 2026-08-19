@@ -4,6 +4,10 @@ Clipboard is a self-contained native plugin under `Spotter/Plugins/Clipboard/`. 
 `ClipboardPlugin`, `ClipboardManager`, `ClipboardStore`, the palette view and its Settings view;
 `AppCore` remains the sole owner of the long-lived manager and store instances.
 
+Screenshot writes its captured TIFF directly to the system pasteboard with the same private
+`internalType` marker used by Spotter paste actions. It is therefore available to every app without
+being re-captured as a duplicate Clipboard-history entry.
+
 ## Poll-based capture
 
 `ClipboardManager` runs a 0.5s `Timer` watching `NSPasteboard.general.changeCount`. To avoid

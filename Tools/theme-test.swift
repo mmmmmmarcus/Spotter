@@ -82,6 +82,18 @@ struct ThemeTests {
         check(
             "glassFrost", Theme.Colors.glassFrost,
             darkWhite: true, darkAlpha: 0.05, lightWhite: true, lightAlpha: 0.30)
+        check(
+            "screenshotSelectionBorder", Theme.Colors.screenshotSelectionBorder,
+            darkWhite: false, darkAlpha: 1.0, lightWhite: false, lightAlpha: 1.0)
+        check(
+            "screenshotBackdrop", Theme.Colors.screenshotBackdrop,
+            darkWhite: false, darkAlpha: 0.38, lightWhite: false, lightAlpha: 0.38)
+        check(
+            "screenshotReticleOuter", Theme.Colors.screenshotReticleOuter,
+            darkWhite: false, darkAlpha: 1.0, lightWhite: false, lightAlpha: 1.0)
+        check(
+            "screenshotReticleInner", Theme.Colors.screenshotReticleInner,
+            darkWhite: true, darkAlpha: 1.0, lightWhite: true, lightAlpha: 1.0)
 
         // Selection must always beat hover, in both appearances — the shared row `fill` precedence
         // is meaningless if the two read the same weight.

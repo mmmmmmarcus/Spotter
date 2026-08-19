@@ -148,6 +148,12 @@ enum Theme {
         /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
         /// and a dark tint over light glass would read as a shadow instead of frost.
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
+        /// Screenshot selection is a capture affordance, not palette chrome; it stays opaque black in both appearances by design.
+        static let screenshotSelectionBorder = adaptive(dark: .black, light: .black)
+        static let screenshotBackdrop = adaptive(
+            dark: .black.opacity(0.38), light: .black.opacity(0.38))
+        static let screenshotReticleOuter = adaptive(dark: .black, light: .black)
+        static let screenshotReticleInner = adaptive(dark: .white, light: .white)
         /// The violet of the app mark. The one hue in the system: the About support callout's tint and the dashboard clock's second hand.
         static let brand = Color(red: 0.525, green: 0.231, blue: 1.0)
 

@@ -5,6 +5,7 @@ struct PermissionsSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var dashboard = AppCore.shared.dashboardWidgets
     @State private var accessibilityTrusted = Permissions.isAccessibilityTrusted()
+    @State private var screenRecordingAllowed = Permissions.isScreenRecordingAllowed()
     private let refreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -66,14 +67,47 @@ struct PermissionsSettingsView: View {
                     calendarAction
                 }
             }
+
+            SettingsCard(header: "Screen Recording") {
+                SettingsRow(
+                    title: "Screen Recording",
+                    subtitle: screenRecordingSubtitle,
+                    systemImage: "rectangle.dashed.badge.record",
+                    tint: .blue
+                ) {
+                    screenRecordingStatusBadge
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title: screenRecordingAllowed
+                        ? "Manage in System Settings" : "Grant access",
+                    subtitle: "Required only when you explicitly capture a screenshot.",
+                    systemImage: "arrow.up.forward.app",
+                    tint: .secondary
+                ) {
+                    Button(screenRecordingAllowed ? "Open…" : "Allow…") {
+                        if screenRecordingAllowed {
+                            Permissions.openScreenRecordingSettings()
+                        } else {
+                            _ = Permissions.requestScreenRecording()
+                            screenRecordingAllowed = Permissions.isScreenRecordingAllowed()
+                        }
+                    }
+                }
+            }
         }
         .onAppear {
             accessibilityTrusted = Permissions.isAccessibilityTrusted()
+            screenRecordingAllowed = Permissions.isScreenRecordingAllowed()
             dashboard.refreshCalendarAuthorization()
         }
         .onReceive(refreshTimer) { _ in
             let trusted = Permissions.isAccessibilityTrusted()
             if trusted != accessibilityTrusted { accessibilityTrusted = trusted }
+            let recordingAllowed = Permissions.isScreenRecordingAllowed()
+            if recordingAllowed != screenRecordingAllowed {
+                screenRecordingAllowed = recordingAllowed
+            }
             dashboard.refreshCalendarAuthorization()
         }
     }
@@ -120,6 +154,29 @@ struct PermissionsSettingsView: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.xs)
         .background(Capsule().fill(status.color.opacity(0.14)))
+    }
+
+    private var screenRecordingStatusBadge: some View {
+        HStack(spacing: Theme.Spacing.xs + 1) {
+            Image(
+                systemName: screenRecordingAllowed
+                    ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+            Text(screenRecordingAllowed ? "Granted" : "Not granted")
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(screenRecordingAllowed ? Color.green : Color.orange)
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.xs)
+        .background(
+            Capsule().fill((screenRecordingAllowed ? Color.green : Color.orange).opacity(0.14))
+        )
+    }
+
+    private var screenRecordingSubtitle: String {
+        let names = plugins.features(requiring: .screenRecording).map(\.name).joined(separator: ", ")
+        return names.isEmpty
+            ? "No feature currently declares this permission."
+            : "Used by \(names) to read only the screen region you select."
     }
 
     private var calendarSubtitle: String {

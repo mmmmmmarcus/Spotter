@@ -118,6 +118,8 @@ Never break these without an explicit task to do so.
   termination status, retain stderr, and supply synthetic stdin only to a post-confirmation
   uninstall. `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
+  `Plugins/Screenshot/ScreenshotGeometry.swift` and `ScreenshotImageProcessor.swift` stay pure
+  CoreGraphics/ImageIO pixel code for `Tools/screenshot-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
   `Plugins/ImageModification/ImageModificationTypes.swift` stays
@@ -301,7 +303,7 @@ Never break these without an explicit task to do so.
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
   [`docs/ai-chat.md`](docs/ai-chat.md) ·
-  [`docs/custom-commands.md`](docs/custom-commands.md)
+  [`docs/custom-commands.md`](docs/custom-commands.md) · [`docs/screenshot.md`](docs/screenshot.md)
   — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) · [`docs/background-tasks.md`](docs/background-tasks.md) —
   palette state flow, long-running task rows, menu-open freeze and focus restoration.

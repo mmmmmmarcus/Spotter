@@ -20,6 +20,7 @@ enum BuiltInPlugins {
             WindowManagementPlugin.registration(core: core),
             MolePlugin.registration(core: core),
             CoffeePlugin.registration(core: core),
+            ScreenshotPlugin.registration(core: core),
         ]
     }
 }

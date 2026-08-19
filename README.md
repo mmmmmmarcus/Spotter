@@ -134,6 +134,10 @@ Spotter began as a fork of **[Tinycast](https://github.com/abue-ammar/tinycast)*
 foundations came from that work; Spotter has since developed independently while retaining the
 original copyright and license.
 
+The Screenshot plugin adapts the native capture-overlay architecture from
+**[Capso](https://github.com/lzhgus/Capso)** by lzhgus under its Business Source License 1.1. See
+[Third-Party Notices](THIRD_PARTY_NOTICES.md).
+
 ## License
 
 [AGPL-3.0](LICENSE) · Spotter © 2026 Marcus Fei · portions © 2026 Abue Ammar (Tinycast)

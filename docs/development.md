@@ -206,6 +206,10 @@ swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
 swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
     Spotter/Core/PaletteMenuTypeahead.swift Tools/menu-typeahead-test.swift \
     -o /tmp/menu-typeahead-test && /tmp/menu-typeahead-test       # Actions menu type-ahead
+swiftc -swift-version 6 -framework CoreGraphics -framework ImageIO \
+    -framework UniformTypeIdentifiers Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
+    Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift Tools/screenshot-test.swift \
+    -o /tmp/screenshot-test && /tmp/screenshot-test             # geometry + rounded TIFF pixels
 ```
 
 `Tools/fuzz-test.swift` compiles the real `Spotter/Core/SearchRelevance.swift`, so that file must
@@ -229,6 +233,10 @@ It uses shell fixtures for the runner and never executes Mole or changes user da
 
 The Launcher Fallbacks harness pins the four query destinations and verifies that arbitrary shell
 text reaches Terminal as one exact `osascript` argument rather than interpolated AppleScript source.
+
+The Screenshot harness pins drag normalization, display clamping, minimum region size, AppKit to
+ScreenCaptureKit display-local conversion, the exact four-pixel radius, transparent TIFF corners
+and the square-corner opt-out without requesting Screen Recording access or reading screen pixels.
 
 The Widgets harness compiles the real Foundation-only engine. It pins widget preference
 fallbacks, calendar-account/all-day filtering, time-zone resolution and analog-clock hand geometry

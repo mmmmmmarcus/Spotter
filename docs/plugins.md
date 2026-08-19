@@ -37,7 +37,8 @@ Spotter/Plugins/
 ├── ImageModification/
 ├── WindowManagement/
 ├── Mole/
-└── Coffee/
+├── Coffee/
+└── Screenshot/
 ```
 
 `Infrastructure/` contains only the shared contract and registry. Every sibling feature directory owns
@@ -79,7 +80,9 @@ is optional:
   from this metadata rather than maintaining another list.
 - `shortcutActions` declares plugin-owned actions that can receive global shortcuts. Use a stable
   `PluginActionKey`; existing keys may specify a legacy `defaultsKey`, while new actions should use
-  `PluginActionKey.standard(...)`.
+  `PluginActionKey.standard(...)`. A genuinely primary action may supply `defaultShortcut`; it is
+  seeded only once, never overwrites an existing/conflicting Spotter binding, and a later unbind is
+  preserved by a separate seed marker.
 - `launcherCommands` contributes signed in-process commands to `AppIndex`. Enabling or disabling the
   plugin adds or removes them without editing `CommandRegistry` or `AppCore.runCommand`.
 - `launcherCommands.defaultVisible` defaults to true. Set it to false for secondary commands that
@@ -123,8 +126,8 @@ is optional:
   v3 backup/sync snapshots intentionally include network-consent plugin states.
 - Per-plugin **preferences** (not just the enable flag) sync by extending
   `SettingsBackup.PluginPrefs` — gather effective values, apply through the owning manager when the
-  manager caches state. Change Case, Kill Process, Image Modification, Caffeinate, Window Management
-  and Mole are the current entries; a new plugin with preferences adds its own.
+  manager caches state. Change Case, Kill Process, Image Modification, Screenshot, Caffeinate,
+  Window Management and Mole are the current entries; a new plugin with preferences adds its own.
 
 Disabled plugin commands disappear from launcher search, shortcut actions no-op, query providers are
 removed from the hot-path cache, and `onDisable` stops ongoing work. A feature-specific entry point
@@ -315,8 +318,17 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
+- **Screenshot** (`Spotter/Plugins/Screenshot/`) — enabled by default; Option-Z (seeded once and
+  user-editable), the launcher command and the menu-bar menu open the same non-activating crosshair
+  overlay, which captures the chosen region through a display-scoped ScreenCaptureKit filter and
+  places the image on the system clipboard without taking focus from the current app. Capture is
+  one-shot and protected by macOS Screen Recording permission. A dimmed backdrop keeps the full-screen
+  panel mouse-hittable while the chosen region stays clear; a default-on synced preference gives both
+  the black selection border and output pixels a 4px radius.
+  The overlay architecture is adapted from Capso under BSL 1.1; no Capso service or idle process is
+  loaded.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
-[Notes](notes.md), and [Text Replacement](text-replacement.md).
+[Notes](notes.md), [Text Replacement](text-replacement.md), and [Screenshot](screenshot.md).

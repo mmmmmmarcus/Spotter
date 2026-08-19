@@ -109,6 +109,9 @@ struct SettingsBackup: Codable, Sendable {
             var output: String?
             var format: String?
         }
+        struct Screenshot: Codable, Sendable {
+            var roundedCorners: Bool?
+        }
         struct SelectionTools: Codable, Sendable {
             var definitionPrompt: String?
             var grammarPrompt: String?
@@ -132,6 +135,7 @@ struct SettingsBackup: Codable, Sendable {
         var changeCase: ChangeCase?
         var killProcess: KillProcess?
         var imageModification: ImageModification?
+        var screenshot: Screenshot?
         var selectionTools: SelectionTools?
         var caffeinate: Caffeinate?
         var windowManagement: WindowManagement?
@@ -311,6 +315,8 @@ extension SettingsBackup {
             output: d.string(forKey: "image-modification.output")
                 ?? ImageOutputLocation.alongside.rawValue,
             format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
+        prefs.screenshot = PluginPrefs.Screenshot(
+            roundedCorners: core.screenshot.roundedCorners)
         prefs.selectionTools = PluginPrefs.SelectionTools(
             definitionPrompt: core.aiChat.definitionPrompt,
             grammarPrompt: core.aiChat.grammarPrompt)
@@ -439,6 +445,10 @@ extension SettingsBackup {
         if let i = prefs.imageModification {
             set(i.output, "image-modification.output")
             set(i.format, "image-modification.format")
+        }
+        if let roundedCorners = prefs.screenshot?.roundedCorners {
+            core.screenshot.roundedCorners = roundedCorners
+            count += 1
         }
         if let selection = prefs.selectionTools {
             if let prompt = selection.definitionPrompt {

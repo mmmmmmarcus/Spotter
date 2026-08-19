@@ -27,8 +27,13 @@ final class HotKeyManager: ObservableObject {
 
     private var pluginActions: [PluginActionKey] = []
 
-    func start(pluginActions: [PluginActionKey], customCommandIDs: Set<UUID>) {
+    func start(
+        pluginActions: [PluginActionKey],
+        defaultPluginShortcuts: [(PluginActionKey, KeyShortcut)] = [],
+        customCommandIDs: Set<UUID>
+    ) {
         self.pluginActions = pluginActions
+        seedDefaultPluginShortcuts(defaultPluginShortcuts)
         register(.togglePalette)
         register(.togglePaletteBackup)
         for action in pluginActions { register(.plugin(action)) }
@@ -48,6 +53,21 @@ final class HotKeyManager: ObservableObject {
         }
         doubleTapMonitor.start()
         syncDoubleTaps()
+    }
+
+    /// Seeds a shipped default once. The marker distinguishes a deliberate later unbind from a fresh install.
+    private func seedDefaultPluginShortcuts(
+        _ defaults: [(PluginActionKey, KeyShortcut)]
+    ) {
+        for (key, shortcut) in defaults {
+            let action = HotKeyAction.plugin(key)
+            let marker = "hotkey.default-seeded." + key.defaultsKey
+            guard UserDefaults.standard.object(forKey: marker) == nil else { continue }
+            defer { UserDefaults.standard.set(true, forKey: marker) }
+            guard UserDefaults.standard.object(forKey: action.defaultsKey) == nil else { continue }
+            guard conflictOwner(of: shortcut, excluding: action) == nil else { continue }
+            setShortcut(shortcut, for: action)
+        }
     }
 
     /// Bundle IDs that currently have a per-app hotkey — lets `start()` know which records to load and lets launcher rows show keycaps.

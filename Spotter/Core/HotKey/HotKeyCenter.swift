@@ -77,7 +77,8 @@ final class HotKeyCenter {
         )
         // Registration can fail if another app owns the combo system-wide; the binding stays visible in settings but doesn't fire — same as the old package.
         guard error == noErr, let ref else {
-            NSLog("Spotter: could not register hotkey for %@ (OSStatus %d)", id, error)
+            AppLog.error(
+                "hotkey", "Could not register \(id) (OSStatus \(error)); the binding will not fire.")
             return
         }
         entry.ref = ref

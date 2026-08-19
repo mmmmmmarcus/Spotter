@@ -7,7 +7,7 @@ How Spotter is wired together. See the per-subsystem docs for internals:
 [settings-sync](settings-sync.md), [signing](signing.md),
 plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools,
 image-modification, notes, text-replacement, quicklinks, window-management,
-commands (including built-in system commands), mole, coffee).
+commands (including built-in system commands), mole, coffee, screenshot).
 
 ## Single-owner core
 
@@ -19,7 +19,7 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `NoteSyncManager`, `QuicklinkStore`, `QuicklinkManager`,
 `WindowMover`,
-`MoleManager`, `CoffeeManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,
+`MoleManager`, `CoffeeManager`, `ScreenshotManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,
 `SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry`, `AIChatStore` — plus the window
 controllers. One deliberate singleton lives outside this rule: `AppLog.shared`
@@ -34,6 +34,10 @@ sync.
 `AppDelegate.applicationDidFinishLaunching` calls
 `AppCore.shared.start()` and nothing else; that is the single wiring point. All palette / paste /
 launch actions are methods on `AppCore` that the SwiftUI views call.
+
+`ScreenshotManager` is idle state until invoked. An invocation temporarily owns one non-activating
+AppKit selection panel per display and one display-filtered ScreenCaptureKit request, then releases
+both; it adds no startup monitor, timer, helper process or persistent capture engine.
 
 ## Built-in plugin registry
 

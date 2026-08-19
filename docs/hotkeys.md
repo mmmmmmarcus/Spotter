@@ -49,6 +49,12 @@ plugins expose stable `PluginActionKey` values through `PluginRegistry`; new key
 Disabling a plugin makes registry dispatch a no-op while preserving the Carbon registration and saved
 binding. Re-enabling resumes the action without creating plugin-specific branches in `HotKeyManager`.
 Plugins with several commands expose a stable action key per command, so each can be bound directly.
+Screenshot's `Capture Screenshot` action seeds Option-Z exactly once on a fresh install. The seed
+marker is separate from the binding so a later clear remains unbound instead of returning after
+relaunch; an existing Spotter conflict prevents the seed rather than stealing another action's key.
+Carbon registration failures are mirrored to Diagnostics with the action's stable defaults key and
+OSStatus. The saved shortcut remains visible so user intent is not discarded, but the failure is no
+longer silent when another process or the system refuses the global combination.
 Selection Tools registers Search, Translate, Define and Grammar as separate actions under the
 `plugin.selection-tools.*` namespace. They intentionally ship unbound; users record Hyper + S/T/D/G in
 Settings → Shortcuts, using the same recorder, conflict detection and Carbon registration as every

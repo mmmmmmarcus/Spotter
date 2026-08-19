@@ -196,6 +196,7 @@ final class AppCore: ObservableObject {
     let windowMover = WindowMover()
     let mole = MoleManager()
     let coffee = CoffeeManager()
+    let screenshot = ScreenshotManager()
     let updates = UpdateStore()
     let hud = CommandHUD()
 
@@ -358,6 +359,7 @@ final class AppCore: ObservableObject {
         hotKeys.onRunCustomCommand = { [weak self] id in self?.runCustomCommand(id: id) }
         hotKeys.start(
             pluginActions: plugins.shortcutActions,
+            defaultPluginShortcuts: plugins.defaultShortcutActions,
             customCommandIDs: Set(customCommands.commands.map(\.id)))
         // Deliberately keeps running while `hotKeys.recordingAction` pauses Carbon: the recorder relies on the tap's rewritten flags to capture Hyper shortcuts.
         hyperKeyTap.start(settings: settings)

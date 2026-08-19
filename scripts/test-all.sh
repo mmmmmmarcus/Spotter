@@ -36,6 +36,7 @@ TESTS=(
     quicklink
     hotkey
     menu-typeahead
+    screenshot
 )
 
 usage() {
@@ -210,6 +211,13 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
                 Spotter/Core/PaletteMenuTypeahead.swift Tools/menu-typeahead-test.swift \
                 -o "$output" && "$output"
+            ;;
+        screenshot)
+            swiftc -swift-version 6 -framework CoreGraphics -framework ImageIO \
+                -framework UniformTypeIdentifiers \
+                Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
+                Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
+                Tools/screenshot-test.swift -o "$output" && "$output"
             ;;
         *)
             echo "Unknown test harness: $name" >&2

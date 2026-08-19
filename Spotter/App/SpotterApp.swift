@@ -15,12 +15,22 @@ struct SpotterApp: App {
         ) {
             Button("Open \(appName)") { AppCore.shared.showPalette(mode: .launcher) }
             Button("Clipboard History") { AppCore.shared.showPalette(mode: .clipboard) }
+            Button("Capture Screenshot") {
+                AppCore.shared.plugins.perform(.captureScreenshot)
+            }
             Divider()
             Button("Settings...") { AppCore.shared.showSettings() }
                 .keyboardShortcut(",")
             Divider()
             Button("Quit \(appName)") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
+        }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Capture Screenshot") {
+                    AppCore.shared.plugins.perform(.captureScreenshot)
+                }
+            }
         }
     }
 }

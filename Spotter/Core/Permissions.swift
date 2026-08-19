@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 // `@preconcurrency` downgrades AX concurrency diagnostics: `kAXTrustedCheckOptionPrompt` is a mutable C global but process-constant.
 @preconcurrency import ApplicationServices
 
@@ -12,6 +13,15 @@ enum Permissions {
     static func ensureAccessibility() -> Bool {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         return AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    }
+
+    static func isScreenRecordingAllowed() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
+    @discardableResult
+    static func requestScreenRecording() -> Bool {
+        CGRequestScreenCaptureAccess()
     }
 
     @MainActor
@@ -38,6 +48,16 @@ enum Permissions {
         guard
             let url = URL(
                 string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
+        else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @MainActor
+    static func openScreenRecordingSettings() {
+        guard
+            let url = URL(
+                string:
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
         else { return }
         NSWorkspace.shared.open(url)
     }

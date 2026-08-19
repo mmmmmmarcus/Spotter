@@ -111,6 +111,10 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 | `cardStroke`     | white 0.10 | black 0.10 | settings/calc card border + inset dividers       |
 | `surfaceGlow`    | white 0.06 | black 0.05 | icon placeholder tile, Onboarding glow           |
 | `glassFrost`     | white 0.05 | white 0.30 | tint layered into the floating glass             |
+| `screenshotSelectionBorder` | black 1.00 | black 1.00 | fixed screenshot selection outline        |
+| `screenshotBackdrop` | black 0.38 | black 0.38 | capture overlay and mouse hit surface       |
+| `screenshotReticleOuter` | black 1.00 | black 1.00 | screenshot crosshair contrast outline      |
+| `screenshotReticleInner` | white 1.00 | white 1.00 | screenshot crosshair foreground            |
 
 `glassFrost` is the one token that stays white in both: it brightens the glass, and a dark tint over
 light glass reads as a shadow rather than frost.
@@ -278,6 +282,21 @@ rather than resuming the dissolve. Same glass as `PopoverMenu` (`menuPanel` radi
 A no-op's glyph is `.secondary` — it reports that nothing happened. Beyond system commands, any
 subsystem can call `hud.show(title:symbol:)`; long-running work uses launcher background-task rows
 instead so its state remains available.
+
+## Screenshot selection overlay — `Plugins/Screenshot/ScreenshotManager.swift`
+
+Screenshot is deliberately outside the palette surface: one transparent AppKit panel covers each
+display only for the duration of an explicit capture. The panels are non-activating, accept the first
+mouse click and leave the current app frontmost. The system cursor is hidden for the bounded session;
+the overlay draws a two-stroke reticle from `screenshotReticleOuter` and
+`screenshotReticleInner`, so Option-key release and the previous app's cursor rect cannot replace it.
+The panel fills with `screenshotBackdrop` and clears the live rectangle, matching Capso and keeping
+the whole panel mouse-hittable on macOS 26; a fully transparent overlay lets presses fall through.
+The rectangle uses `screenshotSelectionBorder`, the deliberate fixed-black token, for a
+one-physical-pixel outline. When Rounded Corners is enabled, its radius is four physical pixels after
+converting through the panel's backing scale, matching the four-pixel alpha mask applied to the copied
+TIFF. There is no custom window chrome or persisted geometry. Hiding all panels before sampling pixels
+is load-bearing; otherwise the selection border becomes part of the screenshot.
 
 ## Confirmation card — `Features/ConfirmationCard.swift`
 

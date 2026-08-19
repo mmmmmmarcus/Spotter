@@ -4,7 +4,17 @@ import SwiftUI
 @MainActor
 struct PluginActionRegistration {
     let key: PluginActionKey
+    var defaultShortcut: KeyShortcut?
     let perform: () -> Void
+
+    init(
+        key: PluginActionKey, defaultShortcut: KeyShortcut? = nil,
+        perform: @escaping () -> Void
+    ) {
+        self.key = key
+        self.defaultShortcut = defaultShortcut
+        self.perform = perform
+    }
 }
 
 @MainActor
@@ -134,6 +144,14 @@ final class PluginRegistry: ObservableObject {
 
     var shortcutActions: [PluginActionKey] {
         orderedIDs.flatMap { registrations[$0]?.shortcutActions.map(\.key) ?? [] }
+    }
+
+    var defaultShortcutActions: [(PluginActionKey, KeyShortcut)] {
+        orderedIDs.flatMap { id in
+            registrations[id]?.shortcutActions.compactMap { action in
+                action.defaultShortcut.map { (action.key, $0) }
+            } ?? []
+        }
     }
 
     var launcherCommands: [AppEntry] {
