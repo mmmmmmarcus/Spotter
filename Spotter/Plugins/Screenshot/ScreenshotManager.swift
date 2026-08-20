@@ -9,6 +9,13 @@ enum ScreenshotCaptureResult {
     case failed
 }
 
+/// What the editor needs from the most recent capture: the raw pixels plus the corner treatment
+/// the clipboard copy already received, so an edited re-copy matches the original.
+struct ScreenshotCapturePayload: Sendable {
+    let image: CGImage
+    let roundedCorners: Bool
+}
+
 /// Region selection is where every capture starts; Space swaps to picking a whole window and back.
 enum ScreenshotCaptureMode {
     case region
@@ -40,6 +47,9 @@ final class ScreenshotManager: ObservableObject {
     private var previousCursor: NSCursor?
     private var mode: ScreenshotCaptureMode = .region
     private var hoveredWindow: ScreenshotWindowCandidate?
+    /// Retained until the next capture so the HUD can open the editor after the panels are gone.
+    private(set) var lastCapture: ScreenshotCapturePayload?
+    private let cursorAnimator = ScreenshotCursorAnimator()
     private let defaults: UserDefaults
 
     @Published var roundedCorners: Bool {
@@ -53,6 +63,10 @@ final class ScreenshotManager: ObservableObject {
         self.defaults = defaults
         roundedCorners = defaults.object(forKey: Self.roundedCornersKey) == nil
             || defaults.bool(forKey: Self.roundedCornersKey)
+        cursorAnimator.onFrame = { [weak self] cursor in
+            guard let self else { return }
+            for panel in panels { panel.apply(cursor: cursor) }
+        }
     }
 
     var isCapturing: Bool { !panels.isEmpty || captureTask != nil }
@@ -79,6 +93,7 @@ final class ScreenshotManager: ObservableObject {
         self.completion = completion
         mode = .region
         hoveredWindow = nil
+        cursorAnimator.reset(to: mode)
         previousCursor = NSCursor.current
         BackgroundCursor.setAllowed(true)
         panels = screens.map(makePanel)
@@ -92,6 +107,11 @@ final class ScreenshotManager: ObservableObject {
 
     func cancel() {
         cancel(notifying: true)
+    }
+
+    /// Disabling the plugin drops the retained capture along with the editor that shows it.
+    func clearLastCapture() {
+        lastCapture = nil
     }
 
     private func makePanel(for screen: NSScreen) -> ScreenshotSelectionPanel {
@@ -114,6 +134,7 @@ final class ScreenshotManager: ObservableObject {
         mode = mode.toggled
         AppLog.info("screenshot", "Capture mode is now \(mode == .window ? "window" : "region").")
         for panel in panels { panel.apply(mode: mode) }
+        cursorAnimator.transition(to: mode)
         refreshHoveredWindow()
     }
 
@@ -224,8 +245,18 @@ final class ScreenshotManager: ObservableObject {
             finish(.failed)
             return
         }
+        lastCapture = ScreenshotCapturePayload(image: image, roundedCorners: roundedCorners)
         captureTask = nil
         finish(.copied)
+    }
+
+    /// Reuses the capture pipeline's processing and internal-type marker for an edited image.
+    func copyEdited(_ image: CGImage, roundedCorners: Bool) async -> Bool {
+        let tiff = await Task.detached(priority: .userInitiated) {
+            ScreenshotImageProcessor.tiffData(from: image, roundedCorners: roundedCorners)
+        }.value
+        guard let tiff else { return false }
+        return writeToPasteboard(tiff)
     }
 
     private static func captureImage(
@@ -288,6 +319,7 @@ final class ScreenshotManager: ObservableObject {
     }
 
     private func dismissPanels() {
+        cursorAnimator.stop()
         for panel in panels { panel.deactivate() }
         panels = []
         hoveredWindow = nil
@@ -368,6 +400,10 @@ private final class ScreenshotSelectionPanel: NSPanel {
         selectionView.prepareForPresentation()
     }
 
+    func apply(cursor: NSCursor) {
+        selectionView.apply(cursor: cursor)
+    }
+
     func apply(mode: ScreenshotCaptureMode) {
         selectionView.apply(mode: mode)
     }
@@ -391,6 +427,7 @@ private final class ScreenshotSelectionView: NSView {
     private let roundedCorners: Bool
     private let screenFrame: CGRect
     private var mode: ScreenshotCaptureMode = .region
+    private var cursor: NSCursor = ScreenshotCursor.region
     private var highlight: CGRect?
     private var dragStart: CGPoint?
     private var selection: CGRect?
@@ -414,10 +451,6 @@ private final class ScreenshotSelectionView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    private var cursor: NSCursor {
-        mode == .window ? ScreenshotCursor.window : ScreenshotCursor.region
-    }
 
     override func resetCursorRects() {
         super.resetCursorRects()
@@ -450,9 +483,14 @@ private final class ScreenshotSelectionView: NSView {
         self.mode = mode
         dragStart = nil
         selection = nil
+        needsDisplay = true
+    }
+
+    /// Each transition frame arrives here; the cursor rect is rebuilt with it so a pointer move mid-swap cannot restore the previous pointer.
+    func apply(cursor: NSCursor) {
+        self.cursor = cursor
         window?.invalidateCursorRects(for: self)
         if window?.frame.contains(NSEvent.mouseLocation) == true { cursor.set() }
-        needsDisplay = true
     }
 
     func apply(highlight rect: CGRect?) {

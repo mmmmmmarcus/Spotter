@@ -36,6 +36,17 @@ enum ScreenshotImageProcessor {
     }
 
     static func tiffData(from image: CGImage, roundedCorners: Bool) -> Data? {
+        encoded(image, roundedCorners: roundedCorners, type: UTType.tiff)
+    }
+
+    /// The editor's Save output; PNG keeps the rounded corners' transparency on disk.
+    static func pngData(from image: CGImage, roundedCorners: Bool) -> Data? {
+        encoded(image, roundedCorners: roundedCorners, type: UTType.png)
+    }
+
+    private static func encoded(
+        _ image: CGImage, roundedCorners: Bool, type: UTType
+    ) -> Data? {
         let output: CGImage
         if roundedCorners {
             guard let rounded = applyingRoundedCorners(to: image) else { return nil }
@@ -47,7 +58,7 @@ enum ScreenshotImageProcessor {
         let data = NSMutableData()
         guard
             let destination = CGImageDestinationCreateWithData(
-                data, UTType.tiff.identifier as CFString, 1, nil)
+                data, type.identifier as CFString, 1, nil)
         else { return nil }
         CGImageDestinationAddImage(destination, output, nil)
         guard CGImageDestinationFinalize(destination) else { return nil }

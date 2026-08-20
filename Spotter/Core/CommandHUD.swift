@@ -4,8 +4,10 @@ import SwiftUI
 /// A brief floating confirmation for a command whose effect is otherwise invisible — "Trash Emptied",
 /// "No Disks to Eject". Show Desktop or Hide Others need none: they are their own confirmation.
 ///
-/// The panel is non-activating and ignores the mouse. A command has just acted on the app the user
-/// came from, and stealing focus back to report on it would undo the thing being reported.
+/// The panel is non-activating and normally ignores the mouse. A command has just acted on the app
+/// the user came from, and stealing focus back to report on it would undo the thing being reported.
+/// A HUD carrying an `action` is the one exception: it accepts a click and lingers long enough to
+/// take one, but clicking still never activates Spotter — the action decides what comes forward.
 @MainActor
 final class CommandHUD {
     private var panel: NSPanel?
@@ -14,6 +16,8 @@ final class CommandHUD {
 
     /// Long enough to read three words, short enough not to sit over the app the user returned to.
     private static let visibleDuration: Duration = .milliseconds(1400)
+    /// A clickable HUD is an offer, so it stays long enough to move the pointer to it.
+    private static let actionableVisibleDuration: Duration = .milliseconds(3500)
     private static let fadeOut: TimeInterval = 0.22
 
     func show(_ feedback: SystemCommandFeedback) {
@@ -21,21 +25,57 @@ final class CommandHUD {
     }
 
     /// The generic entry any subsystem can use — a finished background run, not just system commands.
-    func show(title: String, symbol: String, isNoOp: Bool = false) {
-        model.content = Content(title: title, symbol: symbol, isNoOp: isNoOp)
+    /// `actionHint` labels the click affordance; both must come together or not at all.
+    func show(
+        title: String, symbol: String, isNoOp: Bool = false,
+        actionHint: String? = nil, action: (() -> Void)? = nil
+    ) {
+        model.content = Content(
+            title: title, symbol: symbol, isNoOp: isNoOp,
+            actionHint: action == nil ? nil : actionHint)
         let panel = panel ?? makePanel()
         self.panel = panel
+        panel.ignoresMouseEvents = action == nil
+        model.onTap = action.map { action in
+            { [weak self] in
+                self?.dismissNow()
+                action()
+            }
+        }
+        // Hovering pauses dismissal so the HUD cannot dissolve under the arriving pointer.
+        model.onHover = action == nil
+            ? nil
+            : { [weak self] hovering in
+                guard let self else { return }
+                dismissal?.cancel()
+                if hovering {
+                    panel.alphaValue = 1
+                } else {
+                    scheduleDismissal(after: Self.visibleDuration)
+                }
+            }
         position(panel)
         // A second command mid-fade must read as a fresh HUD, not resume the one dissolving.
         panel.alphaValue = 1
         panel.orderFrontRegardless()
 
+        scheduleDismissal(
+            after: action == nil ? Self.visibleDuration : Self.actionableVisibleDuration)
+    }
+
+    private func scheduleDismissal(after duration: Duration) {
         dismissal?.cancel()
         dismissal = Task { [weak self] in
-            try? await Task.sleep(for: Self.visibleDuration)
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled else { return }
             self?.fadeOut()
         }
+    }
+
+    private func dismissNow() {
+        dismissal?.cancel()
+        panel?.alphaValue = 0
+        panel?.orderOut(nil)
     }
 
     private func fadeOut() {
@@ -61,10 +101,11 @@ final class CommandHUD {
         panel.hasShadow = false
         panel.level = .floating
         panel.ignoresMouseEvents = true
+        panel.becomesKeyOnlyIfNeeded = true
         panel.animationBehavior = .none
         panel.isMovable = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        let host = NSHostingView(rootView: CommandHUDView(model: model))
+        let host = FirstMouseHostingView(rootView: CommandHUDView(model: model))
         // Same reason as the palette: SwiftUI must not drive the window frame.
         host.sizingOptions = []
         panel.contentView = host
@@ -92,17 +133,25 @@ final class CommandHUD {
     }
 }
 
+/// Clicks must land while Spotter is inactive — the HUD never becomes key.
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 /// What the HUD renders, detached from any one feature's feedback type.
 private struct Content {
     let title: String
     let symbol: String
     let isNoOp: Bool
+    let actionHint: String?
 }
 
 /// Plain observable box so the panel is built once and only its content changes between commands.
 @MainActor
 private final class Model: ObservableObject {
     @Published var content: Content?
+    var onTap: (() -> Void)?
+    var onHover: ((Bool) -> Void)?
 }
 
 private struct CommandHUDView: View {
@@ -119,6 +168,11 @@ private struct CommandHUDView: View {
                 Text(feedback.title)
                     .font(Theme.Typography.bar)
                     .lineLimit(1)
+                if let hint = feedback.actionHint {
+                    Text(hint)
+                        .font(Theme.Typography.bar)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.horizontal, Theme.Spacing.xxl)
             .padding(.vertical, Theme.Spacing.xl)
@@ -126,6 +180,9 @@ private struct CommandHUDView: View {
             .glassEffect(
                 .regular, in: RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous))
             .fixedSize()
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous))
+            .onTapGesture { model.onTap?() }
+            .onHover { model.onHover?($0) }
         }
     }
 }

@@ -118,9 +118,9 @@ Never break these without an explicit task to do so.
   termination status, retain stderr, and supply synthetic stdin only to a post-confirmation
   uninstall. `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
-  `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift` and
-  `ScreenshotImageProcessor.swift` stay pure CoreGraphics/ImageIO pixel code for
-  `Tools/screenshot-test.swift`, the
+  `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
+  `ScreenshotImageProcessor.swift` and `ScreenshotAnnotation.swift` stay pure
+  CoreGraphics/CoreText/ImageIO pixel code for `Tools/screenshot-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
   `Plugins/ImageModification/ImageModificationTypes.swift` stays

@@ -119,6 +119,7 @@
 		8564913535478963824E1D7E /* SpotterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */; };
 		859FBBAB57809296CF4138B8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56CDF128216DD71A2A2C54D /* AppSettings.swift */; };
 		8DD2BEFA70C4D9FE2AD02E57 /* ScreenshotGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E2DD47B2282A644D030F0F /* ScreenshotGeometry.swift */; };
+		8FA4A54179920EE055A07D11 /* ScreenshotEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413F39384FC2DBC1095614F1 /* ScreenshotEditorView.swift */; };
 		9039498AF0C376FB8FEA9595 /* BuiltInPlugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054E9477DF5DF415492936A9 /* BuiltInPlugins.swift */; };
 		90A6A68B13096A72EDCA14CC /* ChangeCaseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AB7F80FD918C4318C2DB52 /* ChangeCaseEngine.swift */; };
 		951BCA3C18064DB55FD90A15 /* QuicklinkTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 421E4FA71B5B224682CAC9F7 /* QuicklinkTypes.swift */; };
@@ -186,6 +187,7 @@
 		DF45E8877471306D67C3B657 /* AIChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29606EC2B43A6002BAF7DDD4 /* AIChatView.swift */; };
 		DFD0A69A5266ED9A9833698B /* NoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53DD1CD05BF4D4C4CFE7408 /* NoteView.swift */; };
 		DFE0BBBAB57FDCC7D82536DE /* SettingsBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4ADAAF0E7643B2886D05E41 /* SettingsBackup.swift */; };
+		E0249DE883462907B2C973C4 /* ScreenshotAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3727A5B43FAFBC7DF3DC8E /* ScreenshotAnnotation.swift */; };
 		E2CA02EBECB6ADE585002A6C /* SpotlightNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE5E4F4A4A0EB8523394BB4 /* SpotlightNames.swift */; };
 		E3B2E5B534B15C2A836D6213 /* SelectedTextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20E554F1050B16540CCBF5D /* SelectedTextReader.swift */; };
 		E4E95F5EB55D1C47857A1727 /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26C52121BB6D0B805E6ABE9 /* NoteStore.swift */; };
@@ -271,6 +273,7 @@
 		3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolsSettingsView.swift; sourceTree = "<group>"; };
 		3EF66C6ACEBE04CFA8A66339 /* SelectedTextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextCapture.swift; sourceTree = "<group>"; };
 		4127766DD9125188D572ACF8 /* CalcQuantity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcQuantity.swift; sourceTree = "<group>"; };
+		413F39384FC2DBC1095614F1 /* ScreenshotEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorView.swift; sourceTree = "<group>"; };
 		421E4FA71B5B224682CAC9F7 /* QuicklinkTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkTypes.swift; sourceTree = "<group>"; };
 		434991596DDA129349C5052E /* CurrencyRateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyRateStore.swift; sourceTree = "<group>"; };
 		4357FED8D69C7ECF3A4F69F4 /* CalcCurrency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcCurrency.swift; sourceTree = "<group>"; };
@@ -358,6 +361,7 @@
 		A7CDE08D2DEEAA6D2430D819 /* DashboardWeatherStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWeatherStore.swift; sourceTree = "<group>"; };
 		A8FDA359F35C67B15CF90C46 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		A97E9B542219C092058C0457 /* DoubleTapMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapMonitor.swift; sourceTree = "<group>"; };
+		AC3727A5B43FAFBC7DF3DC8E /* ScreenshotAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotAnnotation.swift; sourceTree = "<group>"; };
 		ACD8626DE6AD0B451E431936 /* ChangeCasePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCasePlugin.swift; sourceTree = "<group>"; };
 		AECE7B47CC7C399897300909 /* DashboardWidgetsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsSettingsView.swift; sourceTree = "<group>"; };
 		AED7227A23155DB3DDD75388 /* NoteSyncDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSyncDocument.swift; sourceTree = "<group>"; };
@@ -582,7 +586,9 @@
 			isa = PBXGroup;
 			children = (
 				33DA110D133BA16DE3B31358 /* Capso-BSL-1.1.txt */,
+				AC3727A5B43FAFBC7DF3DC8E /* ScreenshotAnnotation.swift */,
 				7C08D22C393B014A63B01D24 /* ScreenshotCursor.swift */,
+				413F39384FC2DBC1095614F1 /* ScreenshotEditorView.swift */,
 				C0E2DD47B2282A644D030F0F /* ScreenshotGeometry.swift */,
 				5B609A8CFC79D04D8510FA08 /* ScreenshotImageProcessor.swift */,
 				BAA6729A8C71A37B8800DB8A /* ScreenshotManager.swift */,
@@ -1137,7 +1143,9 @@
 				2522EA89910ED5DDF897AE02 /* RightClick.swift in Sources */,
 				F83597883221D6F7EEE2A1FF /* RootPaletteView.swift in Sources */,
 				1AEBCC14B3F6E69AC2C53973 /* RunningApps.swift in Sources */,
+				E0249DE883462907B2C973C4 /* ScreenshotAnnotation.swift in Sources */,
 				5FA01CA9837F3746BD3DACBB /* ScreenshotCursor.swift in Sources */,
+				8FA4A54179920EE055A07D11 /* ScreenshotEditorView.swift in Sources */,
 				8DD2BEFA70C4D9FE2AD02E57 /* ScreenshotGeometry.swift in Sources */,
 				75CDDE0411908FAD1CE4C8B2 /* ScreenshotImageProcessor.swift in Sources */,
 				721987FA348B453F723FF2E7 /* ScreenshotManager.swift in Sources */,
@@ -1253,7 +1261,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.27;
+				MARKETING_VERSION = 1.4.28;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1325,7 +1333,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.4.27;
+				MARKETING_VERSION = 1.4.28;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

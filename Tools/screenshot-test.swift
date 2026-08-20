@@ -28,7 +28,7 @@ private func decodedImage(_ data: Data) -> CGImage? {
     return CGImageSourceCreateImageAtIndex(source, 0, nil)
 }
 
-private func alpha(_ image: CGImage, x: Int, y: Int) -> UInt8 {
+private func pixel(_ image: CGImage, x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
     var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
     pixels.withUnsafeMutableBytes { bytes in
         let context = CGContext(
@@ -43,7 +43,12 @@ private func alpha(_ image: CGImage, x: Int, y: Int) -> UInt8 {
             image,
             in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
     }
-    return pixels[(y * image.width + x) * 4 + 3]
+    let base = (y * image.width + x) * 4
+    return (pixels[base], pixels[base + 1], pixels[base + 2], pixels[base + 3])
+}
+
+private func alpha(_ image: CGImage, x: Int, y: Int) -> UInt8 {
+    pixel(image, x: x, y: y).a
 }
 
 @main
@@ -158,6 +163,79 @@ private enum ScreenshotTest {
         let square = squareData.flatMap(decodedImage)
         check(square.map { alpha($0, x: 0, y: 0) == 255 } == true,
               "disabled rounding preserves square corners")
+
+        let first = ScreenshotCursorTransition.frame(at: 0)
+        check(
+            first.outgoingAlpha == 1 && first.outgoingScale == 1 && first.incomingAlpha == 0,
+            "the swap opens on the outgoing pointer alone")
+        let last = ScreenshotCursorTransition.frame(at: ScreenshotCursorTransition.frameCount)
+        check(
+            last.incomingAlpha == 1 && last.incomingScale == 1 && last.outgoingAlpha == 0,
+            "the swap lands on the incoming pointer at full size")
+        let steps = (0...ScreenshotCursorTransition.frameCount).map {
+            ScreenshotCursorTransition.frame(at: $0)
+        }
+        check(
+            zip(steps, steps.dropFirst()).allSatisfy {
+                $0.incomingScale < $1.incomingScale && $0.outgoingScale > $1.outgoingScale
+                    && $0.incomingAlpha <= $1.incomingAlpha && $0.outgoingAlpha >= $1.outgoingAlpha
+            },
+            "every frame advances the swap without reversing")
+        check(
+            steps.allSatisfy {
+                $0.incomingScale <= 1 && $0.outgoingScale <= 1
+                    && $0.incomingScale >= ScreenshotCursorTransition.minimumScale
+                    && $0.outgoingScale >= ScreenshotCursorTransition.minimumScale
+            },
+            "neither pointer grows past its resting size")
+        check(
+            steps.contains { $0.outgoingAlpha > 0 && $0.incomingAlpha > 0 },
+            "the two pointers overlap rather than cutting")
+        check(
+            ScreenshotCursorTransition.eased(0) == 0 && ScreenshotCursorTransition.eased(1) == 1
+                && ScreenshotCursorTransition.eased(0.5) == 0.5,
+            "smoothstep pins both ends and the midpoint")
+        check(
+            ScreenshotCursorTransition.frame(at: -3) == first
+                && ScreenshotCursorTransition.frame(at: 99) == last,
+            "an out-of-range step clamps to an endpoint")
+
+        let head = ScreenshotAnnotationGeometry.arrowHead(
+            from: CGPoint(x: 0, y: 0), to: CGPoint(x: 100, y: 0), width: 4)
+        check(head.tip == CGPoint(x: 100, y: 0), "the arrow head tip is the drag end")
+        check(
+            abs(head.left.y + head.right.y) < 0.001 && head.left.x == head.right.x,
+            "the arrow head is symmetric around the shaft")
+        check(
+            head.shaftEnd.x < 100 && head.shaftEnd.x > 0,
+            "the shaft stops inside the head")
+        let stubby = ScreenshotAnnotationGeometry.arrowHead(
+            from: CGPoint(x: 0, y: 0), to: CGPoint(x: 5, y: 0), width: 4)
+        check(stubby.shaftEnd.x >= 0, "a tiny arrow clamps its head to the drag length")
+
+        let base = solidImage(width: 100, height: 100)
+        check(
+            ScreenshotAnnotationRenderer.flatten(image: base, annotations: []) === base,
+            "flattening zero annotations returns the capture untouched")
+        let marked = ScreenshotAnnotationRenderer.flatten(
+            image: base,
+            annotations: [
+                ScreenshotAnnotation(
+                    shape: .rectangle(CGRect(x: 30, y: 30, width: 40, height: 40)),
+                    color: .blue,
+                    width: 4)
+            ])
+        check(marked != nil, "flattening a rectangle produces an image")
+        if let marked {
+            let edge = pixel(marked, x: 32, y: 50)
+            check(
+                edge.b > 180 && edge.r < 120,
+                "the rectangle edge pixel takes the annotation color")
+            let center = pixel(marked, x: 50, y: 50)
+            check(
+                center.r > 180 && center.b < 120,
+                "the rectangle interior keeps the capture pixels")
+        }
 
         if failures > 0 { exit(1) }
         print("All screenshot tests passed.")

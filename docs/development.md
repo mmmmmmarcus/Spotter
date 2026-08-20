@@ -206,11 +206,12 @@ swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
 swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
     Spotter/Core/PaletteMenuTypeahead.swift Tools/menu-typeahead-test.swift \
     -o /tmp/menu-typeahead-test && /tmp/menu-typeahead-test       # Actions menu type-ahead
-swiftc -swift-version 6 -framework CoreGraphics -framework ImageIO \
+swiftc -swift-version 6 -framework CoreGraphics -framework CoreText -framework ImageIO \
     -framework UniformTypeIdentifiers Spotter/Plugins/Screenshot/ScreenshotWindowPicker.swift \
     Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
-    Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift Tools/screenshot-test.swift \
-    -o /tmp/screenshot-test && /tmp/screenshot-test             # crosshair + geometry + rounded TIFF pixels
+    Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
+    Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift Tools/screenshot-test.swift \
+    -o /tmp/screenshot-test && /tmp/screenshot-test             # cursor swap + geometry + annotation pixels
 ```
 
 `Tools/fuzz-test.swift` compiles the real `Spotter/Core/SearchRelevance.swift`, so that file must

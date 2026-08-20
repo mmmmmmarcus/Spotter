@@ -60,6 +60,17 @@ displays never disagree. In window mode the pointer becomes `camera.viewfinder`,
 and the window under the pointer is filled and outlined with the same tokens a dragged region uses.
 A left click captures the highlighted window; Escape and a secondary click still cancel.
 
+Each swap plays a short pointer transition, since a hardware cursor cannot animate itself: the
+outgoing symbol shrinks to 60% while it fades out, the incoming one grows from 60% back to full size
+as it fades in, and the two overlap for the middle fifth of the swap. Both stay centered on the
+hotspot, so the pointer never drifts. `ScreenshotCursorAnimator` replays seven composed frames and
+lands on the shared resting cursor over `Theme.Animation.quick` (140 ms), rebuilding each panel's
+cursor rect per frame so a pointer move mid-swap cannot restore the previous symbol. The frames are
+composed once per direction from artwork rasterized at the deepest backing scale on the Mac and only
+ever shrink it, so no frame is resampled upward. The curve itself lives in the pure
+`ScreenshotCursorTransition`, whose harness pins its endpoints, its monotonic progress, the overlap
+and the clamped out-of-range steps.
+
 Hit testing reads `CGWindowListCopyWindowInfo` (on-screen, desktop elements excluded) on each pointer
 move and keeps the window server's front-to-back order, so the first match under the pointer is the
 top-most window. The pure `ScreenshotWindowPicker` applies the filters and both coordinate flips:
@@ -92,6 +103,35 @@ square.
 When enabled, `ScreenshotImageProcessor` clips the captured `CGImage` to a four-pixel rounded path
 and encodes a TIFF with transparent corner pixels off the main actor. Regions narrower than eight
 pixels clamp the radius to half their shortest side rather than producing invalid geometry.
+
+## Preview and mark-up editor
+
+The success HUD is the entry point: after a capture lands on the clipboard, "Screenshot Copied" gains
+a "Click to Edit" hint, accepts the mouse and lingers 3.5 seconds (hovering pauses dismissal).
+Clicking it opens the mark-up editor on the retained capture; every other HUD keeps ignoring the
+mouse entirely, and the click itself never activates Spotter — opening the editor window is what
+brings the app forward. The manager retains the last capture (raw pixels plus the corner treatment
+the clipboard copy received) until the next capture or until the plugin is disabled, which also
+closes the editor.
+
+The editor is a resizable auxiliary window through `AppCore.showPluginWindow`, sized to the capture
+at native points and clamped to 85% of the visible frame; each capture reopens it fresh on the
+latest image. The toolbar offers five tools — arrow, rectangle, ellipse, freehand and text — an
+eight-color palette, three stroke presets, and undo/redo (⌘Z / ⇧⌘Z). Marks are committed on
+mouse-up; a sub-3-point drag is discarded as a misclick. The text tool places an inline field at the
+click point (Return commits, Escape discards), rendered bold with a soft dark halo for legibility.
+
+All annotation geometry lives in image pixel space with a top-left origin, so the live canvas and
+the export share every coordinate: the SwiftUI `Canvas` hands its CGContext to the same pure
+`ScreenshotAnnotationRenderer` that `flatten` uses for export, scaled by the current fit factor.
+Stroke widths and font sizes are chosen in view points and resolved into image pixels at creation
+time, so what is drawn at fit scale is what exports. The palette is a fixed set of content colors
+baked into the pixels — deliberately not `Theme` tokens, since an exported mark must look identical
+in both appearances. Copy (⌘↩) flattens off the main actor, reuses the capture pipeline's TIFF
+processing and internal-type marker (including the original's corner treatment) and closes the
+window; Save… (⌘S) writes a PNG through `NSSavePanel`, preserving corner transparency. Flattening
+zero annotations returns the capture untouched. The harness pins the arrow-head geometry and the
+flattened rectangle's edge and interior pixels.
 
 ## Capture and clipboard
 

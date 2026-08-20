@@ -301,7 +301,10 @@ hotspot is the canvas center. It is not a second shape painted into the overlay.
 rects plus active-always mouse-move and explicit drag updates prevent Option-key release or the
 previous app's cursor rect from restoring the arrow before mouse-down, the window server is allowed
 to honor a background app's cursor for the session, and every exit restores the exact prior cursor.
-Window mode reuses the region overlay tokens: the hovered window is filled with
+Space swaps the two symbols through a 140 ms (`Theme.Animation.quick`) cross-fade played as seven
+composed pointer frames: the outgoing symbol shrinks to 60% as it fades out, the incoming one grows
+from 60% to full size as it fades in, they overlap through the middle fifth, and neither ever exceeds
+its resting size. Window mode reuses the region overlay tokens: the hovered window is filled with
 `screenshotSelectionOverlay` and outlined with `screenshotSelectionBorder`, so both modes read as one
 surface.
 The panel fills with `screenshotHitSurface`, one black 8-bit alpha step that is visually clear but

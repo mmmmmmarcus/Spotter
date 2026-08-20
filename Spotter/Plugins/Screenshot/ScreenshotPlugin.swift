@@ -42,12 +42,54 @@ enum ScreenshotPlugin {
                     actionKey: .captureScreenshot,
                     perform: capture)
             ],
-            onDisable: { [weak core] in core?.screenshot.cancel() },
+            onDisable: { [weak core] in
+                core?.screenshot.cancel()
+                core?.dismissScreenshotEditor()
+            },
             settingsView: { AnyView(ScreenshotSettingsView()) })
     }
 }
 
 extension AppCore {
+    private static let screenshotEditorWindowID = "screenshot-editor"
+
+    /// The post-capture mark-up workspace; each capture opens fresh on the latest image.
+    func showScreenshotEditor() {
+        guard plugins.isEnabled(.screenshot), let capture = screenshot.lastCapture else { return }
+        closePluginWindow(id: Self.screenshotEditorWindowID)
+        showPluginWindow(
+            id: Self.screenshotEditorWindowID,
+            title: "Screenshot",
+            size: Self.screenshotEditorWindowSize(for: capture.image),
+            resizable: true,
+            minimumSize: CGSize(width: 760, height: 420),
+            contentExtendsIntoTitleBar: true
+        ) {
+            ScreenshotEditorView(capture: capture)
+        }
+    }
+
+    func dismissScreenshotEditor() {
+        closePluginWindow(id: Self.screenshotEditorWindowID)
+        screenshot.clearLastCapture()
+    }
+
+    /// The capture at native points plus the toolbar, clamped into the visible frame.
+    private static func screenshotEditorWindowSize(for image: CGImage) -> CGSize {
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let toolbarHeight: CGFloat = 52
+        let canvasPadding = Theme.Spacing.xl * 2
+        let content = CGSize(
+            width: CGFloat(image.width) / scale + canvasPadding,
+            height: CGFloat(image.height) / scale + canvasPadding + toolbarHeight)
+        let limit = (NSScreen.main?.visibleFrame.size).map {
+            CGSize(width: $0.width * 0.85, height: $0.height * 0.85)
+        } ?? CGSize(width: 1200, height: 800)
+        return CGSize(
+            width: min(max(content.width, 760), limit.width),
+            height: min(max(content.height, 420), limit.height))
+    }
+
     func captureScreenshot() {
         guard plugins.isEnabled(.screenshot) else {
             AppLog.info("screenshot", "Capture ignored because the plugin is disabled.")
@@ -63,7 +105,10 @@ extension AppCore {
             guard let self else { return }
             switch result {
             case .copied:
-                hud.show(title: "Screenshot Copied", symbol: "checkmark.circle")
+                hud.show(
+                    title: "Screenshot Copied", symbol: "checkmark.circle",
+                    actionHint: "Click to Edit"
+                ) { [weak self] in self?.showScreenshotEditor() }
             case .permissionRequired:
                 hud.show(title: "Allow Screen Recording", symbol: "lock.shield", isNoOp: true)
             case .failed:

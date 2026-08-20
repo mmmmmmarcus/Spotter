@@ -213,11 +213,12 @@ run_harness() {
                 -o "$output" && "$output"
             ;;
         screenshot)
-            swiftc -swift-version 6 -framework CoreGraphics -framework ImageIO \
-                -framework UniformTypeIdentifiers \
+            swiftc -swift-version 6 -framework CoreGraphics -framework CoreText \
+                -framework ImageIO -framework UniformTypeIdentifiers \
                 Spotter/Plugins/Screenshot/ScreenshotWindowPicker.swift \
                 Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
                 Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
+                Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift \
                 Tools/screenshot-test.swift -o "$output" && "$output"
             ;;
         *)
