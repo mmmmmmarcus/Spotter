@@ -112,8 +112,17 @@ against the container's Development environment. Development and Production keep
 state archives so testing cannot reuse an incompatible sync token. Settings verifies the container,
 CloudKit service, environment and push entitlements together; an incapable build shows the switch off
 and disabled even if persisted consent should resume in a later signed build. CloudKit diagnostics
-record the environment plus bounded domain/code/underlying-error chains without logging Note content
-or CloudKit records.
+record the environment, each explicit sync stage with its pending zone/record counts, failed
+record-save CloudKit codes, and bounded domain/code/underlying-error chains — including the
+reflected Swift error, since the `NSError` bridge flattens CloudKit's own payload away — without
+logging Note content or CloudKit records. A CloudKit partial failure reports the per-item reason
+rather than its own empty summary, and an unmapped failure keeps its numeric CloudKit code.
+
+The engine retains its `CKContainer` for its whole lifetime. `CKDatabase` holds no strong
+reference back, so a container that only lived for the duration of `start()` left every later
+fetch and send failing. A pending record save whose local Note no longer exists is dropped from
+engine state rather than retried forever, since a change that can never be satisfied keeps the
+engine from ever reporting a settled sync.
 
 ## Editor
 

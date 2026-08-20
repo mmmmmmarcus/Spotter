@@ -22,7 +22,10 @@ enum NoteCloudSyncError: LocalizedError {
     }
 
     static func message(for error: Error) -> String {
-        guard let cloud = cloudError(in: error) else { return error.localizedDescription }
+        guard let cloud = cloudError(in: error) else {
+            if error is CancellationError { return "Sync was cancelled." }
+            return error.localizedDescription + " See Settings → Diagnostics."
+        }
         switch cloud.code {
         case .networkUnavailable:
             return "No network connection. Notes will retry when this Mac is online."
@@ -36,10 +39,23 @@ enum NoteCloudSyncError: LocalizedError {
             return "Sign in to iCloud in System Settings to synchronize Notes."
         case .missingEntitlement, .badContainer, .permissionFailure:
             return "This Spotter build isn’t authorized for Notes iCloud Sync."
+        case .managedAccountRestricted:
+            return "This managed iCloud account isn’t allowed to use CloudKit."
         case .quotaExceeded:
             return "Your iCloud storage is full. Free some space to synchronize Notes."
+        case .invalidArguments, .constraintViolation:
+            return "iCloud rejected Spotter’s Note record. The SpotterNote schema may be missing "
+                + "from this container. See Settings → Diagnostics."
+        case .limitExceeded:
+            return "This Note is too large for one iCloud request."
+        case .zoneNotFound, .userDeletedZone:
+            return "The Notes zone is missing from iCloud. Spotter recreates it on the next "
+                + "sync."
+        case .internalError, .serverRejectedRequest:
+            return "iCloud rejected the request (CloudKit error \(cloud.errorCode)). "
+                + "See Settings → Diagnostics."
         default:
-            return cloud.localizedDescription
+            return cloud.localizedDescription + " (CloudKit error \(cloud.errorCode))"
         }
     }
 
@@ -57,7 +73,12 @@ enum NoteCloudSyncError: LocalizedError {
     static func diagnosticDescription(for error: Error) -> String {
         var descriptions: [String] = []
         appendDiagnostic(error, to: &descriptions, depth: 0)
-        return descriptions.joined(separator: " <- ")
+        var text = descriptions.joined(separator: " <- ")
+        // CloudKit throws Swift errors whose payload the NSError bridge flattens away; the
+        // reflected form is the only place the real case and its associated values survive.
+        let reflected = String(reflecting: error).prefix(400)
+        if !reflected.isEmpty { text += " | " + reflected }
+        return text
     }
 
     private static func appendDiagnostic(
@@ -77,7 +98,14 @@ enum NoteCloudSyncError: LocalizedError {
     }
 
     private static func cloudError(in error: Error) -> CKError? {
-        if let cloud = error as? CKError { return cloud }
+        if let cloud = error as? CKError {
+            guard cloud.code == .partialFailure else { return cloud }
+            // "Failed to modify some records" describes nothing; the per-item error is the reason.
+            for nested in (cloud.partialErrorsByItemID ?? [:]).values {
+                if let inner = nested as? CKError, inner.code != .partialFailure { return inner }
+            }
+            return cloud
+        }
         let nsError = error as NSError
         if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error,
             let cloud = cloudError(in: underlying)
@@ -112,6 +140,9 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
     private var items: [UUID: NoteSyncItem]
     private var recordSystemFields: [UUID: Data] = [:]
     private var engineState: CKSyncEngine.State.Serialization?
+    // CKDatabase holds no strong reference to its container; without this the engine's database
+    // loses its container after `start()` returns and every later fetch/send fails.
+    private var container: CKContainer?
     private var syncEngine: CKSyncEngine?
     private var shouldPersistState = true
     private var initialChangesQueued = false
@@ -137,6 +168,7 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
             "Starting \(NoteCloudCapability.containerEnvironment ?? "unknown") CloudKit sync in "
                 + Self.containerIdentifier)
         let container = CKContainer(identifier: Self.containerIdentifier)
+        self.container = container
         let accountStatus = try await container.accountStatus()
         guard await hasConsent() else { return }
         switch accountStatus {
@@ -156,12 +188,16 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         let engine = CKSyncEngine(configuration)
         syncEngine = engine
 
+        log(
+            "Engine ready with \(items.count) local item(s), "
+                + "\(engineState == nil ? "fresh" : "restored") state.")
         try await engine.fetchChanges()
         guard await hasConsent(), syncEngine != nil else { return }
         queueInitialChangesIfNeeded(on: engine)
         try await engine.sendChanges()
         guard await hasConsent(), syncEngine != nil else { return }
-        _ = await reportSyncIfSettled()
+        let settled = await reportSyncIfSettled()
+        log("Initial sync \(settled ? "settled" : "unsettled") — \(pendingSummary(engine)).")
     }
 
     func applyLocalSnapshot(_ snapshot: NoteSyncSnapshot) async {
@@ -188,13 +224,20 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
     }
 
     func syncNow() async throws -> Bool {
-        guard await hasConsent(), let syncEngine else { return false }
+        guard await hasConsent(), let syncEngine else {
+            AppLog.error("note-cloud-sync", "Manual sync ran with no live engine.")
+            return false
+        }
+        log("Manual sync: fetching — \(pendingSummary(syncEngine)).")
         try await syncEngine.fetchChanges()
         guard await hasConsent(), self.syncEngine != nil else { return false }
         queueInitialChangesIfNeeded(on: syncEngine)
+        log("Manual sync: sending — \(pendingSummary(syncEngine)).")
         try await syncEngine.sendChanges()
         guard await hasConsent(), self.syncEngine != nil else { return false }
-        return await reportSyncIfSettled()
+        let settled = await reportSyncIfSettled()
+        log("Manual sync \(settled ? "settled" : "unsettled") — \(pendingSummary(syncEngine)).")
+        return settled
     }
 
     func stop(deleteState: Bool) async {
@@ -202,6 +245,7 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         let engine = syncEngine
         syncEngine = nil
         if let engine { await engine.cancelOperations() }
+        container = nil
         if deleteState { try? FileManager.default.removeItem(at: stateURL) }
     }
 
@@ -231,6 +275,9 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
             await handleFetchedRecordZoneChanges(event, syncEngine: syncEngine)
         case .sentDatabaseChanges(let event):
             for failure in event.failedZoneSaves where failure.zone.zoneID == zoneID {
+                AppLog.error(
+                    "note-cloud-sync",
+                    "Notes zone save failed with CloudKit code \(failure.error.errorCode).")
                 await report(failure.error)
             }
         case .sentRecordZoneChanges(let event):
@@ -253,11 +300,31 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         _ context: CKSyncEngine.SendChangesContext, syncEngine: CKSyncEngine
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
         guard await hasConsent() else { return nil }
-        let pending = syncEngine.state.pendingRecordZoneChanges.filter {
+        let scoped = syncEngine.state.pendingRecordZoneChanges.filter {
             context.options.scope.contains($0)
         }
         let itemSnapshot = items
         let systemFieldsSnapshot = recordSystemFields
+        var pending: [CKSyncEngine.PendingRecordZoneChange] = []
+        var unresolved: [CKSyncEngine.PendingRecordZoneChange] = []
+        for change in scoped {
+            guard case .saveRecord(let recordID) = change else {
+                pending.append(change)
+                continue
+            }
+            if UUID(uuidString: recordID.recordName).flatMap({ itemSnapshot[$0] }) == nil {
+                unresolved.append(change)
+            } else {
+                pending.append(change)
+            }
+        }
+        if !unresolved.isEmpty {
+            syncEngine.state.remove(pendingRecordZoneChanges: unresolved)
+            AppLog.error(
+                "note-cloud-sync",
+                "Dropped \(unresolved.count) pending save(s) with no matching local Note.")
+        }
+        guard !pending.isEmpty else { return nil }
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pending) { recordID in
             guard let id = UUID(uuidString: recordID.recordName),
                 let item = itemSnapshot[id]
@@ -310,6 +377,14 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         for record in event.savedRecords {
             guard let id = UUID(uuidString: record.recordID.recordName) else { continue }
             recordSystemFields[id] = Self.encodeSystemFields(record)
+        }
+        if !event.failedRecordSaves.isEmpty {
+            let codes = Set(event.failedRecordSaves.map(\.error.errorCode)).sorted()
+                .map(String.init).joined(separator: ", ")
+            AppLog.error(
+                "note-cloud-sync",
+                "Sent \(event.savedRecords.count) record(s); "
+                    + "\(event.failedRecordSaves.count) failed with CloudKit code(s) \(codes).")
         }
 
         var retry: [CKSyncEngine.PendingRecordZoneChange] = []
@@ -374,6 +449,15 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
         else { return false }
         await onEvent(.didSync)
         return true
+    }
+
+    private func log(_ message: String) {
+        AppLog.info("note-cloud-sync", message)
+    }
+
+    private func pendingSummary(_ engine: CKSyncEngine) -> String {
+        "\(engine.state.pendingDatabaseChanges.count) zone change(s), "
+            + "\(engine.state.pendingRecordZoneChanges.count) record change(s) pending"
     }
 
     private func recordID(for id: UUID) -> CKRecord.ID {

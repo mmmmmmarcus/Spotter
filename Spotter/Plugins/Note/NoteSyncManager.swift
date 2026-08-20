@@ -136,7 +136,14 @@ final class NoteSyncManager: ObservableObject {
             startCloud()
         }
         if let startTask { await startTask.value }
-        guard isRunning, isEnabled, let cloud, self.cloud === cloud else { return false }
+        guard isRunning, isEnabled, let cloud, self.cloud === cloud else {
+            // startCloud records why it could not come up; only fill in when it stayed silent.
+            if errorMessage == nil {
+                errorMessage = "iCloud sync hasn’t started yet. Try again shortly."
+            }
+            AppLog.error("note-cloud-sync", "Sync Now found no live engine: \(statusText)")
+            return false
+        }
         isWorking = true
         errorMessage = nil
         do {
@@ -145,6 +152,8 @@ final class NoteSyncManager: ObservableObject {
             isWorking = false
             if !settled, errorMessage == nil {
                 errorMessage = "iCloud still has pending Note changes. Try again shortly."
+                AppLog.error(
+                    "note-cloud-sync", "Sync Now finished with Note changes still pending.")
             }
             return settled
         } catch {
