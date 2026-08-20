@@ -70,6 +70,13 @@ extension AppCore {
         }
     }
 
+    /// The capture's own thumbnail replaces a worded HUD: click it or press Return to edit.
+    private func showScreenshotPreview() {
+        guard let capture = screenshot.lastCapture else { return }
+        screenshot.preview.onOpen = { [weak self] in self?.showScreenshotEditor() }
+        screenshot.preview.show(capture.image)
+    }
+
     func dismissScreenshotEditor() {
         closePluginWindow(id: Self.screenshotEditorWindowID)
         screenshot.clearLastCapture()
@@ -106,10 +113,7 @@ extension AppCore {
             guard let self else { return }
             switch result {
             case .copied:
-                hud.show(
-                    title: "Screenshot Copied", symbol: "checkmark.circle",
-                    actionHint: "Click to Edit"
-                ) { [weak self] in self?.showScreenshotEditor() }
+                showScreenshotPreview()
             case .permissionRequired:
                 hud.show(title: "Allow Screen Recording", symbol: "lock.shield", isNoOp: true)
             case .failed:

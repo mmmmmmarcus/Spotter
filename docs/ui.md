@@ -111,9 +111,9 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 | `cardStroke`     | white 0.10 | black 0.10 | settings/calc card border + inset dividers       |
 | `surfaceGlow`    | white 0.06 | black 0.05 | icon placeholder tile, Onboarding glow           |
 | `glassFrost`     | white 0.05 | white 0.30 | tint layered into the floating glass             |
-| `screenshotSelectionBorder` | black 1.00 | black 1.00 | fixed screenshot selection outline        |
+| `screenshotSelectionBorder` | white 1.00 | black 1.00 | screenshot selection outline             |
 | `screenshotHitSurface` | black 1/255 | black 1/255 | visually clear capture-panel hit surface   |
-| `screenshotSelectionOverlay` | black 0.05 | black 0.05 | selected capture region fill            |
+| `screenshotSelectionOverlay` | white 0.05 | black 0.05 | selected capture region fill            |
 | `screenshotCrosshairFill` | #2076FF 1.00 | #2076FF 1.00 | capture cursor symbol body              |
 | `screenshotCrosshairOutline` | white 1.00 | white 1.00 | generated capture-cursor outline        |
 | `screenshotCrosshairShadow` | black 0.28 | black 0.28 | subtle custom-cursor drop shadow       |
@@ -277,14 +277,30 @@ Desktop and Hide Others are their own confirmation and return nil.
 
 The panel is `.nonactivatingPanel`, `ignoresMouseEvents`, and never becomes key: the command has just
 acted on the app the user came from, and taking focus back to report on it would undo the thing being
-reported. Centered horizontally, `hudBottomMargin` (120) above the visible frame's bottom edge so it
-clears the Dock — the placement macOS uses for its own volume HUD. It picks the screen under the
+reported. Centered horizontally, `hudBottomMargin` (120) above the
+visible frame's bottom edge so it clears the Dock — the placement macOS uses for its own volume HUD.
+The hosting view carries `sizingOptions = [.intrinsicContentSize]` purely so `fittingSize` can be
+measured; the frame is still set explicitly, as with the palette. With no sizing option the hosting
+view reports a zero `fittingSize`, which centered a zero-width window and left the HUD hanging off
+the screen's midpoint instead of centered on it. Because a content change is still pending when the
+frame is computed, layout is forced before measuring — otherwise the panel is sized for the previous
+title and lands off-center by half the difference. It picks the screen under the
 cursor, holds for 1.4s, then fades over 0.22s; a second command mid-fade resets it to full opacity
 rather than resuming the dissolve. Same glass as `PopoverMenu` (`menuPanel` radius, no hand shadow).
 A no-op's glyph is `.secondary` — it reports that nothing happened. Beyond system commands, any
 subsystem can call `hud.show(title:symbol:)`. Built-in and custom Commands always use this brief
 surface rather than launcher background-task rows; genuinely long-running workflows keep their state
 available through Background Tasks.
+
+### Screenshot preview thumbnail — `Plugins/Screenshot/ScreenshotPreviewHUD.swift`
+
+A capture reports through its own thumbnail rather than the worded HUD: no text, symbol or button,
+just the shot in a 4pt white frame (4pt radius, `0/4/16` 40%-black shadow spread by 4) aspect-fitted
+into 124×73pt, at the same centered `hudBottomMargin` placement. The frame is white in both
+appearances because it is artwork, not chrome. It springs in from 86% scale / 10pt low and shrinks
+away over 0.18s. Clicking it or pressing Return opens the editor; it dismisses when another app
+activates, after 3.5s, or on click, and hovering holds it. Like the command HUD the panel never
+becomes key, which is why Return is a transient Carbon key rather than a responder-chain key press.
 
 ## Screenshot selection overlay — `Plugins/Screenshot/ScreenshotManager.swift`
 
@@ -310,7 +326,9 @@ surface.
 The panel fills with `screenshotHitSurface`, one black 8-bit alpha step that is visually clear but
 keeps the whole panel mouse-hittable on macOS 26; a fully transparent overlay lets presses fall
 through. The selected rectangle replaces that pixel content with `screenshotSelectionOverlay`, an
-exact 5%-black fill, then uses `screenshotSelectionBorder` for a one-physical-pixel outline. When
+exact 5% fill, then uses `screenshotSelectionBorder` for a one-physical-pixel outline. Both follow
+the system appearance — white on dark, black on light — because a black outline vanishes into a dark
+desktop. When
 Rounded Corners is enabled, both use a four-physical-pixel radius after converting through the panel's
 backing scale, matching the four-pixel alpha mask applied to the copied TIFF. There is no custom window
 chrome or persisted geometry. Hiding all panels before sampling pixels is load-bearing; otherwise the

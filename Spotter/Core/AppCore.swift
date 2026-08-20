@@ -196,7 +196,7 @@ final class AppCore: ObservableObject {
     let windowMover = WindowMover()
     let mole = MoleManager()
     let coffee = CoffeeManager()
-    let screenshot = ScreenshotManager()
+    lazy var screenshot = ScreenshotManager(hotKeys: hotKeys)
     let updates = UpdateStore()
     let hud = CommandHUD()
 

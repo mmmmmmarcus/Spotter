@@ -397,27 +397,28 @@ struct ScreenshotEditorView: View {
         model.isExporting = true
         let capture = model.capture
         let annotations = model.annotations
+        let format = core.screenshot.fileFormat
         Task {
-            let png = await Task.detached(priority: .userInitiated) {
+            let encoded = await Task.detached(priority: .userInitiated) {
                 ScreenshotAnnotationRenderer.flatten(
                     image: capture.image, annotations: annotations
                 ).flatMap {
-                    ScreenshotImageProcessor.pngData(
-                        from: $0, roundedCorners: capture.roundedCorners)
+                    ScreenshotImageProcessor.fileData(
+                        from: $0, format: format, roundedCorners: capture.roundedCorners)
                 }
             }.value
             model.isExporting = false
-            guard let png else {
+            guard let encoded else {
                 core.hud.show(
                     title: "Save Failed", symbol: "exclamationmark.triangle", isNoOp: true)
                 return
             }
             let panel = NSSavePanel()
-            panel.allowedContentTypes = [.png]
-            panel.nameFieldStringValue = Self.defaultFilename()
+            panel.allowedContentTypes = [format.contentType]
+            panel.nameFieldStringValue = Self.defaultFilename(format: format)
             guard panel.runModal() == .OK, let url = panel.url else { return }
             do {
-                try png.write(to: url)
+                try encoded.write(to: url)
                 core.hud.show(title: "Screenshot Saved", symbol: "checkmark.circle")
             } catch {
                 AppLog.error("screenshot", "Saving failed: \(error.localizedDescription)")
@@ -427,9 +428,11 @@ struct ScreenshotEditorView: View {
         }
     }
 
-    private static func defaultFilename(now: Date = Date()) -> String {
+    private static func defaultFilename(
+        format: ScreenshotFileFormat, now: Date = Date()
+    ) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        return "Screenshot \(formatter.string(from: now)).png"
+        return "Screenshot \(formatter.string(from: now)).\(format.fileExtension)"
     }
 }

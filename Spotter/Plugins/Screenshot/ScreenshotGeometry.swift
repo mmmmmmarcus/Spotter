@@ -42,6 +42,50 @@ enum ScreenshotGeometry {
     }
 }
 
+/// The post-capture thumbnail's outer size: the capture aspect-fitted inside the design's box, plus
+/// the frame that surrounds it. Pure so the harness can pin it against odd capture shapes.
+enum ScreenshotThumbnail {
+    static func outerSize(
+        forPixelSize size: CGSize, maximum: CGSize, border: CGFloat
+    ) -> CGSize {
+        let inner = CGSize(
+            width: max(maximum.width - border * 2, 1),
+            height: max(maximum.height - border * 2, 1))
+        guard size.width > 0, size.height > 0 else {
+            return CGSize(width: inner.width + border * 2, height: inner.height + border * 2)
+        }
+        let scale = min(inner.width / size.width, inner.height / size.height)
+        return CGSize(
+            width: max((size.width * scale).rounded(), 1) + border * 2,
+            height: max((size.height * scale).rounded(), 1) + border * 2)
+    }
+}
+
+/// The pixel density a capture is rendered at. Retina is the display's own backing scale; 1x
+/// produces one pixel per point, which is what a screenshot destined for the web usually wants.
+enum ScreenshotCaptureScale: String, CaseIterable, Identifiable, Sendable {
+    case retina
+    case oneX
+
+    var id: String { rawValue }
+    var title: String { self == .retina ? "Retina" : "1x" }
+
+    func pixelScale(nativeScale: CGFloat) -> CGFloat {
+        switch self {
+        case .retina: max(nativeScale, 1)
+        case .oneX: 1
+        }
+    }
+
+    /// The pixel dimensions a point-space rectangle captures to, never smaller than one pixel.
+    func pixelSize(forPointSize size: CGSize, nativeScale: CGFloat) -> (width: Int, height: Int) {
+        let scale = pixelScale(nativeScale: nativeScale)
+        return (
+            max(Int((size.width * scale).rounded()), 1),
+            max(Int((size.height * scale).rounded()), 1))
+    }
+}
+
 /// The cross-fade schedule for the Space-driven pointer swap. A hardware cursor cannot animate
 /// itself, so the overlay replays these frames; the curve is pure so the harness can pin it.
 enum ScreenshotCursorTransition {

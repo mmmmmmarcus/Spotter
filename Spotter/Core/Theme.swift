@@ -148,13 +148,14 @@ enum Theme {
         /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
         /// and a dark tint over light glass would read as a shadow instead of frost.
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
-        /// Screenshot selection is a capture affordance, not palette chrome; it stays opaque black in both appearances by design.
-        static let screenshotSelectionBorder = adaptive(dark: .black, light: .black)
+        /// The capture selection outline. It follows the appearance rather than staying black: on a dark desktop a black outline disappears into the pixels it is meant to bound.
+        static let screenshotSelectionBorder = adaptive(dark: .white, light: .black)
         /// One 8-bit alpha step keeps the full-screen capture panel mouse-hittable without perceptibly dimming the display.
         static let screenshotHitSurface = adaptive(
             dark: .black.opacity(1.0 / 255.0), light: .black.opacity(1.0 / 255.0))
+        /// Fills the selected region so its extent reads without obscuring the source; it follows the border's appearance so both halves of the affordance stay one surface.
         static let screenshotSelectionOverlay = adaptive(
-            dark: .black.opacity(0.05), light: .black.opacity(0.05))
+            dark: .white.opacity(0.05), light: .black.opacity(0.05))
         /// Fixed colors from the supplied Union.svg crosshair artwork.
         static let screenshotCrosshairFill = adaptive(
             dark: Color(red: 32.0 / 255.0, green: 118.0 / 255.0, blue: 1),

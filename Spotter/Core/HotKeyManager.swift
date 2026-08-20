@@ -86,6 +86,18 @@ final class HotKeyManager: ObservableObject {
             .compactMap(UUID.init(uuidString:))
     }
 
+    /// Claims a bare system key for as long as a short-lived surface is on screen — the screenshot
+    /// preview's Return. It is not a user binding: nothing persists, it never reaches Settings or a
+    /// conflict check, and the caller must release it. Carbon consumes the key while it is held, so
+    /// hold it only while the surface is actually visible.
+    func holdTransientKey(id: String, shortcut: KeyShortcut, onKeyDown: @escaping () -> Void) {
+        center.register(id: "transient." + id, shortcut: shortcut, onKeyDown: onKeyDown)
+    }
+
+    func releaseTransientKey(id: String) {
+        center.unregister(id: "transient." + id)
+    }
+
     func shortcut(for action: HotKeyAction) -> KeyShortcut? {
         binding(for: action)?.shortcut
     }

@@ -35,6 +35,44 @@ struct ScreenshotSettingsView: View {
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Resolution",
+                    subtitle: "Retina captures at the display's native density; 1x captures one pixel per point.",
+                    systemImage: "arrow.up.left.and.arrow.down.right",
+                    tint: .blue
+                ) {
+                    Picker("", selection: $screenshot.captureScale) {
+                        ForEach(ScreenshotCaptureScale.allCases) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Window Shadow",
+                    subtitle: "Include the window's drop shadow when capturing a whole window.",
+                    systemImage: "square.on.square.dashed",
+                    tint: .blue
+                ) {
+                    Toggle("", isOn: $screenshot.includesWindowShadow)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            }
+
+            SettingsCard(header: "Saving") {
+                SettingsRow(
+                    title: "File Format",
+                    subtitle: "Used by Save in the editor. JPG has no transparency, so it squares rounded corners; the clipboard copy stays lossless either way.",
+                    systemImage: "doc",
+                    tint: .blue
+                ) {
+                    Picker("", selection: $screenshot.fileFormat) {
+                        ForEach(ScreenshotFileFormat.allCases) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden()
+                }
             }
 
             SettingsCard(header: "Shortcut") {

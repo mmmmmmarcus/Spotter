@@ -111,6 +111,9 @@ struct SettingsBackup: Codable, Sendable {
         }
         struct Screenshot: Codable, Sendable {
             var roundedCorners: Bool?
+            var captureScale: String?
+            var fileFormat: String?
+            var includesWindowShadow: Bool?
         }
         struct SelectionTools: Codable, Sendable {
             var definitionPrompt: String?
@@ -316,7 +319,10 @@ extension SettingsBackup {
                 ?? ImageOutputLocation.alongside.rawValue,
             format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
         prefs.screenshot = PluginPrefs.Screenshot(
-            roundedCorners: core.screenshot.roundedCorners)
+            roundedCorners: core.screenshot.roundedCorners,
+            captureScale: core.screenshot.captureScale.rawValue,
+            fileFormat: core.screenshot.fileFormat.rawValue,
+            includesWindowShadow: core.screenshot.includesWindowShadow)
         prefs.selectionTools = PluginPrefs.SelectionTools(
             definitionPrompt: core.aiChat.definitionPrompt,
             grammarPrompt: core.aiChat.grammarPrompt)
@@ -448,6 +454,22 @@ extension SettingsBackup {
         }
         if let roundedCorners = prefs.screenshot?.roundedCorners {
             core.screenshot.roundedCorners = roundedCorners
+            count += 1
+        }
+        if let scale = prefs.screenshot?.captureScale
+            .flatMap(ScreenshotCaptureScale.init(rawValue:))
+        {
+            core.screenshot.captureScale = scale
+            count += 1
+        }
+        if let format = prefs.screenshot?.fileFormat
+            .flatMap(ScreenshotFileFormat.init(rawValue:))
+        {
+            core.screenshot.fileFormat = format
+            count += 1
+        }
+        if let shadow = prefs.screenshot?.includesWindowShadow {
+            core.screenshot.includesWindowShadow = shadow
             count += 1
         }
         if let selection = prefs.selectionTools {

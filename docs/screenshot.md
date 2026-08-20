@@ -46,8 +46,9 @@ exports them simply logs and keeps the arrow instead of failing to launch. A
 left-button drag is clamped to its starting display. The overlay
 does not dim the screen: the panel's full-screen surface uses only one 8-bit black alpha step, which is
 visually transparent but preserves the mouse hit region that macOS 26 drops for a fully clear panel.
-During a drag, the selected rectangle is replaced with an exact 5%-black overlay so its extent is
-clear without obscuring the source. With Rounded Corners on, both that fill and the selection border
+During a drag, the selected rectangle is replaced with an exact 5% overlay so its extent is
+clear without obscuring the source. Both that fill and the selection border follow the system
+appearance — white on dark, black on light — since a black outline disappears into a dark desktop. With Rounded Corners on, both that fill and the selection border
 use a four-physical-pixel radius on every display scale. Releasing the button accepts any region at
 least one point in both dimensions. Escape, a secondary click or a zero-area click cancels without
 touching the clipboard, and every exit path restores the cursor before removing the panels.
@@ -93,6 +94,25 @@ AppKit rectangle into ScreenCaptureKit's display-local top-origin space. Its sta
 normal, reverse, clamped and secondary-display coordinates without depending on the display's global
 origin.
 
+## Capture options
+
+Three preferences shape what a capture produces. All persist under bundle-scoped
+`screenshot.*` keys, ride the trusted v3 backup/sync snapshot and apply live.
+
+- **Resolution** — `Retina` (default) captures at the display's own backing scale; `1x` asks
+  ScreenCaptureKit for one pixel per point, which is what a screenshot bound for the web usually
+  wants. The pure `ScreenshotCaptureScale` resolves the pixel dimensions for both the region and
+  window paths and never rounds a visible region down to nothing.
+- **Window Shadow** — off by default, preserving the tight crop. A window filter's `contentRect`
+  already reserves the shadow margin, so only `ignoreShadowsSingleWindow` decides whether the shadow
+  is drawn into that margin or cropped away. Region drags are unaffected: a dragged rectangle has no
+  shadow to include.
+- **File Format** — `PNG` (default) or `JPG`, used by the editor's Save. The clipboard copy stays
+  TIFF in both cases: it is lossless and the format every app pastes, and a file-size choice buys
+  nothing there. JPEG carries no alpha, so a rounded corner would encode as a hard black wedge — a
+  JPEG is squared instead of being matted onto an invented background color. JPEG quality is fixed
+  at 0.9, high enough to keep text and UI edges clean.
+
 ## Rounded corners
 
 Rounded Corners is on by default and persists under the bundle-scoped
@@ -106,13 +126,26 @@ pixels clamp the radius to half their shortest side rather than producing invali
 
 ## Preview and mark-up editor
 
-The success HUD is the entry point: after a capture lands on the clipboard, "Screenshot Copied" gains
-a "Click to Edit" hint, accepts the mouse and lingers 3.5 seconds (hovering pauses dismissal).
-Clicking it opens the mark-up editor on the retained capture; every other HUD keeps ignoring the
-mouse entirely, and the click itself never activates Spotter — opening the editor window is what
-brings the app forward. The manager retains the last capture (raw pixels plus the corner treatment
+The post-capture thumbnail is the entry point. `ScreenshotPreviewHUD` is a separate surface from the
+worded `CommandHUD`: it carries no text, symbol or button, just the capture itself in a 4-point white
+frame with a 4-point radius and a `0/4/16` 40%-black shadow spread by 4, aspect-fitted into a
+124×73-point box and centered at the command HUD's `hudBottomMargin` (120) above the visible frame's
+bottom edge. The frame stays white in both appearances — it is part of the artwork, like the macOS
+capture thumbnail, not palette chrome. It springs in (0.28s, 0.78 damping) from 86% scale and 10
+points low, and shrinks back out over 0.18s before the panel orders out. The pure
+`ScreenshotThumbnail` resolves the outer size, so a tall or one-pixel-tall capture still gets a
+visible thumbnail rather than a letterboxed box.
+
+Clicking it opens the mark-up editor on the retained capture. **Return** opens it too: the panel
+never becomes key — Spotter must not take focus from the app the capture came from — so Return
+arrives through a transient Carbon key held by `HotKeyManager.holdTransientKey` only while the
+thumbnail is on screen. That key is not a user binding: nothing persists, it never reaches Settings
+or a conflict check, and Carbon *consumes* Return system-wide for the few seconds the thumbnail is
+up, which is why it is released on every dismissal path. The thumbnail dismisses when the user
+activates another app (`NSWorkspace.didActivateApplicationNotification`), after 3.5 seconds, or on
+click; hovering holds it. The manager retains the last capture (raw pixels plus the corner treatment
 the clipboard copy received) until the next capture or until the plugin is disabled, which also
-closes the editor.
+dismisses the thumbnail and closes the editor.
 
 The editor is a resizable auxiliary window through `AppCore.showPluginWindow`, sized to the capture
 at native points and clamped to 85% of the visible frame; each capture reopens it fresh on the
@@ -134,7 +167,8 @@ time, so what is drawn at fit scale is what exports. The palette is a fixed set 
 baked into the pixels — deliberately not `Theme` tokens, since an exported mark must look identical
 in both appearances. Copy (⌘↩) flattens off the main actor, reuses the capture pipeline's TIFF
 processing and internal-type marker (including the original's corner treatment) and closes the
-window; Save… (⌘S) writes a PNG through `NSSavePanel`, preserving corner transparency. Flattening
+window; Save… (⌘S) writes the configured format through `NSSavePanel`, naming the file by
+its own extension. Flattening
 zero annotations returns the capture untouched. The harness pins the arrow-head geometry and the
 flattened rectangle's edge and interior pixels.
 

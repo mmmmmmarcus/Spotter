@@ -34,6 +34,16 @@ never opens with a phantom ⌘ held. A press longer than 0.25 s, a gap over 0.30
 joining, or any key/click in between all cancel it. Caps Lock is deliberately excluded (it belongs to
 the Hyper Key) and so is `fn`, which isn't a real modifier on every keyboard.
 
+## Transient keys
+
+`holdTransientKey(id:shortcut:onKeyDown:)` claims a bare system key for as long as a short-lived
+surface is on screen — today only the screenshot preview thumbnail's Return, which cannot use the
+responder chain because its panel never becomes key. A transient key is deliberately *not* a
+binding: nothing persists, it never appears in Settings, it takes no part in conflict detection, and
+the caller must release it. Carbon consumes the key while it is held, so hold one only while its
+surface is actually visible, and release it on every dismissal path. The recorder's pause covers
+transient keys too, so recording a shortcut can never fire one.
+
 ## Persistence
 
 Shortcuts persist as JSON strings under `KeyboardShortcuts_<name>` UserDefaults keys — a **legacy

@@ -40,6 +40,9 @@ private enum ScreenshotCaptureFailure: LocalizedError {
 @MainActor
 final class ScreenshotManager: ObservableObject {
     private static let roundedCornersKey = "screenshot.rounded-corners"
+    private static let captureScaleKey = "screenshot.capture-scale"
+    private static let fileFormatKey = "screenshot.file-format"
+    private static let includesWindowShadowKey = "screenshot.includes-window-shadow"
 
     private var panels: [ScreenshotSelectionPanel] = []
     private var completion: ((ScreenshotCaptureResult) -> Void)?
@@ -47,8 +50,11 @@ final class ScreenshotManager: ObservableObject {
     private var previousCursor: NSCursor?
     private var mode: ScreenshotCaptureMode = .region
     private var hoveredWindow: ScreenshotWindowCandidate?
-    /// Retained until the next capture so the HUD can open the editor after the panels are gone.
+    /// Retained until the next capture so the thumbnail can open the editor after the panels are gone.
     private(set) var lastCapture: ScreenshotCapturePayload?
+    /// The post-capture thumbnail. Created with the app's hotkey manager because Return reaches it
+    /// through a transient system key rather than the responder chain.
+    let preview: ScreenshotPreviewHUD
     private let cursorAnimator = ScreenshotCursorAnimator()
     private let defaults: UserDefaults
 
@@ -59,10 +65,38 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
-    init(defaults: UserDefaults = .standard) {
+    @Published var captureScale: ScreenshotCaptureScale {
+        didSet {
+            guard captureScale != oldValue else { return }
+            defaults.set(captureScale.rawValue, forKey: Self.captureScaleKey)
+        }
+    }
+
+    @Published var fileFormat: ScreenshotFileFormat {
+        didSet {
+            guard fileFormat != oldValue else { return }
+            defaults.set(fileFormat.rawValue, forKey: Self.fileFormatKey)
+        }
+    }
+
+    /// Window mode only; a region drag has no shadow to include.
+    @Published var includesWindowShadow: Bool {
+        didSet {
+            guard includesWindowShadow != oldValue else { return }
+            defaults.set(includesWindowShadow, forKey: Self.includesWindowShadowKey)
+        }
+    }
+
+    init(hotKeys: HotKeyManager, defaults: UserDefaults = .standard) {
+        preview = ScreenshotPreviewHUD(hotKeys: hotKeys)
         self.defaults = defaults
         roundedCorners = defaults.object(forKey: Self.roundedCornersKey) == nil
             || defaults.bool(forKey: Self.roundedCornersKey)
+        captureScale = defaults.string(forKey: Self.captureScaleKey)
+            .flatMap(ScreenshotCaptureScale.init(rawValue:)) ?? .retina
+        fileFormat = defaults.string(forKey: Self.fileFormatKey)
+            .flatMap(ScreenshotFileFormat.init(rawValue:)) ?? .png
+        includesWindowShadow = defaults.bool(forKey: Self.includesWindowShadowKey)
         cursorAnimator.onFrame = { [weak self] cursor in
             guard let self else { return }
             for panel in panels { panel.apply(cursor: cursor) }
@@ -111,6 +145,7 @@ final class ScreenshotManager: ObservableObject {
 
     /// Disabling the plugin drops the retained capture along with the editor that shows it.
     func clearLastCapture() {
+        preview.dismiss()
         lastCapture = nil
     }
 
@@ -195,6 +230,7 @@ final class ScreenshotManager: ObservableObject {
         let captureRect = ScreenshotGeometry.captureRect(
             fromScreenLocal: localRect, screenHeight: screen.frame.height)
         let roundedCorners = roundedCorners
+        let captureScale = captureScale
         dismissPanels()
 
         captureTask = Task { [weak self] in
@@ -202,7 +238,8 @@ final class ScreenshotManager: ObservableObject {
             try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.captureImage(in: captureRect, displayID: displayID)
+                let image = try await Self.captureImage(
+                    in: captureRect, displayID: displayID, scale: captureScale)
                 await deliver(image, roundedCorners: roundedCorners)
             } catch {
                 AppLog.error("screenshot", "ScreenCaptureKit failed: \(error.localizedDescription)")
@@ -219,6 +256,8 @@ final class ScreenshotManager: ObservableObject {
             cancel()
             return
         }
+        let captureScale = captureScale
+        let includesWindowShadow = includesWindowShadow
         dismissPanels()
 
         captureTask = Task { [weak self] in
@@ -226,7 +265,9 @@ final class ScreenshotManager: ObservableObject {
             try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.captureImage(windowID: target.id)
+                let image = try await Self.captureImage(
+                    windowID: target.id, scale: captureScale,
+                    includingShadow: includesWindowShadow)
                 await deliver(image, roundedCorners: false)
             } catch {
                 AppLog.error("screenshot", "Window capture failed: \(error.localizedDescription)")
@@ -260,7 +301,7 @@ final class ScreenshotManager: ObservableObject {
     }
 
     private static func captureImage(
-        in rect: CGRect, displayID: CGDirectDisplayID
+        in rect: CGRect, displayID: CGDirectDisplayID, scale: ScreenshotCaptureScale
     ) async throws -> CGImage {
         let content = try await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: false)
@@ -270,17 +311,20 @@ final class ScreenshotManager: ObservableObject {
 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let configuration = SCStreamConfiguration()
-        let scale = max(CGFloat(filter.pointPixelScale), 1)
+        let pixels = scale.pixelSize(
+            forPointSize: rect.size, nativeScale: CGFloat(filter.pointPixelScale))
         configuration.captureResolution = .best
         configuration.showsCursor = false
         configuration.sourceRect = rect
-        configuration.width = max(Int((rect.width * scale).rounded()), 1)
-        configuration.height = max(Int((rect.height * scale).rounded()), 1)
+        configuration.width = pixels.width
+        configuration.height = pixels.height
         return try await SCScreenshotManager.captureImage(
             contentFilter: filter, configuration: configuration)
     }
 
-    private static func captureImage(windowID: CGWindowID) async throws -> CGImage {
+    private static func captureImage(
+        windowID: CGWindowID, scale: ScreenshotCaptureScale, includingShadow: Bool
+    ) async throws -> CGImage {
         let content = try await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: true)
         guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
@@ -289,13 +333,15 @@ final class ScreenshotManager: ObservableObject {
 
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let configuration = SCStreamConfiguration()
-        let scale = max(CGFloat(filter.pointPixelScale), 1)
-        let contentRect = filter.contentRect
+        // `contentRect` already reserves the shadow margin, so only the ignore flag decides whether it is drawn or cropped away.
+        let pixels = scale.pixelSize(
+            forPointSize: filter.contentRect.size,
+            nativeScale: CGFloat(filter.pointPixelScale))
         configuration.captureResolution = .best
         configuration.showsCursor = false
-        configuration.ignoreShadowsSingleWindow = true
-        configuration.width = max(Int((contentRect.width * scale).rounded()), 1)
-        configuration.height = max(Int((contentRect.height * scale).rounded()), 1)
+        configuration.ignoreShadowsSingleWindow = !includingShadow
+        configuration.width = pixels.width
+        configuration.height = pixels.height
         return try await SCScreenshotManager.captureImage(
             contentFilter: filter, configuration: configuration)
     }

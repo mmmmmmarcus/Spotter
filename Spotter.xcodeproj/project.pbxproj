@@ -79,6 +79,7 @@
 		52755379C29E05805247B689 /* SystemCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F75CA2510EFD6B9EE6E7924 /* SystemCommandRunner.swift */; };
 		5848DB5A8E849BD170C1AC72 /* AIChatPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E71C4DD8183B1A7D86867A /* AIChatPlugin.swift */; };
 		58D500916E6096E589DD4624 /* DashboardDeviceBatteryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4637BB0C57CB0E954EA3ABB5 /* DashboardDeviceBatteryEngine.swift */; };
+		5AB7A011B760293695A0774E /* ScreenshotPreviewHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12D82E314EC41F6F38616E5 /* ScreenshotPreviewHUD.swift */; };
 		5C481321CB0146474462D5F0 /* OpenRouterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9D78AFD2E35C90F7FAB933 /* OpenRouterStore.swift */; };
 		5D40DCFE0F29E6D10B497D72 /* UpdateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7829EA08561C01C47794D1C /* UpdateStore.swift */; };
 		5F5F4190161FA6569021181C /* EmojiIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B017FD6AEF925DB962DFB5C /* EmojiIndex.swift */; };
@@ -419,6 +420,7 @@
 		EEC07C3A56248A192651F6D2 /* RootPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootPaletteView.swift; sourceTree = "<group>"; };
 		EFEA06CE5BB23625D06B9B5B /* Scrypt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scrypt.swift; sourceTree = "<group>"; };
 		F08701805E0ADE98D033D586 /* PermissionsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsSettingsView.swift; sourceTree = "<group>"; };
+		F12D82E314EC41F6F38616E5 /* ScreenshotPreviewHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPreviewHUD.swift; sourceTree = "<group>"; };
 		F25605AACCC0A309AD18087A /* AIChatSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatSettingsView.swift; sourceTree = "<group>"; };
 		F271C3DE73C6AA9AC7A0DB63 /* SettingsSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSyncManager.swift; sourceTree = "<group>"; };
 		F2821459ECF8A3EB12E1D0D5 /* PopoverMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverMenu.swift; sourceTree = "<group>"; };
@@ -593,6 +595,7 @@
 				5B609A8CFC79D04D8510FA08 /* ScreenshotImageProcessor.swift */,
 				BAA6729A8C71A37B8800DB8A /* ScreenshotManager.swift */,
 				B4EC6D4EEA70F7417040D5AB /* ScreenshotPlugin.swift */,
+				F12D82E314EC41F6F38616E5 /* ScreenshotPreviewHUD.swift */,
 				E316818499A51F277F1FC8D4 /* ScreenshotSettingsView.swift */,
 				25D2B8CA05681DE2CF8C99E7 /* ScreenshotWindowPicker.swift */,
 			);
@@ -1150,6 +1153,7 @@
 				75CDDE0411908FAD1CE4C8B2 /* ScreenshotImageProcessor.swift in Sources */,
 				721987FA348B453F723FF2E7 /* ScreenshotManager.swift in Sources */,
 				83C37637DD67A17B4D94E7C2 /* ScreenshotPlugin.swift in Sources */,
+				5AB7A011B760293695A0774E /* ScreenshotPreviewHUD.swift in Sources */,
 				003ED0A7EA94315E72C93EAA /* ScreenshotSettingsView.swift in Sources */,
 				25AE17D7B468AFBFA919ACF2 /* ScreenshotWindowPicker.swift in Sources */,
 				084DC68B54BF150103E64881 /* ScrollIntent.swift in Sources */,
@@ -1261,7 +1265,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1333,7 +1337,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

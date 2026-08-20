@@ -237,6 +237,76 @@ private enum ScreenshotTest {
                 "the rectangle interior keeps the capture pixels")
         }
 
+        check(
+            ScreenshotCaptureScale.retina.pixelScale(nativeScale: 2) == 2
+                && ScreenshotCaptureScale.oneX.pixelScale(nativeScale: 2) == 1,
+            "capture scale honors or ignores the display's native density")
+        check(
+            ScreenshotCaptureScale.retina.pixelScale(nativeScale: 0.5) == 1,
+            "a nonsense native scale never shrinks a retina capture")
+        let retinaPixels = ScreenshotCaptureScale.retina.pixelSize(
+            forPointSize: CGSize(width: 300, height: 200), nativeScale: 2)
+        check(
+            retinaPixels.width == 600 && retinaPixels.height == 400,
+            "a retina capture doubles its point size on a 2x display")
+        let onePixels = ScreenshotCaptureScale.oneX.pixelSize(
+            forPointSize: CGSize(width: 300, height: 200), nativeScale: 2)
+        check(
+            onePixels.width == 300 && onePixels.height == 200,
+            "a 1x capture keeps one pixel per point")
+        let tiny = ScreenshotCaptureScale.oneX.pixelSize(
+            forPointSize: CGSize(width: 0.2, height: 0.2), nativeScale: 2)
+        check(tiny.width == 1 && tiny.height == 1, "a sub-pixel region still captures one pixel")
+
+        check(
+            ScreenshotFileFormat.png.preservesTransparency
+                && !ScreenshotFileFormat.jpeg.preservesTransparency,
+            "only PNG can carry a rounded corner")
+        check(
+            ScreenshotFileFormat.jpeg.fileExtension == "jpg"
+                && ScreenshotFileFormat.png.fileExtension == "png",
+            "each format names its own extension")
+        let corner = solidImage(width: 40, height: 40)
+        let pngRounded = ScreenshotImageProcessor.fileData(
+            from: corner, format: .png, roundedCorners: true).flatMap(decodedImage)
+        check(
+            pngRounded.map { alpha($0, x: 0, y: 0) == 0 } == true,
+            "a rounded PNG keeps its corner transparent")
+        let jpegRounded = ScreenshotImageProcessor.fileData(
+            from: corner, format: .jpeg, roundedCorners: true).flatMap(decodedImage)
+        check(
+            jpegRounded.map { alpha($0, x: 0, y: 0) == 255 } == true,
+            "a JPEG squares the corner instead of encoding a black wedge")
+        check(
+            (ScreenshotImageProcessor.fileData(from: corner, format: .jpeg, roundedCorners: false)?
+                .count ?? 0) > 0,
+            "JPEG encoding produces data")
+
+        let box = CGSize(width: 124, height: 73)
+        let wide = ScreenshotThumbnail.outerSize(
+            forPixelSize: CGSize(width: 1600, height: 900), maximum: box, border: 4)
+        check(
+            wide.width == 124 && wide.height <= 73,
+            "a wide capture fills the thumbnail box's width")
+        let tall = ScreenshotThumbnail.outerSize(
+            forPixelSize: CGSize(width: 400, height: 1200), maximum: box, border: 4)
+        check(
+            tall.height == 73 && tall.width < 124,
+            "a tall capture fits the box's height instead of letterboxing")
+        check(
+            ScreenshotThumbnail.outerSize(
+                forPixelSize: CGSize(width: 65, height: 65), maximum: box, border: 4)
+                == CGSize(width: 73, height: 73),
+            "a square capture stays square inside its frame")
+        let sliver = ScreenshotThumbnail.outerSize(
+            forPixelSize: CGSize(width: 2000, height: 1), maximum: box, border: 4)
+        check(
+            sliver.height >= 1 + 8 && sliver.width <= 124,
+            "a one-pixel-tall capture still gets a visible thumbnail")
+        check(
+            ScreenshotThumbnail.outerSize(forPixelSize: .zero, maximum: box, border: 4) == box,
+            "an empty capture falls back to the full box")
+
         if failures > 0 { exit(1) }
         print("All screenshot tests passed.")
     }
