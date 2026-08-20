@@ -18,7 +18,13 @@ final class ScreenshotPreviewHUD {
     static let shadowOffsetY: CGFloat = 4
     static let shadowOpacity: CGFloat = 0.4
     /// Room for the blur, its spread and its downward offset, so no edge of the shadow is clipped.
+    /// Also absorbs `appearBlur`, which spreads the artwork past its own bounds while it resolves.
     static let shadowPadding = shadowRadius + shadowSpread + shadowOffsetY
+    /// The thumbnail resolves from out-of-focus to sharp in place; enough to read as a blur on a
+    /// 124-point frame without smearing into a cloud.
+    static let appearBlur: CGFloat = 10
+    static let appearDuration: TimeInterval = 0.26
+    static let disappearDuration: TimeInterval = 0.18
 
     private static let transientKeyID = "screenshot.preview.return"
     private static let visibleDuration: Duration = .milliseconds(3500)
@@ -53,7 +59,7 @@ final class ScreenshotPreviewHUD {
         position(panel, thumbnail: thumbnail)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+        withAnimation(.easeOut(duration: Self.appearDuration)) {
             model.isPresented = true
         }
 
@@ -76,7 +82,7 @@ final class ScreenshotPreviewHUD {
         withAnimation(.easeIn(duration: Self.disappearDuration)) {
             model.isPresented = false
         }
-        // Order out only once the shrink has played; a re-show before then cancels this task.
+        // Order out only once the blur-out has played; a re-show before then cancels this task.
         dismissal = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Int(Self.disappearDuration * 1000) + 20))
             guard !Task.isCancelled else { return }
@@ -84,8 +90,6 @@ final class ScreenshotPreviewHUD {
             self?.dismissal = nil
         }
     }
-
-    private static let disappearDuration: TimeInterval = 0.18
 
     private func open() {
         let onOpen = onOpen
@@ -208,9 +212,9 @@ private struct ScreenshotPreviewHUDView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { model.onTap?() }
                 .onHover { model.onHover?($0) }
-                .scaleEffect(model.isPresented ? 1 : 0.86)
+                // Blurs into focus and back out, in place: no scale or offset, so nothing about the thumbnail moves while it appears.
+                .blur(radius: model.isPresented ? 0 : ScreenshotPreviewHUD.appearBlur)
                 .opacity(model.isPresented ? 1 : 0)
-                .offset(y: model.isPresented ? 0 : 10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

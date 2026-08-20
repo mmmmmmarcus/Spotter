@@ -297,9 +297,9 @@ available through Background Tasks.
 A capture reports through its own thumbnail rather than the worded HUD: no text, symbol or button,
 just the shot in a 4pt white frame (4pt radius, `0/4/16` 40%-black shadow spread by 4) aspect-fitted
 into 124×73pt, at the same centered `hudBottomMargin` placement. The frame is white in both
-appearances because it is artwork, not chrome. It springs in from 86% scale / 10pt low and shrinks
-away over 0.18s. Clicking it or pressing Return opens the editor; it dismisses when another app
-activates, after 3.5s, or on click, and hovering holds it. Like the command HUD the panel never
+appearances because it is artwork, not chrome. It resolves from a 10pt blur to sharp over 0.26s and
+blurs back out over 0.18s, in place — no scale, no offset. Clicking it or pressing Return opens the
+editor; it dismisses when another app activates, after 3.5s, or on click, and hovering holds it. Like the command HUD the panel never
 becomes key, which is why Return is a transient Carbon key rather than a responder-chain key press.
 
 ## Screenshot selection overlay — `Plugins/Screenshot/ScreenshotManager.swift`

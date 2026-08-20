@@ -131,8 +131,10 @@ worded `CommandHUD`: it carries no text, symbol or button, just the capture itse
 frame with a 4-point radius and a `0/4/16` 40%-black shadow spread by 4, aspect-fitted into a
 124×73-point box and centered at the command HUD's `hudBottomMargin` (120) above the visible frame's
 bottom edge. The frame stays white in both appearances — it is part of the artwork, like the macOS
-capture thumbnail, not palette chrome. It springs in (0.28s, 0.78 damping) from 86% scale and 10
-points low, and shrinks back out over 0.18s before the panel orders out. The pure
+capture thumbnail, not palette chrome. It resolves from a 10-point blur to sharp over 0.26s and
+blurs back out over 0.18s before the panel orders out — a focus-in, with no scale or offset, so
+nothing about the thumbnail moves as it appears. The shadow padding absorbs the blur, which spreads
+the artwork past its own bounds while it resolves. The pure
 `ScreenshotThumbnail` resolves the outer size, so a tall or one-pixel-tall capture still gets a
 visible thumbnail rather than a letterboxed box.
 
