@@ -279,12 +279,15 @@ The panel is `.nonactivatingPanel`, `ignoresMouseEvents`, and never becomes key:
 acted on the app the user came from, and taking focus back to report on it would undo the thing being
 reported. Centered horizontally, `hudBottomMargin` (120) above the
 visible frame's bottom edge so it clears the Dock — the placement macOS uses for its own volume HUD.
-The hosting view carries `sizingOptions = [.intrinsicContentSize]` purely so `fittingSize` can be
-measured; the frame is still set explicitly, as with the palette. With no sizing option the hosting
-view reports a zero `fittingSize`, which centered a zero-width window and left the HUD hanging off
-the screen's midpoint instead of centered on it. Because a content change is still pending when the
-frame is computed, layout is forced before measuring — otherwise the panel is sized for the previous
-title and lands off-center by half the difference. It picks the screen under the
+Centering needs the content's size, and getting it has one constraint worth knowing. Every in-window
+hosting view in Spotter carries `sizingOptions = []` so SwiftUI never drives a window frame — but a
+sizing-optionless hosting view reports a zero `fittingSize`, which once centered a zero-width window
+and left the HUD hanging off the screen's midpoint. Adding a sizing option to the panel's own host is
+*not* the fix: it also feeds AppKit's window content-size extrema, so SwiftUI re-invalidates layout
+from inside the window's own constraint pass, which macOS 26 turns into an uncaught exception. The
+size is measured on a throwaway hosting view instead — `.intrinsicContentSize`, never installed in a
+window, so it cannot post a constraint update to one — which also reports the current content
+immediately, with no forced layout pass. It picks the screen under the
 cursor, holds for 1.4s, then fades over 0.22s; a second command mid-fade resets it to full opacity
 rather than resuming the dissolve. Same glass as `PopoverMenu` (`menuPanel` radius, no hand shadow).
 A no-op's glyph is `.secondary` — it reports that nothing happened. Beyond system commands, any

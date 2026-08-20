@@ -65,8 +65,8 @@ final class CommandHUD {
         panel.isMovable = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         let host = NSHostingView(rootView: CommandHUDView(model: model))
-        // The frame stays ours to set, as with the palette; this only publishes a measurement to size it by. With no sizing option at all `fittingSize` reports zero, which centered a zero-width window and left the HUD hanging off the screen's midpoint.
-        host.sizingOptions = [.intrinsicContentSize]
+        // Same reason as the palette: SwiftUI must not drive the window frame. A sizing option here also feeds AppKit's window content-size extrema, which re-invalidates layout from inside the window's own constraint pass — macOS 26 throws on that. `contentSize()` measures off-window instead.
+        host.sizingOptions = []
         panel.contentView = host
         return panel
     }
@@ -74,10 +74,7 @@ final class CommandHUD {
     /// Centered horizontally, sitting above the bottom of the visible frame — the placement macOS
     /// uses for its own volume and brightness HUDs, and clear of both the Dock and the menu bar.
     private func position(_ panel: NSPanel) {
-        guard let host = panel.contentView else { return }
-        // The content change above is still pending, so force it through before measuring — otherwise the panel is sized for the previous HUD's title and lands off-center by half the difference.
-        host.layoutSubtreeIfNeeded()
-        let size = host.fittingSize
+        let size = contentSize()
         guard size.width > 0, size.height > 0 else { return }
         // NSMouseInRect, not contains: the mouse y sits on frame.maxY on the top edge, which a
         // plain rect-contains misses (same reasoning as PaletteWindowController's screen pick).
@@ -92,6 +89,15 @@ final class CommandHUD {
                 width: size.width,
                 height: size.height),
             display: false)
+    }
+
+    /// Measured on a throwaway hosting view that is never installed in a window: a hosting view with
+    /// no window cannot post a constraint update to one, and it reports the current content's size
+    /// immediately, where the panel's own host — deliberately sizing-optionless — reports zero.
+    private func contentSize() -> CGSize {
+        let probe = NSHostingView(rootView: CommandHUDView(model: model))
+        probe.sizingOptions = [.intrinsicContentSize]
+        return probe.fittingSize
     }
 }
 
