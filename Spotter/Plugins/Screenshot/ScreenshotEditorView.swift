@@ -221,6 +221,9 @@ struct ScreenshotEditorView: View {
         .padding(.trailing, Theme.Spacing.xl)
         .padding(.vertical, Theme.Spacing.lg)
         .frame(height: 52)
+        // The window opts out of background dragging so a stroke on the canvas can never move it, which makes this strip the one deliberate handle. Controls above take their own clicks first, so only the gaps between them drag.
+        .contentShape(Rectangle())
+        .gesture(WindowDragGesture())
     }
 
     private var barDivider: some View {

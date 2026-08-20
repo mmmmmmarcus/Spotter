@@ -526,13 +526,15 @@ final class AppCore: ObservableObject {
         id: String, title: String, size: CGSize, resizable: Bool = false,
         floating: Bool = false, transparent: Bool = false, minimumSize: CGSize? = nil,
         closeButtonOnly: Bool = false, contentExtendsIntoTitleBar: Bool = false,
+        movableByBackground: Bool = true,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         auxWindows.show(
             id: "plugin." + id, title: title, size: size, seamlessTitleBar: true,
             resizable: resizable, floating: floating, transparent: transparent,
             minimumSize: minimumSize, closeButtonOnly: closeButtonOnly,
-            contentExtendsIntoTitleBar: contentExtendsIntoTitleBar
+            contentExtendsIntoTitleBar: contentExtendsIntoTitleBar,
+            movableByBackground: movableByBackground
         ) {
             content()
                 .environmentObject(self)

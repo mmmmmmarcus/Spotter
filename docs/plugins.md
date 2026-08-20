@@ -140,8 +140,11 @@ selection, row chrome, scrolling or footer in another window. Kill Process is th
 
 Dedicated workspaces are reserved for sustained document/canvas editing or complex multi-step flows
 that cannot fit the launcher model. They use `AppCore.showPluginWindow(id:title:size:content:)`, which
-keeps every `NSWindow` under `AuxWindowController`; Notes and the Change Case browser are the
-current examples.
+keeps every `NSWindow` under `AuxWindowController`; Notes, the Change Case browser and the
+Screenshot editor are the current examples. A seamless-title-bar window is drag-movable by its whole
+background, which assumes every surface is chrome that real controls opt out of. A window hosting a
+drawing canvas must pass `movableByBackground: false` and supply its own handle — a bare
+`DragGesture` is not a control, so the window would otherwise move mid-stroke.
 CPU, process, filesystem, image and AppleScript work must leave the main actor, returning only
 `Sendable` values to an `AppCore`-owned manager.
 

@@ -116,7 +116,12 @@ closes the editor.
 
 The editor is a resizable auxiliary window through `AppCore.showPluginWindow`, sized to the capture
 at native points and clamped to 85% of the visible frame; each capture reopens it fresh on the
-latest image. The toolbar offers five tools — arrow, rectangle, ellipse, freehand and text — an
+latest image. It is the one plugin window that passes `movableByBackground: false`: AppKit claims a
+mouse-down for a window drag whenever the hit view reports `mouseDownCanMoveWindow`, which SwiftUI
+clears for controls but not for a `Canvas` carrying only a `DragGesture` — so a stroke on the capture
+also moved the window. The toolbar strip carries an explicit `WindowDragGesture()` instead, making it
+the one deliberate handle; its controls take their own clicks first, so only the gaps between them
+drag. The toolbar offers five tools — arrow, rectangle, ellipse, freehand and text — an
 eight-color palette, three stroke presets, and undo/redo (⌘Z / ⇧⌘Z). Marks are committed on
 mouse-up; a sub-3-point drag is discarded as a misclick. The text tool places an inline field at the
 click point (Return commits, Escape discards), rendered bold with a soft dark halo for legibility.

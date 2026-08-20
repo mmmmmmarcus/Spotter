@@ -63,7 +63,8 @@ extension AppCore {
             size: Self.screenshotEditorWindowSize(for: capture.image),
             resizable: true,
             minimumSize: CGSize(width: 760, height: 420),
-            contentExtendsIntoTitleBar: true
+            contentExtendsIntoTitleBar: true,
+            movableByBackground: false
         ) {
             ScreenshotEditorView(capture: capture)
         }

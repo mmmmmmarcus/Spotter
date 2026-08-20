@@ -206,7 +206,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         id: String, title: String, size: CGSize, seamlessTitleBar: Bool = false,
         resizable: Bool = false, floating: Bool = false, transparent: Bool = false,
         minimumSize: CGSize? = nil, closeButtonOnly: Bool = false,
-        contentExtendsIntoTitleBar: Bool = false,
+        contentExtendsIntoTitleBar: Bool = false, movableByBackground: Bool = true,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         let window: NSWindow
@@ -240,7 +240,8 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             if seamlessTitleBar {
                 window.titlebarAppearsTransparent = true
                 window.titleVisibility = .hidden
-                window.isMovableByWindowBackground = true
+                // Background dragging assumes every surface is chrome that controls opt out of. A window holding a drawing canvas opts out instead and supplies its own handle, since a bare gesture is not a control and would otherwise move the window mid-stroke.
+                window.isMovableByWindowBackground = movableByBackground
             }
             if closeButtonOnly {
                 window.standardWindowButton(.miniaturizeButton)?.isHidden = true
