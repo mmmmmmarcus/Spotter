@@ -103,7 +103,12 @@ is optional:
 - `canDisable` (default true) pins a registration on. AI Chat and Widgets set it false
   because they are system features rather than optional plugins.
 - `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
-  renders the recorded keycap.
+  renders the recorded keycap. Pass the plugin's *existing* `shortcutActions` key rather than
+  minting a second one: one `PluginActionKey` then serves the plugin's own Settings pane, its
+  Settings ▸ Commands row, the launcher keycap, conflict detection, persistence and dispatch, so
+  there is no way for the two to drift apart. Clipboard History is the reference — it reuses
+  `.openClipboard`, whose `defaultsKey` is still the legacy `KeyboardShortcuts_toggleClipboard`
+  (pinned by `Tools/commands-test.swift`, since renaming it would unbind every existing shortcut).
 - `queryProvider` contributes a synchronous inline result provider.
 - `paletteScreen` contributes a searchable result-list snapshot, primary row action, ⌘K menu actions
   and visible-only lifecycle to the shared command palette.

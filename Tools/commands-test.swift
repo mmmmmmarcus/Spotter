@@ -34,6 +34,22 @@ struct CommandsTests {
                     == "KeyboardShortcuts_plugin.system-commands.\(command.id.rawValue)")
         }
 
+        // A launcher command that reuses a plugin's own shortcut action is what makes one binding
+        // serve the plugin's Settings pane, its Commands row and its launcher keycap at once. These
+        // two predate the generic `standard(pluginID:actionID:title:)` key, so their storage keys
+        // are the bare legacy names — renaming one unbinds every existing shortcut and backup.
+        check(
+            "Clipboard History keeps its legacy binding",
+            PluginActionKey.openClipboard.defaultsKey == "KeyboardShortcuts_toggleClipboard")
+        check(
+            "Clipboard History belongs to Clipboard",
+            PluginActionKey.openClipboard.pluginID == .clipboard)
+        check(
+            "Emoji & Symbols keeps its legacy binding",
+            PluginActionKey.openEmoji.defaultsKey == "KeyboardShortcuts_toggleEmoji")
+        check(
+            "Emoji & Symbols belongs to Emoji", PluginActionKey.openEmoji.pluginID == .emoji)
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }
