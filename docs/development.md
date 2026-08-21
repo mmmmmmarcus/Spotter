@@ -135,6 +135,9 @@ swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
     -o /tmp/clipboard-test && /tmp/clipboard-test                 # clipboard store
 swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift \
     -o /tmp/scopes-test && /tmp/scopes-test                       # launcher search scopes
+swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
+    Spotter/Plugins/FileSearch/FileSearchTypes.swift Tools/file-search-test.swift \
+    -o /tmp/file-search-test && /tmp/file-search-test             # file search policy
 swiftc Spotter/Plugins/EmojiSymbols/EmojiCatalog.swift \
     Spotter/Plugins/EmojiSymbols/EmojiGridGeometry.swift \
     Spotter/Plugins/EmojiSymbols/EmojiData.generated.swift Tools/emoji-test.swift \

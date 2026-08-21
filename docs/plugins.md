@@ -343,4 +343,5 @@ Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
-[Notes](notes.md), [Text Replacement](text-replacement.md), and [Screenshot](screenshot.md).
+[Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md), and
+[File Search](file-search.md).

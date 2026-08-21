@@ -13,6 +13,7 @@ enum BuiltInPlugins {
             EmojiSymbolsPlugin.registration(core: core),
             WorldClockPlugin.registration(core: core),
             DashboardWidgetsPlugin.registration(core: core),
+            FileSearchPlugin.registration(core: core),
             KillProcessPlugin.registration(core: core),
             ChangeCasePlugin.registration(core: core),
             SelectionToolsPlugin.registration(core: core),

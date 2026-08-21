@@ -47,6 +47,8 @@ struct PluginPaletteScreenRegistration {
     var adjustHours: ((Int) -> Void)?
     let snapshot: (_ query: String) -> PluginPaletteSnapshot
     let performPrimaryAction: (_ itemID: String) -> Void
+    /// Optional ⌘↵ action, for a screen whose rows have one obvious secondary (File Search reveals in Finder). Screens without one leave ⌘↵ inert rather than aliasing it onto the primary.
+    var performSecondaryAction: ((_ itemID: String) -> Void)?
     let actions: (_ itemID: String) -> PopoverMenuContent?
     var onOpen: () -> Void = {}
     var onClose: () -> Void = {}
@@ -273,6 +275,14 @@ final class PluginRegistry: ObservableObject {
     func performPalettePrimaryAction(pluginID: PluginID, itemID: String) {
         guard isEnabled(pluginID), let screen = registrations[pluginID]?.paletteScreen else { return }
         screen.performPrimaryAction(itemID)
+    }
+
+    func performPaletteSecondaryAction(pluginID: PluginID, itemID: String) -> Bool {
+        guard isEnabled(pluginID),
+            let perform = registrations[pluginID]?.paletteScreen?.performSecondaryAction
+        else { return false }
+        perform(itemID)
+        return true
     }
 
     func paletteActions(pluginID: PluginID, itemID: String) -> PopoverMenuContent? {

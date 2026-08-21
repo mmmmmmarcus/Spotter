@@ -32,7 +32,8 @@ enum LauncherFallbackAction: String, CaseIterable, Identifiable, Sendable {
         case .aiChat: return "Spotter"
         case .chatGPT: return "Web"
         case .terminal: return "Terminal"
-        case .fileSearch: return "Finder"
+        // Named for where the row lands: the File Search screen when its plugin is on, Finder when it isn't.
+        case .fileSearch: return "Files"
         }
     }
 }

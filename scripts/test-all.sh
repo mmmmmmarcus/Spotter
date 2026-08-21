@@ -14,6 +14,7 @@ TESTS=(
     calc
     clipboard
     scopes
+    file-search
     emoji
     custom-command
     commands
@@ -93,6 +94,11 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
                 Spotter/Plugins/Clipboard/ClipboardFilter.swift \
                 Tools/clipboard-test.swift -o "$output" && "$output"
+            ;;
+        file-search)
+            swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
+                Spotter/Plugins/FileSearch/FileSearchTypes.swift Tools/file-search-test.swift \
+                -o "$output" && "$output"
             ;;
         scopes)
             swiftc -swift-version 6 Spotter/Core/SearchScopes.swift \

@@ -123,7 +123,9 @@ Never break these without an explicit task to do so.
   CoreGraphics/CoreText/ImageIO pixel code for `Tools/screenshot-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
-  `Plugins/ImageModification/ImageModificationTypes.swift` stays
+  `Plugins/ImageModification/ImageModificationTypes.swift` and
+  `Plugins/FileSearch/FileSearchTypes.swift` (which `Tools/file-search-test.swift` compiles beside
+  the real `Core/SearchRelevance.swift` it ranks with) stay
   Foundation-only so their standalone harnesses compile without app state.
   `Plugins/Clipboard/ClipboardStore.swift` must keep to Foundation + SQLite3 with no other app
   source, so their `Tools/` harnesses can compile them standalone. `Core/LauncherRankingStore.swift`
@@ -183,6 +185,12 @@ Never break these without an explicit task to do so.
   contrast with uptime is the point: reading `BatteryPercent` off the IOKit registry needs no TCC
   grant, no entitlement and no monitor, persists nothing and sends nothing, so there is no ongoing
   access for a switch to withdraw. Do not add a consent dialog to it, and do not reach for
+  File Search is deliberately not gated for the same reason: reading the Spotlight index macOS
+  already keeps needs no TCC grant, no entitlement and no monitor, builds and persists no index of
+  its own and sends nothing. Its structural exclusions are what hold that line — hidden paths, the
+  interiors of `.app` bundles and `~/Library` as a general scope stay out of every search, so it
+  never becomes a crawl of everything the user owns. Do not add a consent dialog to it, and do not
+  widen those exclusions without an explicit owner decision. Do not reach for
   IOBluetooth or CoreBluetooth to cover AirPods — that route demands
   `NSBluetoothAlwaysUsageDescription` and prompts for Bluetooth access process-wide, which is a
   system permission for one card and needs an explicit owner decision.
@@ -304,7 +312,8 @@ Never break these without an explicit task to do so.
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
   [`docs/ai-chat.md`](docs/ai-chat.md) ·
-  [`docs/custom-commands.md`](docs/custom-commands.md) · [`docs/screenshot.md`](docs/screenshot.md)
+  [`docs/custom-commands.md`](docs/custom-commands.md) · [`docs/screenshot.md`](docs/screenshot.md) ·
+  [`docs/file-search.md`](docs/file-search.md)
   — built-in plugin behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) · [`docs/background-tasks.md`](docs/background-tasks.md) —
   palette state flow, long-running task rows, menu-open freeze and focus restoration.

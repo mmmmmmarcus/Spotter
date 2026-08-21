@@ -628,7 +628,11 @@ struct RootPaletteView: View {
                 guard command, let app = selectedAppEntry, app.canRevealInFinder
                 else { return .ignored }
                 core.showInFinder(app)
-            case .aiChat, .updates, .plugin:
+            case .plugin(let id):
+                guard command, let item = selectedPluginItem,
+                    plugins.performPaletteSecondaryAction(pluginID: id, itemID: item.id)
+                else { return .ignored }
+            case .aiChat, .updates:
                 return .ignored
             }
             return .handled

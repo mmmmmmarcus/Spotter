@@ -191,6 +191,7 @@ final class AppCore: ObservableObject {
     let dashboardUptime = DashboardUptimeStore()
     let dashboardDeviceBattery = DashboardDeviceBatteryStore()
     let killProcess = KillProcessManager()
+    let fileSearch = FileSearchSession()
     let changeCase = ChangeCaseStore()
     let openRouter = OpenRouterStore()
     let selectedTextCapture = SelectedTextCapture()

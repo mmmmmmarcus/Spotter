@@ -11,7 +11,12 @@ extension AppCore {
         case .terminal:
             runInTerminal(fallback.query)
         case .fileSearch:
-            searchFiles(for: fallback.query)
+            // With the plugin on, the row stays inside the palette; Finder is the fallback's fallback.
+            if plugins.isEnabled(.fileSearch) {
+                openFileSearch(query: fallback.query)
+            } else {
+                searchFiles(for: fallback.query)
+            }
         }
     }
 
