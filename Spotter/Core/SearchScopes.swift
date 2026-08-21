@@ -32,7 +32,7 @@ enum SearchScopes {
         return paths.map(abbreviate).filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
-    /// Every `.app` bundle the scopes point at. Flat: one directory listing per scope, no recursion — a nested folder is indexed by adding it as its own scope. Missing or unreadable scopes are skipped.
+    /// Every `.app` bundle the scopes point at. The walk descends one subfolder deep, so a vendor folder (`/Applications/Blackmagic Design/DaVinci Resolve.app`) is indexed without being added as its own scope; anything deeper still needs one. Missing or unreadable scopes are skipped.
     static func appBundles(in scopes: [String]) -> [URL] {
         let fm = FileManager.default
         var result: [URL] = []
@@ -42,12 +42,30 @@ enum SearchScopes {
                 if fm.fileExists(atPath: url.path) { result.append(url) }
                 continue
             }
-            guard
-                let items = try? fm.contentsOfDirectory(
-                    at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-                )
-            else { continue }
-            result.append(contentsOf: items.filter { $0.pathExtension == "app" })
+            result.append(contentsOf: appBundles(under: url, subfolderDepth: 1))
+        }
+        return result
+    }
+
+    /// One bounded level of descent. An `.app` is always a leaf, so the walk never opens a bundle's own `Contents/` tree looking for helper apps.
+    private static func appBundles(under url: URL, subfolderDepth: Int) -> [URL] {
+        guard
+            let items = try? FileManager.default.contentsOfDirectory(
+                at: url, includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else { return [] }
+
+        var result: [URL] = []
+        for item in items {
+            if item.pathExtension == "app" {
+                result.append(item)
+            } else if subfolderDepth > 0,
+                (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            {
+                result.append(
+                    contentsOf: appBundles(under: item, subfolderDepth: subfolderDepth - 1))
+            }
         }
         return result
     }
