@@ -134,6 +134,55 @@ private struct CategoryCard: View {
     }
 }
 
+/// The per-row alias field, dressed like `ShortcutRecorder` beside it. One persistent `TextField`
+/// rather than a view swapped in on focus — swapping tears down the field editor and breaks repeat
+/// focus.
+private struct AliasField: View {
+    let entry: AppEntry
+    @EnvironmentObject private var aliases: AliasStore
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.menu, style: .continuous)
+        TextField(
+            "", text: $draft,
+            prompt: Text("Add alias").foregroundStyle(Theme.Colors.textSecondary)
+        )
+        .textFieldStyle(.plain)
+        .labelsHidden()
+        .font(Theme.Typography.rowTrailing)
+        .focused($focused)
+        // The system focus ring insets the field editor, hopping the placeholder left.
+        .focusEffectDisabled()
+        .onSubmit(commit)
+        // Focus landing elsewhere is the other commit point, so an edit is never left unsaved.
+        .onChange(of: focused) { _, now in
+            if !now { commit() }
+        }
+        .onAppear { draft = aliases.alias(for: entry) ?? "" }
+        // A backup import replaces the whole table out from under an unfocused row.
+        .onChange(of: aliases.revision) {
+            if !focused { draft = aliases.alias(for: entry) ?? "" }
+        }
+        .padding(.horizontal, Theme.Spacing.sm)
+        .frame(width: 120, height: 24)
+        .background(shape.fill(Theme.Colors.cardFill))
+        .overlay(
+            shape.strokeBorder(
+                focused ? Color.accentColor : Theme.Colors.cardStroke, lineWidth: 1)
+        )
+        .clipShape(shape)
+        .accessibilityLabel("Alias for \(entry.name)")
+    }
+
+    /// Both commit points trim; the store keeps text as typed, so a blank-when-trimmed draft removes.
+    private func commit() {
+        aliases.setAlias(draft, for: entry.preferenceKey)
+        draft = aliases.alias(for: entry) ?? ""
+    }
+}
+
 private struct ShortcutRow: View {
     let entry: AppEntry
     @EnvironmentObject private var visibility: VisibilityStore
@@ -147,6 +196,7 @@ private struct ShortcutRow: View {
                 .frame(width: 22, height: 22)
             Text(entry.name).lineLimit(1)
             Spacer(minLength: Theme.Spacing.xl)
+            AliasField(entry: entry)
             if let action = entry.hotKeyAction {
                 ShortcutRecorder(action: action)
             }

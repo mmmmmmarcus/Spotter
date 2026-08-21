@@ -7,6 +7,7 @@ struct RootPaletteView: View {
     @EnvironmentObject private var store: ClipboardStore
     @EnvironmentObject private var favorites: FavoritesStore
     @EnvironmentObject private var visibility: VisibilityStore
+    @EnvironmentObject private var aliases: AliasStore
     @EnvironmentObject private var calcHistory: CalculatorHistoryStore
     /// Observed so the inline card re-evaluates the moment a fresh FX snapshot lands, or the user
     /// turns currency conversion on or off.
@@ -20,6 +21,10 @@ struct RootPaletteView: View {
     @ObservedObject private var settings = AppCore.shared.settings
     @FocusState private var searchFocused: Bool
     @State private var openMenu: OpenMenu?
+    /// The entry whose alias is being edited, if any. Its own state rather than a `PaletteMode`: the launcher stays exactly as it was underneath, and Esc puts the caret back in the search field.
+    @State private var aliasTarget: AppEntry?
+    @State private var aliasDraft = ""
+    @FocusState private var aliasFocused: Bool
     /// The selection's running state, sampled once by `openActions` — an app launching or quitting elsewhere must not add or drop the Quit row while the menu is up. `RunningAppsMonitor` is deliberately not observed here: only `LauncherList` needs live running state, and observing it would re-render the whole palette on every workspace launch/terminate.
     @State private var selectionIsRunning = false
     /// Highlighted row of whichever popover menu is open; reset to the first row on open, moved by ↑/↓ and hover, activated by ↵/click.
@@ -121,6 +126,7 @@ struct RootPaletteView: View {
     private var selection: Int { resultCount == 0 ? 0 : min(max(vm.selection, 0), resultCount - 1) }
 
     private var menuOpen: Bool { openMenu != nil }
+    private var aliasEditorOpen: Bool { aliasTarget != nil }
     /// The in-palette yes/no overlay. It outranks the menus for every key it owns.
     private var confirmOpen: Bool { vm.confirmation != nil }
 
@@ -181,6 +187,8 @@ struct RootPaletteView: View {
                 return AppActionsMenu.content(
                     app: app, searchQuery: vm.query, core: core, favorites: favorites,
                     running: selectionIsRunning,
+                    alias: aliases.alias(for: app),
+                    onSetAlias: { openAliasEditor(for: app) },
                     onResetRanking: {
                         core.resetRanking(for: app)
                         // Reset can move the item; keep the highlight on the item whose action ran.
@@ -399,6 +407,24 @@ struct RootPaletteView: View {
                 .transition(Self.menuTransition(.topTrailing))
             }
         }
+        // The alias editor owns the keyboard through its own focused field, so the click-catcher only has to stop the list and footer from stealing it back.
+        .overlay {
+            if aliasEditorOpen {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: closeAliasEditor)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if let target = aliasTarget {
+                AliasEditorCard(
+                    entry: target, draft: $aliasDraft, isFocused: $aliasFocused,
+                    onSave: commitAlias, onClose: closeAliasEditor
+                )
+                .padding(Self.menuInset)
+                .transition(Self.menuTransition(.bottomTrailing))
+            }
+        }
         // The in-palette yes/no. Above the menus, dim layer cancels, and Cancel is the ↵ default.
         .overlay {
             if let confirmation = vm.confirmation {
@@ -426,6 +452,8 @@ struct RootPaletteView: View {
         content
         // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up).
         .onChange(of: vm.focusToken) {
+            aliasTarget = nil
+            aliasFocused = false
             searchFocused = vm.mode != .updates
             openMenu = nil
         }
@@ -438,6 +466,8 @@ struct RootPaletteView: View {
             vm.selection = 0
             pluginQueryHourOffset = 0
             openMenu = nil
+            aliasTarget = nil
+            aliasFocused = false
             scroll = ScrollIntent(kind: .top)
             searchFocused = vm.mode != .updates
         }
@@ -498,7 +528,7 @@ struct RootPaletteView: View {
         content
         // ⌘1–⌘5 launch the compact bar's favorite slots (or expand, for the "…" overflow slot).
         .onKeyPress(keys: ["1", "2", "3", "4", "5"], phases: .down) { press in
-            guard isCollapsed, settings.showFavoritesInCompactMode,
+            guard !aliasEditorOpen, isCollapsed, settings.showFavoritesInCompactMode,
                 press.modifiers.contains(.command),
                 let digit = press.key.character.wholeNumberValue
             else { return .ignored }
@@ -512,7 +542,7 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(.downArrow) {
-            if confirmOpen { return .handled }
+            if confirmOpen || aliasEditorOpen { return .handled }
             if isCollapsed {
                 // The compact bar has no visible selection; Down reveals the list at its first row
                 // while the shared search field stays mounted and focused.
@@ -528,7 +558,7 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(.upArrow) {
-            if confirmOpen { return .handled }
+            if confirmOpen || aliasEditorOpen { return .handled }
             if isCollapsed { return .ignored }
             if menuOpen {
                 moveMenu(-1)
@@ -543,6 +573,7 @@ struct RootPaletteView: View {
                 confirmSelection = 0
                 return .handled
             }
+            if aliasEditorOpen { return .ignored }
             if menuOpen { return .handled }
             if adjustPluginQueryHour(by: -1) { return .handled }
             if adjustPluginScreenHour(by: -1) { return .handled }
@@ -555,6 +586,7 @@ struct RootPaletteView: View {
                 confirmSelection = 1
                 return .handled
             }
+            if aliasEditorOpen { return .ignored }
             if menuOpen { return .handled }
             if adjustPluginQueryHour(by: 1) { return .handled }
             if adjustPluginScreenHour(by: 1) { return .handled }
@@ -564,6 +596,7 @@ struct RootPaletteView: View {
         }
         // With a menu open, plain ↵ activates its highlighted row. A modified ↵ always runs the selection's own action regardless of menu state: ⌘↵ the advertised secondary action, ⌥↵ paste-in-place; plain ↵ (no menu) falls through to the field's onSubmit.
         .onKeyPress(keys: [.return], phases: .down) { press in
+            if aliasEditorOpen { return .handled }
             let command = press.modifiers.contains(.command)
             let option = press.modifiers.contains(.option)
             if confirmOpen {
@@ -605,6 +638,10 @@ struct RootPaletteView: View {
                 activateConfirmation(false)
                 return .handled
             }
+            if aliasEditorOpen {
+                closeAliasEditor()
+                return .handled
+            }
             if openMenu != nil {
                 closeMenus()
                 return .handled
@@ -624,6 +661,7 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(keys: [.tab], phases: .down) { press in
+            if aliasEditorOpen { return .handled }
             if confirmOpen {
                 confirmSelection = confirmSelection == 0 ? 1 : 0
                 return .handled
@@ -649,7 +687,7 @@ struct RootPaletteView: View {
         }
         // ⌘K toggles the actions panel for the current selection.
         .onKeyPress(keys: ["k"], phases: .down) { press in
-            guard press.modifiers.contains(.command) else { return .ignored }
+            guard press.modifiers.contains(.command), !aliasEditorOpen else { return .ignored }
             // The Actions menu has no anchor in the compact bar (no bottom bar); swallow ⌘K there.
             guard !isCollapsed else { return .handled }
             // Chat has no selectable rows but a fixed menu; every other mode needs a selection.
@@ -682,7 +720,8 @@ struct RootPaletteView: View {
         // ⌘N starts a fresh chat session — the same action as the session menu's top row, and like
         // the other advertised chords it works while a footer menu is open.
         .onKeyPress(keys: ["n"], phases: .down) { press in
-            guard press.modifiers.contains(.command), vm.mode == .aiChat else { return .ignored }
+            guard press.modifiers.contains(.command), vm.mode == .aiChat, !aliasEditorOpen
+            else { return .ignored }
             core.aiChat.startNewSession()
             vm.query = ""
             vm.selection = 0
@@ -691,7 +730,8 @@ struct RootPaletteView: View {
         }
         // ⌘P opens the clipboard's type filter; the pin it used to serve moved to ⌘. (see `pinChordToken`), so one chord keeps one meaning app-wide.
         .onKeyPress(keys: ["p"], phases: .down) { press in
-            guard press.modifiers.contains(.command), vm.mode == .clipboard, !isCollapsed
+            guard press.modifiers.contains(.command), vm.mode == .clipboard, !isCollapsed,
+                !aliasEditorOpen
             else { return .ignored }
             toggleClipboardFilter()
             return .handled
@@ -699,7 +739,7 @@ struct RootPaletteView: View {
         // Both cases are listed because Shift uppercases the reported key. The compact bar is excluded like ⌘K — it shows no selection to aim a destructive action at.
         .onKeyPress(keys: ["q", "Q"], phases: .down) { press in
             guard press.modifiers.contains(.control), press.modifiers.contains(.shift),
-                !isCollapsed, vm.mode == .launcher, let app = selectedAppEntry,
+                !isCollapsed, !aliasEditorOpen, vm.mode == .launcher, let app = selectedAppEntry,
                 app.kind == .application, core.runningApps.isRunning(app)
             else { return .ignored }
             core.quit(app)
@@ -1087,6 +1127,37 @@ struct RootPaletteView: View {
 
     private func closeMenus() {
         withAnimation(Self.menuAnimation) { openMenu = nil }
+    }
+
+    /// ⌘K hands off to the editor in place: the menu closes, the card takes its corner, and the caret moves into the card's own field.
+    private func openAliasEditor(for entry: AppEntry) {
+        aliasDraft = aliases.alias(for: entry) ?? ""
+        withAnimation(Self.menuAnimation) {
+            openMenu = nil
+            aliasTarget = entry
+        }
+        searchFocused = false
+        aliasFocused = true
+    }
+
+    /// The one commit path — ↵ or the Save button. A draft that is blank once trimmed removes the alias, which is how an alias is cleared.
+    private func commitAlias() {
+        guard let target = aliasTarget else { return }
+        let removing = aliasDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hadAlias = aliases.alias(for: target) != nil
+        aliases.setAlias(aliasDraft, for: target.preferenceKey)
+        closeAliasEditor()
+        guard !removing || hadAlias else { return }
+        core.hud.show(
+            title: removing ? "Alias Removed" : "Alias Set",
+            symbol: removing ? "tag.slash" : "tag")
+    }
+
+    private func closeAliasEditor() {
+        withAnimation(Self.menuAnimation) { aliasTarget = nil }
+        aliasDraft = ""
+        aliasFocused = false
+        searchFocused = vm.mode != .updates
     }
 
     private func syncMenuInputState() {

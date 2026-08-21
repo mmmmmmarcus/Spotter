@@ -176,6 +176,7 @@ final class AppCore: ObservableObject {
     let settings = AppSettings()
     let favorites = FavoritesStore()
     let visibility = VisibilityStore()
+    let aliases = AliasStore()
     let calcHistory = CalculatorHistoryStore()
     let currencyRates = CurrencyRateStore()
     let emojiIndex = EmojiIndex()
@@ -218,7 +219,7 @@ final class AppCore: ObservableObject {
     private init() {
         let launcherRanking = LauncherRankingStore()
         self.launcherRanking = launcherRanking
-        appIndex = AppIndex(ranking: launcherRanking)
+        appIndex = AppIndex(ranking: launcherRanking, aliases: aliases)
         clipboardManager = ClipboardManager(store: clipboardStore, settings: settings)
         let textReplacements = TextReplacementStore()
         self.textReplacements = textReplacements
@@ -490,6 +491,7 @@ final class AppCore: ObservableObject {
             SettingsRootView(initialDestination: destination)
                 .environmentObject(self.appIndex)
                 .environmentObject(self.visibility)
+                .environmentObject(self.aliases)
                 .environmentObject(self.customCommands)
                 .environmentObject(self.plugins)
                 .environmentObject(self.settingsSync)

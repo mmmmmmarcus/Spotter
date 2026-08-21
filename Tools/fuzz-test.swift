@@ -15,11 +15,13 @@ struct FuzzTest {
         var alternates: [String] = []
         var bundleID: String?
         var executable: String?
+        /// The user's own alias, folded in at rank time by `AppIndex` rather than stored on the entry.
+        var userAlias: String?
 
         /// Mirrors AppEntry.searchFields, including the alternate-name sanitizing the scan applies.
         var fields: SearchFields {
             SearchFields(
-                names: [name],
+                names: [name], userAlias: userAlias,
                 alternateNames: SearchFields.usableAlternateNames(
                     alternates, displayName: name, fileName: name + ".app"),
                 bundleID: bundleID, executableName: executable)
@@ -60,6 +62,8 @@ struct FuzzTest {
         // Alternate that only repeats the display name; contributes nothing.
         App(name: "Image Playground", alternates: ["Image Playground", "Image Playground.app"]),
         App(name: "Spotter Version"),
+        // The one corpus entry carrying a user alias.
+        App(name: "kitty", bundleID: "net.kovidgoyal.kitty", userAlias: "iterm"),
     ]
 
     static func app(_ name: String) -> App { apps.first { $0.name == name }! }
@@ -104,6 +108,7 @@ struct FuzzTest {
     static func main() {
         displayNameRanking()
         fieldPriority()
+        userAliases()
         alternateNameSanitizing()
         identifierFields()
         edgeCases()
@@ -205,15 +210,19 @@ struct FuzzTest {
             rank("system preferences").first == "System Settings")
 
         // Band ordering, asserted directly on the scores.
+        let userAlias = score("iterm", "kitty")!
         let nameLiteral = score("chatgpt", "ChatGPT")!
         let aliasLiteral = score("codex", "ChatGPT")!
         let nameSubsequence = score("codex", "Code Explorer")!
         let aliasSubsequence = score("aplbks", "Books")!
         let identifier = score("openai", "ChatGPT")!
         let executable = score("electron", "Visual Studio Code")!
-        let ordered = [nameLiteral, aliasLiteral, nameSubsequence, aliasSubsequence, identifier, executable]
+        let ordered = [
+            userAlias, nameLiteral, aliasLiteral, nameSubsequence, aliasSubsequence, identifier,
+            executable,
+        ]
         check(
-            "bands are strictly ordered: name > alias > name-fuzzy > alias-fuzzy > id > exec",
+            "bands are strictly ordered: user alias > name > alias > name-fuzzy > alias-fuzzy > id > exec",
             zip(ordered, ordered.dropFirst()).allSatisfy { $0 > $1 }, "got \(ordered)")
         check(
             "every band is a whole stride apart",
@@ -227,6 +236,37 @@ struct FuzzTest {
             score("safari", "Safari")! >= 5 * SearchRelevance.bandStride)
         check(
             "an entry with no matching field scores nil", score("qqqq", "Safari") == nil)
+    }
+
+    // MARK: - User aliases
+
+    static func userAliases() {
+        print("\n# user aliases")
+
+        check("an alias ranks its entry first", rank("iterm").first == "kitty", "got \(rank("iterm"))")
+        check(
+            "the alias band sits one whole stride above every display name",
+            score("iterm", "kitty")! >= 6 * SearchRelevance.bandStride)
+        // Scored directly rather than through the corpus: an aliased collision in `apps` would
+        // rewrite the display-name section's rankings, which are guarding a different property.
+        let aliased = SearchFields(names: ["Ghostty"], userAlias: "terminal")
+        check(
+            "an alias beats another entry's exact display name",
+            SearchRelevance.score(query: "terminal", fields: aliased)!
+                > score("terminal", "Terminal")!)
+        check(
+            "a prefix of the alias still claims the band",
+            score("ite", "kitty")! >= 6 * SearchRelevance.bandStride)
+        // Deliberate: predictability over reach for a field the user typed themselves.
+        check("a subsequence of the alias never matches it", score("itm", "kitty") == nil)
+        check(
+            "a hit buried inside the alias ranks like a vendor alias, not a user one",
+            score("term", "kitty")! < 6 * SearchRelevance.bandStride)
+        check(
+            "the strongest field still wins on an aliased entry",
+            score("kitty", "kitty")! >= 5 * SearchRelevance.bandStride
+                && score("kitty", "kitty")! < 6 * SearchRelevance.bandStride)
+        check("an entry with no alias is unaffected", score("iterm", "Terminal") == nil)
     }
 
     // MARK: - Spotlight junk
@@ -378,7 +418,8 @@ struct FuzzTest {
 
         let alphabet = Array("abcdefghijklmnopqrstuvwxyz .-_0123456789浏览器사파리🙂\u{200E}\u{0301}")
         let allText = apps.flatMap { app -> [String] in
-            [app.name] + app.alternates + [app.bundleID, app.executable].compactMap { $0 }
+            [app.name] + app.alternates
+                + [app.bundleID, app.executable, app.userAlias].compactMap { $0 }
         }
         var rng = Random(seed: 0x5EED_1234_ABCD_0001)
 
@@ -413,7 +454,7 @@ struct FuzzTest {
                 // Every score sits inside exactly one band, and the boost cap cannot lift it out.
                 let band = score / SearchRelevance.bandStride
                 let offset = score - band * SearchRelevance.bandStride
-                if offset < 0 || offset > FuzzyMatch.maximumScore || band > 5 { bandViolations += 1 }
+                if offset < 0 || offset > FuzzyMatch.maximumScore || band > 6 { bandViolations += 1 }
                 if (score + LauncherRankingBoostCap) / SearchRelevance.bandStride != band {
                     boostCrossedBand += 1
                 }
@@ -439,6 +480,7 @@ struct FuzzTest {
         for _ in 0..<20_000 {
             let text = rng2.element(allText)
             let asName = SearchFields(names: [text])
+            let asUserAlias = SearchFields(names: ["\u{FFFF}"], userAlias: text)
             let asAlternate = SearchFields(names: ["\u{FFFF}"], alternateNames: [text])
             let asBundleID = SearchFields(names: ["\u{FFFF}"], bundleID: text)
             let asExecutable = SearchFields(names: ["\u{FFFF}"], executableName: text)
@@ -448,10 +490,16 @@ struct FuzzTest {
             guard !query.isEmpty,
                 let name = SearchRelevance.score(query: query, fields: asName)
             else { continue }
+            let userAlias = SearchRelevance.score(query: query, fields: asUserAlias)
             let alternate = SearchRelevance.score(query: query, fields: asAlternate)
             let bundleID = SearchRelevance.score(query: query, fields: asBundleID)
             let executable = SearchRelevance.score(query: query, fields: asExecutable)
             // Same text, weaker field: the score must drop, and identifier fields may drop out entirely.
+            // The alias is the one field that goes the other way — it outranks the display name — and
+            // it may also drop out, since only an anchored literal hit claims its band.
+            if let userAlias, userAlias <= name, userAlias >= 6 * SearchRelevance.bandStride {
+                inversions += 1
+            }
             if let alternate, alternate >= name { inversions += 1 }
             if let bundleID, let alternate, bundleID >= alternate { inversions += 1 }
             if let executable, let bundleID, executable >= bundleID { inversions += 1 }

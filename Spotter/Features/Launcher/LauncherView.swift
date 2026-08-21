@@ -305,6 +305,8 @@ private struct AppRow: View {
     @EnvironmentObject private var hotKeys: HotKeyManager
     /// Observed for the same reason: the Hyper Key display settings (✦ collapse, Include Shift) change how `keycaps` renders.
     @ObservedObject private var settings = AppCore.shared.settings
+    /// And again: an alias set from ⌘K or Settings must re-render this row's chip at once.
+    @EnvironmentObject private var aliases: AliasStore
     @State private var hovered = false
 
     /// Selection wins over hover when a row is both; otherwise hover shows its fainter layer.
@@ -337,6 +339,17 @@ private struct AppRow: View {
             Text(app.name)
                 .font(Theme.Typography.rowTitle)
                 .lineLimit(1)
+            if let alias = aliases.alias(for: app) {
+                Text(alias)
+                    .font(Theme.Typography.rowTrailing)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, Theme.Spacing.sm)
+                    .padding(.vertical, Theme.Spacing.xxs)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Radius.keyCap, style: .continuous)
+                            .fill(Theme.Colors.controlSurface))
+            }
             if let caps = shortcutCaps {
                 HStack(spacing: Theme.Spacing.xxs) {
                     ForEach(Array(caps.enumerated()), id: \.offset) { _, cap in
@@ -407,7 +420,8 @@ struct AppIconView: View {
 enum AppActionsMenu {
     static func content(
         app: AppEntry, searchQuery: String, core: AppCore, favorites: FavoritesStore,
-        running: Bool, onResetRanking: @escaping () -> Void
+        running: Bool, alias: String?, onSetAlias: @escaping () -> Void,
+        onResetRanking: @escaping () -> Void
     ) -> PopoverMenuContent {
         var items: [PopoverMenuItem] = [
             PopoverMenuItem(
@@ -425,6 +439,13 @@ enum AppActionsMenu {
                     favorites.toggle(app)
                 })
         }
+        // Every kind can carry one, including commands: the alias is the user's own name for the row.
+        items.append(
+            PopoverMenuItem(
+                title: alias == nil ? "Set Alias" : "Change Alias", systemImage: "tag"
+            ) {
+                onSetAlias()
+            })
         if core.launcherRanking.hasRanking(for: app.preferenceKey) {
             items.append(
                 PopoverMenuItem(title: "Reset Ranking", systemImage: "arrow.counterclockwise") {

@@ -19,8 +19,8 @@ Format v3 covers the complete automatic Settings Sync state:
   consent toggle and the dashboard uptime card's input-counting consent.
 - OpenRouter and Google Cloud Translation API keys and all associated model options.
 - Every shortcut. Empty binding maps are authoritative, so unbinding a shortcut propagates.
-- Custom commands, favorites, hidden launcher items, Quicklinks, World Clock cities and Text
-  Replacement rules.
+- Custom commands, favorites, per-entry launcher aliases, hidden launcher items, Quicklinks, World
+  Clock cities and Text Replacement rules.
 - Text and image clipboard history, pinned clipboard state, calculator history, AI conversations and
   current conversation, background-task rows, frequent emoji and learned launcher ranking.
 

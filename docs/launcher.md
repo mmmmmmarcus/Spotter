@@ -37,12 +37,13 @@ refreshes collapse into a single trailing scan.
 
 ## Searchable fields
 
-An app is matched on four fields kept deliberately separate — flattening them into one string would
+An app is matched on five fields kept deliberately separate — flattening them into one string would
 lose the thing that decides the ranking. `SearchRelevance.score` evaluates each independently and the
 strongest one becomes the entry's base relevance:
 
 | Band | Field | Match strength |
 | --- | --- | --- |
+| 6 | the user's own alias | literal, and anchored — exact / prefix |
 | 5 | display name (plus a snippet's keyword) | literal — exact / prefix / word-start / substring |
 | 4 | Spotlight alternate names | literal |
 | 3 | display name | subsequence |
@@ -64,6 +65,24 @@ query (`cop` ⊂ `com.apple.Photos`), which would change *which* apps appear rat
 order. For the same reason a bundle id is matched with its leading component stripped
 (`apple.Photos`, not `com.apple.Photos`): `com` alone prefixes almost every installed app. The full id
 still matches exactly, so a pasted identifier resolves.
+
+### User aliases
+
+Every launcher entry can carry one alias of the user's own — Raycast-style — set from the row's ⌘K
+Actions menu (**Set Alias**, which opens an in-palette editor card) or inline in Settings ▸ Shortcuts.
+`AliasStore` (`Core/AliasStore.swift`) persists one alias per `preferenceKey` in UserDefaults, keyed
+exactly like favorites and learned ranking, and rides settings backups and sync as `launcherAliases`.
+It is data rather than a capability — an alias grants nothing, it only renames — so an untrusted
+restore may carry it.
+
+`AppIndex` folds the alias in at *rank* time rather than storing it on the entry, so editing one never
+forces a rescan; the store's revision counter joins the match-cache key, since an edit reorders the
+same query over the same apps. A row shows its alias as a small chip after the name.
+
+The band is deliberately **literal-only and anchored**: only a hit from the alias's start claims band
+6, a hit buried inside it ranks like a vendor alias instead, and a subsequence never matches at all
+(`fga` will not find an alias `figalias`). Predictability beats reach for a field the user typed
+themselves.
 
 ### Alternate names
 

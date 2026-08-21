@@ -211,8 +211,9 @@ enum IconCache {
 final class AppIndex: ObservableObject {
     @Published private(set) var apps: [AppEntry] = []
 
-    /// One-entry memo so repeated renders for the same query reuse the ranking instead of re-matching every frame.
-    private var matchCache: (query: String, rankingRevision: Int, result: [AppEntry])?
+    /// One-entry memo so repeated renders for the same query reuse the ranking instead of re-matching every frame. Both revisions are part of the key: a learned boost or an edited alias reorders the same query over the same apps.
+    private var matchCache:
+        (query: String, rankingRevision: Int, aliasRevision: Int, result: [AppEntry])?
 
     private var discoveredEntries: [AppEntry] = []
     private var spotlightCache = SpotlightNames.Cache()
@@ -221,11 +222,13 @@ final class AppIndex: ObservableObject {
     /// Set when a refresh is requested mid-scan, so a scope edit landing during an in-flight scan isn't silently dropped.
     private var refreshPending = false
     private let ranking: LauncherRankingStore
+    private let aliases: AliasStore
     private var settings: AppSettings?
     private var cancellables: Set<AnyCancellable> = []
 
-    init(ranking: LauncherRankingStore) {
+    init(ranking: LauncherRankingStore, aliases: AliasStore) {
         self.ranking = ranking
+        self.aliases = aliases
     }
 
     /// Replaces the enabled plugin-command slice without rescanning disk.
@@ -330,19 +333,23 @@ final class AppIndex: ObservableObject {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return apps }
         if let matchCache, matchCache.query == q,
-            matchCache.rankingRevision == ranking.revision
+            matchCache.rankingRevision == ranking.revision,
+            matchCache.aliasRevision == aliases.revision
         {
             return matchCache.result
         }
         let result = rank(q, limit: limit)
-        matchCache = (q, ranking.revision, result)
+        matchCache = (q, ranking.revision, aliases.revision, result)
         return result
     }
 
     private func rank(_ q: String, limit: Int) -> [AppEntry] {
         let learned = ranking.boosts(query: q)
         let scored = apps.compactMap { app -> (AppEntry, Int)? in
-            guard let score = SearchRelevance.score(query: q, fields: app.searchFields) else {
+            // Folded in here rather than stored on the entry: an alias edit must not force a rescan.
+            var fields = app.searchFields
+            fields.userAlias = aliases.alias(for: app.preferenceKey)
+            guard let score = SearchRelevance.score(query: q, fields: fields) else {
                 return nil
             }
             return (app, score + (learned[app.preferenceKey] ?? 0))

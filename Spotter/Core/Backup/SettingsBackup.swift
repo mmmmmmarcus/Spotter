@@ -9,6 +9,8 @@ struct SettingsBackup: Codable, Sendable {
     var favoriteApps: [String]?
     var hiddenLauncherItems: [String]?
     var hiddenLauncherKinds: [String]?
+    /// Per-entry launcher aliases, keyed by `preferenceKey`. Data, not a capability — an alias grants nothing, so it rides an untrusted restore like favorites do.
+    var launcherAliases: [String: String]?
     var pluginStates: [String: Bool]?
     var pluginPrefs: PluginPrefs?
     var worldClockCities: [String]?
@@ -179,6 +181,7 @@ struct SettingsBackup: Codable, Sendable {
         var hotkeys = 0
         var favorites = 0
         var hiddenItems = 0
+        var launcherAliases = 0
         var customCommands = 0
         var plugins = 0
         var contentCollections = 0
@@ -261,6 +264,7 @@ extension SettingsBackup {
         backup.favoriteApps = core.favorites.keys
         backup.hiddenLauncherItems = core.visibility.hiddenItemKeys.sorted()
         backup.hiddenLauncherKinds = core.visibility.hiddenKinds.sorted()
+        backup.launcherAliases = core.aliases.aliases
         backup.pluginStates = core.plugins.exportedEnabledStates()
         backup.pluginPrefs = gatherPluginPrefs(from: core)
         backup.worldClockCities = core.worldClock.cityIDs
@@ -365,6 +369,10 @@ extension SettingsBackup {
             let kinds = hiddenLauncherKinds ?? Array(core.visibility.hiddenKinds)
             core.visibility.replace(hiddenItems: items, hiddenKinds: kinds)
             summary.hiddenItems = items.count
+        }
+        if let launcherAliases {
+            core.aliases.replace(launcherAliases)
+            summary.launcherAliases = launcherAliases.count
         }
         if let pluginPrefs {
             summary.settingsFields += Self.applyPluginPrefs(pluginPrefs, to: core)
