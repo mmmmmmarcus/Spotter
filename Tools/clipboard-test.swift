@@ -18,6 +18,9 @@ struct ClipboardTests {
         pasteLeavesPinsAlone()
         pinsSurvivePruningAndTheWindow()
         pinsLeadFilteredSearches()
+        textFormClassification()
+        typeFilterSplitsTheHistory()
+        typeFilterJoinsTheSearchMemo()
         persistence()
         migrationFromShippedDatabase()
         await portableSnapshot()
@@ -143,6 +146,85 @@ struct ClipboardTests {
             expect(
                 short.first?.text == "needle in the haystack",
                 "the pinned match leads the fallback search too")
+        }
+    }
+
+    /// The classifier is a heuristic, so what must *not* read as a link matters as much as what must.
+    static func textFormClassification() {
+        func form(_ text: String) -> ClipboardItem.TextForm? {
+            ClipboardItem(text: text, sourceBundleID: nil).textForm
+        }
+
+        for link in [
+            "https://example.com/a?b=c", "http://localhost:3000", "vscode://file/tmp/x",
+            "www.apple.com", "github.com/anthropics", "spotter.dev",
+        ] {
+            expect(form(link) == .link, "\(link) is a link")
+        }
+        for address in ["marcus@example.com", "mailto:marcus@example.com", "a.b-c@sub.domain.co"] {
+            expect(form(address) == .email, "\(address) is an email")
+        }
+        // Filenames are domain-shaped; the lower-case rule and the TLD list are what keep them out.
+        for plain in [
+            "report.pdf", "index.html", "App.swift", "Safari.app", "script.sh", "Apple.com",
+            "@apple.com", "two@at@signs.com", "just some copied prose", "",
+        ] {
+            expect(form(plain) == .plain, "\(plain.isEmpty ? "(empty)" : plain) is plain text")
+        }
+
+        let long = String(repeating: "a", count: 2050) + ".com"
+        expect(form(long) == .plain, "past the detection limit everything is prose")
+
+        let image = ClipboardItem(imagePath: "/tmp/x.png", sourceBundleID: nil)
+        expect(image.textForm == nil, "an image has no text form")
+    }
+
+    /// Each filter returns only its own type, and filtering after the pinned split keeps a matching pin at the head of its block.
+    static func typeFilterSplitsTheHistory() {
+        withStore { store, _ in
+            _ = store.importEntries([
+                entry("plain prose", at: Date().addingTimeInterval(-40)),
+                entry("https://example.com/one", at: Date().addingTimeInterval(-30)),
+                entry("marcus@example.com", at: Date().addingTimeInterval(-20)),
+                entry("https://example.com/two", at: Date().addingTimeInterval(-10)),
+            ])
+
+            expect(
+                store.search("", filter: .all).count == 4, "All Types is the whole history")
+            expect(
+                store.search("", filter: .text).compactMap(\.text) == ["plain prose"],
+                "Text Only excludes links and addresses")
+            expect(
+                store.search("", filter: .link).count == 2, "Links Only keeps both links")
+            expect(
+                store.search("", filter: .email).compactMap(\.text) == ["marcus@example.com"],
+                "Emails Only keeps the address")
+            expect(store.search("", filter: .image).isEmpty, "no images were captured")
+
+            store.togglePinned(item(store, "https://example.com/one"))
+            expect(
+                store.search("", filter: .link).first?.text == "https://example.com/one",
+                "a pinned link still leads its block under a filter")
+        }
+    }
+
+    /// The filter moves without the query moving, so a query-only memo key would serve the previous filter's rows.
+    static func typeFilterJoinsTheSearchMemo() {
+        withStore { store, _ in
+            _ = store.importEntries([
+                entry("example plain text", at: Date().addingTimeInterval(-20)),
+                entry("https://example.com/deep", at: Date().addingTimeInterval(-10)),
+            ])
+
+            let all = store.search("example", filter: .all)
+            let links = store.search("example", filter: .link)
+            let text = store.search("example", filter: .text)
+            expect(all.count == 2, "the unfiltered query matches both")
+            expect(links.compactMap(\.text) == ["https://example.com/deep"], "same query, links")
+            expect(text.compactMap(\.text) == ["example plain text"], "same query, text")
+            expect(
+                store.search("example", filter: .all).count == 2,
+                "returning to All Types does not serve the filtered memo")
         }
     }
 

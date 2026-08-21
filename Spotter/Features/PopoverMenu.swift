@@ -48,11 +48,13 @@ struct PopoverMenuContent {
     let items: [PopoverMenuItem]
 }
 
-/// In-window overlay menu (not a system popover), anchored to a bottom corner so it stays clipped inside the palette, with a stock Liquid Glass surface. Data-driven so `selection` can highlight a row for keyboard navigation; `onActivate(index)` is the single path fired by both a click and Return.
+/// In-window overlay menu (not a system popover), anchored to a window corner so it stays clipped inside the palette, with a stock Liquid Glass surface. Data-driven so `selection` can highlight a row for keyboard navigation; `onActivate(index)` is the single path fired by both a click and Return.
 struct PopoverMenu: View {
     var header: String? = nil
     let items: [PopoverMenuItem]
     @Binding var selection: Int
+    /// Narrower than the footer menus for a short, fixed row set (the clipboard's type filter), which would otherwise read as a mostly-empty panel.
+    var width: CGFloat = Theme.Size.menuWidth
     let onActivate: (Int) -> Void
 
     var body: some View {
@@ -78,7 +80,7 @@ struct PopoverMenu: View {
             }
         }
         .padding(Theme.Spacing.sm)
-        .frame(width: Theme.Size.menuWidth)
+        .frame(width: width)
         // Tahoe glass carries its own elevation/shadow; a hand-tuned drop shadow on top reads heavy and non-native, so we let the glass own it.
         .glassEffect(
             .regular, in: RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous)

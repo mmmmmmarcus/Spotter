@@ -89,6 +89,15 @@ final class PalettePanel: NSPanel {
         {
             return
         }
+        // ⌘. is macOS's Cancel chord, so AppKit routes it to `cancelOperation:` and the field editor eats it before SwiftUI's `onKeyPress` could see it. Intercept it here for the clipboard's pin, and only there — everywhere else it keeps meaning cancel.
+        if event.type == .keyDown,
+            Int(event.keyCode) == kVK_ANSI_Period,
+            event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command,
+            paletteViewModel?.mode == .clipboard
+        {
+            paletteViewModel?.pinChordToken = UUID()
+            return
+        }
         super.sendEvent(event)
     }
     init<Content: View>(rootView: Content) {

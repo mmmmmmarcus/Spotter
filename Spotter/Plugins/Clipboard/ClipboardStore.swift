@@ -113,10 +113,10 @@ final class ClipboardStore: ObservableObject {
     }
     var maxAge: TimeInterval = ClipboardRetention.threeMonths.maxAge
 
-    /// One-entry memo so repeated renders (e.g. arrow-key nav) for the same query reuse the FTS result instead of re-querying SQLite every frame; invalidated whenever `items` changes.
-    private var searchCache: (query: String, result: [ClipboardItem])?
+    /// One-entry memo so repeated renders (e.g. arrow-key nav) for the same query reuse the FTS result instead of re-querying SQLite every frame; invalidated whenever `items` changes. The filter is part of the key because it moves without the query — keying on the query alone would serve the previous filter's rows.
+    private var searchCache: (query: String, filter: ClipboardFilter, result: [ClipboardItem])?
     /// Same memo for the empty query — every render reads the full display order, so the pinned/unpinned split runs once per mutation.
-    private var orderedCache: [ClipboardItem]?
+    private var orderedCache: (filter: ClipboardFilter, result: [ClipboardItem])?
 
     private static let memoryWindow = 1000
 
@@ -348,20 +348,23 @@ final class ClipboardStore: ObservableObject {
         return URL(fileURLWithPath: path)
     }
 
-    /// Display order for `query`: pinned entries first, each block newest-first.
-    func search(_ query: String) -> [ClipboardItem] {
+    /// Display order for `query`: pinned entries first, each block newest-first, then the type filter. Filtering last is what keeps a matching pin at the head of its block.
+    func search(_ query: String, filter: ClipboardFilter = .all) -> [ClipboardItem] {
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return orderedItems }
-        if let searchCache, searchCache.query == q { return searchCache.result }
+        guard !q.isEmpty else { return orderedItems(filter) }
+        if let searchCache, searchCache.query == q, searchCache.filter == filter {
+            return searchCache.result
+        }
         // Pins are matched in memory rather than taken from the FTS result: they are all resident (see `items`), and the statement's LIMIT would otherwise drop one out of a busy query's matches.
-        let result = pinnedItems.filter { $0.matches(q) } + runSearch(q).filter { !$0.isPinned }
-        searchCache = (q, result)
+        let matched = pinnedItems.filter { $0.matches(q) } + runSearch(q).filter { !$0.isPinned }
+        let result = filter.apply(to: matched)
+        searchCache = (q, filter, result)
         return result
     }
 
     /// Row index of `item` among the results for `query` — lets the palette keep its selection on a row that moved (pin toggle, promote) whether or not the search is filtered. Reads the same memoized result the list renders.
-    func rowIndex(of item: ClipboardItem, in query: String) -> Int? {
-        search(query).firstIndex { $0.id == item.id }
+    func rowIndex(of item: ClipboardItem, in query: String, filter: ClipboardFilter = .all) -> Int? {
+        search(query, filter: filter).firstIndex { $0.id == item.id }
     }
 
     private func runSearch(_ q: String) -> [ClipboardItem] {
@@ -413,12 +416,13 @@ final class ClipboardStore: ObservableObject {
         load()
     }
 
-    private var orderedItems: [ClipboardItem] {
-        if let orderedCache { return orderedCache }
+    private func orderedItems(_ filter: ClipboardFilter) -> [ClipboardItem] {
+        if let orderedCache, orderedCache.filter == filter { return orderedCache.result }
         let pinned = pinnedItems
         // An unpinned history renders `items` as-is, so it never pays for the split.
-        let result = pinned.isEmpty ? items : pinned + items.filter { !$0.isPinned }
-        orderedCache = result
+        let ordered = pinned.isEmpty ? items : pinned + items.filter { !$0.isPinned }
+        let result = filter.apply(to: ordered)
+        orderedCache = (filter, result)
         return result
     }
 

@@ -92,7 +92,9 @@ struct PaletteConfirmation {
 final class PaletteViewModel: ObservableObject {
     @Published var mode: PaletteMode = .launcher {
         didSet {
-            if oldValue != mode { onModeChanged?(oldValue, mode) }
+            guard oldValue != mode else { return }
+            clipboardFilter = .all
+            onModeChanged?(oldValue, mode)
         }
     }
     @Published var query: String = ""
@@ -103,6 +105,10 @@ final class PaletteViewModel: ObservableObject {
     @Published var resetToken = UUID()
     /// Changes when an action reorders the list under the selection (pinning a clip lifts it into the Pinned section), so the list scrolls the highlight back into view.
     @Published var followToken = UUID()
+    /// Bumped by `PalettePanel` when ⌘. arrives in the clipboard. AppKit binds that chord to `cancelOperation:` alongside Escape, so the field editor consumes it and `onKeyPress(keys: ["."])` never fires — see docs/palette.md. `RootPaletteView` observes the token and resolves the row from the current results, so which row gets pinned still comes from one place.
+    @Published var pinChordToken = UUID()
+    /// The clipboard list's type filter. Reset to `.all` on every `prepare` and on any mode change: a filter left on from last time would silently hide history the user came back for.
+    @Published var clipboardFilter: ClipboardFilter = .all
     /// Set by the compact bar's "…" overflow to expand into the full launcher without a query; cleared on every `prepare`.
     @Published var forceExpanded = false
     /// The app a paste would land in, mirrored from `PaletteWindowController.previousApp` on every show. Deliberately *not* cleared by `prepare` — pop-to-root resets the screen, not the paste target.
@@ -140,6 +146,7 @@ final class PaletteViewModel: ObservableObject {
         self.mode = mode
         query = ""
         selection = 0
+        clipboardFilter = .all
         forceExpanded = false
         hoverHighlightArmed = false
         menuOpen = false
@@ -862,7 +869,9 @@ final class AppCore: ObservableObject {
 
     /// Put the selection on `item`'s row in the list as currently filtered — pinned rows hold the top, so a row that moved isn't always index 0.
     private func selectClip(_ item: ClipboardItem) {
-        palette.selection = clipboardStore.rowIndex(of: item, in: palette.query) ?? 0
+        palette.selection =
+            clipboardStore.rowIndex(
+                of: item, in: palette.query, filter: palette.clipboardFilter) ?? 0
     }
 
     // MARK: - Emoji actions (frequency is tallied on the base glyph; the configured tone is applied at copy time)

@@ -36,9 +36,41 @@ bytes are embedded in the JSON and written into the destination Mac's own cache,
 absolute paths never cross devices. A synced deletion replaces the destination history rather than
 merging old rows back in.
 
+## Type filter
+
+The trailing edge of the clipboard's search bar carries a filter button — **All Types, Text Only,
+Images Only, Links Only, Emails Only** — opened by the button or by **⌘P**. It is the same
+`PopoverMenu` as ⌘K Actions, just anchored `.topTrailing` under its button and narrower, so the
+glass, rows and hover behaviour are shared rather than reimplemented as a second dropdown idiom. The
+button states the active filter, and the menu opens highlighting it the way a pop-up button does.
+
+**Links and emails are derived, never stored.** `ClipboardItem.Kind` stays `text`/`image` — the two
+things capture can actually tell apart — and `ClipboardFilter` reads `ClipboardItem.textForm`
+(`plain`/`link`/`email`) off the text on demand. No column, no migration, no backfill: improving the
+classifier stays a code change. Because the whole list reclassifies on every render, the classifier is
+guarded cheapest-first — over 2048 UTF-8 bytes is prose by definition (`utf8.count` is O(1), `count`
+walks graphemes), then whitespace, then a `scheme://` / `mailto:` prefix, an address shape, and last a
+bare domain. That last step is the only judgement call, since `report.pdf` and `index.html` are
+domain-shaped too: a bare domain must be lower case (which is what keeps `Safari.app` out) and end in
+one of a compact set of TLDs people actually copy. It is a heuristic whose worst case files a row
+under the wrong type.
+
+**The filter joins the search memo's key.** Keying on the query alone would serve stale rows, because
+the filter changes without the query moving. Filtering happens *after* the pinned/rest split, so a
+matching pin still leads its block in pin order. The FTS `LIMIT 200` still applies *before* the
+filter, so a narrow filter over a broad query can show fewer rows than the history holds — pre-existing
+in shape, but the filter makes it reachable.
+
+The filter resets to All Types on every summon and on any mode change, chosen over stickiness so a
+forgotten filter can never silently hide history. The empty state names the active filter, so one
+hiding every entry no longer reads as "Clipboard history is empty".
+
+*Files Only* is deliberately absent: `ClipboardManager` only captures pasteboard strings and PNG/TIFF,
+never file URLs, so the row would always be empty.
+
 ## Pinned entries
 
-A row's ⌘K Actions menu carries **Pin Entry / Unpin Entry** (⌘P), persisted as a `pinned_at` column
+A row's ⌘K Actions menu carries **Pin Entry / Unpin Entry** (⌘.), persisted as a `pinned_at` column
 on `items` (added to existing databases by an `ALTER TABLE` migration, alongside `source_app`'s) —
 a stamp rather than a flag, because the Pinned section is ordered by *when you pinned*, not by
 recency.

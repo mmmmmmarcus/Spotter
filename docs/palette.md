@@ -115,6 +115,20 @@ frozen instead:
   force-casts its field editor to a private subclass, so vending a custom one crashes — only the
   existing one can be tuned.
 
+## Chords `onKeyPress` never sees
+
+Some chords never reach SwiftUI's `onKeyPress` because AppKit has already spent them, and the next
+silent chord will be one of these cases:
+
+- **⌘.** is macOS's Cancel chord: AppKit binds it to `cancelOperation:` alongside Escape, so the field
+  editor consumes it and `onKeyPress(keys: ["."])` never fires. It arrives instead through
+  `PalettePanel.sendEvent`, which bumps `PaletteViewModel.pinChordToken`; `RootPaletteView` observes
+  that and resolves the row from the same results the list renders, so which row gets pinned still
+  comes from one place. The panel only intercepts it in the clipboard — everywhere else ⌘. keeps
+  meaning cancel.
+- **Bare Backspace, Return and Escape** are consumed by the field editor before the key-press chain,
+  and come back through `onBareBackspace` / `onBareReturn` / `onBareEscape` on the same panel.
+
 ## Actions menu type-ahead
 
 The Actions menu is the one place where the frozen keystrokes are reused rather than dropped, so it

@@ -130,7 +130,8 @@ swiftc Spotter/Core/Calculator/*.swift \
     Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
     Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift Tools/calc-test.swift \
     -o /tmp/calc-test && /tmp/calc-test                           # calculator engine
-swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift Tools/clipboard-test.swift \
+swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
+    Spotter/Plugins/Clipboard/ClipboardFilter.swift Tools/clipboard-test.swift \
     -o /tmp/clipboard-test && /tmp/clipboard-test                 # clipboard store
 swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift \
     -o /tmp/scopes-test && /tmp/scopes-test                       # launcher search scopes
@@ -265,9 +266,9 @@ and bundle-scoped preference persistence without installing an event tap or obse
 The Settings Sync harness exercises the real coordinated JSON reader/writer against a temporary file
 and validates the byte revision guard used to suppress self-triggered file notifications.
 
-The clipboard harness likewise compiles the real `ClipboardStore.swift`, including portable text/image
-sync snapshots, so that file must keep to
-Foundation + SQLite3 and depend on no other app source. Each case drives a store rooted in a
+The clipboard harness likewise compiles the real `ClipboardStore.swift` and `ClipboardFilter.swift`,
+including portable text/image sync snapshots and the type filter's derived link/email classifier, so
+both files must keep to Foundation (plus SQLite3) and depend on no other app source. Each case drives a store rooted in a
 throwaway temp directory (`ClipboardStore(directory:)`), so a run can never reach a real history.
 
 The custom-command harness spawns **real `/bin/zsh`** processes. Its shell-environment cases point

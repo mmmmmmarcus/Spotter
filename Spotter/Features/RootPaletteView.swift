@@ -19,8 +19,7 @@ struct RootPaletteView: View {
     /// Observed so a skin tone changed in Settings re-renders the grid glyphs immediately.
     @ObservedObject private var settings = AppCore.shared.settings
     @FocusState private var searchFocused: Bool
-    @State private var showActions = false
-    @State private var showAppMenu = false
+    @State private var openMenu: OpenMenu?
     /// The selection's running state, sampled once by `openActions` — an app launching or quitting elsewhere must not add or drop the Quit row while the menu is up. `RunningAppsMonitor` is deliberately not observed here: only `LauncherList` needs live running state, and observing it would re-render the whole palette on every workspace launch/terminate.
     @State private var selectionIsRunning = false
     /// Highlighted row of whichever popover menu is open; reset to the first row on open, moved by ↑/↓ and hover, activated by ↵/click.
@@ -59,7 +58,9 @@ struct RootPaletteView: View {
         let split = favorites.ordered(base)
         return split.favorites + split.rest
     }
-    private var clipResults: [ClipboardItem] { store.search(vm.query) }
+    private var clipResults: [ClipboardItem] {
+        store.search(vm.query, filter: vm.clipboardFilter)
+    }
     private var histResults: [CalcHistoryEntry] { calcHistory.search(vm.query) }
     private var emojiSections: [EmojiGridSection] {
         EmojiGrid.sections(query: vm.query, index: emojiIndex, frequent: frequentEmoji)
@@ -119,7 +120,7 @@ struct RootPaletteView: View {
     /// Selection clamped into the current results — the single source of truth for highlight, preview and activation so the list and preview can never disagree.
     private var selection: Int { resultCount == 0 ? 0 : min(max(vm.selection, 0), resultCount - 1) }
 
-    private var menuOpen: Bool { showActions || showAppMenu }
+    private var menuOpen: Bool { openMenu != nil }
     /// The in-palette yes/no overlay. It outranks the menus for every key it owns.
     private var confirmOpen: Bool { vm.confirmation != nil }
 
@@ -235,11 +236,34 @@ struct RootPaletteView: View {
         ])
     }
 
-    /// Whichever menu is open (Actions takes precedence; the two are kept mutually exclusive) — the source for keyboard navigation and activation.
+    /// Which in-window menu owns the keyboard, or nil. One optional rather than a Bool per menu: "exactly one is open" then holds structurally, instead of needing a pairwise handler for every pair.
+    private enum OpenMenu {
+        case actions
+        case app
+        case clipboardFilter
+    }
+
+    /// Whichever menu is open — the source for keyboard navigation and activation.
     private var menuContent: PopoverMenuContent? {
-        if showActions { return actionsContent }
-        if showAppMenu { return appMenuContent }
-        return nil
+        switch openMenu {
+        case .actions: return actionsContent
+        case .app: return appMenuContent
+        case .clipboardFilter: return clipboardFilterContent
+        case nil: return nil
+        }
+    }
+
+    /// The clipboard's type filter, as a menu. No search field and no separators: a fixed five rows that open highlighting the active one, the way a pop-up button does.
+    private var clipboardFilterContent: PopoverMenuContent {
+        PopoverMenuContent(
+            header: "Filter by Type",
+            items: ClipboardFilter.allCases.map { filter in
+                PopoverMenuItem(title: filter.title, systemImage: filter.systemImage) {
+                    vm.clipboardFilter = filter
+                    vm.selection = 0
+                    scroll = ScrollIntent(kind: .top)
+                }
+            })
     }
 
     var body: some View {
@@ -335,14 +359,14 @@ struct RootPaletteView: View {
         }
         // Menus are in-window overlays anchored to a bottom corner, so they stay clipped inside the panel — never a system popover spilling outside the window.
         .overlay {
-            if showAppMenu || showActions {
+            if openMenu != nil {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
                     .onTapGesture(perform: closeMenus)
             }
         }
         .overlay(alignment: .bottomLeading) {
-            if showAppMenu {
+            if openMenu == .app {
                 let content = appMenuContent
                 PopoverMenu(
                     header: content.header, items: content.items, selection: $menuSelection,
@@ -353,13 +377,26 @@ struct RootPaletteView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if showActions, let content = actionsContent {
+            if openMenu == .actions, let content = actionsContent {
                 PopoverMenu(
                     header: content.header, items: content.items, selection: $menuSelection,
                     onActivate: activateMenuItem
                 )
                 .padding(Self.menuInset)
                 .transition(Self.menuTransition(.bottomTrailing))
+            }
+        }
+        // The filter hangs under its own header button rather than off the footer, so it opens where it was clicked.
+        .overlay(alignment: .topTrailing) {
+            if openMenu == .clipboardFilter {
+                let content = clipboardFilterContent
+                PopoverMenu(
+                    header: content.header, items: content.items, selection: $menuSelection,
+                    width: Self.filterMenuWidth, onActivate: activateMenuItem
+                )
+                .padding(.top, Theme.Size.headerHeight + Theme.Size.headerPadding)
+                .padding(.trailing, Self.menuInset * 2)
+                .transition(Self.menuTransition(.topTrailing))
             }
         }
         // The in-palette yes/no. Above the menus, dim layer cancels, and Cancel is the ↵ default.
@@ -390,8 +427,7 @@ struct RootPaletteView: View {
         // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up).
         .onChange(of: vm.focusToken) {
             searchFocused = vm.mode != .updates
-            showActions = false
-            showAppMenu = false
+            openMenu = nil
         }
         .onChange(of: vm.query) {
             vm.selection = 0
@@ -401,7 +437,7 @@ struct RootPaletteView: View {
         .onChange(of: vm.mode) {
             vm.selection = 0
             pluginQueryHourOffset = 0
-            showActions = false
+            openMenu = nil
             scroll = ScrollIntent(kind: .top)
             searchFocused = vm.mode != .updates
         }
@@ -409,20 +445,17 @@ struct RootPaletteView: View {
         .onChange(of: vm.resetToken) {
             scroll = ScrollIntent(kind: .top)
         }
-        // Opening either menu highlights its first row and closes the other, so exactly one menu is ever open and always has a highlight.
-        .onChange(of: showActions) {
-            if showActions {
-                showAppMenu = false
+        // An opening menu always starts with a highlight; the filter starts on the active row the way a pop-up button does, everything else on its first.
+        .onChange(of: openMenu) {
+            switch openMenu {
+            case .clipboardFilter:
+                menuSelection = ClipboardFilter.allCases.firstIndex(of: vm.clipboardFilter) ?? 0
+            case .actions, .app:
                 menuSelection = 0
+            case nil:
+                break
             }
             vm.resetMenuTypeahead()
-            syncMenuInputState()
-        }
-        .onChange(of: showAppMenu) {
-            if showAppMenu {
-                showActions = false
-                menuSelection = 0
-            }
             syncMenuInputState()
         }
         // The confirmation rides the same input-freeze channel as the menus: caret hidden, typing swallowed, nav keys through. Highlight always starts on Cancel.
@@ -434,7 +467,7 @@ struct RootPaletteView: View {
             syncMenuInputState()
         }
         .onChange(of: vm.menuTypeaheadQuery) {
-            guard showActions, let items = actionsContent?.items,
+            guard openMenu == .actions, let items = actionsContent?.items,
                 let index = PaletteMenuTypeahead.bestMatch(
                     query: vm.menuTypeaheadQuery, titles: items.map(\.title))
             else { return }
@@ -450,6 +483,11 @@ struct RootPaletteView: View {
                 vm.selection = index
             }
             scroll = ScrollIntent(kind: .follow)
+        }
+        // ⌘. reaches us as a token because AppKit gives the chord to the field editor; the row still comes from the same results the list renders.
+        .onChange(of: vm.pinChordToken) {
+            guard vm.mode == .clipboard, clips.indices.contains(selection) else { return }
+            core.togglePinnedClip(clips[selection])
         }
         .onAppear { searchFocused = vm.mode != .updates }
         // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
@@ -567,7 +605,7 @@ struct RootPaletteView: View {
                 activateConfirmation(false)
                 return .handled
             }
-            if showActions || showAppMenu {
+            if openMenu != nil {
                 closeMenus()
                 return .handled
             }
@@ -641,7 +679,6 @@ struct RootPaletteView: View {
             }
             return .handled
         }
-        // ⌘P pins/unpins the selected clip — mirrors the Actions menu row, and works while that menu is open like the other advertised chords.
         // ⌘N starts a fresh chat session — the same action as the session menu's top row, and like
         // the other advertised chords it works while a footer menu is open.
         .onKeyPress(keys: ["n"], phases: .down) { press in
@@ -652,11 +689,11 @@ struct RootPaletteView: View {
             closeMenus()
             return .handled
         }
+        // ⌘P opens the clipboard's type filter; the pin it used to serve moved to ⌘. (see `pinChordToken`), so one chord keeps one meaning app-wide.
         .onKeyPress(keys: ["p"], phases: .down) { press in
-            guard press.modifiers.contains(.command), vm.mode == .clipboard,
-                clipResults.indices.contains(selection)
+            guard press.modifiers.contains(.command), vm.mode == .clipboard, !isCollapsed
             else { return .ignored }
-            core.togglePinnedClip(clipResults[selection])
+            toggleClipboardFilter()
             return .handled
         }
         // Both cases are listed because Shift uppercases the reported key. The compact bar is excluded like ⌘K — it shows no selection to aim a destructive action at.
@@ -697,6 +734,12 @@ struct RootPaletteView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 searchField
+            }
+            // The clipboard's type filter sits at the trailing edge of its own search bar, where it filters.
+            if vm.mode == .clipboard, !isCollapsed {
+                ClipboardFilterButton(
+                    filter: vm.clipboardFilter, isOpen: openMenu == .clipboardFilter,
+                    action: toggleClipboardFilter)
             }
             // Compact bar pins favorites to the right of the field; expanded shows them as list rows instead.
             if isCollapsed, settings.showFavoritesInCompactMode {
@@ -794,7 +837,7 @@ struct RootPaletteView: View {
         case .clipboard:
             // Empty history: center one message across the whole panel rather than wedging it into the narrow list column beside a blank preview.
             if clips.isEmpty {
-                EmptyResults(text: "Clipboard history is empty")
+                EmptyResults(text: vm.clipboardFilter.emptyMessage)
             } else {
                 let selected = clips.indices.contains(selection) ? clips[selection] : nil
                 HStack(spacing: 0) {
@@ -920,7 +963,7 @@ struct RootPaletteView: View {
 
     private var appMenuButton: some View {
         MenuCircleButton {
-            withAnimation(Self.menuAnimation) { showAppMenu.toggle() }
+            withAnimation(Self.menuAnimation) { openMenu = openMenu == .app ? nil : .app }
         }
     }
 
@@ -1025,32 +1068,37 @@ struct RootPaletteView: View {
         } else {
             selectionIsRunning = false
         }
-        withAnimation(Self.menuAnimation) { showActions = true }
+        withAnimation(Self.menuAnimation) { openMenu = .actions }
     }
 
     private func toggleActions() {
-        if showActions {
-            withAnimation(Self.menuAnimation) { showActions = false }
+        if openMenu == .actions {
+            withAnimation(Self.menuAnimation) { openMenu = nil }
         } else {
             openActions()
         }
     }
 
-    private func closeMenus() {
+    private func toggleClipboardFilter() {
         withAnimation(Self.menuAnimation) {
-            showActions = false
-            showAppMenu = false
+            openMenu = openMenu == .clipboardFilter ? nil : .clipboardFilter
         }
+    }
+
+    private func closeMenus() {
+        withAnimation(Self.menuAnimation) { openMenu = nil }
     }
 
     private func syncMenuInputState() {
         vm.menuOpen = menuOpen || confirmOpen
-        vm.menuTypeaheadEnabled = showActions && !confirmOpen
+        vm.menuTypeaheadEnabled = openMenu == .actions && !confirmOpen
     }
 
     /// Inset of the menu panels from the window's bottom corners, kept just inside the rounded corner so the menu's own corner isn't clipped.
     private static let menuInset: CGFloat = 8
     private static let menuAnimation: Animation = .easeOut(duration: Theme.Animation.quick)
+    /// Narrower than the footer menus: five fixed rows of two words each.
+    private static let filterMenuWidth: CGFloat = 196
 
     private static func menuTransition(_ anchor: UnitPoint) -> AnyTransition {
         .opacity.combined(with: .scale(scale: 0.96, anchor: anchor))
@@ -1249,6 +1297,39 @@ private struct MenuCircleButton: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .frosted(in: Circle())
+    }
+}
+
+/// The clipboard header's type-filter control: states the active filter, opens the menu that changes it. `.help()` rather than the in-house `Tooltip`, which renders above its view and would clip at the panel's top edge.
+private struct ClipboardFilterButton: View {
+    let filter: ClipboardFilter
+    let isOpen: Bool
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.xxs) {
+                Image(systemName: filter.systemImage)
+                    .font(Theme.Typography.bar)
+                    .symbolRenderingMode(.hierarchical)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+            .foregroundStyle(
+                filter == .all ? Theme.Colors.textSecondary : Color.primary
+            )
+            .padding(.horizontal, Theme.Spacing.sm)
+            .frame(height: 26)
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.menuRow, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.menuRow, style: .continuous)
+                    .fill(hovered || isOpen ? Theme.Colors.rowHover : .clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .help("\(filter.title) (⌘P)")
     }
 }
 

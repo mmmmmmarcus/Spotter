@@ -147,12 +147,12 @@ enum ClipboardActionsMenu {
         ]
         if item.isPinned {
             items.append(
-                PopoverMenuItem(title: "Unpin Entry", systemImage: "pin.slash", shortcut: "⌘P") {
+                PopoverMenuItem(title: "Unpin Entry", systemImage: "pin.slash", shortcut: "⌘.") {
                     core.togglePinnedClip(item)
                 })
         } else {
             items.append(
-                PopoverMenuItem(title: "Pin Entry", systemImage: "pin", shortcut: "⌘P") {
+                PopoverMenuItem(title: "Pin Entry", systemImage: "pin", shortcut: "⌘.") {
                     core.togglePinnedClip(item)
                 })
         }

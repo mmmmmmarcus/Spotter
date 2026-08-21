@@ -91,6 +91,7 @@ run_harness() {
             ;;
         clipboard)
             swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
+                Spotter/Plugins/Clipboard/ClipboardFilter.swift \
                 Tools/clipboard-test.swift -o "$output" && "$output"
             ;;
         scopes)

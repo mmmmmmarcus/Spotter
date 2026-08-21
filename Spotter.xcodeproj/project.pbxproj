@@ -77,6 +77,7 @@
 		4D893C74BF3716AD2A9FEC20 /* FrequentEmojiStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F8D9F0596067673B16F9B3 /* FrequentEmojiStore.swift */; };
 		5156ECA8D57844AB4EA11C3F /* AIChatMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF915070554902BBE003C07 /* AIChatMarkdown.swift */; };
 		52755379C29E05805247B689 /* SystemCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F75CA2510EFD6B9EE6E7924 /* SystemCommandRunner.swift */; };
+		53968BF0672CC6B482466204 /* ClipboardFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EE7BC397DDC8371D8A5D4C /* ClipboardFilter.swift */; };
 		5848DB5A8E849BD170C1AC72 /* AIChatPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E71C4DD8183B1A7D86867A /* AIChatPlugin.swift */; };
 		58D500916E6096E589DD4624 /* DashboardDeviceBatteryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4637BB0C57CB0E954EA3ABB5 /* DashboardDeviceBatteryEngine.swift */; };
 		5AB7A011B760293695A0774E /* ScreenshotPreviewHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12D82E314EC41F6F38616E5 /* ScreenshotPreviewHUD.swift */; };
@@ -412,6 +413,7 @@
 		E72ACEB329C570B413A7A395 /* EmojiGridGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiGridGeometry.swift; sourceTree = "<group>"; };
 		E9A0C1A043D1F093E46AA103 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
 		E9B6EECF92F4DE89914475EF /* WorldClockSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockSettingsView.swift; sourceTree = "<group>"; };
+		E9EE7BC397DDC8371D8A5D4C /* ClipboardFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFilter.swift; sourceTree = "<group>"; };
 		EA9AAFEDA3E48F52BE9725A1 /* WorldClockStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockStore.swift; sourceTree = "<group>"; };
 		EC070C6D096650E27CADC336 /* KeyShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyShortcut.swift; sourceTree = "<group>"; };
 		EC09D029700E8FB08D7833EA /* Gunzip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gunzip.swift; sourceTree = "<group>"; };
@@ -873,6 +875,7 @@
 		EECA76EE9B2809822600D9EC /* Clipboard */ = {
 			isa = PBXGroup;
 			children = (
+				E9EE7BC397DDC8371D8A5D4C /* ClipboardFilter.swift */,
 				9FFE9CB942C341FA21C55E4B /* ClipboardManager.swift */,
 				736D5E62B2BCE421896E5B77 /* ClipboardPlugin.swift */,
 				200512AF16751C37C1178581 /* ClipboardSettingsView.swift */,
@@ -1041,6 +1044,7 @@
 				0C0140615CF003D101DEA93D /* ChangeCaseSettingsView.swift in Sources */,
 				A0EF6A5216834020893AA042 /* ChangeCaseStore.swift in Sources */,
 				85230C4CBAA7050C2A607318 /* ChangeCaseView.swift in Sources */,
+				53968BF0672CC6B482466204 /* ClipboardFilter.swift in Sources */,
 				D7A6D3EE0D68E59D585C12EE /* ClipboardManager.swift in Sources */,
 				A87E2797F6E968857782EFA3 /* ClipboardPlugin.swift in Sources */,
 				1FF926A4791372548CBCB7E2 /* ClipboardSettingsView.swift in Sources */,
