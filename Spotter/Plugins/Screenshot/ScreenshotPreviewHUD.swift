@@ -28,6 +28,8 @@ final class ScreenshotPreviewHUD {
 
     private static let transientKeyID = "screenshot.preview.return"
     private static let visibleDuration: Duration = .milliseconds(3500)
+    /// Points of travel before a scroll counts — a deliberate flick, not a stray twitch.
+    private static let scrollActivation: CGFloat = 24
 
     /// Fired by a click or by Return while the thumbnail is up.
     var onOpen: (() -> Void)?
@@ -36,6 +38,8 @@ final class ScreenshotPreviewHUD {
     private var panel: NSPanel?
     private var dismissal: Task<Void, Never>?
     private var activationObserver: NotificationToken?
+    private var scrollTravel: CGFloat = 0
+    private var scrollConsumed = false
     private unowned let hotKeys: HotKeyManager
 
     init(hotKeys: HotKeyManager) {
@@ -59,10 +63,14 @@ final class ScreenshotPreviewHUD {
         position(panel, thumbnail: thumbnail)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
+        // Settle layout at the final geometry first; a first animated frame rendered at a stale size reads as the thumbnail shifting into place.
+        panel.contentView?.layoutSubtreeIfNeeded()
         withAnimation(.easeOut(duration: Self.appearDuration)) {
             model.isPresented = true
         }
 
+        scrollTravel = 0
+        scrollConsumed = false
         hotKeys.holdTransientKey(
             id: Self.transientKeyID,
             shortcut: KeyShortcut(carbonKeyCode: kVK_Return, carbonModifiers: 0)
@@ -88,6 +96,27 @@ final class ScreenshotPreviewHUD {
             guard !Task.isCancelled else { return }
             self?.panel?.orderOut(nil)
             self?.dismissal = nil
+        }
+    }
+
+    /// Push the card down to send it away, lift it up to open the editor — the thumbnail is a card
+    /// you flick, like a notification banner, so this reads the *physical* gesture: natural
+    /// scrolling is unwound so the same finger movement means the same thing either way, and a
+    /// wheel's notches map to the same two directions.
+    private func handleScroll(_ event: NSEvent) {
+        if event.phase == .began || event.phase == .mayBegin {
+            scrollTravel = 0
+            scrollConsumed = false
+        }
+        guard !scrollConsumed else { return }
+        let delta = event.scrollingDeltaY
+        scrollTravel += event.isDirectionInvertedFromDevice ? delta : -delta
+        guard abs(scrollTravel) >= Self.scrollActivation else { return }
+        scrollConsumed = true
+        if scrollTravel > 0 {
+            dismiss()
+        } else {
+            open()
         }
     }
 
@@ -134,9 +163,9 @@ final class ScreenshotPreviewHUD {
         panel.isMovable = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         let host = FirstMouseHostingView(rootView: ScreenshotPreviewHUDView(model: model))
-        // The panel frame is set here, not by SwiftUI — same rule as the palette and the command HUD.
-        host.sizingOptions = []
-        panel.contentView = host
+        host.onScroll = { [weak self] event in self?.handleScroll(event) }
+        // A subview, not the contentView (see PanelHosting): the blur animating during a display-cycle constraint flush is exactly the timing the content-view extrema path crashes on. The frame is still set here, not by SwiftUI.
+        PanelHosting.install(host, in: panel)
         return panel
     }
 
@@ -167,9 +196,16 @@ final class ScreenshotPreviewHUD {
     }
 }
 
-/// Clicks must land while Spotter is inactive — the panel never becomes key.
+/// Clicks must land while Spotter is inactive — the panel never becomes key. SwiftUI has no scroll
+/// hook for a view that is not a scroll view, so the wheel is read here and handed to the HUD.
 private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    var onScroll: ((NSEvent) -> Void)?
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func scrollWheel(with event: NSEvent) {
+        onScroll?(event)
+    }
 }
 
 @MainActor
@@ -204,6 +240,8 @@ private struct ScreenshotPreviewHUDView: View {
                         style: .continuous
                     )
                     .fill(.white))
+                // Blur first, shadow after: the shadow hangs below the card, so blurring a composite that includes it smears its dark mass around asymmetrically and the bright card reads as drifting. Blurred card in, shadow cast at its constant offset outside the blur, nothing moves.
+                .blur(radius: model.isPresented ? 0 : ScreenshotPreviewHUD.appearBlur)
                 .shadow(
                     color: .black.opacity(ScreenshotPreviewHUD.shadowOpacity),
                     radius: ScreenshotPreviewHUD.shadowRadius / 2,
@@ -212,8 +250,6 @@ private struct ScreenshotPreviewHUDView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { model.onTap?() }
                 .onHover { model.onHover?($0) }
-                // Blurs into focus and back out, in place: no scale or offset, so nothing about the thumbnail moves while it appears.
-                .blur(radius: model.isPresented ? 0 : ScreenshotPreviewHUD.appearBlur)
                 .opacity(model.isPresented ? 1 : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

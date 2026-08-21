@@ -64,10 +64,8 @@ final class CommandHUD {
         panel.animationBehavior = .none
         panel.isMovable = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        let host = NSHostingView(rootView: CommandHUDView(model: model))
-        // Same reason as the palette: SwiftUI must not drive the window frame. A sizing option here also feeds AppKit's window content-size extrema, which re-invalidates layout from inside the window's own constraint pass — macOS 26 throws on that. `contentSize()` measures off-window instead.
-        host.sizingOptions = []
-        panel.contentView = host
+        // A subview, not the contentView: the content-view extrema path crashes macOS 26 (see PanelHosting). Sizing stays ours either way; `contentSize()` measures off-window.
+        PanelHosting.install(NSHostingView(rootView: CommandHUDView(model: model)), in: panel)
         return panel
     }
 

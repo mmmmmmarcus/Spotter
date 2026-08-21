@@ -51,7 +51,7 @@ struct NoteView: View {
         .ignoresSafeArea(edges: .top)
         .background(Theme.Colors.panelScrim.opacity(1 - store.windowTransparency))
         .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.noteWindow, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
     }
 
     private var noteList: some View {

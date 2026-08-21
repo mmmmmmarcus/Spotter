@@ -133,6 +133,7 @@
 		A0EF6A5216834020893AA042 /* ChangeCaseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF8C28A567670C9131C35CC /* ChangeCaseStore.swift */; };
 		A14BCA6DE687C5F3A0E2596F /* InputSourceLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D60D7E8BF89AC9EB221093E /* InputSourceLock.swift */; };
 		A1F4D1C65D235F6A73EF5747 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F3DB0D82605F0450E69E57 /* LaunchAtLogin.swift */; };
+		A29E8F13A7572E2BA55592F0 /* PanelHosting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412E1AB968D25513BCF543AA /* PanelHosting.swift */; };
 		A2D98D8FC39DAD089215A124 /* ClipboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17AE76ADC7A9EC2466F6587 /* ClipboardView.swift */; };
 		A39D05C2AD356E8C909F2FCF /* NotePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0585A83889766AB5682CD10C /* NotePlugin.swift */; };
 		A4335E03E8348FBE0873B90A /* SearchScopesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF791D9740CBFE37A39760E /* SearchScopesCard.swift */; };
@@ -274,6 +275,7 @@
 		3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolsSettingsView.swift; sourceTree = "<group>"; };
 		3EF66C6ACEBE04CFA8A66339 /* SelectedTextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextCapture.swift; sourceTree = "<group>"; };
 		4127766DD9125188D572ACF8 /* CalcQuantity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcQuantity.swift; sourceTree = "<group>"; };
+		412E1AB968D25513BCF543AA /* PanelHosting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelHosting.swift; sourceTree = "<group>"; };
 		413F39384FC2DBC1095614F1 /* ScreenshotEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorView.swift; sourceTree = "<group>"; };
 		421E4FA71B5B224682CAC9F7 /* QuicklinkTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkTypes.swift; sourceTree = "<group>"; };
 		434991596DDA129349C5052E /* CurrencyRateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyRateStore.swift; sourceTree = "<group>"; };
@@ -812,6 +814,7 @@
 				B0159892F08ABA70F62BFBBC /* PaletteMenuTypeahead.swift */,
 				7008824D3AF5652511CB555E /* PalettePanel.swift */,
 				0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */,
+				412E1AB968D25513BCF543AA /* PanelHosting.swift */,
 				14AC6BD1CAA98BDDEA059A5A /* Paster.swift */,
 				E9A0C1A043D1F093E46AA103 /* Permissions.swift */,
 				95A910A72680B85A7291F2AB /* RightClick.swift */,
@@ -1129,6 +1132,7 @@
 				2BC8BF35FA60D3DFDF009D2A /* PaletteMenuTypeahead.swift in Sources */,
 				D1407E0293929CCBB47C64F9 /* PalettePanel.swift in Sources */,
 				2B4F9D37E9833D15ACD74ECF /* PaletteWindowController.swift in Sources */,
+				A29E8F13A7572E2BA55592F0 /* PanelHosting.swift in Sources */,
 				B4BF4401E903EDB2AF48CA5C /* Paster.swift in Sources */,
 				71E3F659347380D0A3ABF809 /* Permissions.swift in Sources */,
 				A8850E043438F18D2B964144 /* PermissionsSettingsView.swift in Sources */,
@@ -1265,7 +1269,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.5.3;
+				MARKETING_VERSION = 1.5.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1337,7 +1341,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.5.3;
+				MARKETING_VERSION = 1.5.4;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

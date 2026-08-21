@@ -26,7 +26,8 @@ enum Theme {
 
     enum Radius {
         static let panel: CGFloat = 26
-        static let noteWindow: CGFloat = 20
+        /// Any transparent plugin window's own corner — Notes and the screenshot editor.
+        static let window: CGFloat = 20
         static let row: CGFloat = 10
         static let menu: CGFloat = 6
         /// Hover highlight behind a popover menu row.

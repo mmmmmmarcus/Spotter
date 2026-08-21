@@ -525,7 +525,8 @@ final class AppCore: ObservableObject {
     func showPluginWindow<Content: View>(
         id: String, title: String, size: CGSize, resizable: Bool = false,
         floating: Bool = false, transparent: Bool = false, minimumSize: CGSize? = nil,
-        closeButtonOnly: Bool = false, contentExtendsIntoTitleBar: Bool = false,
+        closeButtonOnly: Bool = false, hidesStandardButtons: Bool = false,
+        clearsInitialFocus: Bool = false, contentExtendsIntoTitleBar: Bool = false,
         movableByBackground: Bool = true,
         @ViewBuilder content: () -> Content
     ) -> Bool {
@@ -533,6 +534,8 @@ final class AppCore: ObservableObject {
             id: "plugin." + id, title: title, size: size, seamlessTitleBar: true,
             resizable: resizable, floating: floating, transparent: transparent,
             minimumSize: minimumSize, closeButtonOnly: closeButtonOnly,
+            hidesStandardButtons: hidesStandardButtons,
+            clearsInitialFocus: clearsInitialFocus,
             contentExtendsIntoTitleBar: contentExtendsIntoTitleBar,
             movableByBackground: movableByBackground
         ) {

@@ -58,8 +58,8 @@ lifecycle checklists.
 
 ## Entry points and windows
 
-`SpotterApp` (`@main`) declares only a `MenuBarExtra` scene; everything else visible is driven
-imperatively from AppKit.
+`SpotterApp` (`@main`) declares only a `MenuBarExtra` scene — the `bolt.square.fill` symbol, hidden
+when Show in Menu Bar is off; everything else visible is driven imperatively from AppKit.
 
 - **Command palette** — a borderless floating `NSPanel` (`Core/PalettePanel.swift`) hosting SwiftUI
   via `NSHostingView`, managed by `PaletteWindowController`. It toggles between a compact bar and the

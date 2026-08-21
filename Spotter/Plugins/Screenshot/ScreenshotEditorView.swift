@@ -6,25 +6,31 @@ import UniformTypeIdentifiers
 @MainActor
 final class ScreenshotEditorModel: ObservableObject {
     enum Tool: String, CaseIterable, Identifiable {
-        case arrow, rectangle, ellipse, freehand, text
+        case rectangle, ellipse, freehand, text
 
         var id: String { rawValue }
         var symbol: String {
             switch self {
-            case .arrow: "arrow.up.right"
             case .rectangle: "rectangle"
             case .ellipse: "oval"
-            case .freehand: "scribble"
+            case .freehand: "pencil.line"
             case .text: "textformat"
             }
         }
         var help: String {
             switch self {
-            case .arrow: "Arrow"
-            case .rectangle: "Rectangle"
-            case .ellipse: "Ellipse"
-            case .freehand: "Draw"
-            case .text: "Text"
+            case .rectangle: "Rectangle — right-drag for an arrow (R)"
+            case .ellipse: "Oval (O)"
+            case .freehand: "Pencil (P)"
+            case .text: "Text (T)"
+            }
+        }
+        var shortcut: KeyEquivalent {
+            switch self {
+            case .rectangle: "r"
+            case .ellipse: "o"
+            case .freehand: "p"
+            case .text: "t"
             }
         }
     }
@@ -55,6 +61,13 @@ final class ScreenshotEditorModel: ObservableObject {
             case .bold: 9
             }
         }
+        var help: String {
+            switch self {
+            case .thin: "Thin"
+            case .regular: "Regular"
+            case .bold: "Bold"
+            }
+        }
     }
 
     struct PendingText {
@@ -65,7 +78,7 @@ final class ScreenshotEditorModel: ObservableObject {
 
     let capture: ScreenshotCapturePayload
 
-    @Published var tool: Tool = .arrow
+    @Published var tool: Tool = .rectangle
     @Published var color: ScreenshotAnnotationColor = .red
     @Published var width: WidthPreset = .regular
     @Published private(set) var annotations: [ScreenshotAnnotation] = []
@@ -90,15 +103,16 @@ final class ScreenshotEditorModel: ObservableObject {
         draft.map { annotations + [$0] } ?? annotations
     }
 
-    func dragChanged(from start: CGPoint, to current: CGPoint, scale: CGFloat) {
-        guard tool != .text else { return }
+    /// `secondary` is the right mouse button: only the rectangle tool reads it, drawing an arrow.
+    func dragChanged(from start: CGPoint, to current: CGPoint, scale: CGFloat, secondary: Bool) {
+        guard tool != .text, tool == .rectangle || !secondary else { return }
         let strokeWidth = width.stroke / scale
         let shape: ScreenshotAnnotation.Shape
         switch tool {
-        case .arrow:
-            shape = .arrow(start: start, end: current)
         case .rectangle:
-            shape = .rectangle(ScreenshotAnnotationGeometry.normalizedRect(from: start, to: current))
+            shape = secondary
+                ? .arrow(start: start, end: current)
+                : .rectangle(ScreenshotAnnotationGeometry.normalizedRect(from: start, to: current))
         case .ellipse:
             shape = .ellipse(ScreenshotAnnotationGeometry.normalizedRect(from: start, to: current))
         case .freehand:
@@ -113,8 +127,9 @@ final class ScreenshotEditorModel: ObservableObject {
         draft = ScreenshotAnnotation(shape: shape, color: color, width: strokeWidth)
     }
 
-    func dragEnded(from start: CGPoint, to end: CGPoint, scale: CGFloat) {
+    func dragEnded(from start: CGPoint, to end: CGPoint, scale: CGFloat, secondary: Bool) {
         if tool == .text {
+            guard !secondary else { return }
             commitPendingText()
             pendingText = PendingText(origin: end, string: "", fontSize: width.fontSize / scale)
             return
@@ -154,10 +169,14 @@ final class ScreenshotEditorModel: ObservableObject {
 
 /// The Capso-style post-capture workspace: the capture at fit scale with mark-up tools above it.
 struct ScreenshotEditorView: View {
+    /// Matches the id `AppCore.showScreenshotEditor` opens under, so Cancel closes this window.
+    static let windowID = "screenshot-editor"
+    /// Shared with the window sizing so the canvas gets the space the bar does not.
+    static let toolbarHeight: CGFloat = 68
+
     @EnvironmentObject private var core: AppCore
     @StateObject private var model: ScreenshotEditorModel
     @FocusState private var textEntryFocused: Bool
-    @State private var dragStart: CGPoint?
 
     init(capture: ScreenshotCapturePayload) {
         _model = StateObject(wrappedValue: ScreenshotEditorModel(capture: capture))
@@ -166,74 +185,73 @@ struct ScreenshotEditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            Divider()
             canvasArea
         }
-        .background(Theme.Colors.cardFill.ignoresSafeArea())
+        .ignoresSafeArea(edges: .top)
+        // Behind-window blending, as Notes uses: a SwiftUI `Material` only blurs what is inside the app, so the desktop would stay opaque behind the window.
+        .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
     }
 
     private var toolbar: some View {
-        HStack(spacing: Theme.Spacing.lg) {
-            HStack(spacing: Theme.Spacing.xs) {
-                ForEach(ScreenshotEditorModel.Tool.allCases) { tool in
-                    toolButton(tool)
-                }
-            }
-            barDivider
-            HStack(spacing: Theme.Spacing.xs) {
-                ForEach(ScreenshotAnnotationColor.allCases, id: \.self) { color in
-                    colorButton(color)
-                }
-            }
-            barDivider
-            HStack(spacing: Theme.Spacing.xs) {
-                ForEach(ScreenshotEditorModel.WidthPreset.allCases) { preset in
-                    widthButton(preset)
-                }
-            }
+        HStack(spacing: Theme.Spacing.sm) {
+            // The window hides its traffic lights, so this is the only way to close it.
+            cancelButton
             Spacer(minLength: Theme.Spacing.md)
-            Button { model.undo() } label: {
-                Image(systemName: "arrow.uturn.backward")
+            // Undo and redo read as one control: a container merges closely-spaced glass shapes.
+            GlassEffectContainer(spacing: Theme.Spacing.xxs) {
+                HStack(spacing: Theme.Spacing.xxs) {
+                    Button { model.undo() } label: {
+                        Label("Undo", systemImage: "arrow.uturn.backward")
+                    }
+                    .disabled(!model.canUndo)
+                    .keyboardShortcut("z", modifiers: .command)
+                    .help("Undo")
+                    Button { model.redo() } label: {
+                        Label("Redo", systemImage: "arrow.uturn.forward")
+                    }
+                    .disabled(!model.canRedo)
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .help("Redo")
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
             }
-            .buttonStyle(.plain)
-            .disabled(!model.canUndo)
-            .keyboardShortcut("z", modifiers: .command)
-            .help("Undo")
-            Button { model.redo() } label: {
-                Image(systemName: "arrow.uturn.forward")
+            Button { save() } label: {
+                Label("Save…", systemImage: "square.and.arrow.down")
             }
-            .buttonStyle(.plain)
-            .disabled(!model.canRedo)
-            .keyboardShortcut("z", modifiers: [.command, .shift])
-            .help("Redo")
-            barDivider
-            Button("Save…") { save() }
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(model.isExporting)
-            Button("Copy") { copy() }
-                .keyboardShortcut(.return, modifiers: .command)
-                .buttonStyle(.borderedProminent)
-                .disabled(model.isExporting)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .keyboardShortcut("s", modifiers: .command)
+            .disabled(model.isExporting)
+            .help("Save…")
+            Button { copy() } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.glassProminent)
+            .buttonBorderShape(.circle)
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(model.isExporting)
+            .help("Copy")
         }
+        // Icon-only everywhere but Cancel, so each label doubles as the tooltip and the VoiceOver name.
+        .labelStyle(.iconOnly)
+        .controlSize(.extraLarge)
+        // Scales the SF Symbols with the buttons; Cancel's text is unaffected.
+        .imageScale(.large)
         .font(Theme.Typography.bar)
-        // The leading inset clears the traffic lights under the seamless title bar.
-        .padding(.leading, 80)
-        .padding(.trailing, Theme.Spacing.xl)
+        .padding(.horizontal, Theme.Spacing.xl)
         .padding(.vertical, Theme.Spacing.lg)
-        .frame(height: 52)
+        .frame(height: Self.toolbarHeight)
         // The window opts out of background dragging so a stroke on the canvas can never move it, which makes this strip the one deliberate handle. Controls above take their own clicks first, so only the gaps between them drag.
         .contentShape(Rectangle())
         .gesture(WindowDragGesture())
     }
 
-    private var barDivider: some View {
-        Rectangle()
-            .fill(Theme.Colors.border)
-            .frame(width: 1, height: 20)
-    }
-
+    /// A bare letter is a key equivalent, which fires even while a field edits — so the shortcut is only attached while no text annotation is being typed.
+    @ViewBuilder
     private func toolButton(_ tool: ScreenshotEditorModel.Tool) -> some View {
-        Button {
+        let button = Button {
             model.commitPendingText()
             model.tool = tool
         } label: {
@@ -245,6 +263,11 @@ struct ScreenshotEditorView: View {
         }
         .buttonStyle(.plain)
         .help(tool.help)
+        if model.pendingText == nil {
+            button.keyboardShortcut(tool.shortcut, modifiers: [])
+        } else {
+            button
+        }
     }
 
     private func colorButton(_ color: ScreenshotAnnotationColor) -> some View {
@@ -272,12 +295,15 @@ struct ScreenshotEditorView: View {
             Circle()
                 .fill(Theme.Colors.textSecondary)
                 .frame(width: preset.dotDiameter, height: preset.dotDiameter)
-                .frame(width: 22, height: 24)
+                .frame(width: 28, height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: Theme.Radius.keyCap)
                         .fill(model.width == preset ? Theme.Colors.selection : .clear))
+                // Without this only the dot itself was clickable: a `.clear` fill takes no hits, so an unselected preset had a 4-point target.
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(preset.help)
     }
 
     private var canvasArea: some View {
@@ -300,6 +326,67 @@ struct ScreenshotEditorView: View {
                 maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .padding(Theme.Spacing.xl)
+        .overlay(alignment: .bottomLeading) {
+            floatingPalette { toolPaletteContent }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            floatingPalette { colorPaletteContent }
+        }
+    }
+
+    /// Escape is attached only when no text annotation is being typed — otherwise it would close the
+    /// window out from under a half-written mark instead of discarding it.
+    @ViewBuilder
+    private var cancelButton: some View {
+        let button = Button("Cancel") { core.closePluginWindow(id: Self.windowID) }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .help("Close without copying")
+        if model.pendingText == nil {
+            button.keyboardShortcut(.cancelAction)
+        } else {
+            button
+        }
+    }
+
+    /// The floating corner cards; a shared wrapper keeps both sides the same surface.
+    private func floatingPalette<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(spacing: Theme.Spacing.xs) { content() }
+            .fixedSize()
+            .padding(Theme.Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                    .fill(Theme.Colors.cardFill))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                    .stroke(Theme.Colors.cardStroke))
+            .padding(Theme.Spacing.xl)
+    }
+
+    private var toolPaletteContent: some View {
+        ForEach(ScreenshotEditorModel.Tool.allCases) { tool in
+            toolButton(tool)
+        }
+    }
+
+    /// Colors first, then the stroke weights that apply to them — one card, two groups, no rule
+    /// between them. The groups are nested stacks rather than one stack with a spacer: a spacer view
+    /// takes the whole width the overlay proposes, which stretched the card across the canvas.
+    private var colorPaletteContent: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            VStack(spacing: Theme.Spacing.xs) {
+                ForEach(ScreenshotAnnotationColor.allCases, id: \.self) { color in
+                    colorButton(color)
+                }
+            }
+            VStack(spacing: Theme.Spacing.xs) {
+                ForEach(ScreenshotEditorModel.WidthPreset.allCases) { preset in
+                    widthButton(preset)
+                }
+            }
+        }
     }
 
     private func canvas(scale: CGFloat) -> some View {
@@ -314,23 +401,23 @@ struct ScreenshotEditorView: View {
                 ScreenshotAnnotationRenderer.draw(annotations, in: cg)
             }
         }
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    if dragStart == nil { dragStart = value.startLocation }
+        .overlay(
+            CanvasMouseView(
+                onChanged: { start, current, secondary in
                     model.dragChanged(
-                        from: imagePoint(value.startLocation, scale: scale),
-                        to: imagePoint(value.location, scale: scale),
-                        scale: scale)
-                }
-                .onEnded { value in
-                    dragStart = nil
+                        from: imagePoint(start, scale: scale),
+                        to: imagePoint(current, scale: scale),
+                        scale: scale,
+                        secondary: secondary)
+                },
+                onEnded: { start, end, secondary in
                     model.dragEnded(
-                        from: imagePoint(value.startLocation, scale: scale),
-                        to: imagePoint(value.location, scale: scale),
-                        scale: scale)
-                    if model.tool == .text { textEntryFocused = true }
-                })
+                        from: imagePoint(start, scale: scale),
+                        to: imagePoint(end, scale: scale),
+                        scale: scale,
+                        secondary: secondary)
+                    if model.tool == .text, !secondary { textEntryFocused = true }
+                }))
     }
 
     private func textEntryField(
@@ -388,7 +475,7 @@ struct ScreenshotEditorView: View {
             }
             model.isExporting = false
             core.hud.show(title: "Screenshot Copied", symbol: "checkmark.circle")
-            core.closePluginWindow(id: "screenshot-editor")
+            core.closePluginWindow(id: Self.windowID)
         }
     }
 
@@ -434,5 +521,57 @@ struct ScreenshotEditorView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         return "Screenshot \(formatter.string(from: now)).\(format.fileExtension)"
+    }
+}
+
+/// SwiftUI's DragGesture only speaks the primary button, so the canvas listens through AppKit:
+/// the rectangle tool's right-drag arrow needs both buttons on one surface.
+private struct CanvasMouseView: NSViewRepresentable {
+    var onChanged: (CGPoint, CGPoint, Bool) -> Void
+    var onEnded: (CGPoint, CGPoint, Bool) -> Void
+
+    func makeNSView(context: Context) -> MouseView {
+        let view = MouseView()
+        view.onChanged = onChanged
+        view.onEnded = onEnded
+        return view
+    }
+
+    func updateNSView(_ view: MouseView, context: Context) {
+        view.onChanged = onChanged
+        view.onEnded = onEnded
+    }
+
+    final class MouseView: NSView {
+        var onChanged: ((CGPoint, CGPoint, Bool) -> Void)?
+        var onEnded: ((CGPoint, CGPoint, Bool) -> Void)?
+        private var dragStart: CGPoint?
+        private var secondary = false
+
+        // Top-left origin, matching the SwiftUI canvas the view overlays.
+        override var isFlipped: Bool { true }
+
+        override func mouseDown(with event: NSEvent) { begin(event, secondary: false) }
+        override func rightMouseDown(with event: NSEvent) { begin(event, secondary: true) }
+        override func mouseDragged(with event: NSEvent) { moved(event) }
+        override func rightMouseDragged(with event: NSEvent) { moved(event) }
+        override func mouseUp(with event: NSEvent) { ended(event) }
+        override func rightMouseUp(with event: NSEvent) { ended(event) }
+
+        private func begin(_ event: NSEvent, secondary: Bool) {
+            dragStart = convert(event.locationInWindow, from: nil)
+            self.secondary = secondary
+        }
+
+        private func moved(_ event: NSEvent) {
+            guard let dragStart else { return }
+            onChanged?(dragStart, convert(event.locationInWindow, from: nil), secondary)
+        }
+
+        private func ended(_ event: NSEvent) {
+            guard let dragStart else { return }
+            self.dragStart = nil
+            onEnded?(dragStart, convert(event.locationInWindow, from: nil), secondary)
+        }
     }
 }

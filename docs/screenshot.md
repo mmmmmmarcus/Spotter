@@ -133,19 +133,30 @@ frame with a 4-point radius and a `0/4/16` 40%-black shadow spread by 4, aspect-
 bottom edge. The frame stays white in both appearances — it is part of the artwork, like the macOS
 capture thumbnail, not palette chrome. It resolves from a 10-point blur to sharp over 0.26s and
 blurs back out over 0.18s before the panel orders out — a focus-in, with no scale or offset, so
-nothing about the thumbnail moves as it appears. The shadow padding absorbs the blur, which spreads
-the artwork past its own bounds while it resolves. The pure
+nothing about the thumbnail moves as it appears. The blur applies to the card alone and the shadow is
+cast after it: the shadow hangs below the card, so blurring a composite that includes it smears that
+dark mass asymmetrically and the bright card reads as drifting downward. Layout is settled at the
+final geometry before the appear animation starts, so no first frame renders at a stale size. The
+shadow padding absorbs the blur, which spreads the artwork past its own bounds while it resolves. The pure
 `ScreenshotThumbnail` resolves the outer size, so a tall or one-pixel-tall capture still gets a
-visible thumbnail rather than a letterboxed box.
+visible thumbnail rather than a letterboxed box. Its hosting view installs through `PanelHosting` as
+a subview, never the panel's `contentView` — the animated blur during a display-cycle flush is
+exactly the timing macOS 26's content-view extrema path crashes on.
 
 Clicking it opens the mark-up editor on the retained capture. **Return** opens it too: the panel
 never becomes key — Spotter must not take focus from the app the capture came from — so Return
 arrives through a transient Carbon key held by `HotKeyManager.holdTransientKey` only while the
 thumbnail is on screen. That key is not a user binding: nothing persists, it never reaches Settings
 or a conflict check, and Carbon *consumes* Return system-wide for the few seconds the thumbnail is
-up, which is why it is released on every dismissal path. The thumbnail dismisses when the user
-activates another app (`NSWorkspace.didActivateApplicationNotification`), after 3.5 seconds, or on
-click; hovering holds it. The manager retains the last capture (raw pixels plus the corner treatment
+up, which is why it is released on every dismissal path. Scrolling over the thumbnail works it like a notification banner: push it down to dismiss, lift it up
+to open the editor, after 24 points of travel so a stray twitch does nothing. That reads the physical
+gesture rather than the content-scroll sign — `isDirectionInvertedFromDevice` is unwound, so the same
+finger movement means the same thing whether or not natural scrolling is on, and a wheel's notches
+map to the same two directions. SwiftUI has no scroll hook for a view that is not a scroll view, so
+the panel's hosting view overrides `scrollWheel` and hands the event to the HUD. The thumbnail
+dismisses when the user activates another app
+(`NSWorkspace.didActivateApplicationNotification`), after 3.5 seconds, on click, or on a downward
+scroll; hovering holds it. The manager retains the last capture (raw pixels plus the corner treatment
 the clipboard copy received) until the next capture or until the plugin is disabled, which also
 dismisses the thumbnail and closes the editor.
 
@@ -156,9 +167,32 @@ mouse-down for a window drag whenever the hit view reports `mouseDownCanMoveWind
 clears for controls but not for a `Canvas` carrying only a `DragGesture` — so a stroke on the capture
 also moved the window. The toolbar strip carries an explicit `WindowDragGesture()` instead, making it
 the one deliberate handle; its controls take their own clicks first, so only the gaps between them
-drag. The toolbar offers five tools — arrow, rectangle, ellipse, freehand and text — an
-eight-color palette, three stroke presets, and undo/redo (⌘Z / ⇧⌘Z). Marks are committed on
-mouse-up; a sub-3-point drag is discarded as a misclick. The text tool places an inline field at the
+drag. Four tools stack in a floating card at the canvas's bottom-left — Rectangle (R), Oval (O),
+Pencil (P) and Text (T) — and the eight-color palette mirrors it at the bottom-right; the three stroke
+weights sit under the colors in that same card, each with a full-cell hit target — a `.clear` fill
+takes no hits, so before that an unselected weight was only clickable on its 4-point dot. The top bar is only actions, all `.controlSize(.extraLarge)` with `.imageScale(.large)` so the
+glyphs grow with them, in a 68-point bar shared with the window sizing: a
+capsule **Cancel** at the leading edge, then undo/redo, Save (⌘S) and Copy (⌘↩) as circular
+icon-only Liquid Glass buttons with Copy prominent. Undo and redo sit in a `GlassEffectContainer`
+spaced two points apart, so their glass shapes merge and read as one control. Each icon button
+carries a `Label`, so the same string is its tooltip and its VoiceOver name. The bar remains the
+window's drag handle.
+
+The window hides its traffic lights (`hidesStandardButtons`) and closes through that Cancel button
+instead, which is why the button is load-bearing rather than decorative. It also opens with nothing
+focused (`clearsInitialFocus`): AppKit otherwise hands first responder to the first control in the
+key-view loop, ringing a button the user never chose. Only the initial focus is dropped — Tab still
+moves focus and still draws its ring. Escape triggers it, but only
+while no text annotation is being typed — otherwise Escape would close the window out from under a
+half-written mark instead of discarding it, the same gating the tool letters use. The window is
+`transparent`, filled by an `NSVisualEffectView` `.hudWindow` on `.behindWindow` blending and clipped
+to `Radius.window`: a SwiftUI `Material` blurs only what is inside the app, so the desktop would stay
+opaque behind it.
+Each tool's bare letter selects it, attached as a key equivalent only while no text annotation is
+being typed, since a bare letter would otherwise fire mid-word. There is no separate arrow tool: the
+rectangle tool draws a rectangle with the left button and an arrow with the right, which is why the
+canvas listens through an AppKit overlay — SwiftUI's `DragGesture` only speaks the primary button.
+Marks are committed on mouse-up; a sub-3-point drag is discarded as a misclick. The text tool places an inline field at the
 click point (Return commits, Escape discards), rendered bold with a soft dark halo for legibility.
 
 All annotation geometry lives in image pixel space with a top-left origin, so the live canvas and

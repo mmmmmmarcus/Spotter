@@ -206,6 +206,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         id: String, title: String, size: CGSize, seamlessTitleBar: Bool = false,
         resizable: Bool = false, floating: Bool = false, transparent: Bool = false,
         minimumSize: CGSize? = nil, closeButtonOnly: Bool = false,
+        hidesStandardButtons: Bool = false, clearsInitialFocus: Bool = false,
         contentExtendsIntoTitleBar: Bool = false, movableByBackground: Bool = true,
         @ViewBuilder content: () -> Content
     ) -> Bool {
@@ -247,6 +248,12 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
                 window.standardWindowButton(.miniaturizeButton)?.isHidden = true
                 window.standardWindowButton(.zoomButton)?.isHidden = true
             }
+            // A window that supplies its own close control hides the traffic lights entirely; it must then keep that control reachable, since nothing else closes it.
+            if hidesStandardButtons {
+                for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                    window.standardWindowButton(button)?.isHidden = true
+                }
+            }
             window.isReleasedWhenClosed = false
             let rootView = content()
             let hosting: NSHostingView<Content>
@@ -270,6 +277,8 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         // A plain `NSWindow` only becomes key while the app is active, but `NSApp.activate` from the menu bar is async, so the synchronous `makeKeyAndOrderFront` above can land first; re-asserting key on the next runloop makes the window truly key up front.
         DispatchQueue.main.async {
             window.makeKeyAndOrderFront(nil)
+            // AppKit hands first responder to the first control in the key-view loop, which rings a button the user never chose. Only the *initial* focus is dropped — Tab still moves focus and still draws its ring.
+            if clearsInitialFocus { window.makeFirstResponder(nil) }
         }
         return isNew
     }

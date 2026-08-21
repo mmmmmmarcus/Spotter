@@ -11,7 +11,7 @@ struct SpotterApp: App {
 
     var body: some Scene {
         MenuBarExtra(
-            appName, systemImage: "macwindow.on.rectangle", isInserted: $showInMenuBar
+            appName, systemImage: "bolt.square.fill", isInserted: $showInMenuBar
         ) {
             Button("Open \(appName)") { AppCore.shared.showPalette(mode: .launcher) }
             Button("Clipboard History") { AppCore.shared.showPalette(mode: .clipboard) }

@@ -51,7 +51,7 @@ enum ScreenshotPlugin {
 }
 
 extension AppCore {
-    private static let screenshotEditorWindowID = "screenshot-editor"
+    private static let screenshotEditorWindowID = ScreenshotEditorView.windowID
 
     /// The post-capture mark-up workspace; each capture opens fresh on the latest image.
     func showScreenshotEditor() {
@@ -62,7 +62,10 @@ extension AppCore {
             title: "Screenshot",
             size: Self.screenshotEditorWindowSize(for: capture.image),
             resizable: true,
+            transparent: true,
             minimumSize: CGSize(width: 760, height: 420),
+            hidesStandardButtons: true,
+            clearsInitialFocus: true,
             contentExtendsIntoTitleBar: true,
             movableByBackground: false
         ) {
@@ -85,7 +88,7 @@ extension AppCore {
     /// The capture at native points plus the toolbar, clamped into the visible frame.
     private static func screenshotEditorWindowSize(for image: CGImage) -> CGSize {
         let scale = NSScreen.main?.backingScaleFactor ?? 2
-        let toolbarHeight: CGFloat = 52
+        let toolbarHeight = ScreenshotEditorView.toolbarHeight
         let canvasPadding = Theme.Spacing.xl * 2
         let content = CGSize(
             width: CGFloat(image.width) / scale + canvasPadding,

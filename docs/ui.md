@@ -61,7 +61,7 @@ section's closing padding). See "Section headers" below.
 
 ### Radius (`Theme.Radius`)
 
-`panel 26` · `noteWindow 20` · `row 10` · `card 10` · `menuPanel 16` · `menu 6` ·
+`panel 26` · `window 20` · `row 10` · `card 10` · `menuPanel 16` · `menu 6` ·
 `menuRow 10` · `thumbnail 6` · `keyCap 6` · `recorderKeyCap 4`
 
 `menu` is the shared small-control corner (sidebar tiles, About link pills); `menuRow` is the slightly rounder hover highlight behind popover-menu rows.
@@ -261,6 +261,7 @@ Glass is **only** for floating controls, never the main surface.
 - `View.frosted(in:)` = `glassEffect(.regular.interactive().tint(glassFrost), in:)` + `.tint(.clear)` — interactive lensing with a whitish frost tint (`glassFrost`) so the glass reads brighter than clear. Used on the action-group capsule and the menu circle; tune the frost amount via the `glassFrost` token, not per call site.
 - **Menus are in-window overlays, not system popovers.** `.contextMenu`/`NSMenu` stall clicks for seconds inside a `LazyVStack` and spill outside the panel. Use `PopoverMenu` anchored to a bottom corner via `.overlay`, inset `menuInset` (8pt) so its own corner isn't clipped by the panel's.
 - **`PopoverMenu`** uses `glassEffect(.regular, in: RoundedRectangle(menuPanel 16))` with **no hand-tuned shadow** — Tahoe glass carries its own elevation; adding a drop shadow reads heavy and non-native.
+- For *buttons*, use the system styles rather than wrapping a plain button in glass: `.buttonStyle(.glass)`, and `.glassProminent` for the one primary action in a group. `.buttonBorderShape(.circle)`/`.capsule` sets the shape, and a `GlassEffectContainer` with small spacing merges neighbouring glass shapes into one control (the editor's undo/redo pair). The screenshot editor's action bar is the reference — icon-only `Label`s, so one string serves as both tooltip and VoiceOver name, and Copy is the prominent one.
 - `PopoverMenuRow`: leading glyph, label, trailing shortcut glyph, `menuHover` fill on hover, `menuRow 10` corner. Menus animate in with `.opacity + .scale(0.96)` from the anchored corner, `easeOut 0.14`.
 - The glyph is a `PopoverMenuIcon`: `.symbol` (SF Symbol, `hierarchical`, secondary — or **red** when `isDestructive`) or `.file` (a real app icon via `IconCache`, used by the paste rows to show the paste target). `PopoverMenuItem` keeps a `systemImage:` convenience init, so symbol rows read exactly as before.
 - **Both glyph kinds share one square `menuIcon` (20) slot**, which is what makes symbol and app-icon rows read as the same size and pins a single row height. 20 is deliberately larger than the artwork looks: an `IconCache` icon paints only ~85% of its canvas (13pt visible at a 16pt slot), while a `.body` SF Symbol renders 17–18pt tall — at 20 the icon lands on 17pt and the two match. Measure before changing it.
@@ -279,15 +280,16 @@ The panel is `.nonactivatingPanel`, `ignoresMouseEvents`, and never becomes key:
 acted on the app the user came from, and taking focus back to report on it would undo the thing being
 reported. Centered horizontally, `hudBottomMargin` (120) above the
 visible frame's bottom edge so it clears the Dock — the placement macOS uses for its own volume HUD.
-Centering needs the content's size, and getting it has one constraint worth knowing. Every in-window
-hosting view in Spotter carries `sizingOptions = []` so SwiftUI never drives a window frame — but a
-sizing-optionless hosting view reports a zero `fittingSize`, which once centered a zero-width window
-and left the HUD hanging off the screen's midpoint. Adding a sizing option to the panel's own host is
-*not* the fix: it also feeds AppKit's window content-size extrema, so SwiftUI re-invalidates layout
-from inside the window's own constraint pass, which macOS 26 turns into an uncaught exception. The
-size is measured on a throwaway hosting view instead — `.intrinsicContentSize`, never installed in a
-window, so it cannot post a constraint update to one — which also reports the current content
-immediately, with no forced layout pass. It picks the screen under the
+Centering needs the content's size, and getting it has one constraint worth knowing: an in-window
+hosting view with `sizingOptions = []` reports a zero `fittingSize`, which once centered a zero-width
+window and left the HUD hanging off the screen's midpoint. The size is measured on a throwaway
+hosting view instead — `.intrinsicContentSize`, never installed in a window — which also reports the
+current content immediately, with no forced layout pass. Both HUD panels install their hosting view
+through `PanelHosting` as a plain subview, never as the window's `contentView`: a content-view
+`NSHostingView` runs AppKit's window content-size extrema update inside the window's own constraint
+pass, and a view-graph invalidation landing right there — an animation mid-flight during a
+display-cycle flush — is an uncaught exception on macOS 26 (both 1.5.2 crash reports). A subview
+hosting view never drives window sizing, so that path cannot start. It picks the screen under the
 cursor, holds for 1.4s, then fades over 0.22s; a second command mid-fade resets it to full opacity
 rather than resuming the dissolve. Same glass as `PopoverMenu` (`menuPanel` radius, no hand shadow).
 A no-op's glyph is `.secondary` — it reports that nothing happened. Beyond system commands, any
@@ -301,9 +303,11 @@ A capture reports through its own thumbnail rather than the worded HUD: no text,
 just the shot in a 4pt white frame (4pt radius, `0/4/16` 40%-black shadow spread by 4) aspect-fitted
 into 124×73pt, at the same centered `hudBottomMargin` placement. The frame is white in both
 appearances because it is artwork, not chrome. It resolves from a 10pt blur to sharp over 0.26s and
-blurs back out over 0.18s, in place — no scale, no offset. Clicking it or pressing Return opens the
-editor; it dismisses when another app activates, after 3.5s, or on click, and hovering holds it. Like the command HUD the panel never
-becomes key, which is why Return is a transient Carbon key rather than a responder-chain key press.
+blurs back out over 0.18s, in place — no scale, no offset. Clicking it, pressing Return or lifting it
+with a scroll opens the editor; pushing it down with a scroll dismisses it, as does another app
+activating, 3.5s passing, or a click. Hovering holds it. Like the command HUD the panel never becomes
+key, which is why Return is a transient Carbon key rather than a responder-chain key press, and why
+the scroll is read through an `NSHostingView` subclass rather than a SwiftUI gesture.
 
 ## Screenshot selection overlay — `Plugins/Screenshot/ScreenshotManager.swift`
 
