@@ -43,9 +43,10 @@ strongest one becomes the entry's base relevance:
 
 | Band | Field | Match strength |
 | --- | --- | --- |
-| 6 | the user's own alias | literal, and anchored — exact / prefix |
-| 5 | display name (plus a snippet's keyword) | literal — exact / prefix / word-start / substring |
-| 4 | Spotlight alternate names | literal |
+| 7 | the user's own alias | literal — exact / prefix / word-start / substring |
+| 6 | display name (plus a snippet's keyword) | literal |
+| 5 | Spotlight alternate names | literal |
+| 4 | the user's own alias | subsequence |
 | 3 | display name | subsequence |
 | 2 | Spotlight alternate names | subsequence |
 | 1 | bundle identifier | literal only |
@@ -79,10 +80,10 @@ restore may carry it.
 forces a rescan; the store's revision counter joins the match-cache key, since an edit reorders the
 same query over the same apps. A row shows its alias as a small chip after the name.
 
-The band is deliberately **literal-only and anchored**: only a hit from the alias's start claims band
-6, a hit buried inside it ranks like a vendor alias instead, and a subsequence never matches at all
-(`fga` will not find an alias `figalias`). Predictability beats reach for a field the user typed
-themselves.
+The alias is simply the **strongest field**: it matches on exactly the same terms as a display name,
+literal and subsequence alike, and takes the top band of whichever group it lands in. So an alias
+`figalias` is found by `fig`, by `alias`, and by `fga` — and in each case it outranks the same hit on
+any vendor-supplied field.
 
 ### Alternate names
 
