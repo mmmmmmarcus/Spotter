@@ -99,6 +99,10 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
     /// Dismiss when the palette loses key status (click-away, ⌘-Tab, app switch).
     func windowDidResignKey(_ notification: Notification) {
         guard isVisible else { return }
+        // A capture overlay takes key across every display; that must not count as the user
+        // clicking away, or the launcher would vanish even with Hide Spotter off. Reading the
+        // manager's live state needs no flag to reset, so no exit path can leave this stuck on.
+        guard !core.screenshot.isCapturing else { return }
         hide(restoreFocus: false)
     }
 

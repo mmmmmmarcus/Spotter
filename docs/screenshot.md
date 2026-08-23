@@ -51,15 +51,25 @@ clear without obscuring the source. Both that fill and the selection border foll
 appearance — white on dark, black on light — since a black outline disappears into a dark desktop. With Rounded Corners on, both that fill and the selection border
 use a four-physical-pixel radius on every display scale. Releasing the button accepts any region at
 least one point in both dimensions. Escape, a secondary click or a zero-area click cancels without
-touching the clipboard, and every exit path restores the cursor before removing the panels.
+touching the clipboard, and every exit path restores the cursor before removing the panels. Escape
+arrives two ways: the selection view's own `keyDown`, which only fires when the overlay actually
+holds keyboard focus, and — because that depends on what was frontmost when the shortcut fired — a
+transient Carbon key held for the life of the selection and released with the panels, the same
+mechanism the preview thumbnail uses for Return.
 
-## Window capture mode
+## Window and screen capture modes
 
-Space switches the live selection between region and window mode as often as the user likes; every
-capture starts in region mode. The manager owns the mode and pushes it to every panel at once, so the
+Space cycles the live selection: region → window → whole screen → region, as often as the user
+likes; every capture starts in region mode. The manager owns the mode and pushes it to every panel at once, so the
 displays never disagree. In window mode the pointer becomes `camera.viewfinder`, dragging is inert,
 and the window under the pointer is filled and outlined with the same tokens a dragged region uses.
 A left click captures the highlighted window; Escape and a secondary click still cancel.
+
+Screen mode is the same interaction one step further out: the pointer becomes `display`, the whole
+display under the pointer is highlighted, and a click captures it. It runs through the same
+display-capture path a dragged region uses, with the source rectangle set to the display's full
+bounds — so the resolution setting applies identically, and a Retina capture of a whole display is
+its framebuffer's pixel count. Nothing is rounded: a full display has no corners to clip.
 
 Each swap plays a short pointer transition, since a hardware cursor cannot animate itself: the
 outgoing symbol shrinks to 60% while it fades out, the incoming one grows from 60% back to full size
@@ -96,6 +106,10 @@ origin.
 
 ## Capture options
 
+Screen mode is also the quickest way to check the Resolution setting end to end: a Retina capture of
+a whole display should match that display's framebuffer exactly (its point size times its backing
+scale), and `1x` should match its point size.
+
 Three preferences shape what a capture produces. All persist under bundle-scoped
 `screenshot.*` keys, ride the trusted v3 backup/sync snapshot and apply live.
 
@@ -107,6 +121,16 @@ Three preferences shape what a capture produces. All persist under bundle-scoped
   already reserves the shadow margin, so only `ignoreShadowsSingleWindow` decides whether the shadow
   is drawn into that margin or cropped away. Region drags are unaffected: a dragged rectangle has no
   shadow to include.
+- **Hide Spotter While Capturing** — off by default. On, the launcher is dismissed and
+  `closeAuxiliaryWindows()` closes Settings, About and every plugin workspace before the selection
+  panels appear, so none of Spotter's own windows can land in the shot. Off, they all stay — which
+  takes more than skipping the dismissal: the overlay takes key across every display, and the
+  launcher hides on `windowDidResignKey`. `PaletteWindowController` therefore ignores a resign while
+  `screenshot.isCapturing`, read live rather than through a flag so no exit path can leave it stuck.
+  The HUDs are short-lived enough not to matter. It closes rather than merely hiding, so window state stays consistent — which
+  includes the mark-up editor, discarding any annotations not yet copied or saved. That is the same
+  thing that already happens when a new capture's thumbnail reopens the editor, so it is not a new
+  hazard, but it is why the setting ships off.
 - **File Format** — `PNG` (default) or `JPG`, used by the editor's Save. The clipboard copy stays
   TIFF in both cases: it is lossless and the format every app pastes, and a file-size choice buys
   nothing there. JPEG carries no alpha, so a rounded corner would encode as a hard black wedge — a
@@ -148,7 +172,34 @@ never becomes key — Spotter must not take focus from the app the capture came 
 arrives through a transient Carbon key held by `HotKeyManager.holdTransientKey` only while the
 thumbnail is on screen. That key is not a user binding: nothing persists, it never reaches Settings
 or a conflict check, and Carbon *consumes* Return system-wide for the few seconds the thumbnail is
-up, which is why it is released on every dismissal path. Scrolling over the thumbnail works it like a notification banner: push it down to dismiss, lift it up
+up, which is why it is released on every dismissal path. **Dragging the thumbnail off pins it.** Eight points of travel tears it out of the HUD into a
+`ScreenshotPinWindow`: a borderless floating panel three times the thumbnail's size, centred on the
+pointer and staying above every app. It is one uninterrupted gesture — the pin follows the pointer
+until the button comes up. That works because the thumbnail's panel is only made invisible at the
+tear-off, not ordered out: AppKit keeps delivering a drag to the view that received the mouse-down,
+so ordering the panel out would end the gesture. It is dismissed properly on mouse-up. For the same
+reason the pin scales up through SwiftUI rather than through an animated window frame, which would
+fight the drag: the frame is final from the first moment while the content grows into it over 0.24s.
+
+Dragging a pin's body moves it and dragging any corner resizes it — aspect-locked, holding the
+corner opposite the one being dragged, with both axes contributing so a diagonal drag tracks the
+pointer instead of answering only to horizontal movement, and the system frame-resize cursors mark
+the grab regions. A click opens that pin's own capture in the editor, which is not necessarily the
+newest one, and closes the pin as it goes — the capture is about to appear in a window that can
+actually edit it, so leaving the floating copy behind would be two of the same thing on screen.
+Other pins are untouched; each holds its own capture. Scrolling behaves exactly as it does on the thumbnail through the shared
+`ScreenshotScrollFlick`: lift to open the editor, push down to dismiss, over 0.16s. Several pins can
+float at once, each dropping out of the manager's list as it closes, and all of them close when the
+plugin is disabled.
+
+Every pointer decision on a pin — move, resize, click, flick — is resolved in AppKit rather than
+SwiftUI, because one press on one surface has to become a click, a drag or a resize depending on
+where it lands and how far it travels. The thumbnail's own press handling moved there for the same
+reason: a tap gesture cannot tell a click from a tear-off. Corner hit-testing reads `isFlipped`
+rather than assuming: `NSHostingView` is flipped, so a converted point already has a top-left
+origin, and flipping it again silently swapped the vertical corners and anchored the wrong side.
+
+Scrolling over the thumbnail works it like a notification banner: push it down to dismiss, lift it up
 to open the editor, after 24 points of travel so a stray twitch does nothing. That reads the physical
 gesture rather than the content-scroll sign — `isDirectionInvertedFromDevice` is unwound, so the same
 finger movement means the same thing whether or not natural scrolling is on, and a wheel's notches
@@ -194,6 +245,12 @@ rectangle tool draws a rectangle with the left button and an arrow with the righ
 canvas listens through an AppKit overlay — SwiftUI's `DragGesture` only speaks the primary button.
 Marks are committed on mouse-up; a sub-3-point drag is discarded as a misclick. The text tool places an inline field at the
 click point (Return commits, Escape discards), rendered bold with a soft dark halo for legibility.
+
+The canvas never enlarges the capture: the fit is capped at `1 / displayScale`, one image pixel per
+device pixel. Without that cap a small capture was stretched to fill the window's minimum size — on a
+Retina screen a 400×300 shot drew at 2×, soft enough to read as a bad capture rather than a zoomed
+preview. A capture smaller than the window now sits at 1:1 in the middle of it, and enlarging the
+window no longer softens anything. The minimum is 620×400, which is what the action bar needs.
 
 All annotation geometry lives in image pixel space with a top-left origin, so the live canvas and
 the export share every coordinate: the SwiftUI `Canvas` hands its CGContext to the same pure

@@ -323,8 +323,9 @@ the scroll is read through an `NSHostingView` subclass rather than a SwiftUI ges
 Screenshot is deliberately outside the palette surface: one transparent AppKit panel covers each
 display only for the duration of an explicit capture. The panels are non-activating, accept the first
 mouse click and leave the current app frontmost. For the bounded session the system pointer is replaced
-by one of two AppKit cursors built once from SF Symbols — `dot.crosshair` for region selection,
-`camera.viewfinder` for window selection — both drawn at 24-point `.medium` in
+by one of three AppKit cursors built once from SF Symbols — `dot.crosshair` for region selection,
+`camera.viewfinder` for window selection, `display` for whole-screen selection — all drawn at
+24-point `.medium` in
 `screenshotCrosshairFill`. Spotter dilates each glyph into a one-point external
 `screenshotCrosshairOutline` by stamping it around a 24-step circle, then draws the outlined artwork
 once through a two-point `screenshotCrosshairShadow` one point below it; three points of transparent
@@ -333,8 +334,8 @@ hotspot is the canvas center. It is not a second shape painted into the overlay.
 rects plus active-always mouse-move and explicit drag updates prevent Option-key release or the
 previous app's cursor rect from restoring the arrow before mouse-down, the window server is allowed
 to honor a background app's cursor for the session, and every exit restores the exact prior cursor.
-Space swaps the two symbols through a 140 ms (`Theme.Animation.quick`) cross-fade played as seven
-composed pointer frames: the outgoing symbol shrinks to 60% as it fades out, the incoming one grows
+Space advances a three-step cycle, each step a 140 ms (`Theme.Animation.quick`) cross-fade played as
+seven composed pointer frames: the outgoing symbol shrinks to 60% as it fades out, the incoming one grows
 from 60% to full size as it fades in, they overlap through the middle fifth, and neither ever exceeds
 its resting size. Window mode reuses the region overlay tokens: the hovered window is filled with
 `screenshotSelectionOverlay` and outlined with `screenshotSelectionBorder`, so both modes read as one

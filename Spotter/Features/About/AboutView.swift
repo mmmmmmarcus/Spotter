@@ -330,6 +330,12 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         windows[id]?.close()
     }
 
+    /// Closes every auxiliary window at once. `windowWillClose` mutates the dictionary, so it is
+    /// iterated over a copy of the values rather than in place.
+    func closeAll() {
+        for window in Array(windows.values) { window.close() }
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
             let id = windows.first(where: { $0.value === window })?.key

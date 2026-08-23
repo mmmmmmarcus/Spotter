@@ -55,7 +55,13 @@ extension AppCore {
 
     /// The post-capture mark-up workspace; each capture opens fresh on the latest image.
     func showScreenshotEditor() {
-        guard plugins.isEnabled(.screenshot), let capture = screenshot.lastCapture else { return }
+        guard let capture = screenshot.lastCapture else { return }
+        showScreenshotEditor(for: capture)
+    }
+
+    /// A pinned window edits the capture it holds, which is not necessarily the most recent one.
+    func showScreenshotEditor(for capture: ScreenshotCapturePayload) {
+        guard plugins.isEnabled(.screenshot) else { return }
         closePluginWindow(id: Self.screenshotEditorWindowID)
         showPluginWindow(
             id: Self.screenshotEditorWindowID,
@@ -63,7 +69,7 @@ extension AppCore {
             size: Self.screenshotEditorWindowSize(for: capture.image),
             resizable: true,
             transparent: true,
-            minimumSize: CGSize(width: 760, height: 420),
+            minimumSize: Self.screenshotEditorMinimumSize,
             hidesStandardButtons: true,
             clearsInitialFocus: true,
             contentExtendsIntoTitleBar: true,
@@ -73,10 +79,17 @@ extension AppCore {
         }
     }
 
-    /// The capture's own thumbnail replaces a worded HUD: click it or press Return to edit.
+    /// The capture's own thumbnail replaces a worded HUD: click it or press Return to edit, or drag
+    /// it off to leave it pinned above every app.
     private func showScreenshotPreview() {
         guard let capture = screenshot.lastCapture else { return }
         screenshot.preview.onOpen = { [weak self] in self?.showScreenshotEditor() }
+        screenshot.preview.onPin = { [weak self] thumbnail, point in
+            guard let self else { return nil }
+            return screenshot.pin(capture, thumbnail: thumbnail, at: point) { [weak self] pinned in
+                self?.showScreenshotEditor(for: pinned)
+            }
+        }
         screenshot.preview.show(capture.image)
     }
 
@@ -84,6 +97,11 @@ extension AppCore {
         closePluginWindow(id: Self.screenshotEditorWindowID)
         screenshot.clearLastCapture()
     }
+
+
+    /// Wide enough for the action bar and no wider; a small capture now sits at 1:1 inside it
+    /// rather than being stretched to fill.
+    private static let screenshotEditorMinimumSize = CGSize(width: 620, height: 400)
 
     /// The capture at native points plus the toolbar, clamped into the visible frame.
     private static func screenshotEditorWindowSize(for image: CGImage) -> CGSize {
@@ -97,8 +115,8 @@ extension AppCore {
             CGSize(width: $0.width * 0.85, height: $0.height * 0.85)
         } ?? CGSize(width: 1200, height: 800)
         return CGSize(
-            width: min(max(content.width, 760), limit.width),
-            height: min(max(content.height, 420), limit.height))
+            width: min(max(content.width, screenshotEditorMinimumSize.width), limit.width),
+            height: min(max(content.height, screenshotEditorMinimumSize.height), limit.height))
     }
 
     func captureScreenshot() {
@@ -111,7 +129,11 @@ extension AppCore {
             return
         }
         AppLog.info("screenshot", "Capture request reached AppCore.")
-        if isPaletteShowing { hidePalette() }
+        // Spotter's own windows only get out of the way when the user asks for it.
+        if screenshot.hidesSpotterWindows {
+            if isPaletteShowing { hidePalette() }
+            closeAuxiliaryWindows()
+        }
         screenshot.begin { [weak self] result in
             guard let self else { return }
             switch result {

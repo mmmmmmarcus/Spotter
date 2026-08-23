@@ -28,23 +28,24 @@ final class ScreenshotPreviewHUD {
 
     private static let transientKeyID = "screenshot.preview.return"
     private static let visibleDuration: Duration = .milliseconds(3500)
-    /// Points of travel before a scroll counts — a deliberate flick, not a stray twitch.
-    private static let scrollActivation: CGFloat = 24
 
     /// Fired by a click or by Return while the thumbnail is up.
     var onOpen: (() -> Void)?
+    /// Fired when the thumbnail is dragged off, with the pointer position it was torn from. The
+    /// pin it returns keeps following the same uninterrupted drag.
+    var onPin: ((CGSize, CGPoint) -> ScreenshotPinWindow?)?
 
     private let model = Model()
     private var panel: NSPanel?
     private var dismissal: Task<Void, Never>?
     private var activationObserver: NotificationToken?
-    private var scrollTravel: CGFloat = 0
-    private var scrollConsumed = false
+    private var flick = ScreenshotScrollFlick()
+    /// The pin torn off by the gesture in flight, so the same drag keeps moving it.
+    private var draggingPin: ScreenshotPinWindow?
     private unowned let hotKeys: HotKeyManager
 
     init(hotKeys: HotKeyManager) {
         self.hotKeys = hotKeys
-        model.onTap = { [weak self] in self?.open() }
         model.onHover = { [weak self] hovering in
             guard let self else { return }
             dismissal?.cancel()
@@ -69,8 +70,7 @@ final class ScreenshotPreviewHUD {
             model.isPresented = true
         }
 
-        scrollTravel = 0
-        scrollConsumed = false
+        flick.reset()
         hotKeys.holdTransientKey(
             id: Self.transientKeyID,
             shortcut: KeyShortcut(carbonKeyCode: kVK_Return, carbonModifiers: 0)
@@ -99,25 +99,22 @@ final class ScreenshotPreviewHUD {
         }
     }
 
-    /// Push the card down to send it away, lift it up to open the editor — the thumbnail is a card
-    /// you flick, like a notification banner, so this reads the *physical* gesture: natural
-    /// scrolling is unwound so the same finger movement means the same thing either way, and a
-    /// wheel's notches map to the same two directions.
+    /// Push the card down to send it away, lift it up to open the editor.
     private func handleScroll(_ event: NSEvent) {
-        if event.phase == .began || event.phase == .mayBegin {
-            scrollTravel = 0
-            scrollConsumed = false
+        switch flick.direction(for: event) {
+        case .down: dismiss()
+        case .up: open()
+        case nil: break
         }
-        guard !scrollConsumed else { return }
-        let delta = event.scrollingDeltaY
-        scrollTravel += event.isDirectionInvertedFromDevice ? delta : -delta
-        guard abs(scrollTravel) >= Self.scrollActivation else { return }
-        scrollConsumed = true
-        if scrollTravel > 0 {
-            dismiss()
-        } else {
-            open()
-        }
+    }
+
+    /// Hand the capture to a pinned window that takes over the drag already in progress. The panel
+    /// stays alive but invisible until the button comes up, because AppKit keeps delivering this
+    /// gesture to the view that received the mouse-down — ordering it out now would end the drag.
+    private func tearOff(at point: CGPoint) {
+        guard draggingPin == nil else { return }
+        panel?.alphaValue = 0
+        draggingPin = onPin?(model.thumbnailSize, point)
     }
 
     private func open() {
@@ -164,6 +161,14 @@ final class ScreenshotPreviewHUD {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         let host = FirstMouseHostingView(rootView: ScreenshotPreviewHUDView(model: model))
         host.onScroll = { [weak self] event in self?.handleScroll(event) }
+        host.onClick = { [weak self] in self?.open() }
+        host.onDragOff = { [weak self] point in self?.tearOff(at: point) }
+        host.onDragMove = { [weak self] point in self?.draggingPin?.move(center: point) }
+        host.onDragEnd = { [weak self] in
+            guard let self, draggingPin != nil else { return }
+            draggingPin = nil
+            dismiss()
+        }
         // A subview, not the contentView (see PanelHosting): the blur animating during a display-cycle constraint flush is exactly the timing the content-view extrema path crashes on. The frame is still set here, not by SwiftUI.
         PanelHosting.install(host, in: panel)
         return panel
@@ -196,15 +201,80 @@ final class ScreenshotPreviewHUD {
     }
 }
 
-/// Clicks must land while Spotter is inactive — the panel never becomes key. SwiftUI has no scroll
-/// hook for a view that is not a scroll view, so the wheel is read here and handed to the HUD.
+/// Turns wheel travel into a single up-or-down flick. Shared by the thumbnail and by pinned windows
+/// so both read the *physical* gesture: natural scrolling is unwound, so the same finger movement
+/// means the same thing either way, and a wheel's notches map to the same two directions.
+struct ScreenshotScrollFlick {
+    enum Direction { case up, down }
+
+    /// Points of travel before a scroll counts — a deliberate flick, not a stray twitch.
+    static let activation: CGFloat = 24
+
+    private var travel: CGFloat = 0
+    private var consumed = false
+
+    mutating func reset() {
+        travel = 0
+        consumed = false
+    }
+
+    mutating func direction(for event: NSEvent) -> Direction? {
+        if event.phase == .began || event.phase == .mayBegin { reset() }
+        guard !consumed else { return nil }
+        let delta = event.scrollingDeltaY
+        travel += event.isDirectionInvertedFromDevice ? delta : -delta
+        guard abs(travel) >= Self.activation else { return nil }
+        consumed = true
+        return travel > 0 ? .down : .up
+    }
+}
+
+/// Clicks must land while Spotter is inactive — the panel never becomes key. Pointer handling lives
+/// here rather than in SwiftUI because one press has to resolve into either a click or a tear-off,
+/// and because SwiftUI has no scroll hook for a view that is not a scroll view.
 private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     var onScroll: ((NSEvent) -> Void)?
+    var onClick: (() -> Void)?
+    var onDragOff: ((CGPoint) -> Void)?
+    var onDragMove: ((CGPoint) -> Void)?
+    var onDragEnd: (() -> Void)?
+
+    private var pressOrigin: CGPoint?
+    private var tearingOff = false
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func scrollWheel(with event: NSEvent) {
         onScroll?(event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        pressOrigin = NSEvent.mouseLocation
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let mouse = NSEvent.mouseLocation
+        if tearingOff {
+            onDragMove?(mouse)
+            return
+        }
+        guard let origin = pressOrigin else { return }
+        // Travel that turns a press into a tear-off rather than a click.
+        guard hypot(mouse.x - origin.x, mouse.y - origin.y) >= 8 else { return }
+        pressOrigin = nil
+        tearingOff = true
+        onDragOff?(mouse)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if tearingOff {
+            tearingOff = false
+            onDragEnd?()
+            return
+        }
+        guard pressOrigin != nil else { return }
+        pressOrigin = nil
+        onClick?()
     }
 }
 
@@ -213,7 +283,6 @@ private final class Model: ObservableObject {
     @Published var image: CGImage?
     @Published var thumbnailSize: CGSize = ScreenshotPreviewHUD.maximumSize
     @Published var isPresented = false
-    var onTap: (() -> Void)?
     var onHover: ((Bool) -> Void)?
 }
 
@@ -248,7 +317,6 @@ private struct ScreenshotPreviewHUDView: View {
                     x: 0,
                     y: ScreenshotPreviewHUD.shadowOffsetY)
                 .contentShape(Rectangle())
-                .onTapGesture { model.onTap?() }
                 .onHover { model.onHover?($0) }
                 .opacity(model.isPresented ? 1 : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

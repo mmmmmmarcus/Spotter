@@ -16,24 +16,35 @@ enum ScreenshotCursor {
 
     static let region = cursor(from: regionArtwork)
     static let window = cursor(from: windowArtwork)
+    static let screen = cursor(from: screenArtwork)
 
     private static let regionArtwork = artwork(symbolName: "dot.crosshair")
     private static let windowArtwork = artwork(symbolName: "camera.viewfinder")
+    private static let screenArtwork = artwork(symbolName: "display")
 
-    /// Both directions, composed on first use from artwork rasterized once — a frame is then two scaled draws.
+    /// One entry per step of the Space cycle, composed on first use from artwork rasterized once —
+    /// a frame is then two scaled draws. Keyed by the mode being entered, which is unambiguous
+    /// because Space only ever advances the cycle.
     private static let transitions: [ScreenshotCaptureMode: [NSCursor]] = {
-        guard let regionSource = regionArtwork, let windowSource = windowArtwork
+        guard let regionSource = regionArtwork, let windowSource = windowArtwork,
+            let screenSource = screenArtwork
         else { return [:] }
         let region = rasterized(regionSource)
         let window = rasterized(windowSource)
+        let screen = rasterized(screenSource)
         return [
             .window: frames(outgoing: region, incoming: window),
-            .region: frames(outgoing: window, incoming: region),
+            .screen: frames(outgoing: window, incoming: screen),
+            .region: frames(outgoing: screen, incoming: region),
         ]
     }()
 
     static func cursor(for mode: ScreenshotCaptureMode) -> NSCursor {
-        mode == .window ? window : region
+        switch mode {
+        case .region: region
+        case .window: window
+        case .screen: screen
+        }
     }
 
     /// The intermediate frames of a swap into `mode`; the animator lands on `cursor(for:)`, so a resting pointer is always the plain shared cursor.
@@ -42,6 +53,7 @@ enum ScreenshotCursor {
     }
 
     private static func frames(outgoing: NSImage, incoming: NSImage) -> [NSCursor] {
+        // Every frame shares one canvas so the hotspot never shifts between the three symbols.
         let size = CGSize(
             width: max(outgoing.size.width, incoming.size.width),
             height: max(outgoing.size.height, incoming.size.height))

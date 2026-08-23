@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import ScreenCaptureKit
 
@@ -16,12 +17,20 @@ struct ScreenshotCapturePayload: Sendable {
     let roundedCorners: Bool
 }
 
-/// Region selection is where every capture starts; Space swaps to picking a whole window and back.
-enum ScreenshotCaptureMode {
+/// Region selection is where every capture starts; Space cycles on through whole-window and
+/// whole-display picking and back around.
+enum ScreenshotCaptureMode: CaseIterable {
     case region
     case window
+    case screen
 
-    var toggled: ScreenshotCaptureMode { self == .region ? .window : .region }
+    var next: ScreenshotCaptureMode {
+        switch self {
+        case .region: .window
+        case .window: .screen
+        case .screen: .region
+        }
+    }
 }
 
 private enum ScreenshotCaptureFailure: LocalizedError {
@@ -43,6 +52,7 @@ final class ScreenshotManager: ObservableObject {
     private static let captureScaleKey = "screenshot.capture-scale"
     private static let fileFormatKey = "screenshot.file-format"
     private static let includesWindowShadowKey = "screenshot.includes-window-shadow"
+    private static let hidesSpotterWindowsKey = "screenshot.hides-spotter-windows"
 
     private var panels: [ScreenshotSelectionPanel] = []
     private var completion: ((ScreenshotCaptureResult) -> Void)?
@@ -55,8 +65,12 @@ final class ScreenshotManager: ObservableObject {
     /// The post-capture thumbnail. Created with the app's hotkey manager because Return reaches it
     /// through a transient system key rather than the responder chain.
     let preview: ScreenshotPreviewHUD
+    /// Every torn-off capture still floating on screen; each closes itself and drops out of here.
+    private var pins: [ScreenshotPinWindow] = []
     private let cursorAnimator = ScreenshotCursorAnimator()
+    private unowned let hotKeys: HotKeyManager
     private let defaults: UserDefaults
+    private static let escapeKeyID = "screenshot.selection.escape"
 
     @Published var roundedCorners: Bool {
         didSet {
@@ -87,7 +101,17 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
+    /// Off by default: closing the user's open windows is a bigger side effect than a capture
+    /// normally has, so it stays something they ask for.
+    @Published var hidesSpotterWindows: Bool {
+        didSet {
+            guard hidesSpotterWindows != oldValue else { return }
+            defaults.set(hidesSpotterWindows, forKey: Self.hidesSpotterWindowsKey)
+        }
+    }
+
     init(hotKeys: HotKeyManager, defaults: UserDefaults = .standard) {
+        self.hotKeys = hotKeys
         preview = ScreenshotPreviewHUD(hotKeys: hotKeys)
         self.defaults = defaults
         roundedCorners = defaults.object(forKey: Self.roundedCornersKey) == nil
@@ -97,6 +121,7 @@ final class ScreenshotManager: ObservableObject {
         fileFormat = defaults.string(forKey: Self.fileFormatKey)
             .flatMap(ScreenshotFileFormat.init(rawValue:)) ?? .png
         includesWindowShadow = defaults.bool(forKey: Self.includesWindowShadowKey)
+        hidesSpotterWindows = defaults.bool(forKey: Self.hidesSpotterWindowsKey)
         cursorAnimator.onFrame = { [weak self] cursor in
             guard let self else { return }
             for panel in panels { panel.apply(cursor: cursor) }
@@ -134,6 +159,16 @@ final class ScreenshotManager: ObservableObject {
 
         for panel in panels { panel.activate() }
         for panel in panels { panel.prepareForPresentation() }
+        // The view's own keyDown only fires when the overlay actually holds keyboard focus, which
+        // depends on what was frontmost when the shortcut fired. Escape is the one key that must
+        // always work, so it is claimed system-wide for the life of the selection and released
+        // with the panels.
+        hotKeys.holdTransientKey(
+            id: Self.escapeKeyID,
+            shortcut: KeyShortcut(carbonKeyCode: kVK_Escape, carbonModifiers: 0)
+        ) { [weak self] in
+            self?.cancel()
+        }
 
         let frames = panels.map { NSStringFromRect($0.frame) }.joined(separator: ", ")
         AppLog.info("screenshot", "Selection is active across \(panels.count) display(s): \(frames).")
@@ -146,7 +181,30 @@ final class ScreenshotManager: ObservableObject {
     /// Disabling the plugin drops the retained capture along with the editor that shows it.
     func clearLastCapture() {
         preview.dismiss()
+        closeAllPins()
         lastCapture = nil
+    }
+
+    /// Floats a capture above every app. `onOpen` is wired by the plugin, which owns the editor.
+    @discardableResult
+    func pin(
+        _ capture: ScreenshotCapturePayload, thumbnail: CGSize, at point: CGPoint,
+        onOpen: @escaping (ScreenshotCapturePayload) -> Void
+    ) -> ScreenshotPinWindow {
+        let pin = ScreenshotPinWindow(capture: capture)
+        pin.onOpen = onOpen
+        pin.onClose = { [weak self] closed in
+            self?.pins.removeAll { $0 === closed }
+        }
+        pins.append(pin)
+        pin.present(from: thumbnail, at: point)
+        AppLog.info("screenshot", "Pinned a capture; \(pins.count) pin(s) on screen.")
+        return pin
+    }
+
+    func closeAllPins() {
+        for pin in pins { pin.close() }
+        pins = []
     }
 
     private func makePanel(for screen: NSScreen) -> ScreenshotSelectionPanel {
@@ -158,7 +216,7 @@ final class ScreenshotManager: ObservableObject {
             guard let self, let screen else { return }
             finishSelection(localRect, on: screen)
         }
-        view.onWindowSelection = { [weak self] in self?.captureHoveredWindow() }
+        view.onWindowSelection = { [weak self] in self?.capturePickedTarget() }
         view.onToggleMode = { [weak self] in self?.toggleMode() }
         view.onPointerMoved = { [weak self] in self?.refreshHoveredWindow() }
         view.onCancel = { [weak self] in self?.cancel() }
@@ -166,15 +224,20 @@ final class ScreenshotManager: ObservableObject {
     }
 
     private func toggleMode() {
-        mode = mode.toggled
-        AppLog.info("screenshot", "Capture mode is now \(mode == .window ? "window" : "region").")
+        mode = mode.next
+        AppLog.info("screenshot", "Capture mode is now \(mode).")
         for panel in panels { panel.apply(mode: mode) }
         cursorAnimator.transition(to: mode)
         refreshHoveredWindow()
     }
 
-    /// Window mode highlights whatever sits under the pointer, so this reruns on every pointer move.
+    /// Window and screen modes highlight whatever sits under the pointer, so this reruns on every pointer move.
     private func refreshHoveredWindow() {
+        if mode == .screen {
+            hoveredWindow = nil
+            applyHighlight(Self.screenUnderPointer()?.frame)
+            return
+        }
         guard mode == .window else {
             guard hoveredWindow != nil else { return }
             hoveredWindow = nil
@@ -195,6 +258,12 @@ final class ScreenshotManager: ObservableObject {
                 ScreenshotWindowPicker.appKitRect(
                     fromDisplaySpace: $0.bounds, primaryScreenMaxY: primaryScreenMaxY)
             })
+    }
+
+    /// NSMouseInRect, not `contains`: on the top edge the pointer's y sits on `frame.maxY`.
+    private static func screenUnderPointer() -> NSScreen? {
+        NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+            ?? NSScreen.main
     }
 
     private func applyHighlight(_ globalRect: CGRect?) {
@@ -243,6 +312,42 @@ final class ScreenshotManager: ObservableObject {
                 await deliver(image, roundedCorners: roundedCorners)
             } catch {
                 AppLog.error("screenshot", "ScreenCaptureKit failed: \(error.localizedDescription)")
+                captureTask = nil
+                finish(.failed)
+            }
+        }
+    }
+
+    private func capturePickedTarget() {
+        if mode == .screen {
+            captureHoveredScreen()
+        } else {
+            captureHoveredWindow()
+        }
+    }
+
+    /// The whole display under the pointer, captured through the same display path a region uses —
+    /// the source rectangle is simply the display's full bounds.
+    private func captureHoveredScreen() {
+        guard let screen = Self.screenUnderPointer(), let displayID = screen.displayID else {
+            cancel()
+            return
+        }
+        let captureRect = CGRect(origin: .zero, size: screen.frame.size)
+        let captureScale = captureScale
+        dismissPanels()
+
+        captureTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            do {
+                let image = try await Self.captureImage(
+                    in: captureRect, displayID: displayID, scale: captureScale)
+                // A whole display has no corners to round; the desktop fills every pixel.
+                await deliver(image, roundedCorners: false)
+            } catch {
+                AppLog.error("screenshot", "Screen capture failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
             }
@@ -365,6 +470,7 @@ final class ScreenshotManager: ObservableObject {
     }
 
     private func dismissPanels() {
+        hotKeys.releaseTransientKey(id: Self.escapeKeyID)
         cursorAnimator.stop()
         for panel in panels { panel.deactivate() }
         panels = []
@@ -605,7 +711,7 @@ private final class ScreenshotSelectionView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawHitSurface()
-        if mode == .window {
+        if mode != .region {
             if let highlight, ScreenshotGeometry.isCapturable(highlight) {
                 drawSelection(highlight)
             }

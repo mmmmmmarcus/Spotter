@@ -560,6 +560,12 @@ final class AppCore: ObservableObject {
         }
     }
 
+    /// Closes Settings, About and every plugin workspace — used before a capture so Spotter's own
+    /// windows cannot end up in the shot.
+    func closeAuxiliaryWindows() {
+        auxWindows.closeAll()
+    }
+
     func closePluginWindow(id: String) {
         auxWindows.close(id: "plugin." + id)
     }

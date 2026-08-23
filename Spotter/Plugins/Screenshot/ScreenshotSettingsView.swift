@@ -49,6 +49,18 @@ struct ScreenshotSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
+                    title: "Hide Spotter While Capturing",
+                    subtitle: "Close Spotter's own windows — Settings and plugin workspaces — before the selection starts, so they cannot end up in the shot. The launcher always closes.",
+                    systemImage: "eye.slash",
+                    tint: .blue
+                ) {
+                    Toggle("", isOn: $screenshot.hidesSpotterWindows)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsDivider()
+                SettingsRow(
                     title: "Window Shadow",
                     subtitle: "Include the window's drop shadow when capturing a whole window.",
                     systemImage: "square.on.square.dashed",

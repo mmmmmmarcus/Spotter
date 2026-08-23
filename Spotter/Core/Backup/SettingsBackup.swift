@@ -125,6 +125,7 @@ struct SettingsBackup: Codable, Sendable {
             var captureScale: String?
             var fileFormat: String?
             var includesWindowShadow: Bool?
+            var hidesSpotterWindows: Bool?
         }
         struct SelectionTools: Codable, Sendable {
             var definitionPrompt: String?
@@ -343,7 +344,8 @@ extension SettingsBackup {
             roundedCorners: core.screenshot.roundedCorners,
             captureScale: core.screenshot.captureScale.rawValue,
             fileFormat: core.screenshot.fileFormat.rawValue,
-            includesWindowShadow: core.screenshot.includesWindowShadow)
+            includesWindowShadow: core.screenshot.includesWindowShadow,
+            hidesSpotterWindows: core.screenshot.hidesSpotterWindows)
         prefs.selectionTools = PluginPrefs.SelectionTools(
             definitionPrompt: core.aiChat.definitionPrompt,
             grammarPrompt: core.aiChat.grammarPrompt)
@@ -494,6 +496,10 @@ extension SettingsBackup {
         }
         if let shadow = prefs.screenshot?.includesWindowShadow {
             core.screenshot.includesWindowShadow = shadow
+            count += 1
+        }
+        if let hides = prefs.screenshot?.hidesSpotterWindows {
+            core.screenshot.hidesSpotterWindows = hides
             count += 1
         }
         if let selection = prefs.selectionTools {

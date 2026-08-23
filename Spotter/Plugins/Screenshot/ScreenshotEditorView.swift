@@ -175,6 +175,7 @@ struct ScreenshotEditorView: View {
     static let toolbarHeight: CGFloat = 68
 
     @EnvironmentObject private var core: AppCore
+    @Environment(\.displayScale) private var displayScale
     @StateObject private var model: ScreenshotEditorModel
     @FocusState private var textEntryFocused: Bool
 
@@ -439,12 +440,16 @@ struct ScreenshotEditorView: View {
             .offset(x: pending.origin.x * scale, y: pending.origin.y * scale)
     }
 
+    /// Points per image pixel. Capped at `1 / displayScale`, which is one image pixel per device
+    /// pixel: past that the canvas would be enlarging the capture, and a Retina screen would show a
+    /// small shot at 2× — soft enough to read as a bad capture rather than a zoomed preview.
     private func fittedSize(in available: CGSize) -> CGSize {
         let image = model.imageSize
         guard image.width > 0, image.height > 0, available.width > 0, available.height > 0 else {
             return CGSize(width: 1, height: 1)
         }
-        let scale = min(available.width / image.width, available.height / image.height, 1)
+        let oneToOne = 1 / max(displayScale, 1)
+        let scale = min(available.width / image.width, available.height / image.height, oneToOne)
         return CGSize(width: image.width * scale, height: image.height * scale)
     }
 
