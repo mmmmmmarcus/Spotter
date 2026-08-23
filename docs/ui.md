@@ -99,9 +99,9 @@ with a scale floor for the same reason. Changing the token moves both controls t
 
 System fonts only — **no fixed point sizes in views** (honors Dynamic Type). The header row is the one
 place explicit sizes live, because it is sized to a fixed slot rather than to text: `searchField`
-(20pt regular), `headerIcon` (18pt medium, the back chevron) and `headerModeIcon` (12pt medium, the
-cycle disc's glyph, sized to fit inside `headerIconSlot 22`). Use `rowTitle` (`.body`),
-`sectionHeader` (`.subheadline.medium`), `rowTrailing`/`bar`/`menuRow`/`keyCap` etc. as named.
+(20pt regular) and `headerIcon` (18pt medium, both the mode glyph and the back chevron). Use
+`rowTitle` (`.body`), `sectionHeader` (`.subheadline.medium`),
+`rowTrailing`/`bar`/`menuRow`/`keyCap` etc. as named.
 
 ### Colors (`Theme.Colors`) — the white-alpha ramp
 
@@ -143,7 +143,7 @@ appearances.
 
 - **`PalettePanel`** is a borderless `NSPanel`: `isOpaque = false`, `backgroundColor = .clear`, `.floating` level, `hasShadow`, `animationBehavior = .none`, `.fullSizeContentView`, drag-movable by its background. It hosts SwiftUI via `NSHostingView`. `PaletteWindowController` anchors its **top edge** at `paletteTopMarginFraction` (0.18) of the visible height, resolved once per summon so the window grows downward, and dismisses it on `windowDidResignKey`.
 - **The results layer fills the whole panel.** The header and bottom bar attach via `.safeAreaInset(edge: .top/.bottom)` as transparent overlays that float _over_ the list. The top inset carries `headerContentGap 10` of spacing so the results clear the search row; the gap is the inset's spacing rather than part of `headerHeight`, which would grow the compact bar and move the window anchor. The list underlaps them and dissolves at the edges.
-- **Header** (`headerHeight 44`): a **cycle disc** _or_ a back chevron, then the plain `TextField` (no border/background). A Tab-cycle stop (Apps, AI Chat, Clipboard, Emoji — see [palette.md](palette.md)) shows its mode glyph on a `controlSurface` circle filling `headerIconSlot`, with the glyph shrunk to `headerModeIcon 12` so it stays inside the same slot; clicking it cycles forward, exactly as Tab does, and the glyph swaps through `.symbolEffect(.replace)` over `Animation.symbolMorph 0.06` so the disc reads as one persistent control whose contents change rather than a "go back" arrow — deliberately quicker than `quick 0.14`, since it fires on every Tab and must finish before the next press rather than trail it. Every mode outside the cycle (Calculator History, Software Update, plugin screens) shows the back chevron instead. The slot is fixed at 22 in all three cases, so the search icon keeps aligning horizontally with row content and the field's x never moves between modes.
+- **Header** (`headerHeight 44`): a **mode glyph** _or_ a back chevron, then the plain `TextField` (no border/background). A Tab-cycle stop (Apps, AI Chat, Clipboard, Emoji — see [palette.md](palette.md)) shows its own mode glyph, so the header names the surface you are on rather than offering a way back out of it; clicking it cycles forward, exactly as Tab does. Every mode outside the cycle (Calculator History, Software Update, plugin screens) shows the back chevron instead. Both are bare `headerIcon` glyphs in the fixed `headerIconSlot 22` — no container, no fill — so the search icon keeps aligning horizontally with row content and the field's x never moves between modes. The glyph swap is **instant**: it fires on every Tab, and a transition there reads as lag rather than polish.
 - **Compact keyboard entry:** pressing `↓` in the collapsed launcher expands the results and selects the first row without replacing or defocusing the shared search field.
 - **Bottom bar** (`bottomBarHeight 52`): a menu circle on the left, the action group on the right — both floating glass, no bar background. The action group is one glass `Capsule` holding the primary-action pill (label + `↵`) and the Actions toggle (`⌘K`).
 

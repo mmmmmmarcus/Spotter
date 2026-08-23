@@ -741,27 +741,23 @@ struct RootPaletteView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.md) {
-            // A Tab-cycle stop shows its mode glyph in a disc — one persistent control whose contents
-            // change, so it reads as "switch" and not "go back". Every other mode is a sub-screen of
-            // the root search and keeps the back chevron.
+            // A Tab-cycle stop shows its own mode glyph, so the header names the surface you are on
+            // rather than offering a way back out of it. Every other mode is a sub-screen of the root
+            // search and keeps the back chevron. The swap is instant — it fires on every Tab, and a
+            // transition there reads as lag, not as polish.
             if modeCycle.contains(vm.mode) {
                 Button { cycleMode(forward: true) } label: {
                     Image(systemName: vm.mode.systemImage)
-                        .font(Theme.Typography.headerModeIcon)
+                        .font(Theme.Typography.headerIcon)
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(.secondary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(
-                            width: Theme.Size.headerIconSlot, height: Theme.Size.headerIconSlot
-                        )
-                        .background(Theme.Colors.controlSurface, in: Circle())
-                        .contentShape(Circle())
+                        .frame(width: Theme.Size.headerIconSlot)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                // Nothing in the palette is reachable by focus-walking — the search field is the one first responder, and a focus ring on the disc would be a stray control appearing mid-typing.
+                // Nothing in the palette is reachable by focus-walking — the search field is the one first responder, and a focus ring here would be a stray control appearing mid-typing.
                 .focusable(false)
                 .help("Switch surface (⇥)")
-                .animation(.easeInOut(duration: Theme.Animation.symbolMorph), value: vm.mode)
             } else {
                 Button(action: exitToLauncher) {
                     Image(systemName: "chevron.left")

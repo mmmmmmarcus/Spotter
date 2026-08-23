@@ -97,14 +97,6 @@ struct DashboardWidgetsView: View {
             .minimumScaleFactor(0.6)
     }
 
-    /// Nil until a reading carrying a daily block lands; until then the bar runs uncaptioned rather
-    /// than claiming a range it doesn't have.
-    private var barEnds: (low: String, high: String)? {
-        guard let reading = weather.reading else { return nil }
-        return DashboardWeatherEngine.formattedBarEnds(
-            lowCelsius: reading.lowCelsius, highCelsius: reading.highCelsius, unit: weather.unit)
-    }
-
     private var condition: WeatherCondition? {
         weather.reading.map {
             DashboardWeatherEngine.condition(forWeatherCode: $0.weatherCode, isDay: $0.isDay)
@@ -122,24 +114,30 @@ struct DashboardWidgetsView: View {
     /// three empty corners on the face while the first reading is still in flight.
     private var showsWeather: Bool { weather.isEnabled && weather.reading != nil }
 
-    /// Today's low and high, the pair a watch face carries under the current reading.
-    private var temperatureRangeText: String? {
-        guard let ends = barEnds else { return nil }
-        return "\(ends.low)–\(ends.high)"
+    /// The date's three parts, each in the clock's own time zone — a face abroad must not date
+    /// itself from home. Uppercased so the curved corner labels read as bezel engraving.
+    private func monthText(_ date: Date) -> String {
+        corner(date, style: Date.FormatStyle.dateTime.month(.abbreviated))
     }
 
-    /// The day, in the clock's own time zone — a face abroad must not date itself from home.
-    private func shortDate(_ date: Date) -> String {
-        var style = Date.FormatStyle.dateTime.weekday(.abbreviated).day()
+    private func dayText(_ date: Date) -> String {
+        corner(date, style: Date.FormatStyle.dateTime.day())
+    }
+
+    private func weekdayText(_ date: Date) -> String {
+        corner(date, style: Date.FormatStyle.dateTime.weekday(.abbreviated))
+    }
+
+    private func corner(_ date: Date, style: Date.FormatStyle) -> String {
+        var style = style
         style.timeZone = store.clockTimeZone
-        return date.formatted(style)
+        return date.formatted(style).uppercased()
     }
 
     private func clockAccessibilityLabel(_ now: Date) -> String {
         var parts = [formattedTime(now), formattedDate(now)]
         if showsWeather {
             parts.append(temperatureText)
-            if let range = temperatureRangeText { parts.append("range \(range)") }
             if let condition { parts.append(condition.description) }
         }
         return parts.joined(separator: ", ")
@@ -301,21 +299,24 @@ struct DashboardWidgetsView: View {
     /// How far the dial is held off the card's edge, leaving the lane the complications ride in.
     /// Every other card keeps a uniform `md` margin; this one spends its whole square, because the
     /// complications *are* its bezel and the dial is what the margin would otherwise shrink.
-    private static let clockFaceInset: CGFloat = 13
+    private static let clockFaceInset: CGFloat = 6
 
-    /// A watch face: the analog dial with its complications set along the bezel — the day top-right,
-    /// and, when weather is on and a reading has landed, the temperature top-left, today's range
-    /// bottom-left and the condition glyph bottom-right. A corner with nothing known stays empty
-    /// rather than drawing a placeholder, so the clock alone is still a clock.
+    /// A watch face: the analog dial with its complications set along the bezel — the date split
+    /// across three corners (month top-right, day bottom-left, weekday bottom-right) and, when
+    /// weather is on and a reading has landed, the temperature top-left with the condition glyph
+    /// inside the dial above the six. A corner with nothing known stays empty rather than drawing a
+    /// placeholder, so the clock alone is still a clock.
     private func clockCard(now: Date) -> some View {
         ZStack {
-            AnalogClockFace(timeZone: store.clockTimeZone)
+            AnalogClockFace(
+                timeZone: store.clockTimeZone,
+                conditionSymbol: showsWeather ? condition?.symbolName : nil)
                 .padding(Self.clockFaceInset)
             ClockComplicationRing(
                 topLeft: showsWeather ? temperatureText : nil,
-                topRight: shortDate(now),
-                bottomLeft: showsWeather ? temperatureRangeText : nil,
-                bottomRightSymbol: showsWeather ? condition?.symbolName : nil,
+                topRight: monthText(now),
+                bottomLeft: dayText(now),
+                bottomRight: weekdayText(now),
                 color: Theme.Colors.textSecondary)
         }
         .frame(
@@ -520,13 +521,12 @@ private struct DashboardFileIcon: View {
 /// The clock's corner complications, set along the bezel the way a watch face carries them: each
 /// label is laid out character by character around one circle, so it curves with the dial instead of
 /// sitting square in a corner. The two bottom labels run the other way round and are turned over, or
-/// they would read upside down. The condition glyph stays level — a tilted icon reads as a mistake,
-/// and watch faces keep theirs upright too.
+/// they would read upside down.
 private struct ClockComplicationRing: View {
     var topLeft: String?
     var topRight: String?
     var bottomLeft: String?
-    var bottomRightSymbol: String?
+    var bottomRight: String?
     let color: Color
 
     /// Degrees clockwise from 12 o'clock, matching the face's own angle convention.
@@ -534,36 +534,26 @@ private struct ClockComplicationRing: View {
     private static let topRightAngle = 45.0
     private static let bottomLeftAngle = 225.0
     private static let bottomRightAngle = 135.0
-    /// Small enough that a range ("18°–26°") still spans well under its quadrant at this diameter.
+    /// Small enough that the longest label ("100°F") still spans well under its quadrant here.
     private static let font = Font.system(size: 9, weight: .medium)
-    private static let symbolSize: CGFloat = 11
-    /// Half a cap height and a hair, so the arc sits inside the card rather than on its edge.
-    private static let ringInset: CGFloat = 6
+    /// Negative on purpose: the labels ride the corners, where the square reaches furthest past its
+    /// inscribed circle, so the arc is drawn wider than the card and the type still lands inside the
+    /// rounding. Past about -12 the ends of the longest label start clipping the straight edges.
+    private static let ringInset: CGFloat = -4
 
     var body: some View {
         GeometryReader { geometry in
             let radius = min(geometry.size.width, geometry.size.height) / 2 - Self.ringInset
-            ZStack {
-                Canvas { context, size in
-                    let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                    draw(topLeft, at: Self.topLeftAngle, flipped: false,
-                        context: &context, center: center, radius: radius)
-                    draw(topRight, at: Self.topRightAngle, flipped: false,
-                        context: &context, center: center, radius: radius)
-                    draw(bottomLeft, at: Self.bottomLeftAngle, flipped: true,
-                        context: &context, center: center, radius: radius)
-                }
-                if let bottomRightSymbol {
-                    Image(systemName: bottomRightSymbol)
-                        // Monochrome, like every other glyph on the strip — multicolor was the one
-                        // card that pulled Apple's own palette in instead of the app's.
-                        .symbolRenderingMode(.monochrome)
-                        .font(.system(size: Self.symbolSize))
-                        .foregroundStyle(color)
-                        .offset(
-                            x: radius * sin(Self.bottomRightAngle * .pi / 180),
-                            y: -radius * cos(Self.bottomRightAngle * .pi / 180))
-                }
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                draw(topLeft, at: Self.topLeftAngle, flipped: false,
+                    context: &context, center: center, radius: radius)
+                draw(topRight, at: Self.topRightAngle, flipped: false,
+                    context: &context, center: center, radius: radius)
+                draw(bottomLeft, at: Self.bottomLeftAngle, flipped: true,
+                    context: &context, center: center, radius: radius)
+                draw(bottomRight, at: Self.bottomRightAngle, flipped: true,
+                    context: &context, center: center, radius: radius)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
@@ -611,14 +601,36 @@ private struct ClockComplicationRing: View {
 /// A Clock-app-style face drawn in the palette's alpha ramp: ramp ticks, numerals and hands over the card fill, with an orange second hand — no opaque dial.
 private struct AnalogClockFace: View {
     let timeZone: TimeZone
+    var conditionSymbol: String?
+
+    /// Where the weather glyph sits, as a fraction of the dial's radius straight down from the hub —
+    /// clear of the hands' hub and short of the six, the slot a watch face keeps for it.
+    private static let complicationRadius: CGFloat = 0.44
+    private static let complicationSize: CGFloat = 11
 
     var body: some View {
-        // Its own timeline, at the display's refresh rate: the strip's one-second tick would step the
-        // second hand instead of sweeping it, and raising that cadence would redraw every other card too.
-        TimelineView(.animation) { context in
-            face(
-                angles: DashboardWidgetsEngine.clockHandAngles(
-                    for: context.date, timeZone: timeZone))
+        GeometryReader { geometry in
+            let radius = min(geometry.size.width, geometry.size.height) / 2
+            ZStack {
+                // Its own timeline, at the display's refresh rate: the strip's one-second tick would
+                // step the second hand instead of sweeping it, and raising that cadence would redraw
+                // every other card too.
+                TimelineView(.animation) { context in
+                    face(
+                        angles: DashboardWidgetsEngine.clockHandAngles(
+                            for: context.date, timeZone: timeZone))
+                }
+                if let conditionSymbol {
+                    Image(systemName: conditionSymbol)
+                        // Monochrome, like every other glyph on the strip — multicolor was the one
+                        // card that pulled Apple's own palette in instead of the app's.
+                        .symbolRenderingMode(.monochrome)
+                        .font(.system(size: Self.complicationSize))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .offset(y: radius * Self.complicationRadius)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
     }
 
@@ -637,7 +649,9 @@ private struct AnalogClockFace: View {
                     style: StrokeStyle(lineWidth: isHour ? 2 : 1, lineCap: .round))
             }
 
-            for hour in 1...12 {
+            // Only the quarters are numbered; the tick ring already says where the rest are, and a
+            // full set of twelve crowds the glyph slot above the six.
+            for hour in stride(from: 3, through: 12, by: 3) {
                 context.draw(
                     context.resolve(Text("\(hour)").font(.caption2.weight(.semibold))),
                     at: point(center: center, angle: .degrees(Double(hour) * 30), radius: radius * 0.70))

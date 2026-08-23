@@ -6,8 +6,6 @@ import SwiftUI
 enum Theme {
     enum Animation {
         static let quick: TimeInterval = 0.14
-        /// The header disc's glyph swap. Faster than `quick`: it fires on every Tab, so it has to finish before the next press rather than trail it.
-        static let symbolMorph: TimeInterval = 0.06
     }
 
     enum Spacing {
@@ -56,7 +54,7 @@ enum Theme {
         /// Fraction of the active screen's visible height between the top of the visible area and the palette's top edge; the window grows downward from this edge (Spotlight-style upper placement).
         static let paletteTopMarginFraction: CGFloat = 0.18
         static let headerHeight: CGFloat = 44
-        /// Fixed slot for the header leading control (cycle disc on a Tab-cycle mode, back chevron on a sub-screen) so the search field starts at the same x in every mode — glyphs have different intrinsic widths (chevron 14, magnifyingglass 22). Sized to the magnifyingglass so the launcher spacing is unchanged; the disc fills the slot exactly and shrinks its glyph to `headerModeIcon` to stay inside it.
+        /// Fixed slot for the header leading glyph (mode icon on a Tab-cycle mode, back chevron on a sub-screen) so the search field starts at the same x in every mode — glyphs have different intrinsic widths (chevron 14, magnifyingglass 22). Sized to the magnifyingglass so the launcher spacing is unchanged.
         static let headerIconSlot: CGFloat = 22
         /// Vertical breathing room above the search row — constant across compact/expanded so the bar never shifts when typing flips the state; also the compact bar's symmetric top/bottom slack.
         static let headerPadding: CGFloat = 10
@@ -113,8 +111,6 @@ enum Theme {
     enum Typography {
         static let searchField = Font.system(size: 20, weight: .regular)
         static let headerIcon = Font.system(size: 18, weight: .medium)
-        /// The mode glyph inside the header's cycle disc — smaller than `headerIcon` so the disc fits the same `headerIconSlot` and the search field's x never moves.
-        static let headerModeIcon = Font.system(size: 12, weight: .medium)
         static let rowTitle = Font.body
         static let rowTrailing = Font.callout
         static let sectionHeader = Font.subheadline.weight(.medium)

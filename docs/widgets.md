@@ -8,24 +8,28 @@ hides the strip immediately.
 
 The clock is the strip's watch face: a title-free analog dial following the selected time zone, with
 live hour, minute and second hands and the dashboard's adaptive translucent surface rather than an
-opaque dial. Four complications ride the bezel around it the way a watch face carries them — the day
-top-right, and, once weather is on and a reading has landed, the temperature top-left, today's range
-bottom-left and the condition glyph bottom-right. A corner with nothing known stays empty rather than
-drawing a placeholder, so a clock with weather off is still just a clock. Weather has no card of its
-own: it *is* those three complications, which is why it is configured in the Clock pane.
+opaque dial. Only the quarters are numbered — 12, 3, 6 and 9 — since the tick ring already says where
+the rest are. Complications ride the bezel around it the way a watch face carries them: the date is
+split across three corners (month top-right, day bottom-left, weekday bottom-right), and once weather
+is on and a reading has landed the temperature takes the fourth, top-left, with the condition glyph
+inside the dial above the six. A corner with nothing known stays empty rather than drawing a
+placeholder, so a clock with weather off is still just a clock. Weather has no card of its own: it
+*is* that corner and that glyph, which is why it is configured in the Clock pane.
 
 The clock is also the one card that spends its whole 116-point square rather than keeping the
 uniform `md` margin the others do: the complications *are* its bezel, so that margin would only have
-shrunk the dial. The arc rides at `ringInset` from the card's edge and the dial is held `clockFaceInset`
-inside it — 13 points, the tightest setting where a full range label ("18°–26°") still clears the
-tick ring at every corner.
+shrunk the dial. The complication arc rides at `ringInset`, which is *negative* (-4 points): the arc
+is wider than the card, because the corners the labels sit in reach further out than its inscribed
+circle, so the type still lands inside the rounding. The dial is held `clockFaceInset` — 6 points —
+inside the card, the tightest setting where the longest corner label still clears the tick ring.
 
 `ClockComplicationRing` sets each label **on a curve**, not square in a corner: the string is
 measured character by character and each glyph is drawn at the angle its own width has reached, then
 turned to stand on the tangent there, so the line follows the dial's circle. The two bottom labels
 run anticlockwise and are turned over, or they would read upside down at the foot of the circle.
 Resolving per character is what costs those strings their kerning — the usual trade for type on a
-curve. The condition glyph is the exception: it stays level, since a tilted icon reads as a mistake.
+curve. The condition glyph is not on that ring at all: it sits level inside the dial, on the radius
+between the hub and the six, since a tilted icon reads as a mistake.
 
 The calendar card shows only what is next, and the event's own title is the headline, ranged from the
 top-left corner with the time pinned to the bottom-left — an "Up Next" heading would spend the card's

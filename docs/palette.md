@@ -140,11 +140,11 @@ silent chord will be one of these cases:
   comes from one place. The panel only intercepts it in the clipboard — everywhere else ⌘. keeps
   meaning cancel.
 - **Shift-Tab** is AppKit's "previous key view" gesture: the field editor turns it into
-  `insertBacktab:` and walks the key-view loop, which lands focus on the header's cycle disc — so
+  `insertBacktab:` and walks the key-view loop, which lands focus on the header's mode-glyph button — so
   `onKeyPress` never fires *and* the search field stops being first responder. `PalettePanel.sendEvent`
   intercepts it outright and bumps `PaletteViewModel.backTabToken`, which `RootPaletteView` observes
   and routes into the same `handleTab(shift:)` that plain Tab uses, so one chord keeps one meaning.
-  Nothing in the panel is meant to be reachable by focus-walking, which is also why the disc is
+  Nothing in the panel is meant to be reachable by focus-walking, which is also why that button is
   `.focusable(false)`: a focus ring appearing on it mid-typing would be a stray control.
 - **Bare Backspace, Return and Escape** are consumed by the field editor before the key-press chain,
   and come back through `onBareBackspace` / `onBareReturn` / `onBareEscape` on the same panel.
