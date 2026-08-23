@@ -1,12 +1,62 @@
 # Widgets
 
-Widgets is the card strip above the launcher sections when the palette is on its empty
-query root. It shows an analog clock, the current weather, today's uptime, connected device
-batteries and the next calendar
-event. Each card can be shown or hidden independently, and every one of them is the same 116-point
-square. The title-free clock follows the selected time zone, draws live hour, minute and second
-hands, and keeps the dashboard's adaptive translucent surface instead of introducing an opaque clock
-face. Typing a query or switching palette mode hides the strip immediately.
+Widgets is the card strip above the launcher sections when the palette is on its empty query root. It
+shows an analog clock, today's uptime, connected device batteries, the next calendar event and the
+Finder selection. Every card is the same 116-point square, and which cards appear — and in what order
+— is set in one place, Settings → Widgets → **Arrangement**. Typing a query or switching palette mode
+hides the strip immediately.
+
+The clock is the strip's watch face: a title-free analog dial following the selected time zone, with
+live hour, minute and second hands and the dashboard's adaptive translucent surface rather than an
+opaque dial. Four complications ride the bezel around it the way a watch face carries them — the day
+top-right, and, once weather is on and a reading has landed, the temperature top-left, today's range
+bottom-left and the condition glyph bottom-right. A corner with nothing known stays empty rather than
+drawing a placeholder, so a clock with weather off is still just a clock. Weather has no card of its
+own: it *is* those three complications, which is why it is configured in the Clock pane.
+
+The clock is also the one card that spends its whole 116-point square rather than keeping the
+uniform `md` margin the others do: the complications *are* its bezel, so that margin would only have
+shrunk the dial. The arc rides at `ringInset` from the card's edge and the dial is held `clockFaceInset`
+inside it — 13 points, the tightest setting where a full range label ("18°–26°") still clears the
+tick ring at every corner.
+
+`ClockComplicationRing` sets each label **on a curve**, not square in a corner: the string is
+measured character by character and each glyph is drawn at the angle its own width has reached, then
+turned to stand on the tangent there, so the line follows the dial's circle. The two bottom labels
+run anticlockwise and are turned over, or they would read upside down at the foot of the circle.
+Resolving per character is what costs those strings their kerning — the usual trade for type on a
+curve. The condition glyph is the exception: it stays level, since a tilted icon reads as a mistake.
+
+The calendar card shows only what is next — the date left it for the clock's corner, so a second copy
+here would be the strip repeating itself.
+
+The File Info card states what is selected in the Finder: its kind in the title slot, its own Finder
+icon as the card's middle, then what it is called and how big it is. It reads a selection only when
+the Finder is the app the palette was summoned from, but it keeps its place in the row either way —
+with nothing to report it rests on a generic glyph under `FINDER` / `No selection`, because a card
+that came and went with the Finder's focus couldn't be relied on to be there.
+
+## Arrangement
+
+`DashboardWidgetPreferences.widgetOrder` is the strip order: every kind exactly once, kept complete so
+a card switched off keeps its place for when it comes back.
+`DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved — unknown raw values and
+duplicates drop out, and any kind the saved order predates lands at the end — so a new widget appears
+without a migration and the strip can index the result without a second existence check.
+`DashboardWidgetsEngine.reorder(_:moving:to:)` moves one kind to the position a dragged row was
+dropped on, rather than SwiftUI's `move(fromOffsets:toOffset:)` index, which is off by one downward.
+
+The Arrangement pane draws the strip as a row of tiles in that order — filled when the card is on,
+dash-outlined when it is off — and dragging one tile onto another puts it in that one's place. The
+list below repeats the widgets with a description, a switch, and up/down buttons as the keyboard path
+to the same reordering.
+
+`DashboardWidgetKind.ownsEnabledState` is what keeps that one pane honest: it is false for Uptime,
+whose switch is a consent act owned by `DashboardUptimeStore`, so the pane routes that one through
+the store and its dialog rather than through `enabledWidgets`. Device Battery is the one card that
+withholds itself even when switched on, because with nothing connected reporting a level an empty
+square would claim a reading it doesn't have; every other card either has something to say or has a
+resting state to say it in.
 
 ## Architecture
 
@@ -29,6 +79,14 @@ scan and the visible-only refresh loop. `DashboardDeviceBatteryEngine.swift` sta
 and pure: it resolves a device's category from its product name, clamps the level, orders the
 devices and builds the card's lines.
 
+File Info is a third pair for the same reason as the others — the half that shells out to the Finder
+stays isolated. `DashboardFileInfoStore`, owned by `AppCore`, holds the last snapshot and discards a
+read that lands after a newer one; `DashboardFileInfoReader` does the Apple Event and the `stat`s off
+the main actor, through `Core/FinderSelection.swift`, the one place in Spotter that asks the Finder
+what is selected (Image Modification's Finder input uses the same reader).
+`DashboardFileInfoEngine.swift` stays Foundation-only and pure — it decides what the card's three
+lines say — so the same harness covers it.
+
 Weather is a separate pair so the networked half stays isolated. `DashboardWeatherStore`, also owned
 by `AppCore`, owns consent, the chosen city, the unit, the cached reading and the refresh loop.
 `DashboardWeatherEngine.swift` stays Foundation-only and pure — it builds the request URLs and maps
@@ -49,9 +107,8 @@ shows a non-actionable restricted state instead of an empty-event claim.
 After full access is granted, the store exposes EventKit calendar sources as accounts. The user can
 include all accounts or one source such as iCloud, Google or Exchange, and can independently exclude
 all-day entries. The store queries EventKit from now through one year ahead and shows the earliest
-matching non-cancelled event. The card's date heading is formatted from the current instant rather
-than from EventKit, so every access state below `fullAccess` replaces only the card's bottom row —
-the day of the week and the date stay right whether or not Spotter can read a calendar. A selected account that is temporarily unavailable falls back to all
+matching non-cancelled event. Every access state below `fullAccess` fills the card's one content slot with what to
+do about it, rather than the card going missing. A selected account that is temporarily unavailable falls back to all
 available calendars rather than producing a false empty result. Calendar work starts when the
 dashboard becomes visible and stops when it leaves the palette.
 
@@ -156,25 +213,48 @@ card; turning the widget off deletes that file and clears the reading. Consent, 
 in the trusted settings backup/sync file — restoring one may switch the feature on, which is itself
 the consent act.
 
+## File Info and the Finder
+
+`Core/FinderSelection.swift` asks the Finder for `selection as alias list` through one `osascript`
+Apple Event, run off the main actor and drained before the wait. macOS asks for Automation access to
+the Finder the first time; a refusal reads as an empty selection — the card simply never appears, and
+macOS remembers the answer, so there is no repeat prompt. `DashboardFileInfoReader` then `stat`s each
+path for its localized name, kind and size. File contents are never opened, and nothing about the
+selection is persisted or sent anywhere.
+
+A **folder is counted, not weighed**: a size for it would mean crawling an unbounded tree on every
+summon. A **package is weighed**, because it is one item to the user rather than a container — its
+size is the sum of its regular files, abandoned above `packageFileLimit` (20,000 files) rather than
+run long. In a mixed selection the folders are named alongside the total, so the size never reads as
+covering something it left out.
+
+`AppCore.showPalette` calls `refreshDashboardFileInfo()` once per summon, and nothing watches the
+Finder between summons. The store only reads when the palette's recorded `previousApp` **is** the
+Finder; any other frontmost app clears the card instead of leaving a stale file on screen. While a
+read is in flight the previous snapshot stays up — the Finder is still frontmost, so it is nearly
+always the same selection, and clearing first would flash the card away and back.
+
 ## Settings and lifecycle
 
 Widgets is an always-available system feature, and the only registration placed `.widgets`: it has no
 Settings row of its own, contributing the sidebar's **Widgets** section between System and Plugins
-instead. Each card gets one row and one pane there — Clock, Weather, Uptime, Device Battery,
-Calendar, in the order
-the strip draws them — so a card is configured on its own rather than in a shared list of switches.
-Every pane opens with a `Widget` card holding that one card's show/hide switch, and reveals a
-`Details` card below it: the clock's time zone, the weather's city and unit, the uptime card's
-keyboard-permission state and Reset Today, the calendar's access, account and all-day preference.
-Device Battery's second card is a read-out rather than a setting — the devices found and their
-levels, so a Mac showing no card says why.
-Weather and Uptime show their details only while they are on, since both are consent-gated. Switching
-every card off hides the strip. Existing calendar-account, all-day-event and time-zone preferences
-remain unchanged, and saved identifiers for removed widgets are ignored. The permission overview
-exposes Calendar and Accessibility as global permissions, because the calendar card and the uptime
-card's key counting depend on them.
-Calendar refreshes occur only while the dashboard is visible, while uptime counting runs whenever
-the widget is on — a tally of the whole day would be wrong if it only accrued with the palette open.
-Permission views
-re-check authorization while visible so returning from System Settings updates them without a
-relaunch.
+instead. **Arrangement** is that section's first row and the only place a card is switched on or off;
+the rest are the cards themselves — Clock, Uptime, Device Battery, Calendar, File Info — each
+configured on its own rather than in a shared list of switches, and none of them carrying a
+show/hide switch of its own.
+
+Each pane holds only that card's details: the clock's time zone plus the whole weather section (its
+consent switch, city, unit and last reading), the uptime card's keyboard-permission state and Reset
+Today, the calendar's access, account and all-day preference. Device Battery's card is a read-out
+rather than a setting — the devices found and their levels, so a Mac showing no card says why — and
+File Info's is the same, explaining what is read and what never is. Uptime shows its details only
+while it is on, since it is consent-gated, and points at Arrangement when it is off. Switching every
+card off hides the strip.
+
+Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
+identifiers for removed widgets are ignored. The permission overview exposes Calendar, Accessibility
+and Automation as global permissions, because the calendar card, the uptime card's key counting and
+the File Info card depend on them respectively. Calendar refreshes occur only while the dashboard is
+visible, while uptime counting runs whenever the widget is on — a tally of the whole day would be
+wrong if it only accrued with the palette open. Permission views re-check authorization while visible
+so returning from System Settings updates them without a relaunch.

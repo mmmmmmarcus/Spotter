@@ -52,9 +52,32 @@ holds two independent actions, `togglePalette` and `togglePaletteBackup`, dispat
 toggle — either binding summons the palette, and shared conflict detection keeps them off the same
 shortcut. The set of bound
 bundle IDs lives in `boundAppBundleIDs` and is re-registered on launch. System Settings panes use
-`boundPaneBundleIDs`; custom commands use their stable UUIDs in `boundCustomCommandIDs`. Built-in
+`boundPaneBundleIDs`; custom commands use their stable UUIDs in `boundCustomCommandIDs`, and
+quicklinks theirs in `boundQuicklinkIDs`. Built-in
 plugins expose stable `PluginActionKey` values through `PluginRegistry`; new keys use the
 `plugin.<plugin-id>.<action-id>` namespace while migrated actions may retain legacy defaults keys.
+
+**Every launcher row that can be bound, is.** A row in Settings ▸ Shortcuts shows a recorder exactly
+when `AppEntry.hotKeyAction` resolves, and each command kind resolves through its own case:
+
+| Row | Action | Key |
+| --- | --- | --- |
+| A plugin's command | `.plugin(PluginActionKey)` | `plugin.<plugin-id>.<action-id>` |
+| A custom command | `.customCommand(id:)` | `customCommandHotkey.<uuid>` |
+| A quicklink | `.quicklink(id:)` | `quicklinkHotkey.<uuid>` |
+| Spotter's own built-ins | `.builtInCommand(CommandID)` | `builtInCommandHotkey.<slug>` |
+
+`CommandID` owns the identity and metadata of the built-ins and lives in its own `Core/CommandID.swift`
+so the command-to-shortcut mapping compiles into `Tools/commands-test.swift` without dragging
+`AppEntry` in; `CommandRegistry` only turns those into launcher entries. The harness pins the slugs,
+because a collision would silently make two commands share one binding and a rename would unbind
+whatever the user had set. Unlike the per-item kinds, the built-in set is fixed and fully known at
+launch, so it needs no bound-ID index — every case is simply registered, and `register` no-ops
+without a saved shortcut.
+
+The two per-item kinds are indexed because they can disappear: on launch a binding whose custom
+command or quicklink no longer exists is deleted rather than re-registered, and deleting either from
+the UI drops its binding, favorite, alias and learned ranking in the same step.
 
 Disabling a plugin makes registry dispatch a no-op while preserving the Carbon registration and saved
 binding. Re-enabling resumes the action without creating plugin-specific branches in `HotKeyManager`.

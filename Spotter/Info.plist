@@ -27,7 +27,7 @@
 	<key>NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Spotter uses Apple Events when you run a command that controls another app or explicitly send a launcher query to Terminal.</string>
+	<string>Spotter uses Apple Events to read what you have selected in the Finder, when you run a command that controls another app, or when you explicitly send a launcher query to Terminal.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Spotter uses calendar access to show your next event and event days in Widgets.</string>
 	<key>NSHumanReadableCopyright</key>

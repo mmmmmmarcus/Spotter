@@ -325,7 +325,8 @@ struct RootPaletteView: View {
 
         let layout = paletteLayout(
             apps: apps, tasks: tasks, clips: clips, hist: hist, emojiSections: emojiSections,
-            inline: inline, fallbacks: fallbacks, plugin: plugin, dashboard: dashboard, selection: sel,
+            inline: inline, fallbacks: fallbacks, plugin: plugin, dashboard: dashboard,
+            selection: sel,
             favoriteCount: favoriteCount,
             showSections: showSections, pillLabel: pillLabel,
             showActionGroup: showActionGroup, showActionsButton: showActionsButton
@@ -340,7 +341,8 @@ struct RootPaletteView: View {
         hist: [CalcHistoryEntry],
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
         fallbacks: [LauncherFallback],
-        plugin: PluginPaletteSnapshot?, dashboard: AnyView?, selection: Int, favoriteCount: Int,
+        plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
+        selection: Int, favoriteCount: Int,
         showSections: Bool, pillLabel: String, showActionGroup: Bool,
         showActionsButton: Bool
     ) -> some View {

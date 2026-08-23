@@ -4,6 +4,8 @@ import SwiftUI
 
 extension PluginActionKey {
     static let coffeeStart = standard(pluginID: .coffee, actionID: "start", title: "Caffeinate")
+    static let coffeeStatus = standard(
+        pluginID: .coffee, actionID: "status", title: "Caffeination Status")
     static let coffeeStop = standard(pluginID: .coffee, actionID: "stop", title: "Decaffeinate")
     static let coffeeFor = standard(
         pluginID: .coffee, actionID: "for", title: "Caffeinate For…")
@@ -62,6 +64,7 @@ enum CoffeePlugin {
                 PluginActionRegistration(key: .coffeeStop) { core.stopCoffee() },
                 PluginActionRegistration(key: .coffeeFor) { core.openCoffeeScreen(.duration) },
                 PluginActionRegistration(key: .coffeeWhile) { core.openCoffeeScreen(.app) },
+                PluginActionRegistration(key: .coffeeStatus) { core.openCoffeeScreen(.status) },
             ],
             launcherCommands: [
                 PluginCommandRegistration(
@@ -82,7 +85,7 @@ enum CoffeePlugin {
                 ) { core.openCoffeeScreen(.app) },
                 PluginCommandRegistration(
                     id: "command:coffee:status", name: "Caffeination Status",
-                    systemImage: "info.circle"
+                    systemImage: "info.circle", actionKey: .coffeeStatus
                 ) { core.openCoffeeScreen(.status) },
             ],
             paletteScreen: screen,

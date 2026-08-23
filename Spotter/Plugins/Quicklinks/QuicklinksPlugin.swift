@@ -5,6 +5,8 @@ import SwiftUI
 extension PluginActionKey {
     static let openQuicklinks = standard(
         pluginID: .quicklinks, actionID: "search", title: "Search Quicklinks")
+    static let createQuicklink = standard(
+        pluginID: .quicklinks, actionID: "create", title: "Create Quicklink")
 }
 
 @MainActor
@@ -47,7 +49,8 @@ enum QuicklinksPlugin {
                 tint: .blue),
             defaultEnabled: true,
             shortcutActions: [
-                PluginActionRegistration(key: .openQuicklinks) { core.openQuicklinks() }
+                PluginActionRegistration(key: .openQuicklinks) { core.openQuicklinks() },
+                PluginActionRegistration(key: .createQuicklink) { core.createQuicklink() },
             ],
             launcherCommands: [
                 PluginCommandRegistration(
@@ -56,7 +59,7 @@ enum QuicklinksPlugin {
                 ) { core.openQuicklinks() },
                 PluginCommandRegistration(
                     id: "command:quicklinks:create", name: "Create Quicklink",
-                    systemImage: "link.badge.plus"
+                    systemImage: "link.badge.plus", actionKey: .createQuicklink
                 ) { core.createQuicklink() },
             ],
             // A saved quicklink is launcher data, so the entry list is re-read rather than fixed at registration.
@@ -86,9 +89,7 @@ enum QuicklinksPlugin {
 
 @MainActor
 enum QuicklinkResults {
-    static func commandID(_ quicklink: Quicklink) -> String {
-        "command:quicklink:" + quicklink.id.uuidString.lowercased()
-    }
+    static func commandID(_ quicklink: Quicklink) -> String { quicklink.entryID }
 
     static func snapshot(manager: QuicklinkManager, query: String) -> PluginPaletteSnapshot {
         switch manager.screen {
@@ -293,7 +294,16 @@ extension AppCore {
                 message: "This quicklink and its launcher entry will be permanently deleted.",
                 actionTitle: "Delete"
             ) { [weak self] in
-                self?.quicklinks.delete(id: quicklink.id)
+                guard let self else { return }
+                // Same trailing state a deleted custom command drops: its binding, alias and rankings.
+                let action = HotKeyAction.quicklink(id: quicklink.id)
+                if hotKeys.recordingAction == action { hotKeys.recordingAction = nil }
+                hotKeys.setShortcut(nil, for: action)
+                favorites.remove(keys: [quicklink.entryID])
+                visibility.removeItemKeys([quicklink.entryID])
+                aliases.removeKeys([quicklink.entryID])
+                launcherRanking.reset(itemKey: quicklink.entryID)
+                quicklinks.delete(id: quicklink.id)
             })
     }
 

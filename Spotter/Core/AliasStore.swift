@@ -26,6 +26,14 @@ final class AliasStore: ObservableObject {
         commit()
     }
 
+    /// Drops aliases for entries that no longer exist — a deleted command's alias would otherwise sit in the table forever.
+    func removeKeys(_ keys: Set<String>) {
+        let remaining = aliases.filter { !keys.contains($0.key) }
+        guard remaining.count != aliases.count else { return }
+        aliases = remaining
+        commit()
+    }
+
     /// Replace the whole table at once (used when importing a settings backup).
     func replace(_ new: [String: String]) {
         // An import obeys the same rule as typing: blank means none, or it lands unclearable.

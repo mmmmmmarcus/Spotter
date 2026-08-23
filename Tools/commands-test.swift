@@ -34,6 +34,21 @@ struct CommandsTests {
                     == "KeyboardShortcuts_plugin.system-commands.\(command.id.rawValue)")
         }
 
+        // The slug keys a persisted shortcut, so a collision would silently make two built-in
+        // commands share one binding, and a change would unbind whatever the user had set.
+        check(
+            "every built-in command has a slug",
+            CommandID.allCases.allSatisfy { !$0.slug.isEmpty && !$0.slug.contains("command:") })
+        check(
+            "built-in command slugs are unique",
+            Set(CommandID.allCases.map(\.slug)).count == CommandID.allCases.count)
+        check(
+            "every built-in command id keeps the entry-list prefix",
+            CommandID.allCases.allSatisfy { $0.rawValue == "command:" + $0.slug })
+        check(
+            "every built-in command names itself",
+            CommandID.allCases.allSatisfy { !$0.name.isEmpty && !$0.sfSymbol.isEmpty })
+
         // A launcher command that reuses a plugin's own shortcut action is what makes one binding
         // serve the plugin's Settings pane, its Commands row and its launcher keycap at once. These
         // two predate the generic `standard(pluginID:actionID:title:)` key, so their storage keys

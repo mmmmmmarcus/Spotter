@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct DashboardWidgetsView: View {
@@ -5,42 +6,39 @@ struct DashboardWidgetsView: View {
     @ObservedObject var weather: DashboardWeatherStore
     @ObservedObject var uptime: DashboardUptimeStore
     @ObservedObject var battery: DashboardDeviceBatteryStore
+    @ObservedObject var fileInfo: DashboardFileInfoStore
 
-    /// The weather card has no widget-kind flag of its own: consent *is* its enable state, so there
-    /// is no second switch to drift out of sync with the network gate. The city always resolves —
-    /// `WeatherCity.default` stands in until the user picks one — so it never gates the card.
-    private var showsWeather: Bool { weather.isEnabled }
-
-    /// The uptime card works the same way: consent to count input *is* its enable state.
-    private var showsUptime: Bool { uptime.isEnabled }
-
-    /// Switched on but with nothing connected that reports a level, the card would be an empty square
-    /// claiming a reading it doesn't have — a Mac with only its built-in keyboard is the normal case.
-    private var showsBattery: Bool {
-        store.isWidgetEnabled(.deviceBattery) && !battery.devices.isEmpty
+    /// Which cards are drawable right now. Order is the user's arrangement; a card that owns its
+    /// enable state answers from preferences, a consent-gated one from its own store, and two more
+    /// withhold themselves when they have nothing to report.
+    private func isVisible(_ kind: DashboardWidgetKind) -> Bool {
+        switch kind {
+        case .clock, .nextEvent:
+            return store.isWidgetEnabled(kind)
+        // Consent to count input *is* this card's enable state, so there is no second switch to
+        // drift out of sync with the monitor.
+        case .uptime:
+            return uptime.isEnabled
+        // Switched on with nothing connected that reports a level, the card would be an empty square
+        // claiming a reading it doesn't have — a Mac with only its built-in keyboard is the normal case.
+        case .deviceBattery:
+            return store.isWidgetEnabled(kind) && !battery.devices.isEmpty
+        // Deliberately not conditioned on there being a selection: the card has a resting state, so
+        // it holds its place in the row instead of shuffling the strip every time the Finder loses
+        // focus.
+        case .fileInfo:
+            return store.isWidgetEnabled(kind)
+        }
     }
 
     @ViewBuilder
     var body: some View {
-        if store.isWidgetEnabled(.clock) || showsWeather || showsUptime || showsBattery
-            || store.isWidgetEnabled(.nextEvent)
-        {
+        let visible = store.orderedWidgets.filter(isVisible)
+        if !visible.isEmpty {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 HStack(spacing: Theme.Spacing.md) {
-                    if store.isWidgetEnabled(.clock) {
-                        clockCard(now: context.date)
-                    }
-                    if showsWeather {
-                        weatherCard()
-                    }
-                    if showsUptime {
-                        uptimeCard(now: context.date)
-                    }
-                    if showsBattery {
-                        batteryCard()
-                    }
-                    if store.isWidgetEnabled(.nextEvent) {
-                        eventCard(now: context.date)
+                    ForEach(visible, id: \.self) { kind in
+                        card(kind, now: context.date)
                     }
                 }
                 .frame(height: Theme.Size.launcherDashboardHeight)
@@ -58,21 +56,18 @@ struct DashboardWidgetsView: View {
         }
     }
 
-    /// Back to its original size once the city title came off the merged card and gave the row back.
-    private static let conditionSymbolSize: CGFloat = 32
-    private static let temperatureBarHeight: CGFloat = 8
-    /// Rides inside the track rather than straddling it, so the bar reads as one object.
-    private static let temperatureBarMarker: CGFloat = 4.5
-
-    /// The one title style every card shares, so the strip reads as one row rather than four
-    /// designs. Uppercased here rather than at each call site — a city name arrives as typed.
-    private func cardTitle(_ text: String) -> some View {
-        Text(text.localizedUppercase)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Theme.Colors.textSecondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
+    @ViewBuilder
+    private func card(_ kind: DashboardWidgetKind, now: Date) -> some View {
+        switch kind {
+        case .clock: clockCard(now: now)
+        case .uptime: uptimeCard(now: now)
+        case .deviceBattery: batteryCard()
+        case .nextEvent: eventCard(now: now)
+        case .fileInfo: DashboardFileInfoCard(snapshot: fileInfo.snapshot)
+        }
     }
+
+    private func cardTitle(_ text: String) -> some View { DashboardCardTitle(text) }
 
     /// The headline every card shares, one step below the title in the same rhythm. The widest
     /// realistic string is uptime's "23h 59m", which just fits the square's 96-point interior —
@@ -82,108 +77,6 @@ struct DashboardWidgetsView: View {
             .font(.largeTitle)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-    }
-
-    /// One square, centered rather than ranged left: the reading in the title slot, the condition
-    /// symbol as the card's whole middle, and the scale bar along the bottom placing that reading
-    /// between freezing and blazing. The reading takes the title's style rather than the headline's
-    /// so it sits level with `UPTIME` and `SUNDAY` across the strip — the symbol is what this card
-    /// leads with. Both the city and the condition's phrase are carried by the accessibility label
-    /// rather than by a line of their own: the card shows one city's weather and Settings names it,
-    /// so a title spent a row repeating something already settled.
-    private func weatherCard() -> some View {
-        VStack(spacing: 0) {
-            cardTitle(temperatureText)
-            Spacer(minLength: 0)
-            // Monochrome, like every other glyph on the strip — multicolor was the one card that
-            // pulled Apple's own palette in instead of the app's.
-            Image(systemName: condition?.symbolName ?? "cloud.fill")
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: Self.conditionSymbolSize))
-            Spacer(minLength: 0)
-            // The track spans today's low to high, so without them there is nothing to span: no
-            // reading or no daily block means no bar rather than one drawn on a borrowed scale.
-            if let reading = weather.reading, let low = reading.lowCelsius,
-                let high = reading.highCelsius
-            {
-                temperatureBar(
-                    celsius: reading.temperatureCelsius, low: min(low, high), high: max(low, high))
-            }
-        }
-        .padding(Theme.Spacing.lg)
-        .frame(width: Theme.Size.launcherDashboardHeight)
-        .dashboardCardSurface()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(weatherAccessibilityLabel)
-    }
-
-    private var weatherAccessibilityLabel: String {
-        let city = weather.snapshot?.cityName ?? weather.city.name
-        guard let condition, weather.reading != nil else { return "\(city), updating" }
-        let range = barEnds.map { ", low \($0.low), high \($0.high)" } ?? ""
-        return "\(city), \(temperatureText), \(condition.description)\(range)"
-    }
-
-    /// The scale itself: today's range end to end, painted with the slice of the fixed ramp that range
-    /// covers, and captioned by the two temperatures it runs between. Both the slice and the marker
-    /// come from `DashboardWeatherEngine`, so the colours can't drift from the position.
-    private func temperatureBar(celsius: Double, low: Double, high: Double) -> some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            barEndLabel(
-                DashboardWeatherEngine.formattedTemperature(celsius: low, unit: weather.unit))
-            temperatureTrack(celsius: celsius, low: low, high: high)
-            barEndLabel(
-                DashboardWeatherEngine.formattedTemperature(celsius: high, unit: weather.unit))
-        }
-    }
-
-    /// Today's range, captioning the ends of the scale rather than titling the card. Deliberately not
-    /// shrinkable: a degree that shrank to fit would be the thing the eye reads as the temperature.
-    private func barEndLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.caption2)
-            .foregroundStyle(Theme.Colors.textSecondary)
-            .lineLimit(1)
-    }
-
-    private func temperatureTrack(celsius: Double, low: Double, high: Double) -> some View {
-        let position = DashboardWeatherEngine.markerPosition(
-            celsius: celsius, lowCelsius: low, highCelsius: high)
-        // Start and end sit outside the track on purpose — that is what crops the ramp to today's slice.
-        let window = DashboardWeatherEngine.rampWindow(lowCelsius: low, highCelsius: high)
-        // Keeps the marker clear of the capsule's rounded caps, so it never breaks the track's edge.
-        let capInset = (Self.temperatureBarHeight - Self.temperatureBarMarker) / 2
-        return GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .blue, location: 0),
-                                .init(
-                                    color: .green,
-                                    location: DashboardWeatherEngine.temperatureRampMiddleLocation),
-                                .init(color: .red, location: 1),
-                            ],
-                            startPoint: UnitPoint(x: window.start, y: 0.5),
-                            endPoint: UnitPoint(x: window.end, y: 0.5))
-                    )
-                // Deliberately a literal white rather than a theme token: it sits on a track whose
-                // colors are the same in both appearances, so a marker that flipped with the system
-                // would be the part that looked wrong.
-                Circle()
-                    .fill(.white)
-                    .frame(width: Self.temperatureBarMarker, height: Self.temperatureBarMarker)
-                    .offset(
-                        x: capInset
-                            + (geometry.size.width - Self.temperatureBarMarker - capInset * 2)
-                            * position)
-            }
-        }
-        .frame(height: Self.temperatureBarHeight)
-        // Takes whatever the two end captions leave, so the row spans the card's full interior width
-        // — which is what the headline and glyph above it center against.
-        .frame(maxWidth: .infinity)
     }
 
     /// Nil until a reading carrying a daily block lands; until then the bar runs uncaptioned rather
@@ -205,6 +98,33 @@ struct DashboardWidgetsView: View {
         guard let reading = weather.reading else { return "—" }
         return DashboardWeatherEngine.formattedTemperature(
             celsius: reading.temperatureCelsius, unit: weather.unit)
+    }
+
+    /// Weather draws on the clock only once there is something real to draw: consent alone would put
+    /// three empty corners on the face while the first reading is still in flight.
+    private var showsWeather: Bool { weather.isEnabled && weather.reading != nil }
+
+    /// Today's low and high, the pair a watch face carries under the current reading.
+    private var temperatureRangeText: String? {
+        guard let ends = barEnds else { return nil }
+        return "\(ends.low)–\(ends.high)"
+    }
+
+    /// The day, in the clock's own time zone — a face abroad must not date itself from home.
+    private func shortDate(_ date: Date) -> String {
+        var style = Date.FormatStyle.dateTime.weekday(.abbreviated).day()
+        style.timeZone = store.clockTimeZone
+        return date.formatted(style)
+    }
+
+    private func clockAccessibilityLabel(_ now: Date) -> String {
+        var parts = [formattedTime(now), formattedDate(now)]
+        if showsWeather {
+            parts.append(temperatureText)
+            if let range = temperatureRangeText { parts.append("range \(range)") }
+            if let condition { parts.append(condition.description) }
+        }
+        return parts.joined(separator: ", ")
     }
 
     /// Square, like the clock and weather: today's elapsed time as the headline, then the day's key
@@ -353,22 +273,40 @@ struct DashboardWidgetsView: View {
         return "\(elapsed), \(keys), \(DashboardUptimeEngine.clicksLabel(snapshot.counts.clicks))"
     }
 
-    /// The clock is a square, title-free analog face; VoiceOver still reads the exact time and date.
+    /// How far the dial is held off the card's edge, leaving the lane the complications ride in.
+    /// Every other card keeps a uniform `md` margin; this one spends its whole square, because the
+    /// complications *are* its bezel and the dial is what the margin would otherwise shrink.
+    private static let clockFaceInset: CGFloat = 13
+
+    /// A watch face: the analog dial with its complications set along the bezel — the day top-right,
+    /// and, when weather is on and a reading has landed, the temperature top-left, today's range
+    /// bottom-left and the condition glyph bottom-right. A corner with nothing known stays empty
+    /// rather than drawing a placeholder, so the clock alone is still a clock.
     private func clockCard(now: Date) -> some View {
-        AnalogClockFace(timeZone: store.clockTimeZone)
-            .padding(Theme.Spacing.md)
-            .frame(width: Theme.Size.launcherDashboardHeight)
-            .dashboardCardSurface()
-            .accessibilityLabel("\(formattedTime(now)), \(formattedDate(now))")
+        ZStack {
+            AnalogClockFace(timeZone: store.clockTimeZone)
+                .padding(Self.clockFaceInset)
+            ClockComplicationRing(
+                topLeft: showsWeather ? temperatureText : nil,
+                topRight: shortDate(now),
+                bottomLeft: showsWeather ? temperatureRangeText : nil,
+                bottomRightSymbol: showsWeather ? condition?.symbolName : nil,
+                color: Theme.Colors.textSecondary)
+        }
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            height: Theme.Size.launcherDashboardHeight)
+        .dashboardCardSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(clockAccessibilityLabel(now))
     }
 
-    /// Structured like a calendar app's own widget: today's date at the top, the next event pinned to
-    /// the bottom. The date comes from the clock rather than EventKit, so it stays correct even
-    /// without calendar access — the bottom row carries the access state instead of the whole card.
+    /// Only what is next. The date left this card for the clock's own corner, so a second copy of it
+    /// here would be the strip repeating itself. Without calendar access the access state takes the
+    /// same slot, rather than the card going missing.
     private func eventCard(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            cardTitle(now.formatted(.dateTime.weekday(.wide)))
-            cardHeadline(now.formatted(.dateTime.day()))
+            cardTitle("Up Next")
             Spacer(minLength: Theme.Spacing.xs)
             eventFooter(now: now)
         }
@@ -377,14 +315,15 @@ struct DashboardWidgetsView: View {
         .dashboardCardSurface()
     }
 
+
     @ViewBuilder
     private func eventFooter(now: Date) -> some View {
         switch store.calendarAccess {
         case .fullAccess:
             if let event = store.nextEvent {
                 Text(event.title)
-                    .font(.caption2.weight(.medium))
-                    .lineLimit(1)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(2)
                     .minimumScaleFactor(0.7)
                 Text(eventTime(event, now: now))
                     .font(.caption2)
@@ -442,6 +381,196 @@ struct DashboardWidgetsView: View {
             .weekday(.abbreviated).month(.abbreviated).day()
         style.timeZone = store.clockTimeZone
         return date.formatted(style)
+    }
+}
+
+/// The one title style every card shares, so the strip reads as one row rather than five designs.
+/// Uppercased here rather than at each call site — a file's kind arrives as the Finder words it.
+private struct DashboardCardTitle: View {
+    private let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text.localizedUppercase)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+    }
+}
+
+/// Square like every other card: the kind in the title slot, the item's own Finder icon as the
+/// middle, then what it is called and how big it is. With nothing selected it rests on a generic
+/// glyph rather than leaving the strip — a card that came and went couldn't be relied on to be there.
+private struct DashboardFileInfoCard: View {
+    let snapshot: DashboardFileInfoSnapshot
+
+    private static let iconSize: CGFloat = 34
+
+    var body: some View {
+        VStack(spacing: 0) {
+            DashboardCardTitle(snapshot.kindLine)
+            Spacer(minLength: 0)
+            icon
+                .frame(width: Self.iconSize, height: Self.iconSize)
+            Spacer(minLength: 0)
+            // Truncated in the middle: the extension is half of what the card is reporting.
+            Text(snapshot.nameLine)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(snapshot.isEmpty ? Theme.Colors.textSecondary : .primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if !snapshot.sizeLine.isEmpty {
+                Text(snapshot.sizeLine)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            height: Theme.Size.launcherDashboardHeight)
+        .dashboardCardSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(snapshot.accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        if let path = snapshot.iconPath {
+            DashboardFileIcon(path: path)
+        } else {
+            Image(systemName: "doc")
+                .font(.system(size: Self.iconSize * 0.8, weight: .light))
+                .foregroundStyle(Theme.Colors.textTertiary)
+        }
+    }
+}
+
+/// The selected item's own Finder icon, warm from `IconCache` when the launcher has drawn it before.
+private struct DashboardFileIcon: View {
+    let path: String
+    @State private var image: NSImage?
+
+    init(path: String) {
+        self.path = path
+        _image = State(initialValue: IconCache.cached(forFile: path))
+    }
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable()
+            } else {
+                RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)
+                    .fill(Theme.Colors.controlSurface)
+            }
+        }
+        // Reloaded on every path change rather than only when empty: the selection moves from file to
+        // file, and a `nil`-guard would pin the first icon to every later one.
+        .task(id: path) {
+            if let cached = IconCache.cached(forFile: path) {
+                image = cached
+                return
+            }
+            image = await IconCache.loadAsync(forFile: path)
+        }
+    }
+}
+
+/// The clock's corner complications, set along the bezel the way a watch face carries them: each
+/// label is laid out character by character around one circle, so it curves with the dial instead of
+/// sitting square in a corner. The two bottom labels run the other way round and are turned over, or
+/// they would read upside down. The condition glyph stays level — a tilted icon reads as a mistake,
+/// and watch faces keep theirs upright too.
+private struct ClockComplicationRing: View {
+    var topLeft: String?
+    var topRight: String?
+    var bottomLeft: String?
+    var bottomRightSymbol: String?
+    let color: Color
+
+    /// Degrees clockwise from 12 o'clock, matching the face's own angle convention.
+    private static let topLeftAngle = 315.0
+    private static let topRightAngle = 45.0
+    private static let bottomLeftAngle = 225.0
+    private static let bottomRightAngle = 135.0
+    /// Small enough that a range ("18°–26°") still spans well under its quadrant at this diameter.
+    private static let font = Font.system(size: 9, weight: .medium)
+    private static let symbolSize: CGFloat = 11
+    /// Half a cap height and a hair, so the arc sits inside the card rather than on its edge.
+    private static let ringInset: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { geometry in
+            let radius = min(geometry.size.width, geometry.size.height) / 2 - Self.ringInset
+            ZStack {
+                Canvas { context, size in
+                    let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                    draw(topLeft, at: Self.topLeftAngle, flipped: false,
+                        context: &context, center: center, radius: radius)
+                    draw(topRight, at: Self.topRightAngle, flipped: false,
+                        context: &context, center: center, radius: radius)
+                    draw(bottomLeft, at: Self.bottomLeftAngle, flipped: true,
+                        context: &context, center: center, radius: radius)
+                }
+                if let bottomRightSymbol {
+                    Image(systemName: bottomRightSymbol)
+                        // Monochrome, like every other glyph on the strip — multicolor was the one
+                        // card that pulled Apple's own palette in instead of the app's.
+                        .symbolRenderingMode(.monochrome)
+                        .font(.system(size: Self.symbolSize))
+                        .foregroundStyle(color)
+                        .offset(
+                            x: radius * sin(Self.bottomRightAngle * .pi / 180),
+                            y: -radius * cos(Self.bottomRightAngle * .pi / 180))
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+    }
+
+    /// Sets one string on the arc, centred on `centerAngle`. Each glyph is placed at the angle its
+    /// own width has reached and turned to stand on the tangent there; resolving per character is
+    /// what costs the string its kerning, which is the usual trade for type on a curve.
+    private func draw(
+        _ text: String?, at centerAngle: Double, flipped: Bool,
+        context: inout GraphicsContext, center: CGPoint, radius: CGFloat
+    ) {
+        guard let text, !text.isEmpty, radius > 0 else { return }
+        let glyphs = text.map { character -> (text: GraphicsContext.ResolvedText, width: CGFloat) in
+            let resolved = context.resolve(
+                Text(String(character)).font(Self.font).foregroundStyle(color))
+            return (resolved, resolved.measure(in: CGSize(width: 200, height: 200)).width)
+        }
+        // Arc length over radius is the angle it subtends, so the whole string spans `span` degrees.
+        let span = degrees(glyphs.reduce(0) { $0 + $1.width }, radius: radius)
+        var travelled: CGFloat = 0
+        for glyph in glyphs {
+            let reached = degrees(travelled + glyph.width / 2, radius: radius)
+            // Flipped labels run anticlockwise, which is what keeps them reading left to right along
+            // the bottom of the circle.
+            let angle = flipped
+                ? centerAngle + span / 2 - reached
+                : centerAngle - span / 2 + reached
+            let radians = angle * .pi / 180
+            context.drawLayer { layer in
+                layer.translateBy(
+                    x: center.x + radius * sin(radians), y: center.y - radius * cos(radians))
+                layer.rotate(by: .degrees(flipped ? angle + 180 : angle))
+                layer.draw(glyph.text, at: .zero, anchor: .center)
+            }
+            travelled += glyph.width
+        }
+    }
+
+    private func degrees(_ arcLength: CGFloat, radius: CGFloat) -> Double {
+        Double(arcLength / radius) * 180 / .pi
     }
 }
 

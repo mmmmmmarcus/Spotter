@@ -110,8 +110,9 @@ Never break these without an explicit task to do so.
   Foundation-only and pure for `Tools/ai-chat-test.swift`,
   `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
   `Plugins/DashboardWidgets/DashboardWeatherEngine.swift`,
-  `Plugins/DashboardWidgets/DashboardUptimeEngine.swift` and
-  `Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift` stay
+  `Plugins/DashboardWidgets/DashboardUptimeEngine.swift`,
+  `Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift` and
+  `Plugins/DashboardWidgets/DashboardFileInfoEngine.swift` stay
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
@@ -165,13 +166,13 @@ Never break these without an explicit task to do so.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
   rather than inventing a second shape. Selection Tools' Google Translation path follows that
   consent shape; its consent flag and API key are included in the trusted v3 backup/sync snapshot.
-  `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the dashboard weather card
-  (one square off one reading and one request) ships off, both the
+  `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the clock face's weather
+  complications (one reading and one request) ship off, both the
   forecast fetch and the city search are refused without consent, and its
   enable state *is* consent — never the Mac's location, which Spotter never reads. The forecast
   request asks for the city's own day (`timezone=auto`), which is derived from the coordinates it
   already carries; don't widen it to anything the chosen city doesn't already imply. An unset city
-  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the card; keep
+  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the reading; keep
   that default a constant, since deriving one from the locale or time zone would be location
   inference by another name. Its consent flag, city and unit ride in the trusted v3 snapshot.
   `Plugins/DashboardWidgets/DashboardUptimeStore.swift` applies the same shape to a feature that is
@@ -185,6 +186,11 @@ Never break these without an explicit task to do so.
   contrast with uptime is the point: reading `BatteryPercent` off the IOKit registry needs no TCC
   grant, no entitlement and no monitor, persists nothing and sends nothing, so there is no ongoing
   access for a switch to withdraw. Do not add a consent dialog to it, and do not reach for
+  The File Info card is likewise not consent-gated, but for a different reason: it asks the Finder,
+  through `Core/FinderSelection.swift`, and macOS's own Automation prompt *is* the gate. Keep that the
+  only place anything asks the Finder what is selected, keep the read to name/kind/size, and never
+  open a selected file's contents or persist anything about the selection. A folder is counted, not
+  weighed — do not add a recursive folder crawl to a card that reads on every summon.
   File Search is deliberately not gated for the same reason: reading the Spotlight index macOS
   already keeps needs no TCC grant, no entitlement and no monitor, builds and persists no index of
   its own and sends nothing. Its structural exclusions are what hold that line — hidden paths, the
@@ -230,8 +236,15 @@ Never break these without an explicit task to do so.
   stay always enabled, and never export an enable state. AI Chat uses `settingsPlacement: .system`;
   Widgets uses `.widgets`, which gives it no sidebar row of its own — it supplies one
   `PluginWidgetRegistration` per card under the Settings sidebar's Widgets section instead, so each
-  card is configured on its own. Do not reintroduce a combined widgets pane. Dashboard visibility
-  comes only from the individual widget switches. Commands
+  card is configured on its own. **Which cards show, and in what order, belongs to the one
+  Arrangement pane** (owner decision, Aug 2026, superseding the earlier no-combined-pane rule): a
+  card's own pane holds its details and must not carry a show/hide switch, since two places to turn
+  a card off is the thing that pane replaced. Strip order is
+  `DashboardWidgetPreferences.widgetOrder`, kept complete so a card switched off keeps its place;
+  `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved, so a new widget kind needs
+  no migration. `DashboardWidgetKind.ownsEnabledState` is what keeps the pane honest — it is false
+  for a card whose switch is a consent act owned by its own store (Uptime), which the pane must route
+  through that store and its dialog rather than through `enabledWidgets`. Commands
   owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
   data and bindings while hiding entries and making their hotkeys no-op.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
@@ -273,7 +286,11 @@ Never break these without an explicit task to do so.
 - **Hotkeys persist under legacy `KeyboardShortcuts_<name>` UserDefaults keys** (from the removed
   KeyboardShortcuts package) so old bindings survive — and a `.combo` binding must keep encoding as
   the bare `KeyShortcut` record, or every existing binding and backup reads as unbound.
-  `Core/HotKey/DoubleTapDetector.swift` stays Foundation-only and pure for `Tools/hotkey-test.swift`.
+  `Core/HotKey/DoubleTapDetector.swift` stays Foundation-only and pure for `Tools/hotkey-test.swift`,
+  and `Core/CommandID.swift` stays Foundation-only for `Tools/commands-test.swift` — a built-in
+  command's `slug` keys its persisted shortcut, so the harness pins both uniqueness and the
+  `command:` prefix. Every launcher row that can carry a shortcut must resolve one through
+  `AppEntry.hotKeyAction`; a command kind with no case there silently loses its recorder.
   See [hotkeys.md](docs/hotkeys.md).
 - **Read [`docs/ui.md`](docs/ui.md) before any restyle or new view.** `Core/Theme.swift` is the single
   design-token source.
@@ -313,8 +330,8 @@ Never break these without an explicit task to do so.
   [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
   [`docs/ai-chat.md`](docs/ai-chat.md) ·
   [`docs/custom-commands.md`](docs/custom-commands.md) · [`docs/screenshot.md`](docs/screenshot.md) ·
-  [`docs/file-search.md`](docs/file-search.md)
-  — built-in plugin behavior and implementation.
+  [`docs/file-search.md`](docs/file-search.md) · [`docs/widgets.md`](docs/widgets.md)
+  — built-in plugin and widget behavior and implementation.
 - [`docs/palette.md`](docs/palette.md) · [`docs/background-tasks.md`](docs/background-tasks.md) —
   palette state flow, long-running task rows, menu-open freeze and focus restoration.
 - [`docs/launcher.md`](docs/launcher.md) · [`docs/calculator.md`](docs/calculator.md) ·

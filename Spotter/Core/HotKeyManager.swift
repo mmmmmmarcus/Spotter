@@ -6,6 +6,8 @@ final class HotKeyManager: ObservableObject {
     var onTogglePalette: (() -> Void)?
     var onRunPluginAction: ((PluginActionKey) -> Void)?
     var onRunCustomCommand: ((UUID) -> Void)?
+    var onRunBuiltInCommand: ((CommandID) -> Void)?
+    var onRunQuicklink: ((UUID) -> Void)?
 
     /// The recorder currently capturing keystrokes, or `nil`; keeping this as plain app state makes recorders glitch-free, and any active recorder pauses both engines so the shortcut being typed can't fire the binding it's replacing.
     @Published var recordingAction: HotKeyAction? {
@@ -24,13 +26,15 @@ final class HotKeyManager: ObservableObject {
     private let boundKey = "boundAppBundleIDs"
     private let boundPaneKey = "boundPaneBundleIDs"
     private let boundCustomCommandKey = "boundCustomCommandIDs"
+    private let boundQuicklinkKey = "boundQuicklinkIDs"
 
     private var pluginActions: [PluginActionKey] = []
 
     func start(
         pluginActions: [PluginActionKey],
         defaultPluginShortcuts: [(PluginActionKey, KeyShortcut)] = [],
-        customCommandIDs: Set<UUID>
+        customCommandIDs: Set<UUID>,
+        quicklinkIDs: Set<UUID>
     ) {
         self.pluginActions = pluginActions
         seedDefaultPluginShortcuts(defaultPluginShortcuts)
@@ -46,6 +50,15 @@ final class HotKeyManager: ObservableObject {
         let live = Set(boundCustomCommandIDs).intersection(customCommandIDs)
         persistBoundCustomCommandIDs(live)
         for id in live { register(.customCommand(id: id)) }
+        // Fixed and fully known at launch, so unlike the per-item bindings below these need no index.
+        for id in CommandID.allCases { register(.builtInCommand(id)) }
+        let staleLinks = Set(boundQuicklinkIDs).subtracting(quicklinkIDs)
+        for id in staleLinks {
+            UserDefaults.standard.removeObject(forKey: HotKeyAction.quicklink(id: id).defaultsKey)
+        }
+        let liveLinks = Set(boundQuicklinkIDs).intersection(quicklinkIDs)
+        persistBoundQuicklinkIDs(liveLinks)
+        for id in liveLinks { register(.quicklink(id: id)) }
 
         doubleTapMonitor.onDoubleTap = { [weak self] modifier in
             guard let self, let action = doubleTaps[modifier] else { return }
@@ -145,7 +158,11 @@ final class HotKeyManager: ObservableObject {
             var set = Set(boundCustomCommandIDs)
             if binding == nil { set.remove(id) } else { set.insert(id) }
             persistBoundCustomCommandIDs(set)
-        case .togglePalette, .togglePaletteBackup, .plugin:
+        case .quicklink(let id):
+            var set = Set(boundQuicklinkIDs)
+            if binding == nil { set.remove(id) } else { set.insert(id) }
+            persistBoundQuicklinkIDs(set)
+        case .togglePalette, .togglePaletteBackup, .plugin, .builtInCommand:
             break
         }
         // A rebuild re-decodes every action; only a double-tap entering or leaving changes the map.
@@ -174,6 +191,8 @@ final class HotKeyManager: ObservableObject {
         actions += boundBundleIDs.map { .app(bundleID: $0) }
         actions += boundPaneBundleIDs.map { .settingsPane(bundleID: $0) }
         actions += boundCustomCommandIDs.map { .customCommand(id: $0) }
+        actions += CommandID.allCases.map { .builtInCommand($0) }
+        actions += boundQuicklinkIDs.map { .quicklink(id: $0) }
         return actions
     }
 
@@ -206,6 +225,10 @@ final class HotKeyManager: ObservableObject {
                 ?? bundleID
         case .customCommand(let id):
             return AppCore.shared.customCommands.command(id: id)?.name ?? "Custom Command"
+        case .builtInCommand(let id):
+            return id.name
+        case .quicklink(let id):
+            return AppCore.shared.quicklinks.quicklinks.first { $0.id == id }?.name ?? "Quicklink"
         }
     }
 
@@ -223,11 +246,24 @@ final class HotKeyManager: ObservableObject {
         case .app(let bundleID): AppLauncher.toggle(bundleID: bundleID)
         case .settingsPane(let bundleID): AppLauncher.openSettingsPane(bundleID: bundleID)
         case .customCommand(let id): onRunCustomCommand?(id)
+        case .builtInCommand(let id): onRunBuiltInCommand?(id)
+        case .quicklink(let id): onRunQuicklink?(id)
         }
     }
 
     private func persistBoundCustomCommandIDs(_ ids: Set<UUID>) {
         UserDefaults.standard.set(
             ids.map { $0.uuidString.lowercased() }.sorted(), forKey: boundCustomCommandKey)
+    }
+
+    /// Quicklink UUIDs with a binding, indexed like the custom-command set so startup can re-register them and a deleted quicklink's shortcut can be dropped.
+    var boundQuicklinkIDs: [UUID] {
+        (UserDefaults.standard.stringArray(forKey: boundQuicklinkKey) ?? [])
+            .compactMap(UUID.init(uuidString:))
+    }
+
+    private func persistBoundQuicklinkIDs(_ ids: Set<UUID>) {
+        UserDefaults.standard.set(
+            ids.map { $0.uuidString.lowercased() }.sorted(), forKey: boundQuicklinkKey)
     }
 }

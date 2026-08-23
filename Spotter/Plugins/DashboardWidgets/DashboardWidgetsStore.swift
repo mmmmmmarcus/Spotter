@@ -16,6 +16,7 @@ enum DashboardCalendarAccess: Equatable, Sendable {
 final class DashboardWidgetsStore: ObservableObject {
     private enum Keys {
         static let enabledWidgets = "dashboard-widgets.enabled-widgets"
+        static let widgetOrder = "dashboard-widgets.widget-order"
         static let calendarSource = "dashboard-widgets.calendar-source"
         static let includesAllDayEvents = "dashboard-widgets.includes-all-day-events"
         static let clockTimeZone = "dashboard-widgets.clock-time-zone"
@@ -38,6 +39,8 @@ final class DashboardWidgetsStore: ObservableObject {
         preferences = DashboardWidgetPreferences(
             enabledWidgets: DashboardWidgetsEngine.widgetKinds(
                 from: defaults.stringArray(forKey: Keys.enabledWidgets)),
+            widgetOrder: DashboardWidgetsEngine.widgetOrder(
+                from: defaults.stringArray(forKey: Keys.widgetOrder)),
             calendarSourceIdentifier: defaults.string(forKey: Keys.calendarSource)?.nilIfEmpty,
             includesAllDayEvents: defaults.object(forKey: Keys.includesAllDayEvents) == nil
                 || defaults.bool(forKey: Keys.includesAllDayEvents),
@@ -49,8 +52,20 @@ final class DashboardWidgetsStore: ObservableObject {
             identifier: preferences.clockTimeZoneIdentifier, fallback: .autoupdatingCurrent)
     }
 
+    /// Strip order, complete and repaired — every kind exactly once, whether shown or not.
+    var orderedWidgets: [DashboardWidgetKind] { preferences.widgetOrder }
+
+    /// Only meaningful for a kind that `ownsEnabledState`; a consent-gated one answers on its own store.
     func isWidgetEnabled(_ widget: DashboardWidgetKind) -> Bool {
         preferences.enabledWidgets.contains(widget)
+    }
+
+    /// Places `widget` at `destination` in the current order — see `DashboardWidgetsEngine.reorder`.
+    func moveWidget(_ widget: DashboardWidgetKind, to destination: Int) {
+        var updated = preferences
+        updated.widgetOrder = DashboardWidgetsEngine.reorder(
+            preferences.widgetOrder, moving: widget, to: destination)
+        updatePreferences(updated)
     }
 
     func setWidgetEnabled(_ widget: DashboardWidgetKind, enabled: Bool) {
@@ -84,13 +99,18 @@ final class DashboardWidgetsStore: ObservableObject {
 
     @discardableResult
     func applyPreferences(
-        enabledWidgetRawValues: [String]?, calendarSourceIdentifier: String?,
+        enabledWidgetRawValues: [String]?, widgetOrderRawValues: [String]?,
+        calendarSourceIdentifier: String?,
         includesAllDayEvents: Bool?, clockTimeZoneIdentifier: String?
     ) -> Int {
         var updated = preferences
         var count = 0
         if let enabledWidgetRawValues {
             updated.enabledWidgets = DashboardWidgetsEngine.widgetKinds(from: enabledWidgetRawValues)
+            count += 1
+        }
+        if let widgetOrderRawValues {
+            updated.widgetOrder = DashboardWidgetsEngine.widgetOrder(from: widgetOrderRawValues)
             count += 1
         }
         if let calendarSourceIdentifier {
@@ -238,6 +258,8 @@ final class DashboardWidgetsStore: ObservableObject {
         defaults.set(
             updated.enabledWidgets.map(\DashboardWidgetKind.rawValue).sorted(),
             forKey: Keys.enabledWidgets)
+        defaults.set(
+            updated.widgetOrder.map(\DashboardWidgetKind.rawValue), forKey: Keys.widgetOrder)
         defaults.set(updated.calendarSourceIdentifier ?? "", forKey: Keys.calendarSource)
         defaults.set(updated.includesAllDayEvents, forKey: Keys.includesAllDayEvents)
         defaults.set(updated.clockTimeZoneIdentifier ?? "", forKey: Keys.clockTimeZone)

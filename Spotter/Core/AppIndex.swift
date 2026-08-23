@@ -72,7 +72,11 @@ struct AppEntry: Identifiable, Hashable, Sendable {
             return bundleID.map { .settingsPane(bundleID: $0) }
         case .command:
             if let pluginActionKey { return .plugin(pluginActionKey) }
-            return CustomCommand.id(fromEntryID: id).map { .customCommand(id: $0) }
+            if let commandID = CustomCommand.id(fromEntryID: id) {
+                return .customCommand(id: commandID)
+            }
+            if let quicklinkID = Quicklink.id(fromEntryID: id) { return .quicklink(id: quicklinkID) }
+            return CommandID(rawValue: id).map { .builtInCommand($0) }
         }
     }
 

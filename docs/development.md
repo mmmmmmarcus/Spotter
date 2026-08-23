@@ -197,8 +197,9 @@ swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.
     Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift \
+    Spotter/Plugins/DashboardWidgets/DashboardFileInfoEngine.swift \
     Tools/dashboard-widgets-test.swift \
-    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # preferences, clock hands, weather codes, uptime rollover, device battery lines
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # arrangement, clock hands, weather codes, uptime rollover, battery lines, Finder selection
 swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \

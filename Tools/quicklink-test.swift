@@ -189,6 +189,24 @@ struct QuicklinkTests {
             check("replace keeps the good row", "Alpha", reloaded.quicklinks.first?.name ?? "")
         }
 
+        // MARK: Launcher-entry identity
+
+        // The entry id is what a per-quicklink global shortcut, favorite and alias are all keyed by,
+        // so the round trip has to hold — a one-way id would strand every binding on the next launch.
+        let identified = Quicklink(name: "Docs", link: "https://example.com")
+        check(
+            "the entry id carries the uuid", Quicklink.id(fromEntryID: identified.entryID),
+            identified.id)
+        check(
+            "the entry id keeps its prefix", true,
+            identified.entryID.hasPrefix(Quicklink.entryIDPrefix))
+        check("a custom-command entry id is not a quicklink", nil,
+            Quicklink.id(fromEntryID: "custom-command:" + UUID().uuidString.lowercased()))
+        check("a built-in command id is not a quicklink", nil,
+            Quicklink.id(fromEntryID: "command:calculator-history"))
+        check("a malformed uuid resolves to nothing", nil,
+            Quicklink.id(fromEntryID: Quicklink.entryIDPrefix + "not-a-uuid"))
+
         print(failures == 0 ? "\nAll quicklink tests passed." : "\n\(failures) failure(s).")
         exit(failures == 0 ? 0 : 1)
     }

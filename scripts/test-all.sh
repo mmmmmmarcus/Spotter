@@ -117,6 +117,7 @@ run_harness() {
             ;;
         commands)
             swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
+                Spotter/Core/CommandID.swift \
                 Spotter/Plugins/Commands/SystemCommand.swift Tools/commands-test.swift \
                 -o "$output" && "$output"
             ;;
@@ -198,6 +199,7 @@ run_harness() {
                 Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift \
+                Spotter/Plugins/DashboardWidgets/DashboardFileInfoEngine.swift \
                 Tools/dashboard-widgets-test.swift -o "$output" && "$output"
             ;;
         theme)

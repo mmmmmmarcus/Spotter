@@ -1,25 +1,182 @@
 import SwiftUI
 
-/// Each widget configures itself in its own pane under Settings → Widgets. There is deliberately no
-/// combined pane: a single list of every widget's switches was the thing these replaced.
+/// Which cards show, and in what order, is settled here for the whole strip — so no card's own pane
+/// carries a switch, and there is one place to look when the strip isn't what you expected.
+struct WidgetArrangementSettingsView: View {
+    @ObservedObject var store: DashboardWidgetsStore
+    @ObservedObject var uptime: DashboardUptimeStore
+
+    @State private var askingUptimeConsent = false
+
+    private static let tileSize: CGFloat = 62
+
+    var body: some View {
+        SettingsPane(
+            title: "Arrangement",
+            subtitle:
+                "Choose which cards sit above launcher results when the search is empty, and drag "
+                + "them into the order you want them drawn."
+        ) {
+            SettingsCard(header: "Strip") {
+                strip
+            }
+            SettingsCard(header: "Widgets") {
+                rows
+            }
+        }
+        .sheet(isPresented: $askingUptimeConsent) {
+            UptimeConsentSheet(
+                onCancel: { askingUptimeConsent = false },
+                onAccept: {
+                    askingUptimeConsent = false
+                    uptime.setEnabled(true)
+                })
+        }
+    }
+
+    /// The strip as the launcher draws it, at a size that fits a Settings card: one tile per widget
+    /// in arrangement order, the switched-off ones outlined rather than filled. Dragging a tile onto
+    /// another puts it in that one's place, which is the whole reordering gesture.
+    private var strip: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            ForEach(store.orderedWidgets, id: \.self) { kind in
+                tile(kind)
+                    .draggable(kind.rawValue) { tile(kind).opacity(0.85) }
+                    .dropDestination(for: String.self) { items, _ in move(items, onto: kind) }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Theme.Spacing.xl)
+        .padding(.vertical, Theme.Spacing.lg)
+    }
+
+    private func tile(_ kind: DashboardWidgetKind) -> some View {
+        let on = isEnabled(kind)
+        return VStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: kind.systemImage)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(on ? tint(kind) : Theme.Colors.textTertiary)
+            Text(kind.title)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(on ? Theme.Colors.textSecondary : Theme.Colors.textTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(Theme.Spacing.xs)
+        .frame(width: Self.tileSize, height: Self.tileSize)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .fill(on ? Theme.Colors.cardFill : .clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(
+                    Theme.Colors.cardStroke,
+                    style: StrokeStyle(lineWidth: 1, dash: on ? [] : [3, 3]))
+        )
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        let order = store.orderedWidgets
+        ForEach(Array(order.enumerated()), id: \.element) { index, kind in
+            if index > 0 { SettingsDivider() }
+            SettingsRow(
+                title: kind.title, subtitle: kind.summary, systemImage: kind.systemImage,
+                tint: tint(kind)
+            ) {
+                HStack(spacing: Theme.Spacing.sm) {
+                    // The keyboard path to the same reordering the tiles offer by drag.
+                    Button {
+                        store.moveWidget(kind, to: index - 1)
+                    } label: {
+                        Image(systemName: "chevron.up")
+                    }
+                    .disabled(index == 0)
+                    .accessibilityLabel("Move \(kind.title) earlier")
+
+                    Button {
+                        store.moveWidget(kind, to: index + 1)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                    }
+                    .disabled(index == order.count - 1)
+                    .accessibilityLabel("Move \(kind.title) later")
+
+                    Toggle("", isOn: enabled(kind))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    /// A drop carrying anything but a widget's own raw value is simply not a reorder — text dragged
+    /// in from elsewhere lands here too.
+    private func move(_ items: [String], onto target: DashboardWidgetKind) {
+        guard let raw = items.first, let moved = DashboardWidgetKind(rawValue: raw),
+            let destination = store.orderedWidgets.firstIndex(of: target)
+        else { return }
+        store.moveWidget(moved, to: destination)
+    }
+
+    private func isEnabled(_ kind: DashboardWidgetKind) -> Bool {
+        kind.ownsEnabledState ? store.isWidgetEnabled(kind) : uptime.isEnabled
+    }
+
+    private func enabled(_ kind: DashboardWidgetKind) -> Binding<Bool> {
+        Binding(
+            get: { isEnabled(kind) },
+            set: { wantsOn in
+                guard kind.ownsEnabledState else {
+                    // Uptime's switch is a consent act, so switching it on asks before anything counts.
+                    if wantsOn {
+                        askingUptimeConsent = true
+                    } else {
+                        uptime.setEnabled(false)
+                    }
+                    return
+                }
+                store.setWidgetEnabled(kind, enabled: wantsOn)
+            })
+    }
+
+    /// The sidebar tint each widget's own pane carries, so a tile matches the row it configures.
+    private func tint(_ kind: DashboardWidgetKind) -> Color {
+        switch kind {
+        case .clock: return .orange
+        case .uptime: return .green
+        case .deviceBattery: return .yellow
+        case .nextEvent: return .blue
+        case .fileInfo: return .teal
+        }
+    }
+}
+
+/// Each widget configures itself in its own pane under Settings → Widgets. None of them carries an
+/// on/off switch: that, and the strip order, belong to Arrangement.
 struct ClockWidgetSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
+    @ObservedObject var weather: DashboardWeatherStore
     private static let timeZoneIdentifiers = TimeZone.knownTimeZoneIdentifiers.sorted()
+
+    @State private var askingConsent = false
+    @State private var citySearch = ""
+    @State private var refreshing = false
+    @State private var refreshFailed = false
 
     var body: some View {
         SettingsPane(
             title: "Clock",
-            subtitle: "An analog clock face above launcher results when the search is empty."
+            subtitle:
+                "An analog face above launcher results, with the day and — when weather is on — the "
+                + "day's conditions in its corners."
         ) {
-            SettingsCard(header: "Widget") {
-                SettingsRow(
-                    title: "Show Clock",
-                    subtitle: "A live analog face in the selected time zone.",
-                    systemImage: "clock", tint: .orange
-                ) {
-                    widgetToggle(store: store, widget: .clock)
-                }
-                SettingsDivider()
+            SettingsCard(header: "Face") {
                 SettingsRow(
                     title: "Time Zone",
                     subtitle: "System Default follows changes made in macOS Settings.",
@@ -37,33 +194,14 @@ struct ClockWidgetSettingsView: View {
                     .frame(width: 250)
                 }
             }
-        }
-    }
 
-    private var clockTimeZoneBinding: Binding<String> {
-        Binding(
-            get: { store.preferences.clockTimeZoneIdentifier ?? "" },
-            set: { store.setClockTimeZoneIdentifier($0) })
-    }
-}
-
-struct WeatherWidgetSettingsView: View {
-    @ObservedObject var weather: DashboardWeatherStore
-
-    @State private var askingConsent = false
-    @State private var citySearch = ""
-    @State private var refreshing = false
-    @State private var refreshFailed = false
-
-    var body: some View {
-        SettingsPane(
-            title: "Weather",
-            subtitle: "Current conditions for a city you choose, above launcher results."
-        ) {
-            SettingsCard(header: "Widget") {
+            // Weather has no card of its own any more: it is three complications on this face, so it
+            // is configured here. Its switch stays a switch because it is the network-consent gate,
+            // not a widget's visibility.
+            SettingsCard(header: "Weather") {
                 SettingsRow(
                     title: "Show Weather",
-                    subtitle: status,
+                    subtitle: weatherStatus,
                     systemImage: "cloud.sun", tint: .cyan
                 ) {
                     Toggle(
@@ -84,7 +222,7 @@ struct WeatherWidgetSettingsView: View {
                 }
             }
 
-            if weather.isEnabled { detailsCard }
+            if weather.isEnabled { weatherDetailsCard }
         }
         .sheet(isPresented: $askingConsent) {
             WeatherConsentSheet(
@@ -96,8 +234,8 @@ struct WeatherWidgetSettingsView: View {
         }
     }
 
-    private var detailsCard: some View {
-        SettingsCard(header: "Details") {
+    private var weatherDetailsCard: some View {
+        SettingsCard(header: "Weather Details") {
             SettingsRow(
                 title: "City",
                 subtitle: selectedCitySubtitle,
@@ -116,7 +254,8 @@ struct WeatherWidgetSettingsView: View {
             ForEach(weather.searchResults) { result in
                 SettingsDivider()
                 SettingsRow(
-                    title: result.name, subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
+                    title: result.name,
+                    subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
                     systemImage: "location", tint: .secondary
                 ) {
                     Button(weather.city.id == result.id ? "Selected" : "Choose") {
@@ -164,8 +303,8 @@ struct WeatherWidgetSettingsView: View {
         }
     }
 
-    private var status: String {
-        let summary = "Current conditions for a city you choose."
+    private var weatherStatus: String {
+        let summary = "The temperature, today's range and the condition, on the clock face."
         return weather.isEnabled ? summary : "\(summary) Off — no service is contacted."
     }
 
@@ -189,42 +328,22 @@ struct WeatherWidgetSettingsView: View {
     private var unitBinding: Binding<WeatherUnit> {
         Binding(get: { weather.unit }, set: { weather.setUnit($0) })
     }
+
+    private var clockTimeZoneBinding: Binding<String> {
+        Binding(
+            get: { store.preferences.clockTimeZoneIdentifier ?? "" },
+            set: { store.setClockTimeZoneIdentifier($0) })
+    }
 }
 
 struct UptimeWidgetSettingsView: View {
     @ObservedObject var uptime: DashboardUptimeStore
-
-    @State private var askingConsent = false
 
     var body: some View {
         SettingsPane(
             title: "Uptime",
             subtitle: "How long today's session has run, with key and click counts."
         ) {
-            SettingsCard(header: "Widget") {
-                SettingsRow(
-                    title: "Show Uptime",
-                    subtitle: status,
-                    systemImage: "timer", tint: .green
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { uptime.isEnabled },
-                            set: { wantsOn in
-                                if wantsOn {
-                                    askingConsent = true
-                                } else {
-                                    uptime.setEnabled(false)
-                                }
-                            })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             if uptime.isEnabled {
                 SettingsCard(header: "Details") {
                     SettingsRow(
@@ -254,26 +373,25 @@ struct UptimeWidgetSettingsView: View {
                             .controlSize(.small)
                     }
                 }
+            } else {
+                // Switching this on is a consent act, so it happens in one place with its dialog.
+                SettingsCard(header: "Widget") {
+                    SettingsRow(
+                        title: "Turned Off",
+                        subtitle:
+                            "No input is counted. Turn Uptime on in Widgets → Arrangement; Spotter "
+                            + "explains exactly what is counted before anything starts.",
+                        systemImage: "timer", tint: .green
+                    ) {
+                        EmptyView()
+                    }
+                }
             }
         }
-        .sheet(isPresented: $askingConsent) {
-            UptimeConsentSheet(
-                onCancel: { askingConsent = false },
-                onAccept: {
-                    askingConsent = false
-                    uptime.setEnabled(true)
-                })
-        }
-    }
-
-    private var status: String {
-        let summary = "Hours since the screen first came on today, with key and click counts."
-        return uptime.isEnabled ? summary : "\(summary) Off — no input is counted."
     }
 }
 
 struct DeviceBatteryWidgetSettingsView: View {
-    @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var battery: DashboardDeviceBatteryStore
 
     var body: some View {
@@ -281,26 +399,14 @@ struct DeviceBatteryWidgetSettingsView: View {
             title: "Device Battery",
             subtitle: "Battery levels for connected mice, keyboards and trackpads."
         ) {
-            SettingsCard(header: "Widget") {
-                SettingsRow(
-                    title: "Show Device Battery",
-                    subtitle:
-                        "The lowest level of any connected device, over the rest. Hidden while "
-                        + "nothing connected reports one.",
-                    systemImage: "battery.100percent", tint: .yellow
-                ) {
-                    widgetToggle(store: store, widget: .deviceBattery)
-                }
-            }
-
             SettingsCard(header: "Detected") {
                 if battery.devices.isEmpty {
                     SettingsRow(
                         title: "No Devices",
                         subtitle:
-                            "Nothing connected reports a battery level. Built-in keyboards and "
-                            + "trackpads have none, and AirPods report theirs somewhere Spotter "
-                            + "doesn't read.",
+                            "Nothing connected reports a battery level, so the card stays hidden. "
+                            + "Built-in keyboards and trackpads have none, and AirPods report "
+                            + "theirs somewhere Spotter doesn't read.",
                         systemImage: "questionmark.circle", tint: .secondary
                     ) {
                         EmptyView()
@@ -327,24 +433,52 @@ struct DeviceBatteryWidgetSettingsView: View {
     }
 }
 
+struct FileInfoWidgetSettingsView: View {
+    var body: some View {
+        SettingsPane(
+            title: "File Info",
+            subtitle:
+                "Open the launcher with something selected in the Finder and its kind and size sit "
+                + "above the results."
+        ) {
+            SettingsCard(header: "How It Reads the Selection") {
+                SettingsRow(
+                    title: "Only From the Finder",
+                    subtitle:
+                        "Spotter asks the Finder what is selected, and only when the Finder is the "
+                        + "app you summoned the launcher from. macOS asks for Automation access the "
+                        + "first time.",
+                    systemImage: "folder", tint: .teal
+                ) { EmptyView() }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Nothing Is Opened or Stored",
+                    subtitle:
+                        "Only the name, kind and size are read. File contents are never opened, and "
+                        + "nothing about the selection is saved or sent anywhere.",
+                    systemImage: "lock", tint: .teal
+                ) { EmptyView() }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Folders Are Counted, Not Weighed",
+                    subtitle:
+                        "A folder shows how many items it holds. A package such as an app shows its "
+                        + "total size, since it is one item to you.",
+                    systemImage: "shippingbox", tint: .teal
+                ) { EmptyView() }
+            }
+        }
+    }
+}
+
 struct CalendarWidgetSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
 
     var body: some View {
         SettingsPane(
             title: "Calendar",
-            subtitle: "Today's date and the next event, above launcher results."
+            subtitle: "The next event on your calendar, above launcher results."
         ) {
-            SettingsCard(header: "Widget") {
-                SettingsRow(
-                    title: "Show Calendar",
-                    subtitle: "Today's date, over the next event from the selected account.",
-                    systemImage: "calendar", tint: .blue
-                ) {
-                    widgetToggle(store: store, widget: .nextEvent)
-                }
-            }
-
             SettingsCard(header: "Details") {
                 SettingsRow(
                     title: "Calendar Access",
@@ -434,18 +568,6 @@ struct CalendarWidgetSettingsView: View {
             get: { store.preferences.includesAllDayEvents },
             set: { store.setIncludesAllDayEvents($0) })
     }
-}
-
-private func widgetToggle(store: DashboardWidgetsStore, widget: DashboardWidgetKind) -> some View {
-    Toggle(
-        "",
-        isOn: Binding(
-            get: { store.isWidgetEnabled(widget) },
-            set: { store.setWidgetEnabled(widget, enabled: $0) })
-    )
-    .labelsHidden()
-    .toggleStyle(.switch)
-    .controlSize(.small)
 }
 
 /// Nothing here reaches the network, but a system-wide input counter is asked for as plainly as one

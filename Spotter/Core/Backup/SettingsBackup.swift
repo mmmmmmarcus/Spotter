@@ -28,6 +28,9 @@ struct SettingsBackup: Codable, Sendable {
     struct SettingsData: Codable, Sendable {
         struct DashboardWidgets: Codable, Sendable {
             var enabledWidgets: [String]?
+            /// The strip's arrangement. Absent in files written before it was configurable, which
+            /// simply leaves the receiving Mac on the default order.
+            var widgetOrder: [String]?
             var calendarSourceIdentifier: String?
             var includesAllDayEvents: Bool?
             var clockTimeZoneIdentifier: String?
@@ -79,6 +82,10 @@ struct SettingsBackup: Codable, Sendable {
         var apps: [String: HotKeyBinding]?
         var panes: [String: HotKeyBinding]?
         var customCommands: [String: HotKeyBinding]?
+        /// Spotter's own built-in commands, keyed by `CommandID.rawValue`.
+        var builtInCommands: [String: HotKeyBinding]?
+        /// Per-quicklink bindings, keyed by quicklink UUID like `customCommands`.
+        var quicklinks: [String: HotKeyBinding]?
         /// Every bound plugin shortcut, keyed `<plugin-id>.<action-id>` — new plugins sync automatically.
         var pluginActions: [String: HotKeyBinding]?
     }
@@ -227,6 +234,7 @@ extension SettingsBackup {
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
             dashboardWidgets: SettingsData.DashboardWidgets(
                 enabledWidgets: dashboard.enabledWidgets.map(\DashboardWidgetKind.rawValue).sorted(),
+                widgetOrder: dashboard.widgetOrder.map(\DashboardWidgetKind.rawValue),
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier ?? "",
                 includesAllDayEvents: dashboard.includesAllDayEvents,
                 clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier ?? "",
@@ -257,6 +265,14 @@ extension SettingsBackup {
         hotkeys.customCommands = Dictionary(
             uniqueKeysWithValues: hk.boundCustomCommandIDs.compactMap { id in
                 hk.binding(for: .customCommand(id: id)).map { (id.uuidString.lowercased(), $0) }
+            })
+        hotkeys.builtInCommands = Dictionary(
+            uniqueKeysWithValues: CommandID.allCases.compactMap { id in
+                hk.binding(for: .builtInCommand(id)).map { (id.rawValue, $0) }
+            })
+        hotkeys.quicklinks = Dictionary(
+            uniqueKeysWithValues: hk.boundQuicklinkIDs.compactMap { id in
+                hk.binding(for: .quicklink(id: id)).map { (id.uuidString.lowercased(), $0) }
             })
         backup.hotkeys = hotkeys
 
@@ -359,6 +375,11 @@ extension SettingsBackup {
         if let customCommands {
             summary.customCommands = core.replaceCustomCommands(customCommands)
         }
+        // Before `hotkeys`, like custom commands above: a per-quicklink binding only applies to a quicklink that already exists.
+        if let quicklinks {
+            core.quicklinks.replace(with: quicklinks)
+            summary.settingsFields += 1
+        }
         if let hotkeys { summary.hotkeys = applyHotkeys(hotkeys, to: core, mode: mode) }
         if let favoriteApps {
             core.favorites.replace(keys: favoriteApps)
@@ -379,10 +400,6 @@ extension SettingsBackup {
         }
         if let worldClockCities {
             core.worldClock.replace(cityIDs: worldClockCities)
-            summary.settingsFields += 1
-        }
-        if let quicklinks {
-            core.quicklinks.replace(with: quicklinks)
             summary.settingsFields += 1
         }
         if let textReplacement {
@@ -517,6 +534,7 @@ extension SettingsBackup {
         if let dashboard = prefs.dashboardWidgets {
             count += core.dashboardWidgets.applyPreferences(
                 enabledWidgetRawValues: dashboard.enabledWidgets,
+                widgetOrderRawValues: dashboard.widgetOrder,
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
                 includesAllDayEvents: dashboard.includesAllDayEvents,
                 clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
@@ -642,6 +660,7 @@ extension SettingsBackup {
         if let dashboard = s.dashboardWidgets {
             count += core.dashboardWidgets.applyPreferences(
                 enabledWidgetRawValues: dashboard.enabledWidgets,
+                widgetOrderRawValues: dashboard.widgetOrder,
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
                 includesAllDayEvents: dashboard.includesAllDayEvents,
                 clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
@@ -680,6 +699,12 @@ extension SettingsBackup {
                 (hotkeys.customCommands?.keys.map { $0 } ?? []).compactMap(UUID.init(uuidString:)))
             for id in Set(hk.boundCustomCommandIDs).union(remoteCommandIDs) {
                 hk.setBinding(nil, for: .customCommand(id: id))
+            }
+            for id in CommandID.allCases { hk.setBinding(nil, for: .builtInCommand(id)) }
+            let remoteQuicklinkIDs = Set(
+                (hotkeys.quicklinks?.keys.map { $0 } ?? []).compactMap(UUID.init(uuidString:)))
+            for id in Set(hk.boundQuicklinkIDs).union(remoteQuicklinkIDs) {
+                hk.setBinding(nil, for: .quicklink(id: id))
             }
         }
         if let s = hotkeys.togglePalette { apply(s, .togglePalette) }
@@ -722,6 +747,20 @@ extension SettingsBackup {
                 continue
             }
             apply(s, .customCommand(id: id))
+        }
+        // Resolved through `CommandID`, so a command this build no longer ships is skipped rather than left bound to nothing.
+        for rawID in (hotkeys.builtInCommands?.keys.sorted() ?? []) {
+            guard let s = hotkeys.builtInCommands?[rawID], let id = CommandID(rawValue: rawID) else {
+                continue
+            }
+            apply(s, .builtInCommand(id))
+        }
+        // The quicklinks themselves were applied before this call, so the target exists by now.
+        for rawID in (hotkeys.quicklinks?.keys.sorted() ?? []) {
+            guard let s = hotkeys.quicklinks?[rawID], let id = UUID(uuidString: rawID),
+                core.quicklinks.quicklinks.contains(where: { $0.id == id })
+            else { continue }
+            apply(s, .quicklink(id: id))
         }
         return count
     }

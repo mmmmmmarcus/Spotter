@@ -190,6 +190,7 @@ final class AppCore: ObservableObject {
     let dashboardWeather = DashboardWeatherStore()
     let dashboardUptime = DashboardUptimeStore()
     let dashboardDeviceBattery = DashboardDeviceBatteryStore()
+    let dashboardFileInfo = DashboardFileInfoStore()
     let killProcess = KillProcessManager()
     let fileSearch = FileSearchSession()
     let changeCase = ChangeCaseStore()
@@ -366,10 +367,13 @@ final class AppCore: ObservableObject {
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
         hotKeys.onRunPluginAction = { [weak self] action in self?.plugins.perform(action) }
         hotKeys.onRunCustomCommand = { [weak self] id in self?.runCustomCommand(id: id) }
+        hotKeys.onRunBuiltInCommand = { [weak self] id in self?.runCommand(id) }
+        hotKeys.onRunQuicklink = { [weak self] id in self?.runQuicklink(id: id) }
         hotKeys.start(
             pluginActions: plugins.shortcutActions,
             defaultPluginShortcuts: plugins.defaultShortcutActions,
-            customCommandIDs: Set(customCommands.commands.map(\.id)))
+            customCommandIDs: Set(customCommands.commands.map(\.id)),
+            quicklinkIDs: Set(quicklinks.quicklinks.map(\.id)))
         // Deliberately keeps running while `hotKeys.recordingAction` pauses Carbon: the recorder relies on the tap's rewritten flags to capture Hyper shortcuts.
         hyperKeyTap.start(settings: settings)
 
@@ -433,6 +437,7 @@ final class AppCore: ObservableObject {
             // Here rather than only in the card's own poll: with nothing reporting a level the card
             // isn't rendered, so it would never run to notice a device that has since connected.
             dashboardDeviceBattery.refresh()
+            refreshDashboardFileInfo()
         }
     }
 
@@ -688,6 +693,7 @@ final class AppCore: ObservableObject {
         }
         favorites.remove(keys: entryIDs)
         visibility.removeItemKeys(entryIDs)
+        aliases.removeKeys(entryIDs)
         for entryID in entryIDs {
             launcherRanking.reset(itemKey: entryID)
         }
@@ -751,7 +757,13 @@ final class AppCore: ObservableObject {
 
     private func runCommand(_ entry: AppEntry) {
         if plugins.performCommand(entry.id) { return }
-        switch CommandRegistry.command(for: entry) {
+        guard let command = CommandRegistry.command(for: entry) else { return }
+        runCommand(command)
+    }
+
+    /// The one dispatch for Spotter's own built-in commands — a launcher row and a global shortcut bound to the same command both land here.
+    func runCommand(_ command: CommandID) {
+        switch command {
         case .calculatorHistory:
             showPalette(mode: .calculatorHistory)
         case .checkForUpdates:
@@ -777,8 +789,6 @@ final class AppCore: ObservableObject {
             quitAllApps()
         case .quit:
             NSApp.terminate(nil)
-        case nil:
-            break
         }
     }
 

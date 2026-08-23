@@ -214,27 +214,7 @@ final class ImageModificationManager {
     }
 
     private static func selectedFinderImages() async -> [URL] {
-        let script = """
-        tell application "Finder" to set selectedItems to selection as alias list
-        set output to ""
-        repeat with selectedItem in selectedItems
-            set output to output & POSIX path of selectedItem & linefeed
-        end repeat
-        return output
-        """
-        let text = await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            let output = Pipe()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-e", script]
-            process.standardOutput = output
-            process.standardError = Pipe()
-            guard (try? process.run()) != nil else { return "" }
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return "" }
-            return String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        }.value
-        return text.split(whereSeparator: \Character.isNewline).map { URL(fileURLWithPath: String($0)) }
+        await FinderSelection.selectedURLs()
             .filter { UTType(filenameExtension: $0.pathExtension)?.conforms(to: .image) == true }
     }
 }

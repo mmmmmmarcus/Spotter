@@ -265,11 +265,13 @@ shell-command feature; do not use shell commands as an internal plugin API.
   definition and grammar checks start follow-up-ready conversations. The launcher's final query
   destination rows reuse both paths without adding registry commands.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
-  the launcher dashboard and contributes the Settings → Widgets section. It adds four independently
-  toggleable square cards above the empty launcher — Clock, Weather, Uptime and Calendar — each with
-  its own pane. The clock supports an explicit time zone; Calendar can filter by EventKit account and
-  exclude all-day events. Calendar data is permission-gated, and Weather and Uptime are
-  consent-gated.
+  the launcher dashboard and contributes the Settings → Widgets section. It adds five square cards
+  above the empty launcher — Clock, Uptime, Device Battery, Calendar and File Info — each with its own
+  pane, plus an **Arrangement** pane that is the one place a card is switched on or off and dragged
+  into order. Weather has no card of its own: it is three complications on the clock face, configured
+  in the Clock pane. The clock supports an explicit time zone; Calendar can filter by EventKit account
+  and exclude all-day events. Calendar data is permission-gated, File Info is Automation-gated, and
+  Weather and Uptime are consent-gated.
 
 ## Current plugins
 
@@ -343,5 +345,5 @@ Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
-[Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md), and
-[File Search](file-search.md).
+[Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md),
+and [File Search](file-search.md).

@@ -41,6 +41,16 @@ struct Quicklink: Identifiable, Equatable, Codable, Sendable {
 
     var isPinned: Bool { pinnedAt != nil }
 
+    /// Launcher-entry identity, and the only place the mapping lives — a bound shortcut resolves back through `id(fromEntryID:)`, so the two can never drift.
+    static let entryIDPrefix = "command:quicklink:"
+
+    var entryID: String { Self.entryIDPrefix + id.uuidString.lowercased() }
+
+    static func id(fromEntryID entryID: String) -> UUID? {
+        guard entryID.hasPrefix(entryIDPrefix) else { return nil }
+        return UUID(uuidString: String(entryID.dropFirst(entryIDPrefix.count)))
+    }
+
     /// Pinned first (newest pin wins), then alphabetical — the single sort every surface uses.
     static func precedes(_ lhs: Quicklink, _ rhs: Quicklink) -> Bool {
         switch (lhs.pinnedAt, rhs.pinnedAt) {
