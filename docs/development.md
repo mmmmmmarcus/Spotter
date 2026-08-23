@@ -215,7 +215,8 @@ swiftc -swift-version 6 -framework CoreGraphics -framework CoreText -framework I
     -framework UniformTypeIdentifiers Spotter/Plugins/Screenshot/ScreenshotWindowPicker.swift \
     Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
     Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
-    Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift Tools/screenshot-test.swift \
+    Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift \
+    Spotter/Plugins/Screenshot/ScreenshotTextLayout.swift Tools/screenshot-test.swift \
     -o /tmp/screenshot-test && /tmp/screenshot-test             # cursor swap + geometry + annotation pixels
 ```
 

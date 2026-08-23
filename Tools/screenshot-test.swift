@@ -164,42 +164,6 @@ private enum ScreenshotTest {
         check(square.map { alpha($0, x: 0, y: 0) == 255 } == true,
               "disabled rounding preserves square corners")
 
-        let first = ScreenshotCursorTransition.frame(at: 0)
-        check(
-            first.outgoingAlpha == 1 && first.outgoingScale == 1 && first.incomingAlpha == 0,
-            "the swap opens on the outgoing pointer alone")
-        let last = ScreenshotCursorTransition.frame(at: ScreenshotCursorTransition.frameCount)
-        check(
-            last.incomingAlpha == 1 && last.incomingScale == 1 && last.outgoingAlpha == 0,
-            "the swap lands on the incoming pointer at full size")
-        let steps = (0...ScreenshotCursorTransition.frameCount).map {
-            ScreenshotCursorTransition.frame(at: $0)
-        }
-        check(
-            zip(steps, steps.dropFirst()).allSatisfy {
-                $0.incomingScale < $1.incomingScale && $0.outgoingScale > $1.outgoingScale
-                    && $0.incomingAlpha <= $1.incomingAlpha && $0.outgoingAlpha >= $1.outgoingAlpha
-            },
-            "every frame advances the swap without reversing")
-        check(
-            steps.allSatisfy {
-                $0.incomingScale <= 1 && $0.outgoingScale <= 1
-                    && $0.incomingScale >= ScreenshotCursorTransition.minimumScale
-                    && $0.outgoingScale >= ScreenshotCursorTransition.minimumScale
-            },
-            "neither pointer grows past its resting size")
-        check(
-            steps.contains { $0.outgoingAlpha > 0 && $0.incomingAlpha > 0 },
-            "the two pointers overlap rather than cutting")
-        check(
-            ScreenshotCursorTransition.eased(0) == 0 && ScreenshotCursorTransition.eased(1) == 1
-                && ScreenshotCursorTransition.eased(0.5) == 0.5,
-            "smoothstep pins both ends and the midpoint")
-        check(
-            ScreenshotCursorTransition.frame(at: -3) == first
-                && ScreenshotCursorTransition.frame(at: 99) == last,
-            "an out-of-range step clamps to an endpoint")
-
         let head = ScreenshotAnnotationGeometry.arrowHead(
             from: CGPoint(x: 0, y: 0), to: CGPoint(x: 100, y: 0), width: 4)
         check(head.tip == CGPoint(x: 100, y: 0), "the arrow head tip is the drag end")
@@ -306,6 +270,45 @@ private enum ScreenshotTest {
         check(
             ScreenshotThumbnail.outerSize(forPixelSize: .zero, maximum: box, border: 4) == box,
             "an empty capture falls back to the full box")
+
+        func fragment(_ text: String, _ x: Double, _ y: Double, _ h: Double = 0.05)
+            -> ScreenshotTextLayout.Fragment
+        {
+            ScreenshotTextLayout.Fragment(
+                string: text, box: CGRect(x: x, y: y, width: 0.2, height: h))
+        }
+        // Vision hands back fragments in no useful order; these arrive deliberately scrambled.
+        let page = [
+            fragment("world", 0.35, 0.80), fragment("Hello", 0.10, 0.80),
+            fragment("third", 0.10, 0.40), fragment("second", 0.10, 0.60),
+        ]
+        check(
+            ScreenshotTextLayout.text(from: page) == "Hello world\nsecond\nthird",
+            "fragments reassemble top-to-bottom then left-to-right")
+        check(ScreenshotTextLayout.lines(from: page).count == 3, "same-row fragments share a line")
+        check(
+            ScreenshotTextLayout.text(from: []).isEmpty,
+            "no fragments recognize to an empty string")
+        check(
+            ScreenshotTextLayout.text(from: [fragment("", 0.1, 0.5), fragment("kept", 0.1, 0.5)])
+                == "kept",
+            "empty fragments drop out rather than padding the line")
+        // A tall heading must not swallow the smaller row beneath it.
+        let heading = fragment("Heading", 0.10, 0.70, 0.12)
+        let below = fragment("body", 0.10, 0.66, 0.03)
+        check(
+            ScreenshotTextLayout.lines(from: [heading, below]).count == 2,
+            "a tall fragment does not absorb a shorter one below it")
+        check(
+            ScreenshotTextLayout.overlap(
+                of: CGRect(x: 0, y: 0, width: 1, height: 0.1),
+                and: CGRect(x: 0, y: 0.2, width: 1, height: 0.1)) == 0,
+            "fragments that never overlap vertically score zero")
+        check(
+            ScreenshotTextLayout.overlap(
+                of: CGRect(x: 0, y: 0, width: 1, height: 0.1),
+                and: CGRect(x: 0, y: 0, width: 1, height: 0.1)) == 1,
+            "identical spans score a full overlap")
 
         if failures > 0 { exit(1) }
         print("All screenshot tests passed.")

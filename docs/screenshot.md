@@ -11,8 +11,11 @@ The default is seeded once: changing or clearing the binding is respected on lat
 the plugin off preserves its binding, cancels an active selection and makes the shortcut a no-op.
 The Carbon callback schedules capture on the next main-run-loop turn so panel creation starts after
 the hotkey event has returned.
-Repeated shortcut events are ignored while a selection or pixel capture is already active, preventing
-key repeat from cancelling and rebuilding the selection panels underneath the pointer.
+Pressing the shortcut again while a selection is up **cancels** it: the overlay is deliberately
+near-invisible, so the shortcut that opened it is what a stuck user reaches for, and a no-op there is
+a dead end. Presses within 0.4s of the selection opening are still ignored — that is key repeat,
+which must not tear the panels down and rebuild them under the pointer. A press during the pixel
+capture that follows a selection is ignored too.
 The menu-bar menu also exposes `Capture Screenshot` as a direct click target. It deliberately routes
 through the registered shortcut action, including its deferred handoff, so this entry exercises the
 same enabled-state and capture path as Option-Z instead of bypassing shortcut dispatch.
@@ -57,11 +60,22 @@ holds keyboard focus, and — because that depends on what was frontmost when th
 transient Carbon key held for the life of the selection and released with the panels, the same
 mechanism the preview thumbnail uses for Return.
 
-## Window and screen capture modes
+## Window, screen and text capture modes
 
 Space cycles the live selection: region → window → whole screen → region, as often as the user
-likes; every capture starts in region mode. The manager owns the mode and pushes it to every panel at once, so the
-displays never disagree. In window mode the pointer becomes `camera.viewfinder`, dragging is inert,
+likes. **Tab** swaps to text recognition and back to whichever picking mode was in use, so reading
+something and returning does not lose the user's place; Space is inert in text mode, since there is
+no sensible whole-window or whole-display version of "read this bit of text". Every capture starts
+in region mode — no mode is sticky across invocations.
+
+Switching mode swaps the pointer outright rather than animating between symbols. The pointer *is*
+the mode indicator, so it has to be legible the instant the key lands — including for a pointer that
+is not moving. Rebuilding the cursor rects is what stops a later pointer move from restoring the
+previous symbol, but AppKit drops the live pointer to the arrow while it rebuilds and only re-applies
+a rect's cursor once the pointer enters it, so the cursor is set again after the rebuild as well as
+before it. Without that second pass a stationary pointer sat on the plain arrow until the user
+twitched the mouse. The manager owns the mode and pushes it to every panel at once, so the
+displays never disagree. In window mode the pointer becomes `camera.fill`, dragging is inert,
 and the window under the pointer is filled and outlined with the same tokens a dragged region uses.
 A left click captures the highlighted window; Escape and a secondary click still cancel.
 
@@ -106,6 +120,35 @@ origin.
 
 ## Capture options
 
+## Text recognition
+
+Tab turns the selection orange: the pointer keeps the region `dot.crosshair` and only changes colour
+to `screenshotCrosshairTextFill`, because text recognition *is* a region drag — the shape says what
+the gesture is and the colour says what comes out of it. The drag behaves exactly as a region drag — the two share
+`isDragSelection`, so neither picks windows nor whole displays. On release the pixels are captured
+only to be read: Vision recognizes the text, the image is dropped, and the text alone goes to the
+clipboard. "Text Copied" reports through the plain command HUD, and a selection with nothing legible
+in it reports "No Text Found" as a no-op without touching the clipboard.
+
+Recognition always captures at Retina regardless of the **Resolution** setting: accuracy tracks pixel
+density and no image is kept, so honouring `1x` here would cost accuracy and save nothing. Vision
+runs off the main actor and returns a plain `String`. Language is auto-detected rather than pinned to
+a list, so mixed Latin and CJK text reads correctly with nothing to configure.
+
+Unlike every other Spotter clipboard write, recognized text is **not** stamped with the internal
+marker, so it enters clipboard history (owner decision, Aug 2026). It is the user's own text and
+history is exactly where it belongs, whereas an image capture already has a thumbnail, a pin and an
+editor to return to.
+
+Nothing here needs a new permission or a consent gate: Vision is on-device and offline, and it reads
+exactly the pixels the existing Screen Recording grant already covers.
+
+The pure `ScreenshotTextLayout` puts the fragments back in reading order — Vision returns them in no
+useful order, so joining them as they arrive scrambles anything longer than a line. It groups by
+vertical overlap measured against the *shorter* fragment, so a tall heading does not swallow the row
+beneath it, then sorts lines top-to-bottom and each line left-to-right. Its harness pins the
+ordering, the empty cases and the heading-versus-body grouping.
+
 Screen mode is also the quickest way to check the Resolution setting end to end: a Retina capture of
 a whole display should match that display's framebuffer exactly (its point size times its backing
 scale), and `1x` should match its point size.
@@ -149,6 +192,22 @@ and encodes a TIFF with transparent corner pixels off the main actor. Regions na
 pixels clamp the radius to half their shortest side rather than producing invalid geometry.
 
 ## Preview and mark-up editor
+
+Captures taken in quick succession each get their own thumbnail, laid out in a row along the bottom
+of the screen, oldest to the left, gapped by 12 points and aligned on their bottom edges so
+differently-shaped captures sit on one line. The row stays centred, so an arriving thumbnail slides
+the others aside rather than landing on top of them, and a departing one closes the gap. A new
+capture also restarts the countdown on the thumbnails already up, so the row lives and dies together
+instead of the oldest vanishing mid-row; a hovered thumbnail is skipped, since the pointer already
+holds it and rescheduling would dismiss it out from under the pointer. The manager
+owns the row and the Return key — which always opens the newest — because a per-thumbnail key would
+have each registration clobbering the last. The row's screen is fixed while it is non-empty, so a
+new thumbnail cannot drag the others onto whichever display the pointer happens to be over.
+
+Each thumbnail drifts in 8 points from the direction of the area it was captured from: a capture in
+the top-right corner starts the thumbnail up and to the right of its slot and settles it down-left
+into place, leading the eye from the captured area to its result. Vertical signs flip on the way in
+because AppKit's y grows upward and SwiftUI's grows downward.
 
 The post-capture thumbnail is the entry point. `ScreenshotPreviewHUD` is a separate surface from the
 worded `CommandHUD`: it carries no text, symbol or button, just the capture itself in a 4-point white

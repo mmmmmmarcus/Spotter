@@ -70,7 +70,7 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 
 ### Size (`Theme.Size`)
 
-`panelWidth 628` · `panelHeight 475` · `headerHeight 44` · `bottomBarHeight 52` · `rowIcon 24` ·
+`panelWidth 628` · `panelHeight 475` · `headerHeight 44` · `headerContentGap 10` · `bottomBarHeight 52` · `rowIcon 24` ·
 `keyCap 18` · `recorderKeyCap 16` · `shortcutRowControl 140` · `menuButton 36` · `clipboardListWidth 290` ·
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
@@ -97,9 +97,11 @@ with a scale floor for the same reason. Changing the token moves both controls t
 
 ### Typography (`Theme.Typography`)
 
-System fonts only — **no fixed point sizes in views** (honors Dynamic Type). `searchField` is the one
-explicit size (20pt regular). Use `rowTitle` (`.body`), `sectionHeader` (`.subheadline.medium`),
-`rowTrailing`/`bar`/`menuRow`/`keyCap` etc. as named.
+System fonts only — **no fixed point sizes in views** (honors Dynamic Type). The header row is the one
+place explicit sizes live, because it is sized to a fixed slot rather than to text: `searchField`
+(20pt regular), `headerIcon` (18pt medium, the back chevron) and `headerModeIcon` (12pt medium, the
+cycle disc's glyph, sized to fit inside `headerIconSlot 22`). Use `rowTitle` (`.body`),
+`sectionHeader` (`.subheadline.medium`), `rowTrailing`/`bar`/`menuRow`/`keyCap` etc. as named.
 
 ### Colors (`Theme.Colors`) — the white-alpha ramp
 
@@ -124,6 +126,7 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 | `screenshotHitSurface` | black 1/255 | black 1/255 | visually clear capture-panel hit surface   |
 | `screenshotSelectionOverlay` | white 0.05 | black 0.05 | selected capture region fill            |
 | `screenshotCrosshairFill` | #2076FF 1.00 | #2076FF 1.00 | capture cursor symbol body              |
+| `screenshotCrosshairTextFill` | #FF9500 1.00 | #FF9500 1.00 | text-recognition cursor body          |
 | `screenshotCrosshairOutline` | white 1.00 | white 1.00 | generated capture-cursor outline        |
 | `screenshotCrosshairShadow` | black 0.28 | black 0.28 | subtle custom-cursor drop shadow       |
 
@@ -139,8 +142,8 @@ appearances.
 ## Panel structure — `Core/PalettePanel.swift`, `Features/RootPaletteView.swift`
 
 - **`PalettePanel`** is a borderless `NSPanel`: `isOpaque = false`, `backgroundColor = .clear`, `.floating` level, `hasShadow`, `animationBehavior = .none`, `.fullSizeContentView`, drag-movable by its background. It hosts SwiftUI via `NSHostingView`. `PaletteWindowController` anchors its **top edge** at `paletteTopMarginFraction` (0.18) of the visible height, resolved once per summon so the window grows downward, and dismisses it on `windowDidResignKey`.
-- **The results layer fills the whole panel.** The header and bottom bar attach via `.safeAreaInset(edge: .top/.bottom)` as transparent overlays that float _over_ the list. The list underlaps them and dissolves at the edges.
-- **Header** (`headerHeight 44`): a back-chevron _or_ mode glyph, then the plain `TextField` (no border/background). Every non-launcher mode (Clipboard, Calculator History, Emoji, plugin screens) shows the back chevron; the launcher shows a magnifying glass. The search icon aligns horizontally with row content.
+- **The results layer fills the whole panel.** The header and bottom bar attach via `.safeAreaInset(edge: .top/.bottom)` as transparent overlays that float _over_ the list. The top inset carries `headerContentGap 10` of spacing so the results clear the search row; the gap is the inset's spacing rather than part of `headerHeight`, which would grow the compact bar and move the window anchor. The list underlaps them and dissolves at the edges.
+- **Header** (`headerHeight 44`): a **cycle disc** _or_ a back chevron, then the plain `TextField` (no border/background). A Tab-cycle stop (Apps, AI Chat, Clipboard, Emoji — see [palette.md](palette.md)) shows its mode glyph on a `controlSurface` circle filling `headerIconSlot`, with the glyph shrunk to `headerModeIcon 12` so it stays inside the same slot; clicking it cycles forward, exactly as Tab does, and the glyph swaps through `.symbolEffect(.replace)` over `Animation.symbolMorph 0.06` so the disc reads as one persistent control whose contents change rather than a "go back" arrow — deliberately quicker than `quick 0.14`, since it fires on every Tab and must finish before the next press rather than trail it. Every mode outside the cycle (Calculator History, Software Update, plugin screens) shows the back chevron instead. The slot is fixed at 22 in all three cases, so the search icon keeps aligning horizontally with row content and the field's x never moves between modes.
 - **Compact keyboard entry:** pressing `↓` in the collapsed launcher expands the results and selects the first row without replacing or defocusing the shared search field.
 - **Bottom bar** (`bottomBarHeight 52`): a menu circle on the left, the action group on the right — both floating glass, no bar background. The action group is one glass `Capsule` holding the primary-action pill (label + `↵`) and the Actions toggle (`⌘K`).
 
@@ -323,9 +326,10 @@ the scroll is read through an `NSHostingView` subclass rather than a SwiftUI ges
 Screenshot is deliberately outside the palette surface: one transparent AppKit panel covers each
 display only for the duration of an explicit capture. The panels are non-activating, accept the first
 mouse click and leave the current app frontmost. For the bounded session the system pointer is replaced
-by one of three AppKit cursors built once from SF Symbols — `dot.crosshair` for region selection,
-`camera.viewfinder` for window selection, `display` for whole-screen selection — all drawn at
-24-point `.medium` in
+by one of four AppKit cursors built once from SF Symbols — `dot.crosshair` for region selection,
+`camera.fill` for window selection, `display` for whole-screen selection, and the region crosshair
+again in `screenshotCrosshairTextFill` orange for text recognition — that one keeps the crosshair
+because it is still a region drag, and only the colour says the result will be text — all drawn at 24-point `.medium` in
 `screenshotCrosshairFill`. Spotter dilates each glyph into a one-point external
 `screenshotCrosshairOutline` by stamping it around a 24-step circle, then draws the outlined artwork
 once through a two-point `screenshotCrosshairShadow` one point below it; three points of transparent
@@ -334,10 +338,9 @@ hotspot is the canvas center. It is not a second shape painted into the overlay.
 rects plus active-always mouse-move and explicit drag updates prevent Option-key release or the
 previous app's cursor rect from restoring the arrow before mouse-down, the window server is allowed
 to honor a background app's cursor for the session, and every exit restores the exact prior cursor.
-Space advances a three-step cycle, each step a 140 ms (`Theme.Animation.quick`) cross-fade played as
-seven composed pointer frames: the outgoing symbol shrinks to 60% as it fades out, the incoming one grows
-from 60% to full size as it fades in, they overlap through the middle fifth, and neither ever exceeds
-its resting size. Window mode reuses the region overlay tokens: the hovered window is filled with
+Space advances a three-step picking cycle and Tab swaps text recognition in and out; the pointer
+changes outright rather than animating, because it is the only indicator of which mode is live and
+has to be legible the instant the key lands. Window mode reuses the region overlay tokens: the hovered window is filled with
 `screenshotSelectionOverlay` and outlined with `screenshotSelectionBorder`, so both modes read as one
 surface.
 The panel fills with `screenshotHitSurface`, one black 8-bit alpha step that is visually clear but

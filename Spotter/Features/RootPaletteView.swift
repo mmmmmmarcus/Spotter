@@ -359,7 +359,7 @@ struct RootPaletteView: View {
                 )
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .safeAreaInset(edge: .top, spacing: Theme.Size.headerContentGap) { header }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isCollapsed {
                 bottomBar(
@@ -521,6 +521,8 @@ struct RootPaletteView: View {
             guard vm.mode == .clipboard, clips.indices.contains(selection) else { return }
             core.togglePinnedClip(clips[selection])
         }
+        // Shift-Tab reaches us as a token for the same reason ⌘. does: AppKit gives the chord to the field editor before `onKeyPress` can see it.
+        .onChange(of: vm.backTabToken) { handleTab(shift: true) }
         .onAppear { searchFocused = vm.mode != .updates }
         // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
         .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
@@ -667,23 +669,7 @@ struct RootPaletteView: View {
             return .handled
         }
         .onKeyPress(keys: [.tab], phases: .down) { press in
-            if aliasEditorOpen { return .handled }
-            if confirmOpen {
-                confirmSelection = confirmSelection == 0 ? 1 : 0
-                return .handled
-            }
-            if menuOpen { return .handled }
-            let hasDraft = !vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            let sendsToChatGPT = press.modifiers.contains(.shift)
-            if hasDraft, vm.mode == .aiChat || (vm.mode == .launcher && sendsToChatGPT) {
-                if sendsToChatGPT {
-                    sendChatGPTMessage()
-                } else {
-                    sendChatMessage()
-                }
-                return .handled
-            }
-            toggleMode()
+            handleTab(shift: press.modifiers.contains(.shift))
             return .handled
         }
         .onKeyPress(keys: [","], phases: .down) { press in
@@ -755,8 +741,28 @@ struct RootPaletteView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: Theme.Spacing.md) {
-            // Clipboard and Calculator History are sub-screens of the root search, so their header icon is a back chevron instead of a mode glyph.
-            if vm.mode != .launcher {
+            // A Tab-cycle stop shows its mode glyph in a disc — one persistent control whose contents
+            // change, so it reads as "switch" and not "go back". Every other mode is a sub-screen of
+            // the root search and keeps the back chevron.
+            if modeCycle.contains(vm.mode) {
+                Button { cycleMode(forward: true) } label: {
+                    Image(systemName: vm.mode.systemImage)
+                        .font(Theme.Typography.headerModeIcon)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(
+                            width: Theme.Size.headerIconSlot, height: Theme.Size.headerIconSlot
+                        )
+                        .background(Theme.Colors.controlSurface, in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                // Nothing in the palette is reachable by focus-walking — the search field is the one first responder, and a focus ring on the disc would be a stray control appearing mid-typing.
+                .focusable(false)
+                .help("Switch surface (⇥)")
+                .animation(.easeInOut(duration: Theme.Animation.symbolMorph), value: vm.mode)
+            } else {
                 Button(action: exitToLauncher) {
                     Image(systemName: "chevron.left")
                         .font(Theme.Typography.headerIcon)
@@ -766,12 +772,6 @@ struct RootPaletteView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-            } else {
-                Image(systemName: vm.mode.systemImage)
-                    .font(Theme.Typography.headerIcon)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
-                    .frame(width: Theme.Size.headerIconSlot)
             }
             if vm.mode == .updates {
                 Text(vm.mode.title)
@@ -1248,29 +1248,62 @@ struct RootPaletteView: View {
         scroll = ScrollIntent(kind: .follow)
     }
 
-    /// Tab cycles empty root surfaces; a typed launcher query starts a fresh AI Chat turn, while sub-screens exit to the launcher.
-    private func toggleMode() {
-        var cycle: [PaletteMode] = [.launcher]
-        cycle.append(.aiChat)
-        if plugins.isEnabled(.clipboard) { cycle.append(.clipboard) }
-        guard cycle.count > 1 else { return }
-        guard let index = cycle.firstIndex(of: vm.mode) else {
-            vm.mode = .launcher
+    /// Tab and Shift-Tab in one place: the plain chord arrives through `onKeyPress`, the shifted one
+    /// as `backTabToken` (AppKit hands Shift-Tab to the field editor), and both must mean the same
+    /// thing everywhere — a confirmation or an open menu owns the chord before any cycling happens.
+    private func handleTab(shift: Bool) {
+        if aliasEditorOpen { return }
+        if confirmOpen {
+            confirmSelection = confirmSelection == 0 ? 1 : 0
             return
         }
-        let next = cycle[(index + 1) % cycle.count]
+        if menuOpen { return }
+        let hasDraft = !vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasDraft, vm.mode == .aiChat || (vm.mode == .launcher && shift) {
+            if shift {
+                sendChatGPTMessage()
+            } else {
+                sendChatMessage()
+            }
+            return
+        }
+        // With no draft to send, Shift-Tab walks the cycle the other way.
+        cycleMode(forward: !shift)
+    }
+
+    /// The Tab cycle's stops for the current plugin set; also decides which modes get the header disc.
+    private var modeCycle: [PaletteMode] { PaletteMode.cycle(isPluginEnabled: plugins.isEnabled) }
+
+    /// Tab walks the empty root surfaces forward, Shift-Tab backward, so any stop is at most one
+    /// press away in some direction. A typed launcher query starts a fresh AI Chat turn instead, and
+    /// a sub-screen (which is not a stop) exits to the launcher.
+    private func cycleMode(forward: Bool) {
+        let cycle = modeCycle
+        guard cycle.count > 1 else { return }
+        guard let index = cycle.firstIndex(of: vm.mode) else {
+            vm.prepare(mode: .launcher)
+            return
+        }
+        let step = forward ? 1 : cycle.count - 1
+        let next = cycle[(index + step) % cycle.count]
+        // Chat carries the draft in; every other stop arrives fresh. `prepare` rather than a bare
+        // mode assignment: each surface has its own row order, so a selection carried across would
+        // point at the wrong row.
         if next == .aiChat {
-            enterChat()
+            // Only the launcher's query is a question worth asking; a clipboard or emoji filter
+            // string arriving as a chat prompt would be a stray message nobody typed.
+            enterChat(prompt: vm.mode == .launcher ? vm.query : "")
         } else {
-            vm.mode = next
+            vm.prepare(mode: next)
         }
     }
 
     /// Tab's chat contract: always a fresh session, and typed content is sent on arrival — type a
     /// question in the launcher, Tab, and it's already asked. Without a key the text stays in the
     /// composer next to the add-a-key notice.
-    private func enterChat() {
-        core.startAIChat(prompt: vm.query)
+    private func enterChat(prompt: String) {
+        vm.selection = 0
+        core.startAIChat(prompt: prompt)
     }
 
     /// The chat composer is the shared search field: Tab or ↵ sends through Spotter and clears it.

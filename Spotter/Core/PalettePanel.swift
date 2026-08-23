@@ -89,6 +89,14 @@ final class PalettePanel: NSPanel {
         {
             return
         }
+        // Shift-Tab is AppKit's "previous key view" gesture: the field editor turns it into `insertBacktab:` and moves focus to the header's cycle disc, so SwiftUI's `onKeyPress` never sees it and the search field stops being first responder. Intercept it here so the palette owns the chord outright — nothing in the panel is meant to be reachable by focus-walking.
+        if event.type == .keyDown,
+            Int(event.keyCode) == kVK_Tab,
+            event.modifierFlags.intersection([.command, .option, .control, .shift]) == .shift
+        {
+            paletteViewModel?.backTabToken = UUID()
+            return
+        }
         // ⌘. is macOS's Cancel chord, so AppKit routes it to `cancelOperation:` and the field editor eats it before SwiftUI's `onKeyPress` could see it. Intercept it here for the clipboard's pin, and only there — everywhere else it keeps meaning cancel.
         if event.type == .keyDown,
             Int(event.keyCode) == kVK_ANSI_Period,

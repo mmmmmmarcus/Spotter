@@ -6,6 +6,8 @@ import SwiftUI
 enum Theme {
     enum Animation {
         static let quick: TimeInterval = 0.14
+        /// The header disc's glyph swap. Faster than `quick`: it fires on every Tab, so it has to finish before the next press rather than trail it.
+        static let symbolMorph: TimeInterval = 0.06
     }
 
     enum Spacing {
@@ -54,10 +56,12 @@ enum Theme {
         /// Fraction of the active screen's visible height between the top of the visible area and the palette's top edge; the window grows downward from this edge (Spotlight-style upper placement).
         static let paletteTopMarginFraction: CGFloat = 0.18
         static let headerHeight: CGFloat = 44
-        /// Fixed slot for the header leading glyph (search / back chevron / mode icon) so the search field starts at the same x in every mode — glyphs have different intrinsic widths (chevron 14, magnifyingglass 22). Sized to the magnifyingglass so the launcher spacing is unchanged.
+        /// Fixed slot for the header leading control (cycle disc on a Tab-cycle mode, back chevron on a sub-screen) so the search field starts at the same x in every mode — glyphs have different intrinsic widths (chevron 14, magnifyingglass 22). Sized to the magnifyingglass so the launcher spacing is unchanged; the disc fills the slot exactly and shrinks its glyph to `headerModeIcon` to stay inside it.
         static let headerIconSlot: CGFloat = 22
         /// Vertical breathing room above the search row — constant across compact/expanded so the bar never shifts when typing flips the state; also the compact bar's symmetric top/bottom slack.
         static let headerPadding: CGFloat = 10
+        /// Gap between the floating header and the top of the results below it, applied as the top `safeAreaInset` spacing. Deliberately not folded into `headerHeight`: that would grow the compact bar and move the window anchor, and the search row must sit at the same y in both states.
+        static let headerContentGap: CGFloat = 10
         /// Collapsed compact bar: the search row centered in symmetric `headerPadding` slack.
         static let compactHeight: CGFloat = headerHeight + headerPadding * 2
         static let bottomBarHeight: CGFloat = 52
@@ -109,6 +113,8 @@ enum Theme {
     enum Typography {
         static let searchField = Font.system(size: 20, weight: .regular)
         static let headerIcon = Font.system(size: 18, weight: .medium)
+        /// The mode glyph inside the header's cycle disc — smaller than `headerIcon` so the disc fits the same `headerIconSlot` and the search field's x never moves.
+        static let headerModeIcon = Font.system(size: 12, weight: .medium)
         static let rowTitle = Font.body
         static let rowTrailing = Font.callout
         static let sectionHeader = Font.subheadline.weight(.medium)
@@ -163,6 +169,11 @@ enum Theme {
         /// Fills the selected region so its extent reads without obscuring the source; it follows the border's appearance so both halves of the affordance stay one surface.
         static let screenshotSelectionOverlay = adaptive(
             dark: .white.opacity(0.05), light: .black.opacity(0.05))
+        /// The text-recognition pointer. Orange in both appearances, like the capture blue it sits
+        /// beside: the pointer is what tells the user this capture yields text, not a picture.
+        static let screenshotCrosshairTextFill = adaptive(
+            dark: Color(red: 1, green: 149.0 / 255.0, blue: 0),
+            light: Color(red: 1, green: 149.0 / 255.0, blue: 0))
         /// Fixed colors from the supplied Union.svg crosshair artwork.
         static let screenshotCrosshairFill = adaptive(
             dark: Color(red: 32.0 / 255.0, green: 118.0 / 255.0, blue: 1),

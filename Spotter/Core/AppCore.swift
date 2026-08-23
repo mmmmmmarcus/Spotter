@@ -47,6 +47,17 @@ enum PaletteMode: Equatable, Identifiable {
         case .plugin: return "puzzlepiece.extension"
         }
     }
+    /// The Tab cycle's stops, in order, minus any whose plugin is switched off. The single source of
+    /// truth for both the key handling and the header glyph, so the affordance can't promise a loop
+    /// the keys don't perform. Apps and AI Chat are system features and always present; every mode
+    /// left out is a sub-screen reached from the launcher and keeps its back chevron.
+    static func cycle(isPluginEnabled: (PluginID) -> Bool) -> [PaletteMode] {
+        var stops: [PaletteMode] = [.launcher, .aiChat]
+        if isPluginEnabled(.clipboard) { stops.append(.clipboard) }
+        if isPluginEnabled(.emoji) { stops.append(.emoji) }
+        return stops
+    }
+
     var placeholder: String {
         switch self {
         case .launcher: return "Search for apps and commands…"
@@ -107,6 +118,8 @@ final class PaletteViewModel: ObservableObject {
     @Published var followToken = UUID()
     /// Bumped by `PalettePanel` when ⌘. arrives in the clipboard. AppKit binds that chord to `cancelOperation:` alongside Escape, so the field editor consumes it and `onKeyPress(keys: ["."])` never fires — see docs/palette.md. `RootPaletteView` observes the token and resolves the row from the current results, so which row gets pinned still comes from one place.
     @Published var pinChordToken = UUID()
+    /// Bumped by `PalettePanel` when Shift-Tab arrives. AppKit routes it to the field editor's `insertBacktab:`, which walks the key-view loop and lands focus on the header's cycle disc, so `onKeyPress` never fires and the search field loses first responder — see docs/palette.md.
+    @Published var backTabToken = UUID()
     /// The clipboard list's type filter. Reset to `.all` on every `prepare` and on any mode change: a filter left on from last time would silently hide history the user came back for.
     @Published var clipboardFilter: ClipboardFilter = .all
     /// Set by the compact bar's "…" overflow to expand into the full launcher without a query; cleared on every `prepare`.

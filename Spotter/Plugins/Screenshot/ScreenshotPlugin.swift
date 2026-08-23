@@ -80,17 +80,18 @@ extension AppCore {
     }
 
     /// The capture's own thumbnail replaces a worded HUD: click it or press Return to edit, or drag
-    /// it off to leave it pinned above every app.
-    private func showScreenshotPreview() {
+    /// it off to leave it pinned above every app. Each capture gets its own, so shots taken in
+    /// quick succession queue up side by side.
+    private func showScreenshotPreview(from sourceRect: CGRect?) {
         guard let capture = screenshot.lastCapture else { return }
-        screenshot.preview.onOpen = { [weak self] in self?.showScreenshotEditor() }
-        screenshot.preview.onPin = { [weak self] thumbnail, point in
+        screenshot.showPreview(for: capture.image, from: sourceRect) { [weak self] in
+            self?.showScreenshotEditor(for: capture)
+        } onPin: { [weak self] thumbnail, point in
             guard let self else { return nil }
             return screenshot.pin(capture, thumbnail: thumbnail, at: point) { [weak self] pinned in
                 self?.showScreenshotEditor(for: pinned)
             }
         }
-        screenshot.preview.show(capture.image)
     }
 
     func dismissScreenshotEditor() {
@@ -124,8 +125,15 @@ extension AppCore {
             AppLog.info("screenshot", "Capture ignored because the plugin is disabled.")
             return
         }
-        guard !screenshot.isCapturing else {
-            AppLog.info("screenshot", "Capture ignored because a selection is already active.")
+        if screenshot.isCapturing {
+            // The overlay is deliberately near-invisible, so the shortcut that opened it is the one
+            // a stuck user reaches for. Make it the way out rather than a no-op.
+            guard screenshot.acceptsShortcutCancel else {
+                AppLog.info("screenshot", "Capture ignored; the selection only just opened.")
+                return
+            }
+            AppLog.info("screenshot", "Shortcut pressed during a selection; cancelling it.")
+            screenshot.cancel()
             return
         }
         AppLog.info("screenshot", "Capture request reached AppCore.")
@@ -138,7 +146,11 @@ extension AppCore {
             guard let self else { return }
             switch result {
             case .copied:
-                showScreenshotPreview()
+                showScreenshotPreview(from: screenshot.lastCaptureRect)
+            case .textCopied:
+                hud.show(title: "Text Copied", symbol: "text.viewfinder")
+            case .noTextFound:
+                hud.show(title: "No Text Found", symbol: "text.viewfinder", isNoOp: true)
             case .permissionRequired:
                 hud.show(title: "Allow Screen Recording", symbol: "lock.shield", isNoOp: true)
             case .failed:

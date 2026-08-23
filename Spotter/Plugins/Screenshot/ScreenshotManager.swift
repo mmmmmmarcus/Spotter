@@ -5,6 +5,8 @@ import ScreenCaptureKit
 
 enum ScreenshotCaptureResult {
     case copied
+    case textCopied
+    case noTextFound
     case cancelled
     case permissionRequired
     case failed
@@ -18,19 +20,25 @@ struct ScreenshotCapturePayload: Sendable {
 }
 
 /// Region selection is where every capture starts; Space cycles on through whole-window and
-/// whole-display picking and back around.
+/// whole-display picking and back around, and Tab swaps to text recognition and back.
 enum ScreenshotCaptureMode: CaseIterable {
     case region
     case window
     case screen
+    /// Drag a region and keep only the text inside it. Deliberately off the Space cycle: there is
+    /// no sensible whole-window or whole-display version of "read this bit of text".
+    case text
 
     var next: ScreenshotCaptureMode {
         switch self {
         case .region: .window
         case .window: .screen
-        case .screen: .region
+        case .screen, .text: .region
         }
     }
+
+    /// Whether the user draws the area, as opposed to picking something already on screen.
+    var isDragSelection: Bool { self == .region || self == .text }
 }
 
 private enum ScreenshotCaptureFailure: LocalizedError {
@@ -60,14 +68,25 @@ final class ScreenshotManager: ObservableObject {
     private var previousCursor: NSCursor?
     private var mode: ScreenshotCaptureMode = .region
     private var hoveredWindow: ScreenshotWindowCandidate?
+    /// Where Tab returns to; Space never leaves text mode, so this only tracks picking modes.
+    private var modeBeforeText: ScreenshotCaptureMode = .region
+    private var selectionStartedAt: Date?
     /// Retained until the next capture so the thumbnail can open the editor after the panels are gone.
     private(set) var lastCapture: ScreenshotCapturePayload?
-    /// The post-capture thumbnail. Created with the app's hotkey manager because Return reaches it
-    /// through a transient system key rather than the responder chain.
-    let preview: ScreenshotPreviewHUD
+    /// Where on screen the last capture came from, so its thumbnail can drift in from that
+    /// direction. Global AppKit coordinates.
+    private(set) var lastCaptureRect: CGRect?
+    /// Every thumbnail still on screen, oldest first. Captures taken in quick succession sit side
+    /// by side rather than replacing one another.
+    private var previews: [ScreenshotPreviewHUD] = []
+    /// The screen the row is laid out on, fixed while the row is non-empty so an arriving thumbnail
+    /// cannot drag the others onto whichever display the pointer happens to be over.
+    private var previewScreen: NSScreen?
+    /// Gap between neighbouring thumbnails in the row.
+    private static let previewGap: CGFloat = 12
+    private static let previewReturnKeyID = "screenshot.preview.return"
     /// Every torn-off capture still floating on screen; each closes itself and drops out of here.
     private var pins: [ScreenshotPinWindow] = []
-    private let cursorAnimator = ScreenshotCursorAnimator()
     private unowned let hotKeys: HotKeyManager
     private let defaults: UserDefaults
     private static let escapeKeyID = "screenshot.selection.escape"
@@ -112,7 +131,6 @@ final class ScreenshotManager: ObservableObject {
 
     init(hotKeys: HotKeyManager, defaults: UserDefaults = .standard) {
         self.hotKeys = hotKeys
-        preview = ScreenshotPreviewHUD(hotKeys: hotKeys)
         self.defaults = defaults
         roundedCorners = defaults.object(forKey: Self.roundedCornersKey) == nil
             || defaults.bool(forKey: Self.roundedCornersKey)
@@ -122,13 +140,17 @@ final class ScreenshotManager: ObservableObject {
             .flatMap(ScreenshotFileFormat.init(rawValue:)) ?? .png
         includesWindowShadow = defaults.bool(forKey: Self.includesWindowShadowKey)
         hidesSpotterWindows = defaults.bool(forKey: Self.hidesSpotterWindowsKey)
-        cursorAnimator.onFrame = { [weak self] cursor in
-            guard let self else { return }
-            for panel in panels { panel.apply(cursor: cursor) }
-        }
     }
 
     var isCapturing: Bool { !panels.isEmpty || captureTask != nil }
+
+    /// A second shortcut press means "get me out of here" once the selection has been up long
+    /// enough to see. Presses inside that window are key repeat, which must not tear the panels
+    /// down and rebuild them under the pointer.
+    var acceptsShortcutCancel: Bool {
+        guard let startedAt = selectionStartedAt else { return false }
+        return Date().timeIntervalSince(startedAt) >= 0.4
+    }
 
     func begin(completion: @escaping (ScreenshotCaptureResult) -> Void) {
         cancel(notifying: false)
@@ -151,12 +173,13 @@ final class ScreenshotManager: ObservableObject {
 
         self.completion = completion
         mode = .region
+        modeBeforeText = .region
         hoveredWindow = nil
-        cursorAnimator.reset(to: mode)
         previousCursor = NSCursor.current
         BackgroundCursor.setAllowed(true)
         panels = screens.map(makePanel)
 
+        selectionStartedAt = Date()
         for panel in panels { panel.activate() }
         for panel in panels { panel.prepareForPresentation() }
         // The view's own keyDown only fires when the overlay actually holds keyboard focus, which
@@ -180,9 +203,74 @@ final class ScreenshotManager: ObservableObject {
 
     /// Disabling the plugin drops the retained capture along with the editor that shows it.
     func clearLastCapture() {
-        preview.dismiss()
+        for preview in previews { preview.dismiss() }
         closeAllPins()
         lastCapture = nil
+    }
+
+    /// Adds a thumbnail to the row. The row stays centered, so an arriving thumbnail slides the
+    /// others aside rather than landing on top of them.
+    func showPreview(
+        for image: CGImage, from sourceRect: CGRect?,
+        onOpen: @escaping () -> Void,
+        onPin: @escaping (CGSize, CGPoint) -> ScreenshotPinWindow?
+    ) {
+        let preview = ScreenshotPreviewHUD()
+        preview.onOpen = onOpen
+        preview.onPin = onPin
+        preview.onDismissed = { [weak self, weak preview] in
+            guard let self, let preview else { return }
+            previews.removeAll { $0 === preview }
+            if previews.isEmpty { previewScreen = nil }
+            layoutPreviews()
+            armPreviewReturnKey()
+        }
+        preview.prepare(image)
+        if previews.isEmpty {
+            previewScreen =
+                NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+                ?? NSScreen.main
+        }
+        for existing in previews { existing.extendVisibility() }
+        previews.append(preview)
+        layoutPreviews(presenting: preview, from: sourceRect)
+        armPreviewReturnKey()
+    }
+
+    /// Lays the row out centered on `previewScreen`, bottoms aligned at the HUD margin so
+    /// thumbnails of different shapes sit on one line.
+    private func layoutPreviews(
+        presenting arriving: ScreenshotPreviewHUD? = nil, from sourceRect: CGRect? = nil
+    ) {
+        guard let visible = previewScreen?.visibleFrame else { return }
+        let widths = previews.map(\.cardSize.width)
+        let total = widths.reduce(0, +) + Self.previewGap * CGFloat(max(previews.count - 1, 0))
+        var x = visible.midX - total / 2
+        for preview in previews {
+            let center = CGPoint(
+                x: x + preview.cardSize.width / 2,
+                y: visible.minY + Theme.Size.hudBottomMargin + preview.cardSize.height / 2)
+            if preview === arriving {
+                preview.present(at: center, from: sourceRect)
+            } else {
+                preview.move(to: center)
+            }
+            x += preview.cardSize.width + Self.previewGap
+        }
+    }
+
+    /// Return always opens the newest thumbnail; the key is held only while the row has one.
+    private func armPreviewReturnKey() {
+        guard previews.last != nil else {
+            hotKeys.releaseTransientKey(id: Self.previewReturnKeyID)
+            return
+        }
+        hotKeys.holdTransientKey(
+            id: Self.previewReturnKeyID,
+            shortcut: KeyShortcut(carbonKeyCode: kVK_Return, carbonModifiers: 0)
+        ) { [weak self] in
+            self?.previews.last?.open()
+        }
     }
 
     /// Floats a capture above every app. `onOpen` is wired by the plugin, which owns the editor.
@@ -218,16 +306,34 @@ final class ScreenshotManager: ObservableObject {
         }
         view.onWindowSelection = { [weak self] in self?.capturePickedTarget() }
         view.onToggleMode = { [weak self] in self?.toggleMode() }
+        view.onToggleTextMode = { [weak self] in self?.toggleTextMode() }
         view.onPointerMoved = { [weak self] in self?.refreshHoveredWindow() }
         view.onCancel = { [weak self] in self?.cancel() }
         return panel
     }
 
+    /// Tab is a toggle, not a step: it swaps to text recognition and back to whichever picking mode
+    /// was in use, so switching to read something and back does not lose the user's place.
+    private func toggleTextMode() {
+        if mode == .text {
+            mode = modeBeforeText
+        } else {
+            modeBeforeText = mode
+            mode = .text
+        }
+        applyMode()
+    }
+
     private func toggleMode() {
+        // Space is the picking cycle; in text mode there is nothing for it to cycle through.
+        guard mode != .text else { return }
         mode = mode.next
+        applyMode()
+    }
+
+    private func applyMode() {
         AppLog.info("screenshot", "Capture mode is now \(mode).")
         for panel in panels { panel.apply(mode: mode) }
-        cursorAnimator.transition(to: mode)
         refreshHoveredWindow()
     }
 
@@ -239,6 +345,7 @@ final class ScreenshotManager: ObservableObject {
             return
         }
         guard mode == .window else {
+            // Region and text both draw their own rectangle; neither highlights anything.
             guard hoveredWindow != nil else { return }
             hoveredWindow = nil
             applyHighlight(nil)
@@ -298,6 +405,11 @@ final class ScreenshotManager: ObservableObject {
         }
         let captureRect = ScreenshotGeometry.captureRect(
             fromScreenLocal: localRect, screenHeight: screen.frame.height)
+        lastCaptureRect = localRect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        if mode == .text {
+            recognizeText(in: captureRect, displayID: displayID)
+            return
+        }
         let roundedCorners = roundedCorners
         let captureScale = captureScale
         dismissPanels()
@@ -312,6 +424,41 @@ final class ScreenshotManager: ObservableObject {
                 await deliver(image, roundedCorners: roundedCorners)
             } catch {
                 AppLog.error("screenshot", "ScreenCaptureKit failed: \(error.localizedDescription)")
+                captureTask = nil
+                finish(.failed)
+            }
+        }
+    }
+
+    /// Captures the dragged region only to read it: the pixels are recognized and dropped, and the
+    /// text lands on the clipboard in their place. Always captured at Retina regardless of the
+    /// Resolution setting — recognition accuracy tracks pixel density, and no image is kept, so
+    /// honouring a 1x preference here would cost accuracy and save nothing.
+    private func recognizeText(in rect: CGRect, displayID: CGDirectDisplayID) {
+        dismissPanels()
+        captureTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            do {
+                let image = try await Self.captureImage(
+                    in: rect, displayID: displayID, scale: .retina)
+                let text = try await Task.detached(priority: .userInitiated) {
+                    try ScreenshotTextRecognizer.text(in: image)
+                }.value
+                guard !Task.isCancelled else { return }
+                captureTask = nil
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else {
+                    AppLog.info("screenshot", "Text recognition found nothing in the selection.")
+                    finish(.noTextFound)
+                    return
+                }
+                writeTextToPasteboard(trimmed)
+                AppLog.info("screenshot", "Copied \(trimmed.count) recognized character(s).")
+                finish(.textCopied)
+            } catch {
+                AppLog.error("screenshot", "Text recognition failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
             }
@@ -335,6 +482,7 @@ final class ScreenshotManager: ObservableObject {
         }
         let captureRect = CGRect(origin: .zero, size: screen.frame.size)
         let captureScale = captureScale
+        lastCaptureRect = screen.frame
         dismissPanels()
 
         captureTask = Task { [weak self] in
@@ -363,6 +511,9 @@ final class ScreenshotManager: ObservableObject {
         }
         let captureScale = captureScale
         let includesWindowShadow = includesWindowShadow
+        let primaryScreenMaxY = NSScreen.screens.first?.frame.maxY ?? 0
+        lastCaptureRect = ScreenshotWindowPicker.appKitRect(
+            fromDisplaySpace: target.bounds, primaryScreenMaxY: primaryScreenMaxY)
         dismissPanels()
 
         captureTask = Task { [weak self] in
@@ -451,6 +602,15 @@ final class ScreenshotManager: ObservableObject {
             contentFilter: filter, configuration: configuration)
     }
 
+    /// Deliberately unmarked, unlike every other Spotter write: recognized text is the user's own
+    /// content and belongs in clipboard history, where an image capture — which has its own
+    /// thumbnail, pin and editor — does not. Owner decision, Aug 2026.
+    private func writeTextToPasteboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
     private func writeToPasteboard(_ tiff: Data) -> Bool {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -470,8 +630,8 @@ final class ScreenshotManager: ObservableObject {
     }
 
     private func dismissPanels() {
+        selectionStartedAt = nil
         hotKeys.releaseTransientKey(id: Self.escapeKeyID)
-        cursorAnimator.stop()
         for panel in panels { panel.deactivate() }
         panels = []
         hoveredWindow = nil
@@ -552,10 +712,6 @@ private final class ScreenshotSelectionPanel: NSPanel {
         selectionView.prepareForPresentation()
     }
 
-    func apply(cursor: NSCursor) {
-        selectionView.apply(cursor: cursor)
-    }
-
     func apply(mode: ScreenshotCaptureMode) {
         selectionView.apply(mode: mode)
     }
@@ -573,13 +729,14 @@ private final class ScreenshotSelectionView: NSView {
     var onSelection: ((CGRect) -> Void)?
     var onWindowSelection: (() -> Void)?
     var onToggleMode: (() -> Void)?
+    var onToggleTextMode: (() -> Void)?
     var onPointerMoved: (() -> Void)?
     var onCancel: (() -> Void)?
 
     private let roundedCorners: Bool
     private let screenFrame: CGRect
     private var mode: ScreenshotCaptureMode = .region
-    private var cursor: NSCursor = ScreenshotCursor.region
+    private var cursor: NSCursor { ScreenshotCursor.cursor(for: mode) }
     private var highlight: CGRect?
     private var dragStart: CGPoint?
     private var selection: CGRect?
@@ -624,10 +781,7 @@ private final class ScreenshotSelectionView: NSView {
     }
 
     func prepareForPresentation() {
-        guard let window else { return }
-        window.invalidateCursorRects(for: self)
-        guard window.frame.contains(NSEvent.mouseLocation) else { return }
-        cursor.set()
+        refreshCursorRects()
     }
 
     func apply(mode: ScreenshotCaptureMode) {
@@ -635,14 +789,26 @@ private final class ScreenshotSelectionView: NSView {
         self.mode = mode
         dragStart = nil
         selection = nil
+        refreshCursorRects()
         needsDisplay = true
     }
 
-    /// Each transition frame arrives here; the cursor rect is rebuilt with it so a pointer move mid-swap cannot restore the previous pointer.
-    func apply(cursor: NSCursor) {
-        self.cursor = cursor
+    /// Rebuilding the cursor rects is what stops a later pointer move from restoring the previous
+    /// symbol — but AppKit drops the live pointer back to the arrow while it rebuilds, and only
+    /// re-applies a rect's cursor once the pointer moves into it. A stationary pointer would sit on
+    /// the arrow until the user twitched the mouse, so the cursor is set again after the rebuild has
+    /// been processed as well as before it.
+    private func refreshCursorRects() {
         window?.invalidateCursorRects(for: self)
-        if window?.frame.contains(NSEvent.mouseLocation) == true { cursor.set() }
+        setCursorIfPointerInside()
+        DispatchQueue.main.async { [weak self] in self?.setCursorIfPointerInside() }
+    }
+
+    /// NSMouseInRect, not `contains`: on the top edge the pointer's y sits exactly on `frame.maxY`,
+    /// which a plain rect-contains misses.
+    private func setCursorIfPointerInside() {
+        guard let window, NSMouseInRect(NSEvent.mouseLocation, window.frame, false) else { return }
+        cursor.set()
     }
 
     func apply(highlight rect: CGRect?) {
@@ -660,7 +826,7 @@ private final class ScreenshotSelectionView: NSView {
         window?.makeKey()
         window?.makeFirstResponder(self)
         cursor.set()
-        guard mode == .region else { return }
+        guard mode.isDragSelection else { return }
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         dragStart = point
         selection = .zero
@@ -668,7 +834,7 @@ private final class ScreenshotSelectionView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard mode == .region, let dragStart else { return }
+        guard mode.isDragSelection, let dragStart else { return }
         let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         selection = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
         cursor.set()
@@ -677,7 +843,7 @@ private final class ScreenshotSelectionView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         guard event.buttonNumber == 0 else { return }
-        guard mode == .region else {
+        guard mode.isDragSelection else {
             onWindowSelection?()
             return
         }
@@ -703,6 +869,8 @@ private final class ScreenshotSelectionView: NSView {
             onCancel?()
         case 49:
             onToggleMode?()
+        case 48:
+            onToggleTextMode?()
         default:
             super.keyDown(with: event)
         }
@@ -711,7 +879,7 @@ private final class ScreenshotSelectionView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawHitSurface()
-        if mode != .region {
+        if !mode.isDragSelection {
             if let highlight, ScreenshotGeometry.isCapturable(highlight) {
                 drawSelection(highlight)
             }

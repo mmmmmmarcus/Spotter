@@ -85,37 +85,3 @@ enum ScreenshotCaptureScale: String, CaseIterable, Identifiable, Sendable {
             max(Int((size.height * scale).rounded()), 1))
     }
 }
-
-/// The cross-fade schedule for the Space-driven pointer swap. A hardware cursor cannot animate
-/// itself, so the overlay replays these frames; the curve is pure so the harness can pin it.
-enum ScreenshotCursorTransition {
-    /// Frames including the resting destination, which the animator supplies rather than composing.
-    static let frameCount = 8
-    /// How far the outgoing symbol shrinks away, and where the incoming one starts.
-    static let minimumScale: CGFloat = 0.6
-    /// The outgoing symbol is gone at 60% and the incoming one starts at 40%, so they overlap by a fifth of the swap.
-    static let outgoingFadeEnd: CGFloat = 0.6
-    static let incomingFadeStart: CGFloat = 0.4
-
-    struct Frame: Equatable {
-        var outgoingAlpha: CGFloat
-        var outgoingScale: CGFloat
-        var incomingAlpha: CGFloat
-        var incomingScale: CGFloat
-    }
-
-    static func frame(at step: Int, of count: Int = frameCount) -> Frame {
-        let progress = eased(CGFloat(min(max(step, 0), count)) / CGFloat(count))
-        return Frame(
-            outgoingAlpha: max(0, 1 - progress / outgoingFadeEnd),
-            outgoingScale: 1 - (1 - minimumScale) * progress,
-            incomingAlpha: max(0, (progress - incomingFadeStart) / (1 - incomingFadeStart)),
-            incomingScale: minimumScale + (1 - minimumScale) * progress)
-    }
-
-    /// Smoothstep: the swap leaves and lands without a visible velocity step.
-    static func eased(_ progress: CGFloat) -> CGFloat {
-        let clamped = min(max(progress, 0), 1)
-        return clamped * clamped * (3 - 2 * clamped)
-    }
-}

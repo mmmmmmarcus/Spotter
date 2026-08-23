@@ -92,6 +92,22 @@ struct ThemeTests {
         check(
             "screenshotSelectionOverlay", Theme.Colors.screenshotSelectionOverlay,
             darkWhite: true, darkAlpha: 0.05, lightWhite: false, lightAlpha: 0.05)
+        let textDark = resolve(Theme.Colors.screenshotCrosshairTextFill, .darkAqua)
+        let textLight = resolve(Theme.Colors.screenshotCrosshairTextFill, .aqua)
+        let cursorOrange = (CGFloat(1.0), CGFloat(149.0 / 255.0), CGFloat(0.0))
+        check(
+            "screenshotCrosshairTextFill keeps the OCR-cursor orange in dark",
+            abs(textDark.r - cursorOrange.0) < 0.001
+                && abs(textDark.g - cursorOrange.1) < 0.001
+                && abs(textDark.b - cursorOrange.2) < 0.001
+                && textDark.a == 1)
+        check(
+            "screenshotCrosshairTextFill keeps the OCR-cursor orange in light",
+            abs(textLight.r - cursorOrange.0) < 0.001
+                && abs(textLight.g - cursorOrange.1) < 0.001
+                && abs(textLight.b - cursorOrange.2) < 0.001
+                && textLight.a == 1)
+
         let crosshairDark = resolve(Theme.Colors.screenshotCrosshairFill, .darkAqua)
         let crosshairLight = resolve(Theme.Colors.screenshotCrosshairFill, .aqua)
         let crosshairBlue = (CGFloat(32.0 / 255.0), CGFloat(118.0 / 255.0), CGFloat(1.0))

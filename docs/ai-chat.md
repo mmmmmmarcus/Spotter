@@ -8,7 +8,9 @@ From the launcher, **Tab** with a typed query starts a fresh AI Chat session and
 without a key, the text stays in the composer beside the add-a-key notice. **Shift-Tab** with a typed
 query instead opens `https://chatgpt.com/?q=…` in the default browser and dismisses Spotter. Inside AI
 Chat, the same keys send the current draft to their respective destinations. With no draft, Tab keeps
-the Apps → AI Chat → Clipboard surface cycle. An already-empty current session is reused so cycling
+the Apps → AI Chat → Clipboard → Emoji surface cycle and Shift-Tab walks it backward. Only the
+launcher's query follows into chat; arriving from Clipboard or Emoji, the filter string is dropped
+rather than sent. An already-empty current session is reused so cycling
 modes cannot pile up blanks. Earlier conversations live in the **session menu**: the bottom-left
 palette menu in chat mode lists sessions newest-first (titled by their first user turn, the Notes
 derive-don't-ask rule) plus New Session (also **⌘N** anywhere in chat), and the ⌘K menu adds Delete

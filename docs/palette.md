@@ -17,19 +17,32 @@ UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its con
 - `.updates` → the Software Update status and install flow
 - `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
-**Tab cycles empty root surfaces** — Apps → AI Chat → Clipboard. AI Chat is always included as an
-system feature; Clipboard is skipped when its plugin is disabled. With a typed launcher query,
-Tab instead enters a fresh AI Chat session and sends through Spotter's OpenRouter-backed default.
-With a typed AI Chat draft, Tab sends in the current Spotter session. Shift-Tab sends a typed draft
-from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the default browser. Every other mode
-(Calculator History, Emoji, Software Update, plugin screens) is a sub-screen reached from the
-launcher (a command or a hotkey); Tab from one exits back to the launcher rather than joining the cycle.
+**Tab cycles empty root surfaces, Shift-Tab cycles them backward** — Apps → AI Chat → Clipboard →
+Emoji → Apps. `PaletteMode.cycle(isPluginEnabled:)` is the single source of truth for the stop list,
+read by both the key handling and the header glyph so the affordance can't promise a loop the keys
+don't perform. Apps and AI Chat are system features and always present; Clipboard and Emoji drop out
+when their plugins are disabled. Walking in both directions keeps every stop at most one press away
+in some direction. Each hop goes through `prepare`, so the arriving surface starts with a cleared
+query and selection — every surface has its own row order, and a selection carried across would
+point at the wrong row.
+
+With a typed launcher query, Tab instead enters a fresh AI Chat session and sends through Spotter's
+OpenRouter-backed default. With a typed AI Chat draft, Tab sends in the current Spotter session.
+Shift-Tab sends a typed draft from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the
+default browser; with no draft to send it is a plain backward cycle. Only the launcher's query
+follows into chat — a clipboard or emoji filter string is dropped rather than sent as a message
+nobody typed.
+
+Every mode outside the cycle (Calculator History, Software Update, plugin screens) is a sub-screen
+reached from the launcher by a command or a hotkey; Tab from one exits back to the launcher rather
+than joining the cycle.
 
 **Esc backs out one layer, matching Raycast.** An open confirmation cancels first, then an open
-footer menu closes; then a sub-screen
-(clipboard, history, emoji, any plugin screen) pops to a fresh launcher root; then a typed query
+footer menu closes; then any non-launcher mode — cycle stop or sub-screen alike (clipboard, emoji,
+chat, history, any plugin screen) — pops to a fresh launcher root; then a typed query
 clears; only Esc at the empty launcher root hides the palette. Backspace in an already-empty search
-is the same back gesture for sub-screens.
+is the same back gesture. Esc always means "out", never "previous stop": the cycle is Tab's, and
+mixing the two would leave no way back to the root from the middle of it.
 
 **Confirmations are in-palette.** Any destructive flow asks through `AppCore.confirmInPalette`,
 which renders `ConfirmationCard` as a centered glass overlay: ←/→/Tab move the highlight, ↵
@@ -126,6 +139,13 @@ silent chord will be one of these cases:
   that and resolves the row from the same results the list renders, so which row gets pinned still
   comes from one place. The panel only intercepts it in the clipboard — everywhere else ⌘. keeps
   meaning cancel.
+- **Shift-Tab** is AppKit's "previous key view" gesture: the field editor turns it into
+  `insertBacktab:` and walks the key-view loop, which lands focus on the header's cycle disc — so
+  `onKeyPress` never fires *and* the search field stops being first responder. `PalettePanel.sendEvent`
+  intercepts it outright and bumps `PaletteViewModel.backTabToken`, which `RootPaletteView` observes
+  and routes into the same `handleTab(shift:)` that plain Tab uses, so one chord keeps one meaning.
+  Nothing in the panel is meant to be reachable by focus-walking, which is also why the disc is
+  `.focusable(false)`: a focus ring appearing on it mid-typing would be a stray control.
 - **Bare Backspace, Return and Escape** are consumed by the field editor before the key-press chain,
   and come back through `onBareBackspace` / `onBareReturn` / `onBareEscape` on the same panel.
 

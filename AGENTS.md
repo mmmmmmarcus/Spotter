@@ -120,8 +120,8 @@ Never break these without an explicit task to do so.
   uninstall. `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
   `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
-  `ScreenshotImageProcessor.swift` and `ScreenshotAnnotation.swift` stay pure
-  CoreGraphics/CoreText/ImageIO pixel code for `Tools/screenshot-test.swift`, the
+  `ScreenshotImageProcessor.swift`, `ScreenshotAnnotation.swift` and `ScreenshotTextLayout.swift`
+  stay pure CoreGraphics/CoreText/ImageIO pixel code for `Tools/screenshot-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
   `Plugins/ImageModification/ImageModificationTypes.swift` and
@@ -272,6 +272,9 @@ Never break these without an explicit task to do so.
   block observers, `isolated deinit` for `ClipboardStore`'s SQLite teardown, decode raw Carbon / C
   pointers to plain values before crossing into actor code.
 - **Clipboard writes stamp a private `internalType` marker** so the poller skips Spotter's own writes.
+  Screenshot's text recognition is the one deliberate exception (owner decision, Aug 2026): its
+  output is the user's own text and belongs in clipboard history, where an image capture — which has
+  its own thumbnail, pin and editor to return to — does not.
 - **Settings sync reuses `SettingsBackup`.** The selected JSON file may live in iCloud Drive, but
   Spotter must coordinate access with `NSFileCoordinator`, observe replacement-safe file changes,
   hot-apply only fully decoded snapshots, suppress its own write notifications, and mirror all
