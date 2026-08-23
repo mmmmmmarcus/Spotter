@@ -97,9 +97,8 @@ is optional:
   seeds the routing table so entries restored from disk are launchable before any change fires.
 - `metadata.settingsPlacement` places a registration under Settings → System, Settings → Widgets or
   Settings → Plugins. System features may reuse the registry's command, shortcut and Settings routing
-  without being presented as optional plugins. `.widgets` is the launcher dashboard's own placement:
-  the owner gets no sidebar row and no `settingsView`, supplying a `PluginWidgetRegistration` per
-  card instead, each of which becomes one row and one pane under the Widgets section.
+  without being presented as optional plugins. Widgets is one of them: the whole card strip is
+  configured on a single System page, a section per card.
 - `canDisable` (default true) pins a registration on. AI Chat and Widgets set it false
   because they are system features rather than optional plugins.
 - `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
@@ -265,13 +264,13 @@ shell-command feature; do not use shell commands as an internal plugin API.
   definition and grammar checks start follow-up-ready conversations. The launcher's final query
   destination rows reuse both paths without adding registry commands.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
-  the launcher dashboard and contributes the Settings → Widgets section. It adds five square cards
-  above the empty launcher — Clock, Uptime, Device Battery, Calendar and File Info — each with its own
-  pane, plus an **Arrangement** pane that is the one place a card is switched on or off and dragged
-  into order. Weather has no card of its own: it is three complications on the clock face, configured
-  in the Clock pane. The clock supports an explicit time zone; Calendar can filter by EventKit account
-  and exclude all-day events. Calendar data is permission-gated, File Info is Automation-gated, and
-  Weather and Uptime are consent-gated.
+  the launcher dashboard and is configured on one System page. It adds five square cards above the
+  empty launcher — Clock, Uptime, Device Battery, Calendar and File Info — switched on or off in that
+  page's Show list and **dragged into order in the palette itself**. Weather has no card of its own:
+  it is three complications on the clock face, and choosing a city is what turns it on. The clock
+  supports an explicit time zone; Calendar can filter by EventKit account and exclude all-day events.
+  Calendar data is permission-gated, File Info is Automation-gated, and Weather and Uptime are
+  consent-gated.
 
 ## Current plugins
 

@@ -61,19 +61,6 @@ struct PluginLauncherDashboardRegistration {
     let content: () -> AnyView
 }
 
-/// One card of the launcher dashboard, as it appears in Settings. The dashboard stays owned by a
-/// single registration — these only split its configuration, so each card is set up on its own row
-/// rather than sharing one pane of stacked toggles.
-@MainActor
-struct PluginWidgetRegistration: Identifiable {
-    /// Stable slug, persisted in no user data but used as the Settings destination.
-    let id: String
-    let name: String
-    let systemImage: String
-    let tint: PluginTint
-    let settingsView: () -> AnyView
-}
-
 /// A compiled, signed built-in plugin registration that standardizes discovery without runtime loading.
 @MainActor
 struct PluginRegistration {
@@ -89,13 +76,10 @@ struct PluginRegistration {
     var dynamicLauncherCommands: (() -> [PluginCommandRegistration])?
     var paletteScreen: PluginPaletteScreenRegistration?
     var launcherDashboard: PluginLauncherDashboardRegistration?
-    /// Settings rows under the Widgets section; only a `.widgets`-placed registration supplies these.
-    var widgets: [PluginWidgetRegistration] = []
     var readEnabled: (() -> Bool)?
     var writeEnabled: ((Bool) -> Void)?
     var onEnable: () -> Void = {}
     var onDisable: () -> Void = {}
-    /// Absent only for a `.widgets` owner, whose configuration lives entirely in `widgets`.
     var settingsView: (() -> AnyView)?
 }
 
@@ -133,14 +117,6 @@ final class PluginRegistry: ObservableObject {
                 metadata.settingsPlacement == .system
             else { return nil }
             return metadata
-        }
-    }
-
-    /// Every widget row, in catalog order, from the enabled registrations that contribute them.
-    var widgets: [PluginWidgetRegistration] {
-        orderedIDs.flatMap { id -> [PluginWidgetRegistration] in
-            guard isEnabled(id) else { return [] }
-            return registrations[id]?.widgets ?? []
         }
     }
 
@@ -243,12 +219,17 @@ final class PluginRegistry: ObservableObject {
         onCommandsChanged?(launcherCommands)
     }
 
+    func metadata(for id: PluginID) -> PluginMetadata? { registrations[id]?.metadata }
+
+    /// Which plugin publishes a launcher command, and where that plugin sits in the catalog — the
+    /// pair Settings ▸ Shortcuts groups its command list by, so the grouping follows registration
+    /// rather than a second hand-kept list of prefixes.
+    func commandOwner(ofCommandID commandID: String) -> PluginID? { commandOwners[commandID] }
+
+    func catalogIndex(of id: PluginID) -> Int { orderedIDs.firstIndex(of: id) ?? orderedIDs.count }
+
     func settingsView(for id: PluginID) -> AnyView {
         registrations[id]?.settingsView?() ?? AnyView(EmptyView())
-    }
-
-    func widgetSettingsView(for widgetID: String) -> AnyView {
-        widgets.first { $0.id == widgetID }?.settingsView() ?? AnyView(EmptyView())
     }
 
     func launcherDashboardView() -> AnyView? {

@@ -16,8 +16,8 @@ struct ShortcutRecorder: View {
 
     var body: some View {
         content
-            .padding(.horizontal, Theme.Spacing.lg)
-            .frame(height: 24)
+            .padding(.horizontal, Theme.Spacing.sm)
+            .frame(width: Theme.Size.shortcutRowControl, height: 24)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.menu, style: .continuous)
                     .fill(Theme.Colors.cardFill)
@@ -56,6 +56,7 @@ struct ShortcutRecorder: View {
             Text("Record Shortcut")
                 .font(Theme.Typography.keyCap)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 
@@ -69,14 +70,21 @@ struct ShortcutRecorder: View {
                 Text(KeyShortcut.collapsedModifierSymbols(from: session.heldModifiers).joined())
                     .foregroundStyle(.primary)
             } else {
-                Text("Type shortcut or double-tap ⌘ ⌃ ⌥ ⇧…")
+                // Shorter than the pill it has to fit now that the pill is a fixed width; the two
+                // ways to bind are still both named.
+                Text("Type or double-tap…")
                     .foregroundStyle(.secondary)
             }
         }
         .font(Theme.Typography.keyCap)
+        // A long conflict owner ("Quarterly Planning Doc") would otherwise widen the fixed pill.
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
     }
 
     private func boundLabel(_ keycaps: [String]) -> some View {
+        // `minimumScaleFactor` can't help a row of chips, so an unusually long binding shrinks its
+        // spacing rather than pushing out of the pill.
         HStack(spacing: Theme.Spacing.xs) {
             ForEach(Array(keycaps.enumerated()), id: \.offset) { _, cap in
                 Text(cap)

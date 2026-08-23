@@ -129,6 +129,28 @@ name participates in the same fuzzy ranking as every other entry, while its trai
 running bundle's channel-aware short version (for example `1.4.13-dev`). Activating it opens About,
 where the build number is also shown.
 
+### Settings ▸ Shortcuts
+
+Everything the launcher can open is one list there, grouped: **Applications**, **System Settings**,
+then **Commands** split by whoever publishes them — Spotter's own built-ins first, then a heading per
+plugin in catalog order, with the Commands plugin contributing two (**System** for the fixed macOS
+actions, **Custom Commands** for the user's shell commands, since one heading over both would read as
+one feature). Grouping resolves through `PluginRegistry.commandOwner(ofCommandID:)` rather than a
+second hand-kept table of id prefixes, so a new plugin's commands group themselves.
+
+Every heading folds, at both levels, and carries the number of rows beneath it — that count is what
+keeps a folded heading informative, since collapsing would otherwise hide both the rows and the fact
+that there were any. Folds persist in bundle-scoped `UserDefaults` but are deliberately **not** in
+the settings backup: a synced Mac inheriting someone else's folded list would be restoring a view,
+not a setting. A typed query overrides every fold, because a heading that hid its own matches would
+read as no match at all.
+
+There is deliberately **no category-level "show in launcher" switch**: every category is always on,
+and an individual row's checkbox is the only way to hide something. The list never applies the
+visibility filter to itself, so a hidden row stays re-checkable. A file written while categories
+could be hidden still decodes, but its `hiddenLauncherKinds` are read and ignored rather than
+restoring a hidden category no UI could bring back.
+
 A registration may mark a secondary command `defaultVisible: false`. `AppCore.start()` seeds that
 visibility exactly once, after which the normal visibility store and System → Shortcuts own the user
 choice. Change Case uses this for its 21 direct transformations and Window Management for 20 of its 30

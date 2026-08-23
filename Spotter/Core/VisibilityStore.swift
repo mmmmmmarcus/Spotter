@@ -1,34 +1,27 @@
 import Foundation
 
-/// Persists which launcher items and categories the user has hidden (only exclusions are stored); hiding affects the launcher list only, leaving favorites and hotkey bindings intact.
+/// Persists which launcher items the user has hidden (only exclusions are stored); hiding affects the launcher list only, leaving favorites and hotkey bindings intact. There is deliberately no category-level switch: every category is always on, so an item is the only thing that can be hidden.
 @MainActor
 final class VisibilityStore: ObservableObject {
     private let defaults = UserDefaults.standard
     private let itemsKey = "hiddenLauncherItems"
-    private let kindsKey = "hiddenLauncherKinds"
 
     @Published private(set) var hiddenItemKeys: Set<String>
-    @Published private(set) var hiddenKinds: Set<String>
 
     init() {
         hiddenItemKeys = Set(defaults.stringArray(forKey: itemsKey) ?? [])
-        hiddenKinds = Set(defaults.stringArray(forKey: kindsKey) ?? [])
     }
 
-    /// Replace both exclusion sets at once (used when importing a settings backup).
-    func replace(hiddenItems: [String], hiddenKinds newKinds: [String]) {
+    /// Replace the exclusion set (used when importing a settings backup).
+    func replace(hiddenItems: [String]) {
         hiddenItemKeys = Set(hiddenItems)
-        hiddenKinds = Set(newKinds)
         defaults.set(Array(hiddenItemKeys), forKey: itemsKey)
-        defaults.set(Array(hiddenKinds), forKey: kindsKey)
     }
 
     func key(for entry: AppEntry) -> String { entry.preferenceKey }
 
-    /// Whether the entry appears in the launcher: its category and the item itself must be on.
-    func isVisible(_ entry: AppEntry) -> Bool {
-        isKindVisible(entry.kind) && isItemVisible(entry)
-    }
+    /// Whether the entry appears in the launcher.
+    func isVisible(_ entry: AppEntry) -> Bool { isItemVisible(entry) }
 
     func isItemVisible(_ entry: AppEntry) -> Bool {
         !hiddenItemKeys.contains(key(for: entry))
@@ -46,14 +39,5 @@ final class VisibilityStore: ObservableObject {
         hiddenItemKeys.subtract(keys)
         guard hiddenItemKeys != previous else { return }
         defaults.set(Array(hiddenItemKeys), forKey: itemsKey)
-    }
-
-    func isKindVisible(_ kind: AppEntry.Kind) -> Bool {
-        !hiddenKinds.contains(kind.rawValue)
-    }
-
-    func setKindVisible(_ visible: Bool, for kind: AppEntry.Kind) {
-        if visible { hiddenKinds.remove(kind.rawValue) } else { hiddenKinds.insert(kind.rawValue) }
-        defaults.set(Array(hiddenKinds), forKey: kindsKey)
     }
 }

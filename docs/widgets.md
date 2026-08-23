@@ -27,8 +27,11 @@ run anticlockwise and are turned over, or they would read upside down at the foo
 Resolving per character is what costs those strings their kerning — the usual trade for type on a
 curve. The condition glyph is the exception: it stays level, since a tilted icon reads as a mistake.
 
-The calendar card shows only what is next — the date left it for the clock's corner, so a second copy
-here would be the strip repeating itself.
+The calendar card shows only what is next, and the event's own title is the headline, ranged from the
+top-left corner with the time pinned to the bottom-left — an "Up Next" heading would spend the card's
+best line saying what the card obviously is, and the date left for the clock's corner so a second
+copy here wouldn't be the strip repeating itself. Splitting the two to opposite ends of the card is
+what puts the time in the same place whether the title runs to one line or three.
 
 The File Info card states what is selected in the Finder: its kind in the title slot, its own Finder
 icon as the card's middle, then what it is called and how big it is. It reads a selection only when
@@ -43,19 +46,22 @@ a card switched off keeps its place for when it comes back.
 `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved — unknown raw values and
 duplicates drop out, and any kind the saved order predates lands at the end — so a new widget appears
 without a migration and the strip can index the result without a second existence check.
-`DashboardWidgetsEngine.reorder(_:moving:to:)` moves one kind to the position a dragged row was
+`DashboardWidgetsEngine.reorder(_:moving:to:)` moves one kind to the position a dragged card was
 dropped on, rather than SwiftUI's `move(fromOffsets:toOffset:)` index, which is off by one downward.
 
-The Arrangement pane draws the strip as a row of tiles in that order — filled when the card is on,
-dash-outlined when it is off — and dragging one tile onto another puts it in that one's place. The
-list below repeats the widgets with a description, a switch, and up/down buttons as the keyboard path
-to the same reordering.
+**The strip reorders itself.** Dragging a card onto another in the palette puts it in that one's
+place; there is no list of names in Settings for it, because the cards are the thing being arranged
+and a name is a worse handle than the card. Dashboard cards are the launcher's only non-selectable
+rows, which is what makes a drag here unambiguous — it can never be confused with picking a result.
+A card dropped onto a visible neighbour takes that neighbour's index in the *full* order, so cards
+switched off keep their places between the ones that moved.
 
-`DashboardWidgetKind.ownsEnabledState` is what keeps that one pane honest: it is false for Uptime,
-whose switch is a consent act owned by `DashboardUptimeStore`, so the pane routes that one through
-the store and its dialog rather than through `enabledWidgets`. Device Battery is the one card that
+Whether a card shows at all is the Show list on the Widgets settings page.
+`DashboardWidgetKind.ownsEnabledState` is what keeps that list honest: it is false for Uptime, whose
+switch is a consent act owned by `DashboardUptimeStore`, so the page routes that one through the
+store and its dialog rather than through `enabledWidgets`. Device Battery is the one card that
 withholds itself even when switched on, because with nothing connected reporting a level an empty
-square would claim a reading it doesn't have; every other card either has something to say or has a
+square would claim a reading it doesn't have; every other card either has something to say or a
 resting state to say it in.
 
 ## Architecture
@@ -159,13 +165,13 @@ running off its battery, and only that bit is read — the rest of the word is u
 flags read as zero, so a device that reports nothing gets no bolt: the bolt is the claim that needs
 evidence.
 
-The card holds its 116-point square explicitly rather than hugging its gauges, so a single row of
-rings doesn't sit as a stub between full-height neighbors. The grid sizes itself to what it holds:
-one device takes the whole 96-point interior as a single large ring, two or more pair into two
-columns, and the diameter is the largest circle that fits both directions, so three devices size to
-their two rows and four fill the square at 44 points each. Four is the limit; a fifth turns the last
-slot into a `+2` count rather than dropping those devices unremarked. Devices order lowest-first
-throughout, so whatever needs charging soonest is the first ring drawn.
+The card holds its 116-point square explicitly rather than hugging its gauges, and the grid is
+**always four slots, ranged from the top-left corner** — the slots nothing fills are drawn as bare
+grey tracks with no glyph in the middle, since a glyph would name a device that isn't there. That
+fixed shape is the point: a device keeps its position as others connect and disconnect, instead of
+the whole card re-centring and every ring changing size under the same reading. Four is the limit; a
+fifth device turns the last slot into a `+2` count rather than dropping those devices unremarked.
+Devices order lowest-first throughout, so whatever needs charging soonest is the first ring drawn.
 
 The category behind each symbol comes from the product name. A paired device is named after its
 owner ("Marcus's Magic Mouse"), so the stable part is the category noun inside it; anything Spotter
@@ -236,20 +242,18 @@ always the same selection, and clearing first would flash the card away and back
 
 ## Settings and lifecycle
 
-Widgets is an always-available system feature, and the only registration placed `.widgets`: it has no
-Settings row of its own, contributing the sidebar's **Widgets** section between System and Plugins
-instead. **Arrangement** is that section's first row and the only place a card is switched on or off;
-the rest are the cards themselves — Clock, Uptime, Device Battery, Calendar, File Info — each
-configured on its own rather than in a shared list of switches, and none of them carrying a
-show/hide switch of its own.
+Widgets is an always-available system feature placed under Settings → System, and the whole strip is
+configured on **one page**: a Show list holding every card's switch, then a section per card — the
+clock's time zone, the weather section, the uptime card's keyboard-permission state and Reset Today,
+the devices found and their levels, the calendar's access, account and all-day preference, and what
+File Info reads and never reads. There is no pane of its own for any card and no arrangement list;
+order belongs to the palette.
 
-Each pane holds only that card's details: the clock's time zone plus the whole weather section (its
-consent switch, city, unit and last reading), the uptime card's keyboard-permission state and Reset
-Today, the calendar's access, account and all-day preference. Device Battery's card is a read-out
-rather than a setting — the devices found and their levels, so a Mac showing no card says why — and
-File Info's is the same, explaining what is read and what never is. Uptime shows its details only
-while it is on, since it is consent-gated, and points at Arrangement when it is off. Switching every
-card off hides the strip.
+Weather's section is the one that reads unusually: it has no switch, because it is three
+complications on the clock rather than a card of its own. Choosing a city is what turns it on and
+removing the city is what turns it off, which leaves one control instead of two without touching the
+gate — the consent dialog still names the provider, the cadence and what leaves the Mac before
+anything is contacted.
 
 Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
 identifiers for removed widgets are ignored. The permission overview exposes Calendar, Accessibility

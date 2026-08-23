@@ -39,15 +39,19 @@ enum DeviceBatteryKind: String, CaseIterable, Equatable, Sendable {
 }
 
 /// One position in the card's gauge grid. The overflow slot exists so a fifth device is counted
-/// rather than silently missing from a grid that has no room for it.
+/// rather than silently missing from a grid that has no room for it; the empty slot keeps the grid
+/// four squares whatever is connected, so one device sits where one device sits rather than sliding
+/// into the middle of the card.
 enum DeviceBatterySlot: Equatable, Identifiable, Sendable {
     case device(DeviceBattery)
     case overflow(Int)
+    case empty(Int)
 
     var id: String {
         switch self {
         case .device(let device): return device.id
         case .overflow(let count): return "overflow-\(count)"
+        case .empty(let index): return "empty-\(index)"
         }
     }
 
@@ -99,17 +103,22 @@ enum DashboardDeviceBatteryEngine {
     /// How many gauges the square seats before the last one has to stand for the rest.
     static let gaugeSlotLimit = 4
 
-    /// The grid's contents. Under the limit every device gets its own gauge; over it, the last slot
-    /// counts what didn't fit rather than dropping those devices unremarked.
+    /// The grid's contents: always `limit` slots. Under it the remainder are empty rings, so the
+    /// grid is the same shape whether one device is connected or four and a device keeps its
+    /// position as others come and go; over it, the last slot counts what didn't fit rather than
+    /// dropping those devices unremarked.
     static func gaugeSlots(for devices: [DeviceBattery], limit: Int) -> [DeviceBatterySlot] {
         guard limit >= 2 else { return devices.prefix(max(0, limit)).map(DeviceBatterySlot.device) }
-        guard devices.count > limit else { return devices.map(DeviceBatterySlot.device) }
+        guard devices.count > limit else {
+            let shown = devices.map(DeviceBatterySlot.device)
+            return shown + (shown.count..<limit).map(DeviceBatterySlot.empty)
+        }
         let shown = devices.prefix(limit - 1)
         return shown.map(DeviceBatterySlot.device) + [.overflow(devices.count - shown.count)]
     }
 
-    /// A lone gauge gets the whole square rather than a quarter of it; past that the grid is two
-    /// columns, which is what keeps four gauges as large as the square allows.
+    /// Two columns always: the grid is a fixed four squares, so a lone device no longer grows to fill
+    /// the card — it stays the size it will be when a second one connects.
     static func gaugeColumns(slotCount: Int) -> Int { slotCount <= 1 ? 1 : 2 }
 
     static func gaugeRows(for slots: [DeviceBatterySlot], columns: Int) -> [[DeviceBatterySlot]] {

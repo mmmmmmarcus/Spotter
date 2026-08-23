@@ -8,6 +8,8 @@ struct SettingsBackup: Codable, Sendable {
     var customCommands: [CustomCommand]?
     var favoriteApps: [String]?
     var hiddenLauncherItems: [String]?
+    /// Decode-only: a file written while launcher categories could be hidden wholesale. Every
+    /// category is always on now, so the field is read and ignored rather than restoring a hidden one.
     var hiddenLauncherKinds: [String]?
     /// Per-entry launcher aliases, keyed by `preferenceKey`. Data, not a capability — an alias grants nothing, so it rides an untrusted restore like favorites do.
     var launcherAliases: [String: String]?
@@ -279,7 +281,6 @@ extension SettingsBackup {
         backup.customCommands = core.customCommands.commands
         backup.favoriteApps = core.favorites.keys
         backup.hiddenLauncherItems = core.visibility.hiddenItemKeys.sorted()
-        backup.hiddenLauncherKinds = core.visibility.hiddenKinds.sorted()
         backup.launcherAliases = core.aliases.aliases
         backup.pluginStates = core.plugins.exportedEnabledStates()
         backup.pluginPrefs = gatherPluginPrefs(from: core)
@@ -385,11 +386,9 @@ extension SettingsBackup {
             core.favorites.replace(keys: favoriteApps)
             summary.favorites = favoriteApps.count
         }
-        if hiddenLauncherItems != nil || hiddenLauncherKinds != nil {
-            let items = hiddenLauncherItems ?? Array(core.visibility.hiddenItemKeys)
-            let kinds = hiddenLauncherKinds ?? Array(core.visibility.hiddenKinds)
-            core.visibility.replace(hiddenItems: items, hiddenKinds: kinds)
-            summary.hiddenItems = items.count
+        if let hiddenLauncherItems {
+            core.visibility.replace(hiddenItems: hiddenLauncherItems)
+            summary.hiddenItems = hiddenLauncherItems.count
         }
         if let launcherAliases {
             core.aliases.replace(launcherAliases)

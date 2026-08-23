@@ -39,6 +39,15 @@ struct DashboardWidgetsView: View {
                 HStack(spacing: Theme.Spacing.md) {
                     ForEach(visible, id: \.self) { kind in
                         card(kind, now: context.date)
+                            // The strip reorders itself: drag a card onto another to take its place.
+                            // The cards are the only non-selectable rows in the launcher, so a drag
+                            // here can't be confused with picking a result.
+                            .draggable(kind.rawValue) {
+                                card(kind, now: context.date).opacity(0.85)
+                            }
+                            .dropDestination(for: String.self) { items, _ in
+                                move(items, onto: kind)
+                            }
                     }
                 }
                 .frame(height: Theme.Size.launcherDashboardHeight)
@@ -54,6 +63,15 @@ struct DashboardWidgetsView: View {
                 battery.stop()
             }
         }
+    }
+
+    /// A drop carrying anything but a widget's own raw value is simply not a reorder — text dragged
+    /// in from another app lands here too.
+    private func move(_ items: [String], onto target: DashboardWidgetKind) {
+        guard let raw = items.first, let moved = DashboardWidgetKind(rawValue: raw),
+            let destination = store.orderedWidgets.firstIndex(of: target)
+        else { return }
+        store.moveWidget(moved, to: destination)
     }
 
     @ViewBuilder
@@ -165,6 +183,10 @@ struct DashboardWidgetsView: View {
     /// Title-free and filled edge to edge, like the clock: the grid of rings *is* the card, and a
     /// heading would cost a row of gauge. Exact levels live in Settings and the accessibility label —
     /// at this size a ring answers "does anything need charging" better than four small numbers.
+    ///
+    /// The grid is always four slots ranged from the top-left corner, empty rings included: a device
+    /// then keeps its place as others connect and disconnect, instead of the whole card re-centring
+    /// and every ring changing size under the same reading.
     private func batteryCard() -> some View {
         let slots = DashboardDeviceBatteryEngine.gaugeSlots(
             for: battery.devices, limit: DashboardDeviceBatteryEngine.gaugeSlotLimit)
@@ -172,7 +194,7 @@ struct DashboardWidgetsView: View {
         let diameter = DashboardDeviceBatteryEngine.gaugeDiameter(
             slotCount: slots.count, interior: interior, spacing: Self.batteryGaugeSpacing)
         let columns = DashboardDeviceBatteryEngine.gaugeColumns(slotCount: slots.count)
-        return VStack(spacing: Self.batteryGaugeSpacing) {
+        return VStack(alignment: .leading, spacing: Self.batteryGaugeSpacing) {
             // Keyed by position: a row is a group of gauges, not an identity of its own.
             ForEach(
                 Array(
@@ -187,11 +209,10 @@ struct DashboardWidgetsView: View {
             }
         }
         .padding(Theme.Spacing.lg)
-        // Square like every other card. Without the explicit height a grid shorter than the strip —
-        // one row of gauges — would hug its content and sit as a stub between full-height neighbors.
+        // Square like every other card, and ranged top-left inside it rather than centred.
         .frame(
             width: Theme.Size.launcherDashboardHeight,
-            height: Theme.Size.launcherDashboardHeight)
+            height: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
         .dashboardCardSurface()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(DashboardDeviceBatteryEngine.accessibilityLabel(for: battery.devices))
@@ -247,6 +268,10 @@ struct DashboardWidgetsView: View {
                 Text("+\(count)")
                     .font(.system(size: diameter * Self.batteryGaugeIconRatio, weight: .medium))
                     .foregroundStyle(Theme.Colors.textSecondary)
+            // A slot with nothing in it is the track alone — a glyph would name a device that isn't
+            // there, and the empty ring's job is only to hold the grid's shape.
+            case .empty:
+                EmptyView()
             }
         }
         .frame(width: diameter, height: diameter)
@@ -301,35 +326,44 @@ struct DashboardWidgetsView: View {
         .accessibilityLabel(clockAccessibilityLabel(now))
     }
 
-    /// Only what is next. The date left this card for the clock's own corner, so a second copy of it
-    /// here would be the strip repeating itself. Without calendar access the access state takes the
-    /// same slot, rather than the card going missing.
+    /// Only what is next, and the event itself is the headline — a "Up Next" title would spend the
+    /// card's best line saying what the card obviously is. The date left here for the clock's corner
+    /// too. The title is ranged from the top-left and the time pinned to the bottom-left, so a
+    /// one-line title and a three-line one put the time in the same place. Without calendar access
+    /// the access state takes the headline's slot, rather than the card going missing.
     private func eventCard(now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            cardTitle("Up Next")
-            Spacer(minLength: Theme.Spacing.xs)
-            eventFooter(now: now)
-        }
-        .padding(Theme.Spacing.lg)
-        .frame(width: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
-        .dashboardCardSurface()
-    }
-
-
-    @ViewBuilder
-    private func eventFooter(now: Date) -> some View {
-        switch store.calendarAccess {
-        case .fullAccess:
-            if let event = store.nextEvent {
-                Text(event.title)
-                    .font(.caption.weight(.medium))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
+        let event = store.calendarAccess == .fullAccess ? store.nextEvent : nil
+        return VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            eventHeadline(now: now)
+            Spacer(minLength: 0)
+            if let event {
                 Text(eventTime(event, now: now))
                     .font(.caption2)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+            }
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            height: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
+        .dashboardCardSurface()
+    }
+
+    @ViewBuilder
+    private func eventHeadline(now: Date) -> some View {
+        switch store.calendarAccess {
+        case .fullAccess:
+            if let event = store.nextEvent {
+                // Three lines at this size fits a long title without shrinking it to unreadable —
+                // the scale floor is the guard for the outliers rather than the normal case.
+                Text(event.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.6)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 footerNote("No events ahead")
             }

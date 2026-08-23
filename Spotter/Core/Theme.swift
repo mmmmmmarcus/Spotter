@@ -66,6 +66,12 @@ enum Theme {
         static let keyCap: CGFloat = 18
         /// Settings shortcut-recorder keycap — smaller than the palette's `keyCap` chip.
         static let recorderKeyCap: CGFloat = 16
+        /// Both trailing controls of a shortcut row — the alias field and the recorder — are exactly
+        /// this wide. Fixed rather than hugging: a bound shortcut's keycaps are narrower than the
+        /// words "Record Shortcut", so a hugging pill would make every row's controls sit at a
+        /// different x depending on whether that row happened to have a shortcut. Wide enough for
+        /// the longest realistic binding, ⌃⌥⇧⌘ and a key, with its clear button.
+        static let shortcutRowControl: CGFloat = 140
         static let menuButton: CGFloat = 36
         static let clipboardListWidth: CGFloat = 290
         static let emojiCell: CGFloat = 56

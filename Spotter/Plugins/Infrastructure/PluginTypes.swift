@@ -55,9 +55,6 @@ struct PluginMetadata: Identifiable, Sendable {
 
 enum PluginSettingsPlacement: Equatable, Sendable {
     case system
-    /// Contributes rows to the Widgets section instead of a pane of its own; the owner supplies
-    /// `widgets` and has no sidebar row, since a combined pane would just repeat those rows.
-    case widgets
     case plugin
 }
 

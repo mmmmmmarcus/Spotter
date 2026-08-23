@@ -71,7 +71,7 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 ### Size (`Theme.Size`)
 
 `panelWidth 628` · `panelHeight 475` · `headerHeight 44` · `bottomBarHeight 52` · `rowIcon 24` ·
-`keyCap 18` · `recorderKeyCap 16` · `menuButton 36` · `clipboardListWidth 290` ·
+`keyCap 18` · `recorderKeyCap 16` · `shortcutRowControl 140` · `menuButton 36` · `clipboardListWidth 290` ·
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
@@ -81,10 +81,19 @@ title-free clock contains an 88-point analog face. A square leaves 96 points of 
 square rather than set by hand: five cards, the four `Spacing.md` gaps between them and the launcher
 list's inset on each side come to 628, so the full strip fills the palette edge to edge. Resizing a
 card or seating a sixth widget moves the window with it — which is the point, but check the other
-modes still look right at the new width. Device battery landed as a fifth card without moving it:
-weather merged its condition and temperature squares into one to make the room.
+modes still look right at the new width. The five are Clock, Uptime, Device Battery, Calendar and File
+Info; weather gave up its own square to become complications on the clock face, which is what made
+room for File Info without moving the window.
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
+
+`shortcutRowControl` is the width of **both** trailing controls of a Settings ▸ Shortcuts row — the
+alias field and the shortcut recorder. Fixed rather than hugging, and that is the whole point: a
+bound shortcut's keycaps are narrower than the words "Record Shortcut", so hugging pills put every
+row's controls at a different x depending on whether that row happens to have a shortcut, and a
+column of them reads as ragged. 140 is sized to the longest realistic binding — ⌃⌥⇧⌘ and a key, with
+its clear button — so nothing overflows; the recorder's prompt and conflict text are `lineLimit(1)`
+with a scale floor for the same reason. Changing the token moves both controls together.
 
 ### Typography (`Theme.Typography`)
 

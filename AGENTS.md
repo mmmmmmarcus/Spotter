@@ -174,7 +174,10 @@ Never break these without an explicit task to do so.
   already carries; don't widen it to anything the chosen city doesn't already imply. An unset city
   resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the reading; keep
   that default a constant, since deriving one from the locale or time zone would be location
-  inference by another name. Its consent flag, city and unit ride in the trusted v3 snapshot.
+  inference by another name. Weather deliberately has **no switch of its own** — choosing a city is
+  what turns it on and removing it is what turns it off — but that is a change of control, not of
+  gate: the consent dialog still runs before the first request, and `isEnabled` is still re-checked
+  at every entry point. Do not make the complications draw without it. Its consent flag, city and unit ride in the trusted v3 snapshot.
   `Plugins/DashboardWidgets/DashboardUptimeStore.swift` applies the same shape to a feature that is
   *not* networked, because watching input system-wide earns it: the uptime card ships off, its
   dialog names exactly what is and isn't recorded, no `NSEvent` monitor is installed until consent,
@@ -234,17 +237,15 @@ Never break these without an explicit task to do so.
   [`docs/plugins.md`](docs/plugins.md) and use the tracked `spotter-plugin` skill.
 - **AI Chat and Widgets are system features; Commands is a plugin.** Both reuse registry wiring,
   stay always enabled, and never export an enable state. AI Chat uses `settingsPlacement: .system`;
-  Widgets uses `.widgets`, which gives it no sidebar row of its own — it supplies one
-  `PluginWidgetRegistration` per card under the Settings sidebar's Widgets section instead, so each
-  card is configured on its own. **Which cards show, and in what order, belongs to the one
-  Arrangement pane** (owner decision, Aug 2026, superseding the earlier no-combined-pane rule): a
-  card's own pane holds its details and must not carry a show/hide switch, since two places to turn
-  a card off is the thing that pane replaced. Strip order is
-  `DashboardWidgetPreferences.widgetOrder`, kept complete so a card switched off keeps its place;
-  `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved, so a new widget kind needs
-  no migration. `DashboardWidgetKind.ownsEnabledState` is what keeps the pane honest — it is false
-  for a card whose switch is a consent act owned by its own store (Uptime), which the pane must route
-  through that store and its dialog rather than through `enabledWidgets`. Commands
+  Widgets uses `.system` too, with **one page for the whole strip** (owner decision, Aug 2026,
+  superseding both the per-card panes and the Arrangement pane that briefly replaced them): a
+  section per card, no pane of its own for any card. **Order is set by dragging the cards in the
+  palette**, which is the thing being arranged — do not reintroduce a list of names for it. Strip
+  order is `DashboardWidgetPreferences.widgetOrder`, kept complete so a card switched off keeps its
+  place; `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved, so a new widget kind
+  needs no migration. `DashboardWidgetKind.ownsEnabledState` is what keeps the Show list honest — it
+  is false for a card whose switch is a consent act owned by its own store (Uptime), which the page
+  must route through that store and its dialog rather than through `enabledWidgets`. Commands
   owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
   data and bindings while hiding entries and making their hotkeys no-op.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a

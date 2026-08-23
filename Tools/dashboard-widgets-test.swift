@@ -399,13 +399,23 @@ struct DashboardWidgetsTests {
 
         let extra = battery("MX Master 3S", 88, id: "extra")
         let second = battery("Magic Keyboard", 60, id: "second")
+        // The grid is always `limit` slots, so a device keeps its position as others come and go
+        // rather than the whole card re-centring under the same reading.
         check(
-            DashboardDeviceBatteryEngine.gaugeSlots(for: [], limit: 4) == [],
-            "no devices should produce no gauges")
+            DashboardDeviceBatteryEngine.gaugeSlots(for: [], limit: 4)
+                == [.empty(0), .empty(1), .empty(2), .empty(3)],
+            "no devices should still hold the grid's four slots")
         check(
             DashboardDeviceBatteryEngine.gaugeSlots(for: [keyboard, mouse, trackpad], limit: 4)
-                == [.device(keyboard), .device(mouse), .device(trackpad)],
-            "devices within the limit should each get their own gauge")
+                == [.device(keyboard), .device(mouse), .device(trackpad), .empty(3)],
+            "devices within the limit should each get their own gauge, the rest left empty")
+        check(
+            DashboardDeviceBatteryEngine.gaugeSlots(for: [keyboard], limit: 4).count == 4,
+            "one device should not grow to fill the card")
+        check(
+            DashboardDeviceBatteryEngine.gaugeSlots(for: [keyboard, mouse, trackpad, extra], limit: 4)
+                == [.device(keyboard), .device(mouse), .device(trackpad), .device(extra)],
+            "a full grid should carry no empty slot")
         check(
             DashboardDeviceBatteryEngine.gaugeSlots(
                 for: [keyboard, mouse, trackpad, extra, second], limit: 4)
