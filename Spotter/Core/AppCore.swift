@@ -201,7 +201,8 @@ final class AppCore: ObservableObject {
     let worldClock = WorldClockStore()
     let dashboardWidgets = DashboardWidgetsStore()
     let dashboardWeather = DashboardWeatherStore()
-    let dashboardUptime = DashboardUptimeStore()
+    let uptime = UptimeStore()
+    let dashboardMusic = DashboardMusicStore()
     let dashboardDeviceBattery = DashboardDeviceBatteryStore()
     let dashboardFileInfo = DashboardFileInfoStore()
     let killProcess = KillProcessManager()
@@ -375,7 +376,7 @@ final class AppCore: ObservableObject {
         // No-ops without consent and a chosen city, so it is safe to call unconditionally.
         dashboardWeather.start()
         // Likewise a no-op without consent — it installs no input monitors until then.
-        dashboardUptime.start()
+        uptime.start()
 
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
         hotKeys.onRunPluginAction = { [weak self] action in self?.plugins.perform(action) }

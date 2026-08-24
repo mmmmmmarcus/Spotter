@@ -4,7 +4,7 @@ import Foundation
 /// arrangement predates.
 enum DashboardWidgetKind: String, CaseIterable, Equatable, Hashable, Sendable {
     case clock
-    case uptime
+    case music
     case deviceBattery = "device-battery"
     case nextEvent = "next-event"
     case fileInfo = "file-info"
@@ -12,7 +12,7 @@ enum DashboardWidgetKind: String, CaseIterable, Equatable, Hashable, Sendable {
     var title: String {
         switch self {
         case .clock: return "Clock"
-        case .uptime: return "Uptime"
+        case .music: return "Music"
         case .deviceBattery: return "Device Battery"
         case .nextEvent: return "Calendar"
         case .fileInfo: return "File Info"
@@ -22,18 +22,19 @@ enum DashboardWidgetKind: String, CaseIterable, Equatable, Hashable, Sendable {
     var systemImage: String {
         switch self {
         case .clock: return "clock"
-        case .uptime: return "timer"
+        case .music: return "music.note"
         case .deviceBattery: return "battery.100percent"
         case .nextEvent: return "calendar"
         case .fileInfo: return "info.circle"
         }
     }
 
-    /// What the arrangement pane says a widget shows, so the list explains itself without a preview.
+    /// What Settings says a card shows, so its section explains itself without a preview.
     var summary: String {
         switch self {
         case .clock: return "An analog face, with the date and the day's weather in its corners."
-        case .uptime: return "How long today's session has run, with key and click counts."
+        case .music:
+            return "What Apple Music is playing, with its artwork and transport controls."
         case .deviceBattery:
             return "Levels for connected mice, keyboards and trackpads. Hidden while nothing "
                 + "connected reports one."
@@ -43,22 +44,17 @@ enum DashboardWidgetKind: String, CaseIterable, Equatable, Hashable, Sendable {
                 + "is the app you came from."
         }
     }
-
-    /// False for a widget whose switch is a consent act owned by its own store — the arrangement
-    /// pane must route those through the store (and its dialog), never through `enabledWidgets`.
-    var ownsEnabledState: Bool { self != .uptime }
 }
 
 struct DashboardWidgetPreferences: Equatable, Sendable {
-    var enabledWidgets: Set<DashboardWidgetKind>
-    /// Every kind exactly once, in strip order. Kept complete so a widget turned off keeps its place.
+    /// Every kind exactly once, in strip order. There is no on/off state: every card shows, and the
+    /// only thing to decide about the strip is the order (owner decision, Aug 2026).
     var widgetOrder: [DashboardWidgetKind]
     var calendarSourceIdentifier: String?
     var includesAllDayEvents: Bool
     var clockTimeZoneIdentifier: String?
 
     static let defaults = DashboardWidgetPreferences(
-        enabledWidgets: Set(DashboardWidgetKind.allCases.filter(\.ownsEnabledState)),
         widgetOrder: DashboardWidgetKind.allCases,
         calendarSourceIdentifier: nil,
         includesAllDayEvents: true,
@@ -88,11 +84,6 @@ struct DashboardEvent: Equatable, Sendable {
 }
 
 enum DashboardWidgetsEngine {
-    static func widgetKinds(from rawValues: [String]?) -> Set<DashboardWidgetKind> {
-        guard let rawValues else { return DashboardWidgetPreferences.defaults.enabledWidgets }
-        return Set(rawValues.compactMap(DashboardWidgetKind.init(rawValue:)))
-    }
-
     /// A saved arrangement, repaired: unknown raw values and duplicates drop out, and any kind the
     /// saved order predates lands at the end. The result always holds every kind exactly once, so
     /// the strip and the arrangement list can index it without a second existence check.

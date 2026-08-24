@@ -2,22 +2,22 @@ import Foundation
 
 /// Today's input tallies. Counts only: whatever feeds these never reads a key code, a character or a
 /// click location — there is nothing here to reconstruct what was typed from.
-struct DashboardInputCounts: Equatable, Sendable {
+struct UptimeInputCounts: Equatable, Sendable {
     var keys: Int
     var clicks: Int
 
-    static let zero = DashboardInputCounts(keys: 0, clicks: 0)
+    static let zero = UptimeInputCounts(keys: 0, clicks: 0)
 }
 
 /// What the card draws: the day's start (nil until the first sign of activity) and its tallies.
-struct DashboardUptimeSnapshot: Equatable, Sendable {
+struct UptimeSnapshot: Equatable, Sendable {
     var sessionStart: Date?
-    var counts: DashboardInputCounts
+    var counts: UptimeInputCounts
 
-    static let empty = DashboardUptimeSnapshot(sessionStart: nil, counts: .zero)
+    static let empty = UptimeSnapshot(sessionStart: nil, counts: .zero)
 }
 
-enum DashboardUptimeEngine {
+enum UptimeEngine {
     /// A persisted start belongs to `now` only while it is still the same calendar day. A rollover —
     /// or a clock dragged backwards, which would otherwise report a negative session — drops it, and
     /// the store re-stamps on the day's first sign of activity rather than at midnight, so an
@@ -33,8 +33,8 @@ enum DashboardUptimeEngine {
 
     /// Tallies survive a relaunch but not a new day; an absent or stale stamp zeroes them.
     static func carriedOverCounts(
-        _ persisted: DashboardInputCounts, countedDay: Date?, now: Date, calendar: Calendar
-    ) -> DashboardInputCounts {
+        _ persisted: UptimeInputCounts, countedDay: Date?, now: Date, calendar: Calendar
+    ) -> UptimeInputCounts {
         guard let countedDay, calendar.isDate(countedDay, inSameDayAs: now) else { return .zero }
         return persisted
     }

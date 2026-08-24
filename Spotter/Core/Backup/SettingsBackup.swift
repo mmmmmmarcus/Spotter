@@ -29,7 +29,6 @@ struct SettingsBackup: Codable, Sendable {
     /// Enum-backed settings are stored by raw value so the JSON stays legible and forward-compatible (an unknown value is ignored on import rather than failing the whole decode).
     struct SettingsData: Codable, Sendable {
         struct DashboardWidgets: Codable, Sendable {
-            var enabledWidgets: [String]?
             /// The strip's arrangement. Absent in files written before it was configurable, which
             /// simply leaves the receiving Mac on the default order.
             var widgetOrder: [String]?
@@ -40,7 +39,8 @@ struct SettingsBackup: Codable, Sendable {
             var weatherEnabled: Bool?
             var weatherCity: Data?
             var weatherUnit: String?
-            // Same for consent to count input. The tallies themselves stay device-local.
+            /// Consent to count input, from before Uptime became a plugin of its own. Read for
+            /// files written then; new files carry it in `PluginPrefs.Uptime` instead.
             var uptimeEnabled: Bool?
         }
 
@@ -144,6 +144,11 @@ struct SettingsBackup: Codable, Sendable {
             // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
             var binaryPath: String?
         }
+        struct Uptime: Codable, Sendable {
+            // Consent travels with the trusted file: restoring one is itself the consent act. The
+            // tallies themselves stay device-local.
+            var enabled: Bool?
+        }
         struct Note: Codable, Sendable {
             var iCloudSyncEnabled: Bool?
             var windowTransparency: Double?
@@ -157,6 +162,7 @@ struct SettingsBackup: Codable, Sendable {
         var windowManagement: WindowManagement?
         var mole: Mole?
         var note: Note?
+        var uptime: Uptime?
         // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
         var dashboardWidgets: SettingsData.DashboardWidgets?
     }
@@ -237,7 +243,6 @@ extension SettingsBackup {
             googleTranslationTargets: core.selectionTools.targetCodes,
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
             dashboardWidgets: SettingsData.DashboardWidgets(
-                enabledWidgets: dashboard.enabledWidgets.map(\DashboardWidgetKind.rawValue).sorted(),
                 widgetOrder: dashboard.widgetOrder.map(\DashboardWidgetKind.rawValue),
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier ?? "",
                 includesAllDayEvents: dashboard.includesAllDayEvents,
@@ -245,7 +250,7 @@ extension SettingsBackup {
                 weatherEnabled: core.dashboardWeather.isEnabled,
                 weatherCity: core.dashboardWeather.encodedCity,
                 weatherUnit: core.dashboardWeather.unit.rawValue,
-                uptimeEnabled: core.dashboardUptime.isEnabled))
+                uptimeEnabled: nil))
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -359,6 +364,7 @@ extension SettingsBackup {
             gap: d.integer(forKey: WindowManagementDefaults.gapKey),
             cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
         prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
+        prefs.uptime = PluginPrefs.Uptime(enabled: core.uptime.isEnabled)
         prefs.note = PluginPrefs.Note(
             iCloudSyncEnabled: core.noteSync.isEnabled,
             windowTransparency: core.notes.windowTransparency)
@@ -543,7 +549,6 @@ extension SettingsBackup {
         }
         if let dashboard = prefs.dashboardWidgets {
             count += core.dashboardWidgets.applyPreferences(
-                enabledWidgetRawValues: dashboard.enabledWidgets,
                 widgetOrderRawValues: dashboard.widgetOrder,
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
                 includesAllDayEvents: dashboard.includesAllDayEvents,
@@ -551,8 +556,11 @@ extension SettingsBackup {
             count += core.dashboardWeather.applyPreferences(
                 enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
                 unitRawValue: dashboard.weatherUnit)
-            count += core.dashboardUptime.applyPreferences(enabled: dashboard.uptimeEnabled)
         }
+        // Uptime's own field wins; the widget-era field is the fallback for files written before it
+        // became a plugin, so restoring an older snapshot still carries the user's consent across.
+        count += core.uptime.applyPreferences(
+            enabled: prefs.uptime?.enabled ?? prefs.dashboardWidgets?.uptimeEnabled)
         return count
     }
 
@@ -669,7 +677,6 @@ extension SettingsBackup {
         }
         if let dashboard = s.dashboardWidgets {
             count += core.dashboardWidgets.applyPreferences(
-                enabledWidgetRawValues: dashboard.enabledWidgets,
                 widgetOrderRawValues: dashboard.widgetOrder,
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
                 includesAllDayEvents: dashboard.includesAllDayEvents,
@@ -677,8 +684,11 @@ extension SettingsBackup {
             count += core.dashboardWeather.applyPreferences(
                 enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
                 unitRawValue: dashboard.weatherUnit)
-            count += core.dashboardUptime.applyPreferences(enabled: dashboard.uptimeEnabled)
         }
+        // The widget-era field, for files written before Uptime became a plugin of its own. New
+        // files carry consent in `PluginPrefs.Uptime`, applied above; applying the same value twice
+        // is a no-op either way.
+        count += core.uptime.applyPreferences(enabled: s.dashboardWidgets?.uptimeEnabled)
         return count
     }
 

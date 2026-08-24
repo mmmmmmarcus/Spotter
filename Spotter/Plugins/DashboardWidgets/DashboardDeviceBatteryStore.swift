@@ -5,7 +5,7 @@ import IOKit
 /// Backs the device-battery card: what the connected mice, keyboards and trackpads report.
 /// `DashboardDeviceBatteryEngine` stays pure and is handed finished values; the IOKit read lives here.
 ///
-/// Unlike the weather and uptime cards this needs no consent gate. The levels come from the IOKit
+/// Unlike the weather card this needs no consent gate. The levels come from the IOKit
 /// registry, which any process can read — no TCC prompt, no entitlement, no Bluetooth framework (that
 /// one requires `NSBluetoothAlwaysUsageDescription` and prompts the user, which is why AirPods, being
 /// non-HID, are deliberately out of scope). Nothing is stored and nothing leaves the machine.

@@ -4,31 +4,20 @@ import SwiftUI
 struct DashboardWidgetsView: View {
     @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var weather: DashboardWeatherStore
-    @ObservedObject var uptime: DashboardUptimeStore
+    @ObservedObject var music: DashboardMusicStore
     @ObservedObject var battery: DashboardDeviceBatteryStore
     @ObservedObject var fileInfo: DashboardFileInfoStore
+    /// The music card shows its controls only under the pointer; the cover is the card at rest.
+    @State private var isHoveringMusic = false
 
-    /// Which cards are drawable right now. Order is the user's arrangement; a card that owns its
-    /// enable state answers from preferences, a consent-gated one from its own store, and two more
-    /// withhold themselves when they have nothing to report.
+    /// Every card shows; the only card that withholds itself is the one that would otherwise be an
+    /// empty square claiming a reading it doesn't have — a Mac with nothing connected that reports a
+    /// battery level is the normal case. File Info is deliberately *not* conditioned on there being a
+    /// selection: it has a resting state, so it holds its place instead of shuffling the strip every
+    /// time the Finder loses focus.
     private func isVisible(_ kind: DashboardWidgetKind) -> Bool {
-        switch kind {
-        case .clock, .nextEvent:
-            return store.isWidgetEnabled(kind)
-        // Consent to count input *is* this card's enable state, so there is no second switch to
-        // drift out of sync with the monitor.
-        case .uptime:
-            return uptime.isEnabled
-        // Switched on with nothing connected that reports a level, the card would be an empty square
-        // claiming a reading it doesn't have — a Mac with only its built-in keyboard is the normal case.
-        case .deviceBattery:
-            return store.isWidgetEnabled(kind) && !battery.devices.isEmpty
-        // Deliberately not conditioned on there being a selection: the card has a resting state, so
-        // it holds its place in the row instead of shuffling the strip every time the Finder loses
-        // focus.
-        case .fileInfo:
-            return store.isWidgetEnabled(kind)
-        }
+        guard kind == .deviceBattery else { return true }
+        return !battery.devices.isEmpty
     }
 
     @ViewBuilder
@@ -57,10 +46,12 @@ struct DashboardWidgetsView: View {
             .onAppear {
                 store.start()
                 battery.start()
+                music.start()
             }
             .onDisappear {
                 store.stop()
                 battery.stop()
+                music.stop()
             }
         }
     }
@@ -78,7 +69,7 @@ struct DashboardWidgetsView: View {
     private func card(_ kind: DashboardWidgetKind, now: Date) -> some View {
         switch kind {
         case .clock: clockCard(now: now)
-        case .uptime: uptimeCard(now: now)
+        case .music: musicCard(now: now)
         case .deviceBattery: batteryCard()
         case .nextEvent: eventCard(now: now)
         case .fileInfo: DashboardFileInfoCard(snapshot: fileInfo.snapshot)
@@ -87,9 +78,9 @@ struct DashboardWidgetsView: View {
 
     private func cardTitle(_ text: String) -> some View { DashboardCardTitle(text) }
 
-    /// The headline every card shares, one step below the title in the same rhythm. The widest
-    /// realistic string is uptime's "23h 59m", which just fits the square's 96-point interior —
-    /// the scale floor is the guard for the outliers rather than the normal case.
+    /// The headline every card shares, one step below the title in the same rhythm. It is sized so
+    /// a full reading fits the square's 96-point interior; the scale floor is the guard for the
+    /// outliers rather than the normal case.
     private func cardHeadline(_ text: String) -> some View {
         Text(text)
             .font(.largeTitle)
@@ -143,33 +134,105 @@ struct DashboardWidgetsView: View {
         return parts.joined(separator: ", ")
     }
 
-    /// Square, like the clock and weather: today's elapsed time as the headline, then the day's key
-    /// and click tallies.
-    private func uptimeCard(now: Date) -> some View {
-        let snapshot = uptime.snapshot(now: now)
-        return VStack(alignment: .leading, spacing: 0) {
-            cardTitle("Uptime")
-            // An em dash until the day's first activity, so the card never claims a session it can't date.
-            cardHeadline(
-                snapshot.sessionStart
-                    .map { DashboardUptimeEngine.formattedElapsed(from: $0, to: now) } ?? "—")
-            Spacer(minLength: 0)
-            if uptime.needsAccessibility {
-                // Clicks count without the grant, keys can't — offer it rather than showing a zero.
-                Button("Allow keys") { Permissions.ensureAccessibility() }
-                    .buttonStyle(.link)
-                    .controlSize(.small)
+    /// The artwork *is* the card — it fills the square edge to edge with the text and transport
+    /// laid over a scrim, the way a player's now-playing tile reads. Without artwork the same layout
+    /// runs over the ordinary card surface, so the strip keeps its rhythm either way.
+    private func musicCard(now: Date) -> some View {
+        let snapshot = music.snapshot
+        return ZStack {
+            musicArtwork
+            // Without a cover there is nothing to show at rest, so the card falls back to its own
+            // mark rather than sitting there as a blank square.
+            if music.artwork == nil, !isHoveringMusic {
+                VStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: snapshot.isPlaying ? "music.note" : "music.note.list")
+                        .font(.title2)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text(
+                        snapshot.track?.title
+                            ?? DashboardMusicEngine.restingLine(isRunning: snapshot.isRunning)
+                    )
                     .font(.caption2)
-            } else {
-                countLine(DashboardUptimeEngine.keysLabel(snapshot.counts.keys))
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Theme.Spacing.md)
+                }
             }
-            countLine(DashboardUptimeEngine.clicksLabel(snapshot.counts.clicks))
+            if isHoveringMusic {
+                // The scrim arrives with the controls: at rest the cover is the card, and nothing
+                // dims it.
+                Rectangle()
+                    .fill(.black.opacity(0.45))
+                    .transition(.opacity)
+                musicTransport(isPlaying: snapshot.isPlaying)
+                    .transition(.opacity)
+            }
         }
-        .padding(Theme.Spacing.lg)
-        .frame(width: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            height: Theme.Size.launcherDashboardHeight)
         .dashboardCardSurface()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(uptimeAccessibilityLabel(snapshot, now: now))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: Theme.Animation.quick)) {
+                isHoveringMusic = hovering
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(musicAccessibilityLabel(snapshot))
+    }
+
+    /// The cover, edge to edge and undimmed — it *is* the card until the pointer arrives.
+    @ViewBuilder private var musicArtwork: some View {
+        if let artwork = music.artwork {
+            Image(nsImage: artwork)
+                .resizable()
+                .scaledToFill()
+                .frame(
+                    width: Theme.Size.launcherDashboardHeight,
+                    height: Theme.Size.launcherDashboardHeight)
+                .clipped()
+        }
+    }
+
+    /// Three controls, centred, shown only while the pointer is on the card. Always white: they sit
+    /// on a scrim over artwork that could be any colour, never on the card surface.
+    private func musicTransport(isPlaying: Bool) -> some View {
+        HStack(spacing: Theme.Spacing.md) {
+            musicButton("backward.fill", label: "Previous Track") { music.previousTrack() }
+            musicButton(isPlaying ? "pause.fill" : "play.fill", label: isPlaying ? "Pause" : "Play") {
+                music.playPause()
+            }
+            musicButton("forward.fill", label: "Next Track") { music.nextTrack() }
+        }
+    }
+
+    private func musicButton(
+        _ systemImage: String, label: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.body)
+                // A full-cell hit target: a glyph alone leaves most of the control unclickable.
+                .frame(width: Self.musicButtonSize, height: Self.musicButtonSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .help(label)
+        .accessibilityLabel(label)
+    }
+
+
+    private static let musicButtonSize: CGFloat = 22
+
+    private func musicAccessibilityLabel(_ snapshot: DashboardMusicSnapshot) -> String {
+        guard let track = snapshot.track else {
+            return DashboardMusicEngine.restingLine(isRunning: snapshot.isRunning)
+        }
+        let state = snapshot.isPlaying ? "Playing" : "Paused"
+        return "\(state): \(track.title), \(DashboardMusicEngine.subtitle(for: track))"
     }
 
     private static let batteryGaugeSpacing = Theme.Spacing.md
@@ -282,18 +345,6 @@ struct DashboardWidgetsView: View {
             .font(.caption2)
             .lineLimit(1)
             .minimumScaleFactor(0.65)
-    }
-
-    private func uptimeAccessibilityLabel(_ snapshot: DashboardUptimeSnapshot, now: Date) -> String {
-        let elapsed =
-            snapshot.sessionStart
-            .map { "Up \(DashboardUptimeEngine.formattedElapsed(from: $0, to: now))" }
-            ?? "Session not started"
-        let keys =
-            uptime.needsAccessibility
-            ? "keyboard counting needs Accessibility"
-            : DashboardUptimeEngine.keysLabel(snapshot.counts.keys)
-        return "\(elapsed), \(keys), \(DashboardUptimeEngine.clicksLabel(snapshot.counts.clicks))"
     }
 
     /// How far the dial is held off the card's edge, leaving the lane the complications ride in.

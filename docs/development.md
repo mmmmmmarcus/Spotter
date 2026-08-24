@@ -196,11 +196,13 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + Markdown blocks + ChatGPT web URL + model catalog
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
-    Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
+    Spotter/Plugins/DashboardWidgets/DashboardMusicEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardFileInfoEngine.swift \
     Tools/dashboard-widgets-test.swift \
-    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # arrangement, clock hands, weather codes, uptime rollover, battery lines, Finder selection
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # arrangement, clock hands, weather codes, music parsing, battery lines, Finder selection
+swiftc -swift-version 6 Spotter/Plugins/Uptime/UptimeEngine.swift Tools/uptime-test.swift \
+    -o /tmp/uptime-test && /tmp/uptime-test                       # session rollover + input tallies
 swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
     Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp

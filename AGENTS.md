@@ -110,10 +110,11 @@ Never break these without an explicit task to do so.
   Foundation-only and pure for `Tools/ai-chat-test.swift`,
   `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
   `Plugins/DashboardWidgets/DashboardWeatherEngine.swift`,
-  `Plugins/DashboardWidgets/DashboardUptimeEngine.swift`,
+  `Plugins/DashboardWidgets/DashboardMusicEngine.swift`,
   `Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift` and
   `Plugins/DashboardWidgets/DashboardFileInfoEngine.swift` stay
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
+  `Plugins/Uptime/UptimeEngine.swift` stays Foundation-only and pure for `Tools/uptime-test.swift`,
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
   termination status, retain stderr, and supply synthetic stdin only to a post-confirmation
@@ -178,13 +179,21 @@ Never break these without an explicit task to do so.
   what turns it on and removing it is what turns it off — but that is a change of control, not of
   gate: the consent dialog still runs before the first request, and `isEnabled` is still re-checked
   at every entry point. Do not make the complications draw without it. Its consent flag, city and unit ride in the trusted v3 snapshot.
-  `Plugins/DashboardWidgets/DashboardUptimeStore.swift` applies the same shape to a feature that is
-  *not* networked, because watching input system-wide earns it: the uptime card ships off, its
+  `Plugins/Uptime/UptimeStore.swift` applies the same shape to a feature that is
+  *not* networked, because watching input system-wide earns it: Uptime ships off, its
   dialog names exactly what is and isn't recorded, no `NSEvent` monitor is installed until consent,
   and turning it off deletes the tallies. Its counters must stay counters — key or click and an
   autorepeat flag are the only facts taken off an event; never read a key code, character, modifier
   or click location. Count through passive `NSEvent` monitors, never a new `CGEventTap`. Only the
-  consent flag rides in the trusted v3 snapshot; the tallies stay device-local.
+  consent flag rides in the trusted v3 snapshot; the tallies stay device-local. Uptime is a plugin
+  rather than a widget (owner decision, Aug 2026): its consent flag *is* the plugin's enabled state,
+  read and written through `readEnabled`/`writeEnabled`, and `exportsEnabledState` stays false so the
+  registry can never grant it. Its persistence keys keep their `dashboard-widgets.uptime-*` names —
+  renaming them would silently drop existing consent and tallies.
+  The music card is not consent-gated, for the File Info reason: it asks Music through one Apple
+  Event and macOS's own Automation prompt is the gate. It must never launch Music — check that the
+  app is already running before any script, since `tell application "Music"` starts it — and it polls
+  only while the launcher is on screen.
   `Plugins/DashboardWidgets/DashboardDeviceBatteryStore.swift` is deliberately *not* gated, and the
   contrast with uptime is the point: reading `BatteryPercent` off the IOKit registry needs no TCC
   grant, no entitlement and no monitor, persists nothing and sends nothing, so there is no ongoing
@@ -241,11 +250,12 @@ Never break these without an explicit task to do so.
   superseding both the per-card panes and the Arrangement pane that briefly replaced them): a
   section per card, no pane of its own for any card. **Order is set by dragging the cards in the
   palette**, which is the thing being arranged — do not reintroduce a list of names for it. Strip
-  order is `DashboardWidgetPreferences.widgetOrder`, kept complete so a card switched off keeps its
-  place; `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved, so a new widget kind
-  needs no migration. `DashboardWidgetKind.ownsEnabledState` is what keeps the Show list honest — it
-  is false for a card whose switch is a consent act owned by its own store (Uptime), which the page
-  must route through that store and its dialog rather than through `enabledWidgets`. Commands
+  order is `DashboardWidgetPreferences.widgetOrder`, which is the strip's *only* preference:
+  every card shows, with no on/off state at all (owner decision, Aug 2026 — do not reintroduce a Show
+  list). `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved, so a new widget kind
+  needs no migration and a kind that leaves drops out of a saved order the same way. A card with
+  nothing to report says so in its resting state; a feature whose visibility would be a consent act
+  belongs in a plugin of its own, which is why Uptime became one. Commands
   owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
   data and bindings while hiding entries and making their hotkeys no-op.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
@@ -334,7 +344,8 @@ Never break these without an explicit task to do so.
 - [`docs/kill-process.md`](docs/kill-process.md) · [`docs/change-case.md`](docs/change-case.md) ·
   [`docs/image-modification.md`](docs/image-modification.md) ·
   [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md) ·
-  [`docs/world-clock.md`](docs/world-clock.md) · [`docs/selection-tools.md`](docs/selection-tools.md) ·
+  [`docs/world-clock.md`](docs/world-clock.md) · [`docs/uptime.md`](docs/uptime.md) ·
+  [`docs/selection-tools.md`](docs/selection-tools.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
   [`docs/ai-chat.md`](docs/ai-chat.md) ·

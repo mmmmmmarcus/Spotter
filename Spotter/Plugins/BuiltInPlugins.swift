@@ -12,6 +12,7 @@ enum BuiltInPlugins {
             AIChatPlugin.registration(core: core),
             EmojiSymbolsPlugin.registration(core: core),
             WorldClockPlugin.registration(core: core),
+            UptimePlugin.registration(core: core),
             DashboardWidgetsPlugin.registration(core: core),
             FileSearchPlugin.registration(core: core),
             KillProcessPlugin.registration(core: core),

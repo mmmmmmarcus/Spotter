@@ -1,9 +1,9 @@
 # Widgets
 
 Widgets is the card strip above the launcher sections when the palette is on its empty query root. It
-shows an analog clock, today's uptime, connected device batteries, the next calendar event and the
-Finder selection. Every card is the same 116-point square, and which cards appear — and in what order
-— is set in one place, Settings → Widgets → **Arrangement**. Typing a query or switching palette mode
+shows an analog clock, what Apple Music is playing, connected device batteries, the next calendar
+event and the Finder selection. Every card is the same 116-point square; which cards appear is set in
+Settings → Widgets, and the order is set by dragging the cards in the palette itself. Typing a query or switching palette mode
 hides the strip immediately.
 
 The clock is the strip's watch face: a title-free analog dial following the selected time zone, with
@@ -45,8 +45,10 @@ that came and went with the Finder's focus couldn't be relied on to be there.
 
 ## Arrangement
 
-`DashboardWidgetPreferences.widgetOrder` is the strip order: every kind exactly once, kept complete so
-a card switched off keeps its place for when it comes back.
+`DashboardWidgetPreferences.widgetOrder` is the strip order: every kind exactly once. It is also the
+*only* preference the strip has — there is no on/off state, because every card shows (owner decision,
+Aug 2026). A card that has nothing to report says so in its resting state, which is a better answer
+than a switch the user has to find.
 `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved — unknown raw values and
 duplicates drop out, and any kind the saved order predates lands at the end — so a new widget appears
 without a migration and the strip can index the result without a second existence check.
@@ -57,16 +59,12 @@ dropped on, rather than SwiftUI's `move(fromOffsets:toOffset:)` index, which is 
 place; there is no list of names in Settings for it, because the cards are the thing being arranged
 and a name is a worse handle than the card. Dashboard cards are the launcher's only non-selectable
 rows, which is what makes a drag here unambiguous — it can never be confused with picking a result.
-A card dropped onto a visible neighbour takes that neighbour's index in the *full* order, so cards
-switched off keep their places between the ones that moved.
+A card dropped onto a neighbour takes that neighbour's index in the order.
 
-Whether a card shows at all is the Show list on the Widgets settings page.
-`DashboardWidgetKind.ownsEnabledState` is what keeps that list honest: it is false for Uptime, whose
-switch is a consent act owned by `DashboardUptimeStore`, so the page routes that one through the
-store and its dialog rather than through `enabledWidgets`. Device Battery is the one card that
-withholds itself even when switched on, because with nothing connected reporting a level an empty
-square would claim a reading it doesn't have; every other card either has something to say or a
-resting state to say it in.
+Device Battery is the one card that withholds itself, because with nothing connected reporting a
+level an empty square would claim a reading it doesn't have; every other card either has something to
+say or a resting state to say it in. A feature whose visibility would be a consent act does not
+belong in the strip at all — that is why Uptime became [a plugin of its own](uptime.md).
 
 ## Architecture
 
@@ -77,11 +75,10 @@ and participate in trusted settings backup/sync. `DashboardWidgetsEngine.swift` 
 Foundation-only and pure; it resolves preference fallbacks, clock hand angles and calendar filters
 for `Tools/dashboard-widgets-test.swift`.
 
-Uptime is its own pair for the same reason — the half that watches input stays isolated.
-`DashboardUptimeStore`, owned by `AppCore`, owns consent, the input monitors, the day's tallies and
-the coalescing flush timer. `DashboardUptimeEngine.swift` stays Foundation-only and pure: it resolves
-the day rollover and formats the elapsed time and the tally lines, pluralization included — the
-card spells them out ("383 keys pressed", "16 mouse clicks") rather than labelling them with a glyph.
+Music is its own pair — the half that talks to another app stays isolated. `DashboardMusicStore`,
+owned by `AppCore`, owns the Apple Events, the poll timer, the player-info observer and the artwork
+cache. `DashboardMusicEngine.swift` stays Foundation-only and pure: it parses the reader script's
+one line and resolves the card's subtitle and resting lines for `Tools/dashboard-widgets-test.swift`.
 
 Device battery is another pair, isolated for the opposite reason — the half that reads IOKit is the
 only part that isn't portable. `DashboardDeviceBatteryStore`, owned by `AppCore`, owns the registry
@@ -122,34 +119,42 @@ do about it, rather than the card going missing. A selected account that is temp
 available calendars rather than producing a false empty result. Calendar work starts when the
 dashboard becomes visible and stops when it leaves the palette.
 
-## Uptime and input privacy
+## Music
 
-The uptime card reads *hours since the screen first came on today*, over today's key-press and
-click tallies. Elapsed time is wall clock, so a mid-day sleep counts; the day's start is stamped on
-its first sign of activity — a woken screen, a resumed session or a counted event — and never at
-midnight, so a Mac left awake overnight doesn't claim a session since 00:00. A sleeping display is
-not a sign of activity, so a 4am background wake can't start the day either. Tallies survive a
-relaunch, clear at midnight, and clear when the widget is turned off. `Reset Today` in Settings
-clears them without disturbing the start stamp.
+The music card is the cover, and nothing else: at rest the artwork fills the square edge to edge with
+no title, no scrim and no controls over it. The pointer is what reveals the transport — hovering dims
+the cover and centres previous, play/pause and next on it, all three in white because they sit on
+artwork that could be any colour. They act on Music directly, and each is a full-cell hit target since
+a glyph alone leaves most of the control unclickable.
 
-Counting input system-wide is not networked, but it gets the same consent shape: the widget ships
-off, enabling it goes through a dialog naming exactly what is and isn't recorded, and no monitor is
-installed until then. The counters take two facts off an event — key or click, and whether a key was
-an autorepeat — and increment an integer. Key codes, characters, modifiers and click locations are
-never read, so nothing retained can reconstruct what was typed.
+A track with no cover would leave a blank square, so that case falls back to the card's own mark and
+the track's name until the pointer arrives. There is deliberately no progress readout: the card shows
+what is playing and lets you change it, and a playhead is the one thing a glance at a launcher does
+not need.
 
-Counting runs through `NSEvent` monitors rather than a fourth `CGEventTap`: a global monitor is
-passive by construction and cannot alter or swallow an event. A local monitor sits beside it, since
-global monitors never see events delivered to Spotter itself and the palette's own keystrokes would
-otherwise go uncounted. Key events need the Accessibility grant and clicks do not, so an untrusted
-Mac still counts clicks and both the card and Settings offer the grant instead of showing a
-misleading zero. AppKit hands back a monitor token either way, so trust is polled on the same timer
-that flushes the tallies, and the monitors are re-registered once it is granted.
+Everything goes through one Apple Event run as an `osascript` subprocess off the main actor, exactly
+like `Core/FinderSelection`: macOS's own Automation prompt is the gate, and a refused grant reads as
+"nothing playing" rather than an error. **Spotter never launches Music.** `tell application "Music"`
+starts the app if it is not running, so the store checks `NSWorkspace.runningApplications` before any
+script runs; with Music closed the card says so, which is not the same as nothing playing. Note also
+that `st` is a reserved token inside a Music `tell` block — the reader script spells its variables
+out rather than abbreviating them.
 
-Tallies are coalesced and written at most every five seconds, plus on `applicationWillTerminate`;
-they stay in bundle-scoped `UserDefaults` and are device-local. Only the consent flag travels in the
-trusted settings backup/sync file — restoring one may switch counting on, which is itself the consent
-act.
+The card polls every three seconds while the launcher is on screen and stops when it leaves, and it
+also listens for Music's own `com.apple.Music.playerInfo` distributed notification so a track or
+state change lands immediately. Between polls the playhead is interpolated from the last anchor by
+`DashboardMusicEngine.interpolatedPosition` rather than asking Music every second — a subprocess per
+tick would be the whole cost of the card. Artwork is re-read only when the persistent track ID
+changes, written by the script to a bundle-scoped temporary file because artwork bytes cannot come
+back through stdout as text; a slower artwork read never overwrites the track that replaced it. The
+reader asks for name, artist, album and duration only — the playhead went with the progress bar. Note
+that `osascript` always answers with a trailing newline, so `runScriptSync` trims: comparing the raw
+answer to a bare `"ok"` silently discarded every cover that had just been written.
+
+Not every track has a cover to fetch. A streamed URL track — Apple Music radio, and anything played
+outside the library — reports zero artworks, and the card falls back to its plain surface rather than
+inventing one; fetching a cover from the network would be a consent-gated feature, not a widget
+detail.
 
 ## Device battery
 
@@ -247,11 +252,10 @@ always the same selection, and clearing first would flash the card away and back
 ## Settings and lifecycle
 
 Widgets is an always-available system feature placed under Settings → System, and the whole strip is
-configured on **one page**: a Show list holding every card's switch, then a section per card — the
-clock's time zone, the weather section, the uptime card's keyboard-permission state and Reset Today,
-the devices found and their levels, the calendar's access, account and all-day preference, and what
-File Info reads and never reads. There is no pane of its own for any card and no arrangement list;
-order belongs to the palette.
+configured on **one page**: a section per card — the clock's time zone, the weather section, what
+Music is playing, the devices found and their levels, the calendar's access, account and all-day
+preference, and what File Info reads and never reads. There is no Show list, no pane of its own for
+any card and no arrangement list: every card shows, and order belongs to the palette.
 
 Weather's section is the one that reads unusually: it has no switch, because it is three
 complications on the clock rather than a card of its own. Choosing a city is what turns it on and
@@ -260,9 +264,8 @@ gate — the consent dialog still names the provider, the cadence and what leave
 anything is contacted.
 
 Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
-identifiers for removed widgets are ignored. The permission overview exposes Calendar, Accessibility
-and Automation as global permissions, because the calendar card, the uptime card's key counting and
-the File Info card depend on them respectively. Calendar refreshes occur only while the dashboard is
-visible, while uptime counting runs whenever the widget is on — a tally of the whole day would be
-wrong if it only accrued with the palette open. Permission views re-check authorization while visible
+identifiers for removed widgets are ignored. The permission overview exposes Calendar and
+Automation as global permissions, because the calendar card depends on the first and both the Music
+and File Info cards on the second. Calendar refreshes and Music polling occur only while the
+dashboard is visible: neither has anything to report to a closed palette. Permission views re-check authorization while visible
 so returning from System Settings updates them without a relaunch.

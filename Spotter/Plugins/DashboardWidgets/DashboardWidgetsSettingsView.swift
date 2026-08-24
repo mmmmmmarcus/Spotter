@@ -6,10 +6,9 @@ import SwiftUI
 struct DashboardWidgetsSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var weather: DashboardWeatherStore
-    @ObservedObject var uptime: DashboardUptimeStore
+    @ObservedObject var music: DashboardMusicStore
     @ObservedObject var battery: DashboardDeviceBatteryStore
 
-    @State private var askingUptimeConsent = false
     @State private var askingWeatherConsent = false
     @State private var citySearch = ""
     @State private var refreshing = false
@@ -24,22 +23,13 @@ struct DashboardWidgetsSettingsView: View {
                 "The cards above launcher results while the search is empty. Drag a card in the "
                 + "palette to move it along the row."
         ) {
-            showCard
             clockCard
             weatherCard
             if weather.isEnabled { weatherDetailsCard }
-            if uptime.isEnabled { uptimeCard }
+            musicCard
             batteryCard
             calendarCard
             fileInfoCard
-        }
-        .sheet(isPresented: $askingUptimeConsent) {
-            UptimeConsentSheet(
-                onCancel: { askingUptimeConsent = false },
-                onAccept: {
-                    askingUptimeConsent = false
-                    uptime.setEnabled(true)
-                })
         }
         .sheet(isPresented: $askingWeatherConsent) {
             WeatherConsentSheet(
@@ -48,25 +38,6 @@ struct DashboardWidgetsSettingsView: View {
                     askingWeatherConsent = false
                     weather.setEnabled(true)
                 })
-        }
-    }
-
-    /// The one place a card is switched on or off. Order isn't here: the strip is draggable, and a
-    /// list of names is a worse way to arrange something you can see.
-    private var showCard: some View {
-        SettingsCard(header: "Show") {
-            ForEach(Array(store.orderedWidgets.enumerated()), id: \.element) { index, kind in
-                if index > 0 { SettingsDivider() }
-                SettingsRow(
-                    title: kind.title, subtitle: kind.summary, systemImage: kind.systemImage,
-                    tint: tint(kind)
-                ) {
-                    Toggle("", isOn: enabled(kind))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-            }
         }
     }
 
@@ -182,39 +153,33 @@ struct DashboardWidgetsSettingsView: View {
         }
     }
 
-    private var uptimeCard: some View {
-        SettingsCard(header: "Uptime") {
+    private var musicCard: some View {
+        SettingsCard(header: "Music") {
             SettingsRow(
-                title: "Keyboard Counting",
-                subtitle: uptime.needsAccessibility
-                    ? "Clicks are counted. Counting keys needs the Accessibility permission."
-                    : "Spotter counts that a key was pressed — never which one.",
-                systemImage: "keyboard", tint: .green
+                title: "Apple Music",
+                subtitle: music.snapshot.track.map {
+                    "\($0.title) — \(DashboardMusicEngine.subtitle(for: $0))"
+                } ?? DashboardMusicEngine.restingLine(isRunning: music.snapshot.isRunning),
+                systemImage: "music.note", tint: .pink
             ) {
-                if uptime.needsAccessibility {
-                    Button("Allow…") { Permissions.ensureAccessibility() }
-                        .controlSize(.small)
-                } else {
-                    Label("Granted", systemImage: "checkmark.circle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.green)
-                }
+                Label(
+                    music.snapshot.isPlaying ? "Playing" : "Idle",
+                    systemImage: music.snapshot.isPlaying ? "speaker.wave.2.fill" : "pause.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(music.snapshot.isPlaying ? .pink : .secondary)
             }
 
             SettingsDivider()
             SettingsRow(
-                title: "Today's Counts",
-                subtitle: "Tallies clear on their own at midnight.",
-                systemImage: "arrow.counterclockwise", tint: .secondary
-            ) {
-                Button("Reset Today") { uptime.resetCounts() }
-                    .controlSize(.small)
-            }
+                title: "Automation Permission",
+                subtitle:
+                    "The card asks Music what is playing through one Apple Event. macOS asks for "
+                    + "Automation access the first time; Music is never launched by Spotter.",
+                systemImage: "lock.shield", tint: .secondary
+            ) { EmptyView() }
         }
     }
 
-    /// A read-out rather than a setting: what was found and at what level, so a Mac showing empty
-    /// rings says why.
     private var batteryCard: some View {
         SettingsCard(header: "Device Battery") {
             if battery.devices.isEmpty {
@@ -345,32 +310,11 @@ struct DashboardWidgetsSettingsView: View {
         }
     }
 
-    private func isEnabled(_ kind: DashboardWidgetKind) -> Bool {
-        kind.ownsEnabledState ? store.isWidgetEnabled(kind) : uptime.isEnabled
-    }
-
-    private func enabled(_ kind: DashboardWidgetKind) -> Binding<Bool> {
-        Binding(
-            get: { isEnabled(kind) },
-            set: { wantsOn in
-                guard kind.ownsEnabledState else {
-                    // Uptime's switch is a consent act, so switching it on asks before anything counts.
-                    if wantsOn {
-                        askingUptimeConsent = true
-                    } else {
-                        uptime.setEnabled(false)
-                    }
-                    return
-                }
-                store.setWidgetEnabled(kind, enabled: wantsOn)
-            })
-    }
-
     /// The tint each card carries on the strip, so a row matches the card it governs.
     private func tint(_ kind: DashboardWidgetKind) -> Color {
         switch kind {
         case .clock: return .orange
-        case .uptime: return .green
+        case .music: return .pink
         case .deviceBattery: return .yellow
         case .nextEvent: return .blue
         case .fileInfo: return .teal
@@ -426,47 +370,6 @@ struct DashboardWidgetsSettingsView: View {
         Binding(
             get: { store.preferences.includesAllDayEvents },
             set: { store.setIncludesAllDayEvents($0) })
-    }
-}
-
-/// Nothing here reaches the network, but a system-wide input counter is asked for as plainly as one
-/// that does — the user should turn this on knowing exactly what is and isn't recorded.
-private struct UptimeConsentSheet: View {
-    let onCancel: () -> Void
-    let onAccept: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            HStack(spacing: Theme.Spacing.lg) {
-                Image(systemName: "timer")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(.green)
-                Text("Turn on the uptime widget?")
-                    .font(.headline)
-            }
-
-            Text(
-                "Spotter counts how many keys you press and how many times you click, everywhere on "
-                    + "this Mac, and shows the totals next to how long the screen has been on today. "
-                    + "It records only that a key was pressed — never which key, what you typed, or "
-                    + "where you clicked. The totals stay on this Mac, clear at midnight, and are "
-                    + "deleted when you turn this off. Counting keys needs the Accessibility "
-                    + "permission; clicks are counted without it."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: Theme.Spacing.lg) {
-                Spacer()
-                Button("Not Now", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                Button("Enable", action: onAccept)
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(Theme.Spacing.xxl)
-        .frame(width: 420)
     }
 }
 

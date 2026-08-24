@@ -8,22 +8,22 @@ enum DashboardWidgetsPlugin {
                 id: .dashboardWidgets,
                 name: "Widgets",
                 summary:
-                    "See the time, weather, uptime, device batteries, next event and the Finder "
-                    + "selection above launcher results.",
+                    "See the time, weather, the music playing, device batteries, next event "
+                    + "and the Finder selection above launcher results.",
                 systemImage: "rectangle.3.group",
                 tint: .purple,
                 settingsPlacement: .system),
             defaultEnabled: true,
             canDisable: false,
             exportsEnabledState: false,
-            // Accessibility belongs to the uptime card's key counting; clicks need no grant.
-            // Automation is the File Info card asking the Finder what is selected.
-            permissions: [.calendar, .accessibility, .automation],
+            // Automation covers both cards that ask another app a question: File Info asking
+            // the Finder what is selected, and Music asking Music what is playing.
+            permissions: [.calendar, .automation],
             launcherDashboard: PluginLauncherDashboardRegistration {
                 AnyView(
                     DashboardWidgetsView(
                         store: core.dashboardWidgets, weather: core.dashboardWeather,
-                        uptime: core.dashboardUptime, battery: core.dashboardDeviceBattery,
+                        music: core.dashboardMusic, battery: core.dashboardDeviceBattery,
                         fileInfo: core.dashboardFileInfo))
             },
             readEnabled: { true },
@@ -31,7 +31,7 @@ enum DashboardWidgetsPlugin {
                 AnyView(
                     DashboardWidgetsSettingsView(
                         store: core.dashboardWidgets, weather: core.dashboardWeather,
-                        uptime: core.dashboardUptime, battery: core.dashboardDeviceBattery))
+                        music: core.dashboardMusic, battery: core.dashboardDeviceBattery))
             })
     }
 }
@@ -40,10 +40,6 @@ extension AppCore {
     /// Read once per summon, from `showPalette`, so the File Info card is current without anything
     /// watching the Finder between summons.
     func refreshDashboardFileInfo() {
-        guard dashboardWidgets.isWidgetEnabled(.fileInfo) else {
-            dashboardFileInfo.clear()
-            return
-        }
         dashboardFileInfo.refresh(frontmost: previousApplication)
     }
 }

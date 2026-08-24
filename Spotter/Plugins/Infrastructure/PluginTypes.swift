@@ -28,6 +28,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let dashboardWidgets = PluginID(rawValue: "dashboard-widgets")
     static let screenshot = PluginID(rawValue: "screenshot")
     static let fileSearch = PluginID(rawValue: "file-search")
+    static let uptime = PluginID(rawValue: "uptime")
 }
 
 /// The small fixed palette Settings uses for plugin sidebar icon tiles.

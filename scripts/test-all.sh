@@ -33,6 +33,7 @@ TESTS=(
     coffee
     ai-chat
     dashboard-widgets
+    uptime
     theme
     quicklink
     hotkey
@@ -198,10 +199,14 @@ run_harness() {
             swiftc -swift-version 6 \
                 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
-                Spotter/Plugins/DashboardWidgets/DashboardUptimeEngine.swift \
+                Spotter/Plugins/DashboardWidgets/DashboardMusicEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift \
                 Spotter/Plugins/DashboardWidgets/DashboardFileInfoEngine.swift \
                 Tools/dashboard-widgets-test.swift -o "$output" && "$output"
+            ;;
+        uptime)
+            swiftc -swift-version 6 Spotter/Plugins/Uptime/UptimeEngine.swift \
+                Tools/uptime-test.swift -o "$output" && "$output"
             ;;
         theme)
             swiftc -swift-version 6 Spotter/Core/Theme.swift \

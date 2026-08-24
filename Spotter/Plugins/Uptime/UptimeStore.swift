@@ -3,7 +3,7 @@ import Combine
 import Foundation
 
 /// Backs the uptime widget: how long today's session has run, and how many keys and clicks it took.
-/// `DashboardUptimeEngine` stays pure and is handed finished values; the monitors and persistence
+/// `UptimeEngine` stays pure and is handed finished values; the monitors and persistence
 /// live here.
 ///
 /// Nothing here reaches the network, but watching input system-wide deserves the same treatment, so
@@ -14,7 +14,7 @@ import Foundation
 /// key was an autorepeat. Key codes, characters, modifiers and click locations are never read, so
 /// there is nothing retained from which typing could be reconstructed. Keep it that way.
 @MainActor
-final class DashboardUptimeStore: ObservableObject {
+final class UptimeStore: ObservableObject {
     /// Explicit user consent, persisted locally and mirrored by the trusted settings-sync file.
     @Published private(set) var isEnabled: Bool
     /// True only while enabled and untrusted: clicks still count, keys can't. The card and Settings
@@ -39,7 +39,7 @@ final class DashboardUptimeStore: ObservableObject {
     // Deliberately not @Published: these move at typing speed, and republishing would redraw the
     // palette on every keystroke. The card is inside the dashboard's one-second `TimelineView`, which
     // re-reads them on its own tick.
-    private var counts: DashboardInputCounts
+    private var counts: UptimeInputCounts
     private var countedDay: Date?
     private var sessionStart: Date?
     private var isDirty = false
@@ -54,7 +54,7 @@ final class DashboardUptimeStore: ObservableObject {
         self.calendar = calendar
         // Absent reads as false, the only safe default for a feature that watches input.
         isEnabled = defaults.bool(forKey: Keys.consent)
-        counts = DashboardInputCounts(
+        counts = UptimeInputCounts(
             keys: defaults.integer(forKey: Keys.keys), clicks: defaults.integer(forKey: Keys.clicks))
         countedDay = defaults.object(forKey: Keys.countedDay) as? Date
         sessionStart = defaults.object(forKey: Keys.sessionStart) as? Date
@@ -75,12 +75,12 @@ final class DashboardUptimeStore: ObservableObject {
 
     /// What the card draws. A pure read — the day-rollover writes happen on the flush timer and in
     /// the counting path, never from inside a view body.
-    func snapshot(now: Date = Date()) -> DashboardUptimeSnapshot {
+    func snapshot(now: Date = Date()) -> UptimeSnapshot {
         guard isEnabled else { return .empty }
-        return DashboardUptimeSnapshot(
-            sessionStart: DashboardUptimeEngine.carriedOverSessionStart(
+        return UptimeSnapshot(
+            sessionStart: UptimeEngine.carriedOverSessionStart(
                 sessionStart, now: now, calendar: calendar),
-            counts: DashboardUptimeEngine.carriedOverCounts(
+            counts: UptimeEngine.carriedOverCounts(
                 counts, countedDay: countedDay, now: now, calendar: calendar))
     }
 
@@ -138,9 +138,9 @@ final class DashboardUptimeStore: ObservableObject {
     /// A new calendar day zeroes the tallies and drops the start stamp, so the next sign of activity
     /// begins the new session rather than midnight doing it for an unattended Mac.
     private func normalizeDay(now: Date) {
-        let carriedStart = DashboardUptimeEngine.carriedOverSessionStart(
+        let carriedStart = UptimeEngine.carriedOverSessionStart(
             sessionStart, now: now, calendar: calendar)
-        let carriedCounts = DashboardUptimeEngine.carriedOverCounts(
+        let carriedCounts = UptimeEngine.carriedOverCounts(
             counts, countedDay: countedDay, now: now, calendar: calendar)
         guard carriedStart != sessionStart || carriedCounts != counts else { return }
         sessionStart = carriedStart

@@ -305,6 +305,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
   IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
   adjustment; its launcher screen shows a user-managed saved-city list.
+- **Uptime** (`Spotter/Plugins/Uptime/`) — ships **off**; its switch is the consent act for counting
+  input, so the registration reads and writes the enabled state through `UptimeStore` and exports
+  none of it. A palette screen shows today's session, key presses and mouse clicks.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — enabled by default; launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard
@@ -340,7 +343,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   output pixels a 4px radius.
   The overlay architecture is adapted from Capso under BSL 1.1; no Capso service or idle process is
   loaded.
-Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
+Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Uptime](uptime.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
