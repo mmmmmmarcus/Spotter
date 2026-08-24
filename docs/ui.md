@@ -133,6 +133,12 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 `glassFrost` is the one token that stays white in both: it brightens the glass, and a dark tint over
 light glass reads as a shadow rather than frost.
 
+The Notes tint ramp is the one hued family, reached through `noteTintAccent(_:)` (the opaque swatch
+and list dot) and `noteTintWash(_:)` (the same hue at 0.24 dark / 0.16 light, laid over the Note
+window). It is not a single color at two alphas: each of the nine tints keeps its own pair of stops,
+because a hue bright enough over the dark window material goes muddy over the light one, so the light
+stop is the deeper, less luminous version of the same color. `Tools/theme-test.swift` pins both.
+
 Beyond these, `.primary`/`.secondary`/`.tertiary` foreground styles are fine for SF Symbols — they
 resolve against the environment. **Selection always beats hover** when a row is both, in both
 appearances.

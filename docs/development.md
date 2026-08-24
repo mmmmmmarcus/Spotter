@@ -200,7 +200,8 @@ swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.
     Spotter/Plugins/DashboardWidgets/DashboardFileInfoEngine.swift \
     Tools/dashboard-widgets-test.swift \
     -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # arrangement, clock hands, weather codes, uptime rollover, battery lines, Finder selection
-swiftc -swift-version 6 Spotter/Core/Theme.swift Tools/theme-test.swift \
+swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
+    Tools/theme-test.swift \
     -o /tmp/theme-test && /tmp/theme-test                         # light/dark token ramp
 swiftc -swift-version 6 Spotter/Plugins/Quicklinks/QuicklinkTypes.swift \
     Spotter/Plugins/Quicklinks/QuicklinkStore.swift Tools/quicklink-test.swift \

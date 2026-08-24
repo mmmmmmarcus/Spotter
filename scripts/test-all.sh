@@ -204,6 +204,7 @@ run_harness() {
             ;;
         theme)
             swiftc -swift-version 6 Spotter/Core/Theme.swift \
+                Spotter/Plugins/Note/NoteEngine.swift \
                 Tools/theme-test.swift -o "$output" && "$output"
             ;;
         quicklink)

@@ -27,10 +27,15 @@ the editor — the window is one continuous surface, so a rule under the title w
 edge on it. An empty note shows the current date and time in place of a prompt to start writing: it
 is what most notes open with anyway. The workspace opens as a
 440-point-wide editor with four matching 20-point continuous corners.
-Its centered toolbar title is derived from the selected note's first line; the right side contains
-only the notes-list and New Note actions. The list starts hidden and opens as an inset material card
+The centered toolbar carries page dots rather than a title — the title is already the first line of
+the note directly beneath it, so what the header can add is *where in the stack you are*. One dot per
+note in list order, the current one larger, each wearing its note's own tint; past nine notes the
+strip slides around the current one. Clicking anywhere on it opens the notes list. The right side
+contains only the color, notes-list and New Note actions. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting
-a row returns to the single-note editor. The toolbar row is a sibling *above* the animated container
+a row returns to the single-note editor. The card holds its search field and the rows and nothing
+else: a "Notes" heading over a list of notes says nothing, and the count is already the number of
+dots in the toolbar. The toolbar row is a sibling *above* the animated container
 holding the editor and that card, never inside it: within it, toggling the list ran the title and its
 buttons through the same animated relayout as the list and they visibly drifted. The title is also
 centred against the full toolbar width rather than its own measured width, so nothing beside it can
@@ -54,6 +59,33 @@ list excerpt, so neither is stored as a duplicated field. Creating, editing and 
 mutate that one store. List-row deletion is immediate rather than confirmation-gated. When the Notes
 window closes, whitespace-only Notes are removed in one batch and recorded as normal deletion
 tombstones; any Note containing text is preserved.
+
+## Tints and window appearance
+
+Each Note can carry one tint from a fixed nine-color ramp, chosen from the toolbar's `paintbrush.fill`
+button left of the notes-list button. That button keeps its own color: a control that wore the note's
+tint would read as a swatch, and an untinted note would leave nothing to point at. The ramp is fixed rather than a free color well because a tint has to
+follow the system appearance: `Theme.Colors.noteTintAccent` and `noteTintWash` give every tint its
+own pair of stops, since a hue that reads right over the dark window material turns muddy over the
+light one. Raw strings key the ramp, so reordering `NoteTint` can never repaint existing Notes, and
+an unrecognized tint written by a newer build decodes as untinted rather than failing the archive.
+
+The tint shows as a wash over the window surface, laid above `panelScrim`, and the caret and text
+selection wear the same color — a system-blue caret on a red note reads as another app's text field.
+The wash is deliberately *not* attenuated by Window Transparency: transparency dissolves the scrim,
+and a tint that dissolved with it would leave the most see-through windows the least identifiable.
+Editor text and controls are untouched. In the notes list a tinted Note shows a small dot beside its
+title.
+
+The same popover carries the Window Transparency slider, bound to the value Settings edits, so the
+two can never disagree. The range runs to 100%: at the top the scrim is gone entirely and the window
+is the system material, the tint and the text.
+
+A tint is a user modification: it bumps `updatedAt`, so it syncs and wins conflicts like any edit.
+It deliberately does not bump `contentUpdatedAt`, which is what the newest-first list order is sorted
+by — recoloring a Note leaves it exactly where it sits, in this session and after a relaunch. Both
+fields are additive and optional, so pre-tint archives and CloudKit records decode with no tint and
+an order that falls back to their edit time; the archive stays v2 and needs no migration.
 
 The archive is versioned JSON at:
 
@@ -79,7 +111,7 @@ Notes and the user's private CloudKit records.
 
 `NoteCloudSyncEngine` is an actor-backed `CKSyncEngineDelegate` targeting the private database in
 `iCloud.com.spotter.app`. It uses one custom `SpotterNotes` record zone and one encrypted
-`SpotterNote` record per UUID. A live Note carries Markdown, creation time and user edit time; a
+`SpotterNote` record per UUID. A live Note carries Markdown, creation time, user edit time, content edit time and tint; a
 deletion keeps only its UUID and deletion time. The engine persists its opaque state serialization
 and last-known record system fields under the bundle-specific Application Support `Notes` directory.
 Edits debounce for 300 ms, then only changed records are sent. CloudKit's subscription-driven fetches
@@ -94,8 +126,9 @@ or record changes remain pending, and Settings translates CloudKit's numeric err
 messages.
 
 Conflicts compare the user edit/deletion timestamp rather than upload arrival time. The newer item
-wins; a deletion wins an exact timestamp tie, and simultaneous Note edits use a deterministic content
-tiebreak so two devices converge. Server-record conflicts retain the newest CKRecord system fields
+wins; a deletion wins an exact timestamp tie, and simultaneous Note edits use a deterministic content and
+tint tiebreak so two devices converge — without the tint step, two devices holding the same text at
+the same instant under different colors would never settle. Server-record conflicts retain the newest CKRecord system fields
 before retrying a winning local edit. Account sign-out/switch disables sync without deleting local
 Notes so content is never silently uploaded to a different iCloud account.
 
@@ -135,12 +168,14 @@ body's 16 points while painting 26-point glyphs, so headings rendered big with a
 and a body-height caret. Storage attributes are not characters: `textView.string`, and therefore
 everything persisted, is still exactly the Markdown the user typed. Each pass resets the whole
 document to the base font and label color, then re-applies heading, bold, italic,
-strikethrough, inline-code, link, list and completed-task presentation. The first line supplies the
-toolbar title but receives no implicit editor font, so converting a Heading 1 paragraph to Text
+strikethrough, inline-code, link, list and completed-task presentation. The first line supplies the note's
+title in the list but receives no implicit editor font, so converting a Heading 1 paragraph to Text
 restores the true body size. Inline and heading syntax
 markers always collapse to no width, including while the formatted content is selected or edited;
 the workspace behaves like a visual editor while the stored string remains Markdown. A leading `- `
-is rendered as a bullet. Wrapped list lines use a hanging indent measured from their actual rendered
+is rendered as a bullet: the dash is cleared and `NoteLayoutManager` draws a disc in the slot it
+leaves behind, sized to be read — the font's own `bullet` glyph, which the editor used to substitute,
+comes out barely larger than a period. Wrapped list lines use a hanging indent measured from their actual rendered
 marker — bullet, number or checkbox — so every continuation aligns with the first line's content
 rather than a fixed spacing token.
 
@@ -159,14 +194,25 @@ not decoration.
 Three input rules fire from `shouldChangeTextIn`, each keyed to one typed character:
 
 - **Return** continues bulleted, numbered and checklist items; Return on an empty item exits the list.
+  A Return typed at the visual end of a bold or italic run first steps the caret over the run's
+  hidden closing marker: without that the newline lands *inside* `**bold**`, splitting the run across
+  two lines and exposing the syntax the editor exists to hide.
 - **Space** after bare `[]` or `【】` becomes `- [ ] `, the one list marker Markdown makes awkward to
   type. Closing `【 】` does the same, including a full-width interior space. The rule works at any
   indentation and replaces an existing bullet rather than nesting inside it.
+- **`-`, `*` or `_`** completing a `---` rule also opens the line beneath it. A rule divides what
+  follows from what came before, so the caret belongs under it, never stranded on top of it.
 - **`=`** after an arithmetic expression appends the answer, so `129+92=` finishes itself.
   `NoteEngine.arithmeticExpression` finds the expression and stays pure; the editor evaluates it
   through `CalcEngine`, which keeps arithmetic in its single owner. A list or numbered marker is
   stripped first, since `-` and `.` are also operators, and digits glued to a word (`rev2+3`) are an
-  identifier rather than a sum. Typing `=` after anything else still just types an `=`.
+  identifier rather than a sum. Typing `=` after anything else still just types an `=` — but a line that *is* a formula and
+  cannot be answered gets `(?)` rather than nothing, so a broken sum is visibly broken.
+
+  An answered line then *stays* answered: editing the sum rewrites the number after the `=`, and a
+  formula that stops resolving shows `(?)` rather than leaving a stale answer standing. Only the line
+  the caret is on is rewritten, and only while the caret sits left of the answer — the answer itself
+  is the user's to edit.
 
 Block constructs are found by `NoteEngine.blockSpans`, a pure line scan returning UTF-16 ranges for
 fenced code, blockquotes, horizontal rules and pipe tables. A fenced block shadows everything inside
@@ -180,7 +226,7 @@ drawing to paint the code panel, the quote bar and the rule hairline behind the 
 whole reason the editor builds its TextKit 1 stack by hand. Nothing about it reaches the note's
 source string, so the file on disk stays the Markdown the user typed.
 
-The minimal toolbar only exposes New Note and the notes-list toggle. Formatting stays in the
+The minimal toolbar only exposes the color panel, the notes-list toggle and New Note. Formatting stays in the
 writing flow: Command-B applies visual bold, Command-I applies visual italic and Command-K inserts a
 visual link; their Markdown delimiters are persisted but never shown. Ordinary Markdown markers
 cover strikethrough, inline code, headings, bulleted lists, numbered lists

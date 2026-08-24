@@ -32,6 +32,7 @@ enum NoteEditorMetrics {
 
 struct NoteMarkdownEditor: NSViewRepresentable {
     @Binding var text: String
+    let tint: NoteTint?
     let onContentHeightChange: (CGFloat) -> Void
     let onNavigate: (NoteNavigationDirection) -> Void
 
@@ -75,7 +76,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             coordinator?.navigate(direction)
         }
         textView.delegate = context.coordinator
-        textView.layoutManager?.delegate = context.coordinator
         textView.string = text
         textView.drawsBackground = false
         textView.textColor = .labelColor
@@ -96,6 +96,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         scrollView.documentView = textView
         context.coordinator.textView = textView
+        context.coordinator.applyTint()
         context.coordinator.highlight()
 
         DispatchQueue.main.async {
@@ -106,8 +107,10 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        let tintChanged = context.coordinator.parent.tint != tint
         context.coordinator.parent = self
         guard let textView = context.coordinator.textView else { return }
+        if tintChanged { context.coordinator.applyTint() }
         if textView.string != text {
             let selection = textView.selectedRange()
             textView.string = text
@@ -119,11 +122,14 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSTextViewDelegate, @preconcurrency NSLayoutManagerDelegate {
+    final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: NoteMarkdownEditor
         weak var textView: NSTextView?
         private var highlightWork: DispatchWorkItem?
         private var isApplyingInputRule = false
+        private var isRewritingAnswer = false
+        /// Closing markers the last pass collapsed, so the caret can be stepped out of one.
+        private var concealedSuffixes: [NSRange] = []
         private var lastReportedHeight: CGFloat = 0
         private var codeRanges: [NSRange] = []
         private var isHighlighting = false
@@ -139,8 +145,20 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             self.parent = parent
         }
 
+        /// The caret and selection wear the note's own color: the tint is the note's identity, and
+        /// a system-blue caret on a red note reads as a different app's text field.
+        func applyTint() {
+            guard let textView else { return }
+            let accent = parent.tint.map { NSColor(Theme.Colors.noteTintAccent($0)) }
+            textView.insertionPointColor = accent ?? .textInsertionPointColor
+            textView.selectedTextAttributes = [
+                .backgroundColor: accent?.withAlphaComponent(0.35) ?? .selectedTextBackgroundColor
+            ]
+        }
+
         func textDidChange(_ notification: Notification) {
             guard let textView, !isHighlighting else { return }
+            refreshArithmeticAnswer()
             parent.text = textView.string
             reportContentHeight()
             scheduleHighlight()
@@ -161,11 +179,78 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             if applyChecklistInputRule(in: textView, at: affectedCharRange, inserting: typed) {
                 return false
             }
+            if applyRuleInputRule(in: textView, at: affectedCharRange, inserting: typed) {
+                return false
+            }
             switch typed {
-            case "\n": return continueList(in: textView, at: affectedCharRange)
+            case "\n": return insertNewline(in: textView, at: affectedCharRange)
             case "=": return evaluateArithmetic(in: textView, at: affectedCharRange)
             default: return true
             }
+        }
+
+        /// A Return typed at the visual end of a bold or italic run lands *inside* its hidden closing
+        /// marker, which splits `**bold**` across two lines and exposes the syntax it hides. The caret
+        /// steps over the marker first, so the run stays whole and the new line starts clean.
+        private func insertNewline(in textView: NSTextView, at caret: NSRange) -> Bool {
+            let escaped = escapedCaret(for: caret)
+            guard escaped.location != caret.location else {
+                return continueList(in: textView, at: caret)
+            }
+            textView.setSelectedRange(escaped)
+            guard continueList(in: textView, at: escaped) else { return false }
+            return !applyInputRule("\n", over: escaped, in: textView)
+        }
+
+        /// Steps a caret out of any concealed closing marker it is sitting at the front of.
+        private func escapedCaret(for caret: NSRange) -> NSRange {
+            var location = caret.location
+            while let suffix = concealedSuffixes.first(where: { $0.location == location }) {
+                location = NSMaxRange(suffix)
+            }
+            return NSRange(location: location, length: 0)
+        }
+
+        /// `---` draws a divider, and what follows belongs under it — so completing one opens the
+        /// next line rather than leaving the caret stranded on the rule itself.
+        private func applyRuleInputRule(
+            in textView: NSTextView, at caret: NSRange, inserting typedText: String
+        ) -> Bool {
+            let source = textView.string as NSString
+            guard caret.location == NSMaxRange(lineContentRange(before: caret, in: source)),
+                let replacement = NoteEngine.horizontalRuleCompletion(
+                    forLinePrefix: source.substring(with: linePrefixRange(before: caret, in: source)),
+                    inserting: typedText)
+            else { return false }
+            return applyInputRule(replacement, over: caret, in: textView)
+        }
+
+        /// Keeps an answered line answered: edit the sum and the number after the `=` follows, and a
+        /// formula that stops resolving says so rather than leaving a stale answer standing.
+        private func refreshArithmeticAnswer() {
+            guard let textView, !isRewritingAnswer else { return }
+            let source = textView.string as NSString
+            let caret = textView.selectedRange()
+            guard caret.length == 0, caret.location <= source.length else { return }
+            var line = source.lineRange(for: NSRange(location: caret.location, length: 0))
+            if line.length > 0, source.substring(with: line).hasSuffix("\n") { line.length -= 1 }
+            guard let answer = NoteEngine.arithmeticAnswer(inLine: source.substring(with: line))
+            else { return }
+            let resultRange = NSRange(
+                location: line.location + answer.resultRange.location,
+                length: answer.resultRange.length)
+            // The user is editing the answer itself — theirs to write, not ours to overwrite.
+            guard caret.location < resultRange.location else { return }
+
+            let display = self.answer(for: answer.expression)
+            guard display != answer.result,
+                textView.shouldChangeText(in: resultRange, replacementString: display)
+            else { return }
+            isRewritingAnswer = true
+            textView.textStorage?.replaceCharacters(in: resultRange, with: display)
+            textView.didChangeText()
+            textView.setSelectedRange(caret)
+            isRewritingAnswer = false
         }
 
         private func continueList(in textView: NSTextView, at caret: NSRange) -> Bool {
@@ -205,13 +290,19 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         /// for free — and typing `=` after anything that isn't a sum still just types an `=`.
         private func evaluateArithmetic(in textView: NSTextView, at caret: NSRange) -> Bool {
             let source = textView.string as NSString
-            let prefixRange = linePrefixRange(before: caret, in: source)
-            guard let expression = NoteEngine.arithmeticExpression(
-                inLinePrefix: source.substring(with: prefixRange)),
+            let prefix = source.substring(with: linePrefixRange(before: caret, in: source))
+            // A formula that cannot be answered is still a formula: it gets the unresolved marker,
+            // where prose ending in an `=` just gets its equals sign.
+            guard NoteEngine.arithmeticCandidate(inLinePrefix: prefix) != nil else { return true }
+            return !applyInputRule("=" + answer(for: prefix), over: caret, in: textView)
+        }
+
+        private func answer(for expressionPrefix: String) -> String {
+            guard let expression = NoteEngine.arithmeticExpression(inLinePrefix: expressionPrefix),
                 let result = CalcEngine.evaluate(expression),
                 case .value(let display, _) = result.payload
-            else { return true }
-            return !applyInputRule("=" + display, over: caret, in: textView)
+            else { return NoteEngine.unresolvedArithmeticResult }
+            return display
         }
 
         /// The line's text from its start up to the caret.
@@ -283,7 +374,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             var typingAttributes = Self.baseAttributes
             layout.decorations = []
             layout.checkboxes = []
+            layout.bullets = []
             taskMarkers = []
+            concealedSuffixes = []
 
             isHighlighting = true
             storage.beginEditing()
@@ -296,12 +389,12 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             }
 
             guard source.length > 0, source.length <= 200_000 else {
-                setCodeRanges([], on: layout)
+                codeRanges = []
                 return
             }
 
             let spans = NoteEngine.blockSpans(in: textView.string)
-            setCodeRanges(spans.filter { $0.kind == .codeBlock }.map(\.range), on: layout)
+            codeRanges = spans.filter { $0.kind == .codeBlock }.map(\.range)
 
             let bodyFont = NSFont.preferredFont(forTextStyle: .body)
 
@@ -345,6 +438,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                     .underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
                 self.concealSyntax(around: range, in: match.range, storage: storage)
             }
+            applyBullets(in: textView.string, storage: storage, layout: layout)
             applyCheckboxes(in: textView.string, storage: storage, layout: layout)
             apply(Self.completedTask, to: textView.string) { match in
                 guard match.numberOfRanges > 1 else { return }
@@ -399,10 +493,22 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 let bodyFont = NSFont.preferredFont(forTextStyle: .body)
                 return indentationWidth + (bodyFont.ascender - bodyFont.descender).rounded()
             }
-            let displayedMarker = marker.range(
-                of: #"^[-*+] "#, options: .regularExpression) != nil ? "• " : marker
-            return indentationWidth + (displayedMarker as NSString).size(
+            return indentationWidth + (marker as NSString).size(
                 withAttributes: [.font: font]).width
+        }
+
+        /// The list dash is drawn as a real bullet rather than swapped for the font's `bullet`
+        /// glyph, which comes out the size of a period. Clearing the dash keeps its width, so the
+        /// hanging indent and everything measured from the marker stay where they were.
+        private func applyBullets(
+            in text: String, storage: NSTextStorage, layout: NoteLayoutManager
+        ) {
+            apply(Self.bulletMarker, to: text) { match in
+                guard match.numberOfRanges > 2 else { return }
+                let marker = match.range(at: 2)
+                storage.addAttribute(.foregroundColor, value: NSColor.clear, range: marker)
+                layout.bullets.append(marker)
+            }
         }
 
         /// The Markdown task marker collapses into a checkbox that stays visible because it is a control.
@@ -485,17 +591,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             }
         }
 
-        /// Glyphs are cached, so the bullet substitution below only re-runs for a changed fence if
-        /// the ranges it consults are invalidated along with them.
-        private func setCodeRanges(_ ranges: [NSRange], on layout: NoteLayoutManager) {
-            guard codeRanges != ranges else { return }
-            codeRanges = ranges
-            layout.codeRanges = ranges
-            let wholeDocument = NSRange(location: 0, length: layout.textStorage?.length ?? 0)
-            layout.invalidateGlyphs(
-                forCharacterRange: wholeDocument, changeInLength: 0, actualCharacterRange: nil)
-        }
-
         private static func indented(by amount: CGFloat) -> NSParagraphStyle {
             let style = NSMutableParagraphStyle()
             style.firstLineHeadIndent = amount
@@ -532,39 +627,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             }
         }
 
-        func layoutManager(
-            _ layoutManager: NSLayoutManager, shouldGenerateGlyphs glyphs: UnsafePointer<CGGlyph>,
-            properties: UnsafePointer<NSLayoutManager.GlyphProperty>,
-            characterIndexes: UnsafePointer<Int>, font: NSFont, forGlyphRange glyphRange: NSRange
-        ) -> Int {
-            guard let source = layoutManager.textStorage?.string as NSString? else { return 0 }
-            var generated = Array(UnsafeBufferPointer(start: glyphs, count: glyphRange.length))
-            let generatedProperties = Array(
-                UnsafeBufferPointer(start: properties, count: glyphRange.length))
-            let generatedIndexes = Array(
-                UnsafeBufferPointer(start: characterIndexes, count: glyphRange.length))
-            let bullet = CGGlyph(font.glyph(withName: "bullet"))
-            if bullet != 0 {
-                let fenced = (layoutManager as? NoteLayoutManager)?.codeRanges ?? []
-                for offset in generated.indices
-                where Self.isBulletMarker(
-                    at: generatedIndexes[offset], in: source, excluding: fenced) {
-                    generated[offset] = bullet
-                }
-            }
-            generated.withUnsafeBufferPointer { glyphBuffer in
-                generatedProperties.withUnsafeBufferPointer { propertyBuffer in
-                    generatedIndexes.withUnsafeBufferPointer { indexBuffer in
-                        layoutManager.setGlyphs(
-                            glyphBuffer.baseAddress!, properties: propertyBuffer.baseAddress!,
-                            characterIndexes: indexBuffer.baseAddress!, font: font,
-                            forGlyphRange: glyphRange)
-                    }
-                }
-            }
-            return glyphRange.length
-        }
-
         private func scheduleHighlight() {
             highlightWork?.cancel()
             let work = DispatchWorkItem { [weak self] in self?.highlight() }
@@ -595,6 +657,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 location: fullRange.location, length: content.location - fullRange.location)
             let suffix = NSRange(
                 location: NSMaxRange(content), length: NSMaxRange(fullRange) - NSMaxRange(content))
+            if suffix.length > 0 { concealedSuffixes.append(suffix) }
             for range in [prefix, suffix] { hide(range, in: storage) }
         }
 
@@ -614,25 +677,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             return nil
         }
 
-        private static func isBulletMarker(
-            at characterIndex: Int, in source: NSString, excluding fenced: [NSRange]
-        ) -> Bool {
-            guard characterIndex >= 0, characterIndex + 1 < source.length,
-                !fenced.contains(where: { NSLocationInRange(characterIndex, $0) })
-            else { return false }
-            let marker = source.character(at: characterIndex)
-            guard marker == 0x2D || marker == 0x2A || marker == 0x2B,
-                source.character(at: characterIndex + 1) == 0x20
-            else { return false }
-            if characterIndex + 2 < source.length, source.character(at: characterIndex + 2) == 0x5B {
-                return false
-            }
-            let line = source.lineRange(for: NSRange(location: characterIndex, length: 0))
-            let prefix = source.substring(
-                with: NSRange(location: line.location, length: characterIndex - line.location))
-            return prefix.trimmingCharacters(in: .whitespaces).isEmpty
-        }
-
         private static let bold = try! NSRegularExpression(
             pattern: #"\*\*([^\n*]+)\*\*|__([^\n_]+)__"#)
         private static let italic = try! NSRegularExpression(
@@ -648,6 +692,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         // The body may be empty so a heading takes effect the moment its marker and space are typed.
         private static let heading = try! NSRegularExpression(
             pattern: #"(?m)^(#{1,6})[ \t]+(.*)$"#)
+        // A dash that opens a todo belongs to the checkbox, not to a bullet.
+        private static let bulletMarker = try! NSRegularExpression(
+            pattern: #"(?m)^([ \t]*)([-*+]) (?!\[[ xX]\] )"#)
         private static let listLine = try! NSRegularExpression(
             pattern: #"(?m)^([ \t]*)([-*+] \[[ xX]\] |[-*+] |\d+\. ).+$"#)
     }
@@ -677,16 +724,17 @@ private final class NoteLayoutManager: NSLayoutManager {
 
     var decorations: [Decoration] = []
     var checkboxes: [Checkbox] = []
+    /// Cleared list dashes, each drawn as a filled disc in the slot the dash left behind.
+    var bullets: [NSRange] = []
     /// Breathing room between the todo box and the character slot kerned out for it.
     private static let checkboxMargin: CGFloat = 1.5
     private static let checkboxStroke: CGFloat = 1.5
-    /// Fenced-code ranges, read by glyph generation so a `- ` written inside an example stays a dash.
-    var codeRanges: [NSRange] = []
-
+    private static let minimumBulletDiameter: CGFloat = 5
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
         guard let container = textContainers.first else { return }
         drawCheckboxes(forGlyphRange: glyphsToShow, at: origin, in: container)
+        drawBullets(forGlyphRange: glyphsToShow, at: origin, in: container)
         guard !decorations.isEmpty else { return }
         let padding = container.lineFragmentPadding
         let width = max(container.size.width - padding * 2, 0)
@@ -717,6 +765,30 @@ private final class NoteLayoutManager: NSLayoutManager {
                     x: left, y: (origin.y + rect.midY).rounded(), width: width, height: 1
                 ).fill()
             }
+        }
+    }
+
+    /// A disc centred on the slot the cleared dash still occupies. Drawn rather than substituted so
+    /// it can be sized for reading — the font's own bullet glyph is barely larger than a period.
+    private func drawBullets(
+        forGlyphRange glyphsToShow: NSRange, at origin: NSPoint, in container: NSTextContainer
+    ) {
+        guard !bullets.isEmpty else { return }
+        let visible = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+        NSColor.labelColor.setFill()
+        for bullet in bullets where NSIntersectionRange(bullet, visible).length > 0 {
+            let glyphs = glyphRange(forCharacterRange: bullet, actualCharacterRange: nil)
+            guard glyphs.length > 0 else { continue }
+            let slot = boundingRect(forGlyphRange: glyphs, in: container)
+            let font =
+                textStorage?.attribute(.font, at: bullet.location, effectiveRange: nil) as? NSFont
+                ?? NSFont.preferredFont(forTextStyle: .body)
+            let diameter = max(Self.minimumBulletDiameter, (font.pointSize * 0.42).rounded())
+            let disc = NSRect(
+                x: (origin.x + slot.midX - diameter / 2).rounded(),
+                y: (origin.y + slot.midY - diameter / 2).rounded(),
+                width: diameter, height: diameter)
+            NSBezierPath(ovalIn: disc).fill()
         }
     }
 

@@ -143,6 +143,36 @@ struct ThemeTests {
             "brand stays fixed across appearances",
             resolve(Theme.Colors.brand, .darkAqua) == resolve(Theme.Colors.brand, .aqua))
 
+        // The Notes tint ramp: every tint carries a distinct pair of stops, and its wash stays far
+        // enough under the swatch that editor text never has to compete with it.
+        for tint in NoteTint.allCases {
+            let accentDark = resolve(Theme.Colors.noteTintAccent(tint), .darkAqua)
+            let accentLight = resolve(Theme.Colors.noteTintAccent(tint), .aqua)
+            check(
+                "\(tint.rawValue) accent is opaque in both appearances",
+                accentDark.a == 1 && accentLight.a == 1)
+            check(
+                "\(tint.rawValue) accent takes a deeper stop in light",
+                accentDark.r + accentDark.g + accentDark.b > accentLight.r + accentLight.g
+                    + accentLight.b)
+            let washDark = resolve(Theme.Colors.noteTintWash(tint), .darkAqua)
+            let washLight = resolve(Theme.Colors.noteTintWash(tint), .aqua)
+            check(
+                "\(tint.rawValue) wash stays faint",
+                abs(washDark.a - 0.24) < 0.001 && abs(washLight.a - 0.16) < 0.001)
+            check(
+                "\(tint.rawValue) wash keeps its accent hue",
+                abs(washDark.r - accentDark.r) < 0.001 && abs(washLight.r - accentLight.r) < 0.001)
+        }
+        check(
+            "no two tints share a dark stop",
+            Set(
+                NoteTint.allCases.map {
+                    let c = resolve(Theme.Colors.noteTintAccent($0), .darkAqua)
+                    return "\(c.r)-\(c.g)-\(c.b)"
+                }
+            ).count == NoteTint.allCases.count)
+
         check("dark appearance reports isDark", NSAppearance(named: .darkAqua)!.isDark)
         check("light appearance does not", !NSAppearance(named: .aqua)!.isDark)
         check("a transparent plugin window keeps its 20-point radius", Theme.Radius.window == 20)

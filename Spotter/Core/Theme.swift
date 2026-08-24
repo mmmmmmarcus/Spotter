@@ -96,6 +96,15 @@ enum Theme {
         static let noteListWindowHeight: CGFloat = 500
         static let noteListTopInset: CGFloat = 84
         static let noteToolbarHeight: CGFloat = 32
+        /// One tint swatch in the Notes color ramp, and the smaller disc the toolbar button shows.
+        static let noteTintSwatch: CGFloat = 22
+        static let noteTintToolbarSwatch: CGFloat = 14
+        /// The tint dot beside a title in the notes list.
+        static let noteTintDot: CGFloat = 8
+        static let noteTintPanelWidth: CGFloat = 190
+        /// The toolbar's page dots: one per note, the current one larger.
+        static let noteDot: CGFloat = 5
+        static let noteDotSelected: CGFloat = 8
         static let noteToolbarTitleInset: CGFloat = 112
         /// Little state indicator dot next to a settings row title (Hyper Key active/needs-permission).
         static let statusDot: CGFloat = 6
@@ -177,6 +186,48 @@ enum Theme {
         static let screenshotCrosshairOutline = adaptive(dark: .white, light: .white)
         static let screenshotCrosshairShadow = adaptive(
             dark: .black.opacity(0.28), light: .black.opacity(0.28))
+        /// The Notes tint ramp. Each tint keeps its own pair of stops rather than one color at two
+        /// alphas: a hue that reads right over the dark window material turns muddy over the light
+        /// one, so the light stop is the deeper, less luminous version of the same color.
+        static func noteTintAccent(_ tint: NoteTint) -> Color {
+            adaptive(dark: darkNoteTint(tint), light: lightNoteTint(tint))
+        }
+
+        /// The film the tint lays over the Note window, above `panelScrim`. It is deliberately not
+        /// attenuated by Window Transparency: transparency dissolves the scrim, and a tint that
+        /// dissolved with it would leave the most see-through windows the least identifiable.
+        static func noteTintWash(_ tint: NoteTint) -> Color {
+            adaptive(dark: darkNoteTint(tint).opacity(0.24), light: lightNoteTint(tint).opacity(0.16))
+        }
+
+        private static func darkNoteTint(_ tint: NoteTint) -> Color {
+            switch tint {
+            case .red: Color(red: 1.00, green: 0.42, blue: 0.42)
+            case .orange: Color(red: 1.00, green: 0.62, blue: 0.31)
+            case .yellow: Color(red: 1.00, green: 0.83, blue: 0.35)
+            case .green: Color(red: 0.45, green: 0.83, blue: 0.47)
+            case .mint: Color(red: 0.36, green: 0.85, blue: 0.78)
+            case .blue: Color(red: 0.40, green: 0.68, blue: 1.00)
+            case .purple: Color(red: 0.70, green: 0.55, blue: 1.00)
+            case .pink: Color(red: 1.00, green: 0.51, blue: 0.72)
+            case .graphite: Color(red: 0.62, green: 0.65, blue: 0.70)
+            }
+        }
+
+        private static func lightNoteTint(_ tint: NoteTint) -> Color {
+            switch tint {
+            case .red: Color(red: 0.85, green: 0.22, blue: 0.24)
+            case .orange: Color(red: 0.85, green: 0.45, blue: 0.09)
+            case .yellow: Color(red: 0.76, green: 0.58, blue: 0.05)
+            case .green: Color(red: 0.20, green: 0.60, blue: 0.27)
+            case .mint: Color(red: 0.10, green: 0.60, blue: 0.55)
+            case .blue: Color(red: 0.11, green: 0.44, blue: 0.85)
+            case .purple: Color(red: 0.47, green: 0.31, blue: 0.85)
+            case .pink: Color(red: 0.83, green: 0.26, blue: 0.50)
+            case .graphite: Color(red: 0.36, green: 0.39, blue: 0.44)
+            }
+        }
+
         /// The violet of the app mark. The one hue in the system: the About support callout's tint and the dashboard clock's second hand.
         static let brand = Color(red: 0.525, green: 0.231, blue: 1.0)
 

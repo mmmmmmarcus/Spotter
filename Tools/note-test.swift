@@ -254,6 +254,108 @@ struct NoteTests {
         }
         check("newer sync documents are rejected", true, rejectsFutureDocument)
 
+        check(
+            "a third dash completes a rule and opens the line under it", "-\n",
+            NoteEngine.horizontalRuleCompletion(forLinePrefix: "--", inserting: "-"))
+        check(
+            "a fourth dash is just a dash", nil,
+            NoteEngine.horizontalRuleCompletion(forLinePrefix: "---", inserting: "-"))
+        check(
+            "a bullet is not a rule", nil,
+            NoteEngine.horizontalRuleCompletion(forLinePrefix: "- item", inserting: "-"))
+        check(
+            "underscores rule too", "_\n",
+            NoteEngine.horizontalRuleCompletion(forLinePrefix: "__", inserting: "_"))
+
+        check(
+            "an answered sum reports its expression", "129+92",
+            NoteEngine.arithmeticAnswer(inLine: "129+92=221")?.expression)
+        check(
+            "an answered sum reports its answer", "221",
+            NoteEngine.arithmeticAnswer(inLine: "129+92=221")?.result)
+        check(
+            "a broken formula still reports, so the editor can mark it", "12+",
+            NoteEngine.arithmeticAnswer(inLine: "12+=(?)")?.expression)
+        check(
+            "an answer inside a list item drops its marker when evaluated", "2+2",
+            NoteEngine.arithmeticAnswer(inLine: "- [ ] 2+2=4")
+                .flatMap { NoteEngine.arithmeticExpression(inLinePrefix: $0.expression) })
+        check(
+            "prose with an equals sign is not an answer", nil,
+            NoteEngine.arithmeticAnswer(inLine: "todo = ship it"))
+        check(
+            "an unanswered sum is left alone", nil,
+            NoteEngine.arithmeticAnswer(inLine: "129+92="))
+        check(
+            "a dangling operator is still a formula", "12+",
+            NoteEngine.arithmeticCandidate(inLinePrefix: "12+"))
+        check(
+            "prose is not a formula", nil,
+            NoteEngine.arithmeticCandidate(inLinePrefix: "ship it "))
+        check(
+            "a quantity is not a formula", nil,
+            NoteEngine.arithmeticCandidate(inLinePrefix: "5 kg "))
+        check(
+            "a URL is not an answer", nil,
+            NoteEngine.arithmeticAnswer(inLine: "https://example.com/x=1"))
+
+        // Tints: a color is a user modification that syncs, but never one that reorders the list.
+        let tintFile = directory.appendingPathComponent("tints.json")
+        let tintSuite = "spotter.note.tint.tests.\(UUID().uuidString)"
+        let tintDefaults = UserDefaults(suiteName: tintSuite)!
+        defer { tintDefaults.removePersistentDomain(forName: tintSuite) }
+        var clock = fixedDate
+        let tinted = NoteStore(fileURL: tintFile, defaults: tintDefaults, now: { clock })
+        tinted.updateSelectedContent("First")
+        let firstID = tinted.selectedID!
+        clock = fixedDate.addingTimeInterval(10)
+        let latestID = tinted.createNote(content: "Second")
+        check("a new note starts untinted", nil, tinted.selectedNote?.tint)
+
+        clock = fixedDate.addingTimeInterval(20)
+        tinted.setTint(.blue, for: firstID)
+        let recolored = tinted.notes.first { $0.id == firstID }
+        check("tint applies", NoteTint.blue, recolored?.tint)
+        check("tint bumps the sync timestamp", clock, recolored?.updatedAt)
+        check("tint leaves the order timestamp alone", fixedDate, recolored?.contentUpdatedAt)
+        check("tint does not reorder the list", latestID, tinted.notes.first?.id)
+        await tinted.flush()
+        let reopenedTints = NoteStore(fileURL: tintFile, defaults: tintDefaults, now: { clock })
+        check("tint persists", NoteTint.blue, reopenedTints.notes.first { $0.id == firstID }?.tint)
+        check("reopening keeps the untinted order", latestID, reopenedTints.notes.first?.id)
+        reopenedTints.setTint(nil, for: firstID)
+        check("a tint can be cleared", nil, reopenedTints.notes.first { $0.id == firstID }?.tint)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let legacyNote = Data(
+            """
+            {"id":"\(firstID.uuidString)","content":"Legacy","createdAt":"2023-11-14T22:13:20Z",\
+            "updatedAt":"2023-11-14T22:13:20Z"}
+            """.utf8)
+        let decodedLegacy = try! decoder.decode(SpotterNote.self, from: legacyNote)
+        check("a pre-tint note decodes untinted", nil, decodedLegacy.tint)
+        check(
+            "a pre-tint note orders by its edit time", decodedLegacy.updatedAt,
+            decodedLegacy.contentUpdatedAt)
+        let futureTint = Data(
+            """
+            {"id":"\(firstID.uuidString)","content":"Future","createdAt":"2023-11-14T22:13:20Z",\
+            "updatedAt":"2023-11-14T22:13:20Z","tint":"chartreuse"}
+            """.utf8)
+        let decodedFutureTint = try? decoder.decode(SpotterNote.self, from: futureTint)
+        check("an unknown tint reads as untinted rather than failing", "Future", decodedFutureTint?.content)
+        check("an unknown tint reads as no tint", nil, decodedFutureTint?.tint ?? nil)
+
+        let redTwin = SpotterNote(
+            id: firstID, content: "Same", createdAt: fixedDate, updatedAt: fixedDate, tint: .red)
+        let blueTwin = SpotterNote(
+            id: firstID, content: "Same", createdAt: fixedDate, updatedAt: fixedDate, tint: .blue)
+        check(
+            "identical notes with different tints converge",
+            NoteSyncMerge.preferred(.note(redTwin), .note(blueTwin)),
+            NoteSyncMerge.preferred(.note(blueTwin), .note(redTwin)))
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

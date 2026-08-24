@@ -78,6 +78,7 @@
 		4344634723F56B28A833C9E2 /* EmojiData.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCDA408F4ED96D36A992408F /* EmojiData.generated.swift */; };
 		47A4F4B3A29972F313691960 /* CurrencyRateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 434991596DDA129349C5052E /* CurrencyRateStore.swift */; };
 		47EF397C0709D3A7E1E562B2 /* SettingsSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F271C3DE73C6AA9AC7A0DB63 /* SettingsSyncManager.swift */; };
+		4A4EDE2A10D1B79856BC53DD /* NoteTintPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B48098E8C813FA478AB78167 /* NoteTintPicker.swift */; };
 		4B9A141BD0E6B6B6AE7729EC /* VisibilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB3757FA662D508E113F837 /* VisibilityStore.swift */; };
 		4D1F78D76EC512982B3906AD /* AIChatTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7971131E57C987389453EA18 /* AIChatTypes.swift */; };
 		4D893C74BF3716AD2A9FEC20 /* FrequentEmojiStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F8D9F0596067673B16F9B3 /* FrequentEmojiStore.swift */; };
@@ -399,6 +400,7 @@
 		B0159892F08ABA70F62BFBBC /* PaletteMenuTypeahead.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteMenuTypeahead.swift; sourceTree = "<group>"; };
 		B106F55A48529154846D232B /* AppIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIndex.swift; sourceTree = "<group>"; };
 		B20E554F1050B16540CCBF5D /* SelectedTextReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextReader.swift; sourceTree = "<group>"; };
+		B48098E8C813FA478AB78167 /* NoteTintPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteTintPicker.swift; sourceTree = "<group>"; };
 		B4ADAAF0E7643B2886D05E41 /* SettingsBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBackup.swift; sourceTree = "<group>"; };
 		B4EC6D4EEA70F7417040D5AB /* ScreenshotPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPlugin.swift; sourceTree = "<group>"; };
 		B578FB7AD0ACF30B9EBC161E /* AppCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCore.swift; sourceTree = "<group>"; };
@@ -605,6 +607,7 @@
 				A26C52121BB6D0B805E6ABE9 /* NoteStore.swift */,
 				AED7227A23155DB3DDD75388 /* NoteSyncDocument.swift */,
 				0CA6658947F332E55343E683 /* NoteSyncManager.swift */,
+				B48098E8C813FA478AB78167 /* NoteTintPicker.swift */,
 				F53DD1CD05BF4D4C4CFE7408 /* NoteView.swift */,
 			);
 			path = Note;
@@ -1191,6 +1194,7 @@
 				E4E95F5EB55D1C47857A1727 /* NoteStore.swift in Sources */,
 				136771A2A33514E98CB0B211 /* NoteSyncDocument.swift in Sources */,
 				B3E1B073D04A69B1C80330E1 /* NoteSyncManager.swift in Sources */,
+				4A4EDE2A10D1B79856BC53DD /* NoteTintPicker.swift in Sources */,
 				DFD0A69A5266ED9A9833698B /* NoteView.swift in Sources */,
 				31BAEAEA3C34CE65BF4F0518 /* NotificationToken.swift in Sources */,
 				D772C9006C6B07197B04ECCD /* OnboardingState.swift in Sources */,
@@ -1341,7 +1345,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.5.10;
+				MARKETING_VERSION = 1.5.11;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1413,7 +1417,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.5.10;
+				MARKETING_VERSION = 1.5.11;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

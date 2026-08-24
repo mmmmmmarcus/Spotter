@@ -509,11 +509,15 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
             record.encryptedValues["content"] = note.content
             record.encryptedValues["createdAt"] = note.createdAt
             record.encryptedValues["updatedAt"] = note.updatedAt
+            record.encryptedValues["contentUpdatedAt"] = note.contentUpdatedAt
+            record.encryptedValues["tint"] = note.tint?.rawValue
             record.encryptedValues["deletedAt"] = nil
         case .tombstone(let tombstone):
             record.encryptedValues["content"] = nil
             record.encryptedValues["createdAt"] = nil
             record.encryptedValues["updatedAt"] = tombstone.deletedAt
+            record.encryptedValues["contentUpdatedAt"] = nil
+            record.encryptedValues["tint"] = nil
             record.encryptedValues["deletedAt"] = tombstone.deletedAt
         }
         return record
@@ -528,8 +532,14 @@ actor NoteCloudSyncEngine: CKSyncEngineDelegate {
             let createdAt = record.encryptedValues["createdAt"] as? Date,
             let updatedAt = record.encryptedValues["updatedAt"] as? Date
         else { return nil }
+        // Both fields are additive: a record written before tints decodes as an untinted Note
+        // whose order falls back to its edit time.
+        let contentUpdatedAt = record.encryptedValues["contentUpdatedAt"] as? Date
+        let tint = (record.encryptedValues["tint"] as? String).flatMap(NoteTint.init(rawValue:))
         return .note(
-            SpotterNote(id: id, content: content, createdAt: createdAt, updatedAt: updatedAt))
+            SpotterNote(
+                id: id, content: content, createdAt: createdAt, updatedAt: updatedAt,
+                contentUpdatedAt: contentUpdatedAt, tint: tint))
     }
 
     private static func encodeSystemFields(_ record: CKRecord) -> Data {

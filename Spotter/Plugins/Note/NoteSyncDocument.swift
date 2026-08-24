@@ -58,7 +58,7 @@ enum NoteSyncMerge {
             case .tombstone(let tombstone): tombstones.append(tombstone)
             }
         }
-        notes.sort { $0.updatedAt > $1.updatedAt }
+        notes.sort { $0.contentUpdatedAt > $1.contentUpdatedAt }
         tombstones.sort { $0.deletedAt > $1.deletedAt }
         return NoteSyncSnapshot(notes: notes, tombstones: tombstones)
     }
@@ -84,6 +84,11 @@ enum NoteSyncMerge {
             return left.id.uuidString <= right.id.uuidString ? lhs : rhs
         case (.note(let left), .note(let right)):
             if left.content != right.content { return left.content > right.content ? lhs : rhs }
+            // Two devices can hold the same text at the same instant under different tints; without
+            // a tint step here that pair never converges.
+            if left.tint != right.tint {
+                return (left.tint?.rawValue ?? "") > (right.tint?.rawValue ?? "") ? lhs : rhs
+            }
             if left.createdAt != right.createdAt { return left.createdAt < right.createdAt ? lhs : rhs }
             return left.id.uuidString <= right.id.uuidString ? lhs : rhs
         }

@@ -49,9 +49,16 @@ struct NoteView: View {
         .onDisappear { store.deleteEmptyNotes() }
         .onChange(of: store.selectedID) { placeholderStamp = Date() }
         .ignoresSafeArea(edges: .top)
+        .background(tintWash)
         .background(Theme.Colors.panelScrim.opacity(1 - store.windowTransparency))
         .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
+    }
+
+    @ViewBuilder private var tintWash: some View {
+        if let tint = store.selectedNote?.tint {
+            Theme.Colors.noteTintWash(tint)
+        }
     }
 
     private var noteList: some View {
@@ -75,19 +82,6 @@ struct NoteView: View {
 
             Rectangle().fill(Theme.Colors.separator).frame(height: 1)
 
-            HStack {
-                Text("Notes")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(visibleNotes.count) \(visibleNotes.count == 1 ? "Note" : "Notes")")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, Theme.Spacing.xl)
-            .padding(.top, Theme.Spacing.xl)
-            .padding(.bottom, Theme.Spacing.md)
-
             if visibleNotes.isEmpty {
                 ContentUnavailableView.search(text: query)
                     .frame(maxHeight: .infinity)
@@ -101,7 +95,7 @@ struct NoteView: View {
                         }
                     }
                     .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.bottom, Theme.Spacing.md)
+                    .padding(.vertical, Theme.Spacing.md)
                 }
                 .overlayScroller()
             }
@@ -124,6 +118,7 @@ struct NoteView: View {
                 ZStack(alignment: .topLeading) {
                     NoteMarkdownEditor(
                         text: selectedContent,
+                        tint: note.tint,
                         onContentHeightChange: updateEditorHeight,
                         onNavigate: navigate)
                     if note.content.isEmpty {
@@ -154,17 +149,20 @@ struct NoteView: View {
     private var editorToolbar: some View {
         ZStack {
             // Centred against the full toolbar width rather than against its own measured width, so
-            // the title cannot re-centre when anything beside it changes.
-            Text(store.selectedNote?.title ?? "Notes")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.horizontal, Theme.Size.noteToolbarTitleInset)
-                .frame(maxWidth: .infinity)
-                .allowsHitTesting(false)
+            // the dots cannot re-centre when anything beside them changes.
+            NotePagination(
+                notes: store.notes, selectedID: store.selectedID,
+                open: { if !showsNoteList { toggleNoteList() } }
+            )
+            .padding(.horizontal, Theme.Size.noteToolbarTitleInset)
+            .frame(maxWidth: .infinity)
 
             HStack(spacing: Theme.Spacing.xs) {
                 Spacer(minLength: 0)
+
+                NoteTintPicker(
+                    tint: store.selectedNote?.tint, transparency: store.windowTransparency,
+                    select: setTint, setTransparency: store.setWindowTransparency)
 
                 Button(action: toggleNoteList) {
                     Image(systemName: "note.text")
@@ -207,6 +205,11 @@ struct NoteView: View {
         store.createNote()
         editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: "")
         closeNoteList()
+    }
+
+    private func setTint(_ tint: NoteTint?) {
+        guard let id = store.selectedID else { return }
+        store.setTint(tint, for: id)
     }
 
     private func select(_ note: SpotterNote) {
@@ -258,9 +261,16 @@ private struct NoteListRow: View {
         HStack(spacing: Theme.Spacing.md) {
             Button(action: select) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Text(note.title)
-                        .font(.headline)
-                        .lineLimit(1)
+                    HStack(spacing: Theme.Spacing.sm) {
+                        if let tint = note.tint {
+                            Circle()
+                                .fill(Theme.Colors.noteTintAccent(tint))
+                                .frame(width: Theme.Size.noteTintDot, height: Theme.Size.noteTintDot)
+                        }
+                        Text(note.title)
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
                     Text(metadata)
                         .font(.caption)
                         .foregroundStyle(.secondary)

@@ -33,7 +33,7 @@ private actor NoteWriter {
 
 @MainActor
 final class NoteStore: ObservableObject {
-    static let maximumWindowTransparency = 0.8
+    static let maximumWindowTransparency = 1.0
 
     @Published private(set) var notes: [SpotterNote]
     @Published private(set) var saveState: NoteSaveState = .saved
@@ -73,7 +73,7 @@ final class NoteStore: ObservableObject {
                 Self.maximumWindowTransparency)
 
         let archive = Self.load(from: resolvedURL)
-        let loaded = archive.notes.sorted { $0.updatedAt > $1.updatedAt }
+        let loaded = archive.notes.sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
         tombstones = Dictionary(
             uniqueKeysWithValues: (archive.tombstones ?? []).map { ($0.id, $0) })
         if loaded.isEmpty {
@@ -117,6 +117,17 @@ final class NoteStore: ObservableObject {
         selectedID = note.id
     }
 
+    /// A tint is a user modification, so it bumps `updatedAt` and syncs — but never
+    /// `contentUpdatedAt`, so recoloring a Note leaves it where it sits in the list.
+    func setTint(_ tint: NoteTint?, for id: UUID) {
+        guard let index = notes.firstIndex(where: { $0.id == id }), notes[index].tint != tint
+        else { return }
+        notes[index].tint = tint
+        notes[index].updatedAt = now()
+        scheduleSave(immediately: true)
+        notifySyncSnapshotChanged()
+    }
+
     func setWindowTransparency(_ value: Double) {
         let clamped = min(max(value, 0), Self.maximumWindowTransparency)
         guard windowTransparency != clamped else { return }
@@ -138,8 +149,10 @@ final class NoteStore: ObservableObject {
         guard let selectedID, let index = notes.firstIndex(where: { $0.id == selectedID }),
             notes[index].content != content
         else { return }
+        let date = now()
         notes[index].content = content
-        notes[index].updatedAt = now()
+        notes[index].updatedAt = date
+        notes[index].contentUpdatedAt = date
         if index > 0 {
             let updated = notes.remove(at: index)
             notes.insert(updated, at: 0)
@@ -187,7 +200,7 @@ final class NoteStore: ObservableObject {
             tombstones[note.id] = NoteTombstone(id: note.id, deletedAt: now())
         }
         for id in incomingIDs { tombstones.removeValue(forKey: id) }
-        notes = newNotes.sorted { $0.updatedAt > $1.updatedAt }
+        notes = newNotes.sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
         selectedID = notes.contains(where: { $0.id == newSelectedID })
             ? newSelectedID : notes.first?.id
         scheduleSave(immediately: true)

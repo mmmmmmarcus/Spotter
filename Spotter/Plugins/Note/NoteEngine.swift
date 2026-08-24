@@ -1,16 +1,70 @@
 import Foundation
 
+/// The tints a Note can carry. Raw strings rather than indices, so reordering the ramp can never
+/// repaint existing Notes; `nil` is the untinted default every Note starts on.
+enum NoteTint: String, Codable, CaseIterable, Sendable {
+    case red
+    case orange
+    case yellow
+    case green
+    case mint
+    case blue
+    case purple
+    case pink
+    case graphite
+
+    var displayName: String {
+        switch self {
+        case .red: "Red"
+        case .orange: "Orange"
+        case .yellow: "Yellow"
+        case .green: "Green"
+        case .mint: "Mint"
+        case .blue: "Blue"
+        case .purple: "Purple"
+        case .pink: "Pink"
+        case .graphite: "Graphite"
+        }
+    }
+}
+
 struct SpotterNote: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var content: String
     let createdAt: Date
+    /// Any user modification, a tint change included — the timestamp sync resolves conflicts with.
     var updatedAt: Date
+    /// Text edits only. Recoloring a Note must not move it in the list, so order tracks this instead.
+    var contentUpdatedAt: Date
+    var tint: NoteTint?
 
-    init(id: UUID = UUID(), content: String = "", createdAt: Date = Date(), updatedAt: Date? = nil) {
+    init(
+        id: UUID = UUID(), content: String = "", createdAt: Date = Date(), updatedAt: Date? = nil,
+        contentUpdatedAt: Date? = nil, tint: NoteTint? = nil
+    ) {
         self.id = id
         self.content = content
         self.createdAt = createdAt
-        self.updatedAt = updatedAt ?? createdAt
+        let modified = updatedAt ?? createdAt
+        self.updatedAt = modified
+        self.contentUpdatedAt = contentUpdatedAt ?? modified
+        self.tint = tint
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, content, createdAt, updatedAt, contentUpdatedAt, tint
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        content = try container.decode(String.self, forKey: .content)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        contentUpdatedAt =
+            try container.decodeIfPresent(Date.self, forKey: .contentUpdatedAt) ?? updatedAt
+        // A tint written by a newer build must not fail the whole archive; it reads as untinted.
+        tint = try? container.decodeIfPresent(NoteTint.self, forKey: .tint)
     }
 
     var title: String { NoteEngine.title(in: content) }
@@ -46,6 +100,15 @@ enum NoteListContinuation: Equatable, Sendable {
 enum NoteNavigationDirection: Equatable, Sendable {
     case previous
     case next
+}
+
+/// An answered arithmetic line, split so the editor can rewrite only the answer.
+struct NoteArithmeticAnswer: Equatable, Sendable {
+    /// Everything left of the `=`, ready for `NoteEngine.arithmeticExpression(inLinePrefix:)`.
+    let expression: String
+    /// UTF-16 range of the answer within its line.
+    let resultRange: NSRange
+    let result: String
 }
 
 struct NoteEditResult: Equatable, Sendable {
@@ -143,6 +206,47 @@ enum NoteEngine {
         return indentation + "- [ ] "
     }
 
+    /// Typing the third `-`, `*` or `_` of a rule finishes the divider and opens the line under it:
+    /// a rule separates what follows from what came before, so the caret belongs below it.
+    static func horizontalRuleCompletion(
+        forLinePrefix prefix: String, inserting typedText: String
+    ) -> String? {
+        guard let marker = typedText.first, typedText.count == 1,
+            marker == "-" || marker == "*" || marker == "_"
+        else { return nil }
+        let completed = prefix + typedText
+        // Exactly three, so a fourth dash typed into a finished rule is just a dash.
+        guard isRule(completed), completed.filter({ !$0.isWhitespace }).count == 3 else { return nil }
+        return typedText + "\n"
+    }
+
+    /// A line the editor keeps answered — `129+92=221`. Reported whenever the tail *reads* as an
+    /// answer this editor wrote, even when the formula no longer evaluates: a broken sum has to
+    /// reach the editor so it can mark it, rather than leave a stale number standing.
+    static func arithmeticAnswer(inLine line: String) -> NoteArithmeticAnswer? {
+        let text = line as NSString
+        let equals = text.range(of: "=", options: .backwards)
+        guard equals.location != NSNotFound else { return nil }
+        let head = text.substring(to: equals.location)
+        let resultRange = NSRange(
+            location: NSMaxRange(equals), length: text.length - NSMaxRange(equals))
+        let result = text.substring(with: resultRange)
+        guard isArithmeticResult(result), arithmeticCandidate(inLinePrefix: head) != nil
+        else { return nil }
+        return NoteArithmeticAnswer(expression: head, resultRange: resultRange, result: result)
+    }
+
+    /// The answer the editor writes when the formula beside it no longer resolves.
+    static let unresolvedArithmeticResult = "(?)"
+
+    private static func isArithmeticResult(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+        if trimmed == unresolvedArithmeticResult { return true }
+        return trimmed.range(
+            of: #"^[-+]?[0-9][0-9.,]*(?:[eE][-+]?[0-9]+)?%?$"#, options: .regularExpression) != nil
+    }
+
     /// The arithmetic sitting immediately before a typed `=`, or nil when the line does not end in
     /// one. Only the substring is found here — evaluating it is the editor's job, so this stays pure
     /// and `Core/Calculator` keeps its single owner.
@@ -150,6 +254,16 @@ enum NoteEngine {
         var line = Substring(prefix)
         while line.last == " " || line.last == "\t" { line = line.dropLast() }
         guard let last = line.last, last.isNumber || last == ")" || last == "%" else { return nil }
+        return arithmeticCandidate(inLinePrefix: prefix)
+    }
+
+    /// The trailing run of arithmetic the line ends on, whether or not it is a finished sum. The
+    /// strict check above is what refuses a dangling operator; this one only isolates the candidate,
+    /// so the editor can tell a formula it cannot answer from prose it should leave alone.
+    static func arithmeticCandidate(inLinePrefix prefix: String) -> String? {
+        var line = Substring(prefix)
+        while line.last == " " || line.last == "\t" { line = line.dropLast() }
+        guard !line.isEmpty else { return nil }
 
         var start = line.endIndex
         while start > line.startIndex, Self.arithmeticCharacters.contains(line[line.index(before: start)]) {
