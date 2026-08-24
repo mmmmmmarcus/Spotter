@@ -85,6 +85,7 @@
 		5156ECA8D57844AB4EA11C3F /* AIChatMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF915070554902BBE003C07 /* AIChatMarkdown.swift */; };
 		52755379C29E05805247B689 /* SystemCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F75CA2510EFD6B9EE6E7924 /* SystemCommandRunner.swift */; };
 		53968BF0672CC6B482466204 /* ClipboardFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EE7BC397DDC8371D8A5D4C /* ClipboardFilter.swift */; };
+		54FCFE9577363505BF77D586 /* ScreenshotFileName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CC9BA4857734F23518D0B11 /* ScreenshotFileName.swift */; };
 		564E98722F6FD55F197A5C03 /* AliasStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE5C655CA61F9B16280A3DA /* AliasStore.swift */; };
 		5848DB5A8E849BD170C1AC72 /* AIChatPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E71C4DD8183B1A7D86867A /* AIChatPlugin.swift */; };
 		58D500916E6096E589DD4624 /* DashboardDeviceBatteryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4637BB0C57CB0E954EA3ABB5 /* DashboardDeviceBatteryEngine.swift */; };
@@ -293,6 +294,7 @@
 		390FC9E8B9340545BF6A3405 /* ScreenshotPinWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPinWindow.swift; sourceTree = "<group>"; };
 		3B5534165D6477C68E4E8B63 /* ChangeCaseSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCaseSettingsView.swift; sourceTree = "<group>"; };
 		3C21A51F218D5BF5BAF45E5B /* WindowMover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMover.swift; sourceTree = "<group>"; };
+		3CC9BA4857734F23518D0B11 /* ScreenshotFileName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotFileName.swift; sourceTree = "<group>"; };
 		3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolsSettingsView.swift; sourceTree = "<group>"; };
 		3EF66C6ACEBE04CFA8A66339 /* SelectedTextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextCapture.swift; sourceTree = "<group>"; };
 		3FBEAA0B13F8EAC4A96E6971 /* CommandID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandID.swift; sourceTree = "<group>"; };
@@ -640,6 +642,7 @@
 				AC3727A5B43FAFBC7DF3DC8E /* ScreenshotAnnotation.swift */,
 				7C08D22C393B014A63B01D24 /* ScreenshotCursor.swift */,
 				413F39384FC2DBC1095614F1 /* ScreenshotEditorView.swift */,
+				3CC9BA4857734F23518D0B11 /* ScreenshotFileName.swift */,
 				C0E2DD47B2282A644D030F0F /* ScreenshotGeometry.swift */,
 				5B609A8CFC79D04D8510FA08 /* ScreenshotImageProcessor.swift */,
 				BAA6729A8C71A37B8800DB8A /* ScreenshotManager.swift */,
@@ -1226,6 +1229,7 @@
 				E0249DE883462907B2C973C4 /* ScreenshotAnnotation.swift in Sources */,
 				5FA01CA9837F3746BD3DACBB /* ScreenshotCursor.swift in Sources */,
 				8FA4A54179920EE055A07D11 /* ScreenshotEditorView.swift in Sources */,
+				54FCFE9577363505BF77D586 /* ScreenshotFileName.swift in Sources */,
 				8DD2BEFA70C4D9FE2AD02E57 /* ScreenshotGeometry.swift in Sources */,
 				75CDDE0411908FAD1CE4C8B2 /* ScreenshotImageProcessor.swift in Sources */,
 				721987FA348B453F723FF2E7 /* ScreenshotManager.swift in Sources */,

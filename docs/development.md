@@ -131,7 +131,8 @@ swiftc Spotter/Core/Calculator/*.swift \
     Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift Tools/calc-test.swift \
     -o /tmp/calc-test && /tmp/calc-test                           # calculator engine
 swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
-    Spotter/Plugins/Clipboard/ClipboardFilter.swift Tools/clipboard-test.swift \
+    Spotter/Plugins/Clipboard/ClipboardFilter.swift \
+    Spotter/Plugins/Screenshot/ScreenshotFileName.swift Tools/clipboard-test.swift \
     -o /tmp/clipboard-test && /tmp/clipboard-test                 # clipboard store
 swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift \
     -o /tmp/scopes-test && /tmp/scopes-test                       # launcher search scopes
@@ -217,7 +218,8 @@ swiftc -swift-version 6 -framework CoreGraphics -framework CoreText -framework I
     Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
     Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
     Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift \
-    Spotter/Plugins/Screenshot/ScreenshotTextLayout.swift Tools/screenshot-test.swift \
+    Spotter/Plugins/Screenshot/ScreenshotTextLayout.swift \
+    Spotter/Plugins/Screenshot/ScreenshotFileName.swift Tools/screenshot-test.swift \
     -o /tmp/screenshot-test && /tmp/screenshot-test             # cursor swap + geometry + annotation pixels
 ```
 

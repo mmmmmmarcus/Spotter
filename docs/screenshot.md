@@ -118,6 +118,27 @@ AppKit rectangle into ScreenCaptureKit's display-local top-origin space. Its sta
 normal, reverse, clamped and secondary-display coordinates without depending on the display's global
 origin.
 
+## Naming and clipboard history
+
+A capture is named after the app it came from: `Claude_SpotterScreenshot_2608041812` — app, marker,
+then `yyMMddHHmm`, which sorts chronologically as plain text and stays short enough to read in a Save
+dialog. The frontmost application is recorded when the selection opens, before any overlay can take
+its place, and rides on the payload with its bundle identifier. Non-alphanumerics are stripped from
+the app name, and a capture with no identifiable app keeps the marker and the stamp alone. The pure
+`ScreenshotFileName` owns both the format and the `isScreenshot` test, and its harness pins them.
+
+That name is what puts the capture in clipboard history *as a screenshot*. `AppCore` inserts the
+entry directly after a successful capture rather than letting the poller find it — the pasteboard
+copy keeps its internal marker, so the poller stays out of it and the file keeps the name Spotter
+chose instead of a UUID. `ClipboardItem.isScreenshot` reads that name back, which is what the
+**Screenshots Only** filter matches on; see [clipboard.md](clipboard.md). Captures from an app
+excluded from clipboard history are excluded here too, and the insert does not happen at all when the
+Clipboard plugin is off. Two captures inside the same minute would collide on one path, so the store
+uniquifies the stem rather than overwriting the pixels an existing row points at — counting names
+handed out this session as taken, since the blob write is detached and the previous file does not
+exist yet when the next call asks. Only the capture itself is recorded; a marked-up copy made in the
+editor is a deliberate edit of an entry history already holds.
+
 ## Capture options
 
 ## Text recognition
@@ -153,7 +174,7 @@ Screen mode is also the quickest way to check the Resolution setting end to end:
 a whole display should match that display's framebuffer exactly (its point size times its backing
 scale), and `1x` should match its point size.
 
-Three preferences shape what a capture produces. All persist under bundle-scoped
+Four preferences shape what a capture produces. All persist under bundle-scoped
 `screenshot.*` keys, ride the trusted v3 backup/sync snapshot and apply live.
 
 - **Resolution** — `Retina` (default) captures at the display's own backing scale; `1x` asks
@@ -174,6 +195,12 @@ Three preferences shape what a capture produces. All persist under bundle-scoped
   includes the mark-up editor, discarding any annotations not yet copied or saved. That is the same
   thing that already happens when a new capture's thumbnail reopens the editor, so it is not a new
   hazard, but it is why the setting ships off.
+- **Thumbnail Duration** — how many seconds the capture thumbnail stays up, typed into a field
+  rather than picked from a menu: the useful value depends on how fast the user works, and the
+  sensible range is wider than a menu would hold. Clamped to 1–60 seconds on commit rather than
+  rejected, so a typed `0` or `900` becomes the nearest value the app will honour. Hovering still
+  holds a thumbnail open past its countdown, and the Return grace below is deliberately *not* tied
+  to this number.
 - **File Format** — `PNG` (default) or `JPG`, used by the editor's Save. The clipboard copy stays
   TIFF in both cases: it is lossless and the format every app pastes, and a file-size choice buys
   nothing there. JPEG carries no alpha, so a rounded corner would encode as a hard black wedge — a
@@ -230,8 +257,18 @@ Clicking it opens the mark-up editor on the retained capture. **Return** opens i
 never becomes key — Spotter must not take focus from the app the capture came from — so Return
 arrives through a transient Carbon key held by `HotKeyManager.holdTransientKey` only while the
 thumbnail is on screen. That key is not a user binding: nothing persists, it never reaches Settings
-or a conflict check, and Carbon *consumes* Return system-wide for the few seconds the thumbnail is
-up, which is why it is released on every dismissal path. **Dragging the thumbnail off pins it.** Eight points of travel tears it out of the HUD into a
+or a conflict check, and Carbon *consumes* Return system-wide while it is held.
+
+**Return belongs to the moment right after the capture, not to the thumbnail's whole life.** Held for
+as long as the thumbnail was visible, it ate the Return that sends a message in the app the user
+captured from — and since Spotter never activates, the frontmost app never changes, so nothing else
+took the key back. The claim therefore ends at the first of: a click anywhere outside Spotter, the
+row emptying, or a five-second grace window. That grace is deliberately independent of Thumbnail
+Duration: a thumbnail can be left up for a minute without Return being unavailable for a minute.
+The click is read through a passive `NSEvent` global mouse-down monitor that is installed only while
+the key is held and torn down the moment it fires; it reads nothing off the event — not the location,
+not the window — and there is no keyboard monitoring, which would need Accessibility and a consent
+gate of its own. **Dragging the thumbnail off pins it.** Eight points of travel tears it out of the HUD into a
 `ScreenshotPinWindow`: a borderless floating panel three times the thumbnail's size, centred on the
 pointer and staying above every app. It is one uninterrupted gesture — the pin follows the pointer
 until the button comes up. That works because the thumbnail's panel is only made invisible at the

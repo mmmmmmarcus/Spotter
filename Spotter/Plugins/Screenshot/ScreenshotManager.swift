@@ -17,6 +17,27 @@ enum ScreenshotCaptureResult {
 struct ScreenshotCapturePayload: Sendable {
     let image: CGImage
     let roundedCorners: Bool
+    /// The app that was frontmost when the capture started, which is what the capture is *of* as
+    /// far as the user is concerned — it names the file and attributes the history entry.
+    let sourceAppName: String?
+    let sourceBundleID: String?
+    let capturedAt: Date
+
+    init(
+        image: CGImage, roundedCorners: Bool, sourceAppName: String? = nil,
+        sourceBundleID: String? = nil, capturedAt: Date = Date()
+    ) {
+        self.image = image
+        self.roundedCorners = roundedCorners
+        self.sourceAppName = sourceAppName
+        self.sourceBundleID = sourceBundleID
+        self.capturedAt = capturedAt
+    }
+
+    /// Without an extension: the editor's Save adds the one the chosen format wants.
+    var fileName: String {
+        ScreenshotFileName.name(forApp: sourceAppName, at: capturedAt)
+    }
 }
 
 /// Region selection is where every capture starts; Space cycles on through whole-window and
@@ -61,6 +82,7 @@ final class ScreenshotManager: ObservableObject {
     private static let fileFormatKey = "screenshot.file-format"
     private static let includesWindowShadowKey = "screenshot.includes-window-shadow"
     private static let hidesSpotterWindowsKey = "screenshot.hides-spotter-windows"
+    private static let previewDurationKey = "screenshot.preview-duration"
 
     private var panels: [ScreenshotSelectionPanel] = []
     private var completion: ((ScreenshotCaptureResult) -> Void)?
@@ -71,6 +93,8 @@ final class ScreenshotManager: ObservableObject {
     /// Where Tab returns to; Space never leaves text mode, so this only tracks picking modes.
     private var modeBeforeText: ScreenshotCaptureMode = .region
     private var selectionStartedAt: Date?
+    /// Recorded when the selection opens, before any overlay can take the frontmost app's place.
+    private var captureSource: (name: String?, bundleID: String?)?
     /// Retained until the next capture so the thumbnail can open the editor after the panels are gone.
     private(set) var lastCapture: ScreenshotCapturePayload?
     /// Where on screen the last capture came from, so its thumbnail can drift in from that
@@ -85,6 +109,10 @@ final class ScreenshotManager: ObservableObject {
     /// Gap between neighbouring thumbnails in the row.
     private static let previewGap: CGFloat = 12
     private static let previewReturnKeyID = "screenshot.preview.return"
+    /// Ends the Return claim on its own if the user neither clicks away nor uses it.
+    private var returnGrace: Task<Void, Never>?
+    /// Passive mouse-down monitor, alive only while Return is claimed.
+    private var returnHandback: Any?
     /// Every torn-off capture still floating on screen; each closes itself and drops out of here.
     private var pins: [ScreenshotPinWindow] = []
     private unowned let hotKeys: HotKeyManager
@@ -120,6 +148,27 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
+    /// How long a thumbnail stays up before it dismisses itself. Applies to thumbnails already on
+    /// screen through the row's shared countdown, so a change is visible on the next capture.
+    @Published var previewDuration: Double {
+        didSet {
+            let clamped = Self.clampPreviewDuration(previewDuration)
+            guard clamped == previewDuration else {
+                previewDuration = clamped
+                return
+            }
+            guard previewDuration != oldValue else { return }
+            defaults.set(previewDuration, forKey: Self.previewDurationKey)
+        }
+    }
+
+    static let previewDurationRange: ClosedRange<Double> = 1...60
+    static let defaultPreviewDuration: Double = 3.5
+
+    static func clampPreviewDuration(_ value: Double) -> Double {
+        min(max(value, previewDurationRange.lowerBound), previewDurationRange.upperBound)
+    }
+
     /// Off by default: closing the user's open windows is a bigger side effect than a capture
     /// normally has, so it stays something they ask for.
     @Published var hidesSpotterWindows: Bool {
@@ -140,6 +189,9 @@ final class ScreenshotManager: ObservableObject {
             .flatMap(ScreenshotFileFormat.init(rawValue:)) ?? .png
         includesWindowShadow = defaults.bool(forKey: Self.includesWindowShadowKey)
         hidesSpotterWindows = defaults.bool(forKey: Self.hidesSpotterWindowsKey)
+        previewDuration = defaults.object(forKey: Self.previewDurationKey) == nil
+            ? Self.defaultPreviewDuration
+            : Self.clampPreviewDuration(defaults.double(forKey: Self.previewDurationKey))
     }
 
     var isCapturing: Bool { !panels.isEmpty || captureTask != nil }
@@ -172,6 +224,8 @@ final class ScreenshotManager: ObservableObject {
         }
 
         self.completion = completion
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        captureSource = (frontmost?.localizedName, frontmost?.bundleIdentifier)
         mode = .region
         modeBeforeText = .region
         hoveredWindow = nil
@@ -225,13 +279,13 @@ final class ScreenshotManager: ObservableObject {
             layoutPreviews()
             armPreviewReturnKey()
         }
-        preview.prepare(image)
+        preview.prepare(image, visibleFor: previewDuration)
         if previews.isEmpty {
             previewScreen =
                 NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
                 ?? NSScreen.main
         }
-        for existing in previews { existing.extendVisibility() }
+        for existing in previews { existing.extendVisibility(previewDuration) }
         previews.append(preview)
         layoutPreviews(presenting: preview, from: sourceRect)
         armPreviewReturnKey()
@@ -259,10 +313,18 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
-    /// Return always opens the newest thumbnail; the key is held only while the row has one.
+    /// Return always opens the newest thumbnail — but only for the moment right after the capture.
+    /// Carbon consumes Return system-wide while the key is held, so a thumbnail left up while the
+    /// user goes back to typing would eat the Return that sends their message. The claim therefore
+    /// ends at the first of: a click anywhere outside Spotter, the row emptying, or the grace
+    /// window below, whichever the thumbnail's own countdown happens to be.
+    private static let previewReturnGrace: Duration = .seconds(5)
+
     private func armPreviewReturnKey() {
+        returnGrace?.cancel()
+        returnGrace = nil
         guard previews.last != nil else {
-            hotKeys.releaseTransientKey(id: Self.previewReturnKeyID)
+            releasePreviewReturnKey()
             return
         }
         hotKeys.holdTransientKey(
@@ -271,6 +333,34 @@ final class ScreenshotManager: ObservableObject {
         ) { [weak self] in
             self?.previews.last?.open()
         }
+        observeReturnHandback()
+        returnGrace = Task { [weak self] in
+            try? await Task.sleep(for: Self.previewReturnGrace)
+            guard !Task.isCancelled else { return }
+            self?.releasePreviewReturnKey()
+        }
+    }
+
+    /// A click anywhere outside Spotter means the user is working again, so Return goes back to
+    /// them. The monitor reads nothing off the event — not its location, not its window — and is
+    /// torn down the moment it fires.
+    private func observeReturnHandback() {
+        guard returnHandback == nil else { return }
+        returnHandback = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.releasePreviewReturnKey() }
+        }
+    }
+
+    private func releasePreviewReturnKey() {
+        returnGrace?.cancel()
+        returnGrace = nil
+        if let returnHandback {
+            NSEvent.removeMonitor(returnHandback)
+            self.returnHandback = nil
+        }
+        hotKeys.releaseTransientKey(id: Self.previewReturnKeyID)
     }
 
     /// Floats a capture above every app. `onOpen` is wired by the plugin, which owns the editor.
@@ -542,7 +632,9 @@ final class ScreenshotManager: ObservableObject {
             finish(.failed)
             return
         }
-        lastCapture = ScreenshotCapturePayload(image: image, roundedCorners: roundedCorners)
+        lastCapture = ScreenshotCapturePayload(
+            image: image, roundedCorners: roundedCorners, sourceAppName: captureSource?.name,
+            sourceBundleID: captureSource?.bundleID)
         captureTask = nil
         finish(.copied)
     }

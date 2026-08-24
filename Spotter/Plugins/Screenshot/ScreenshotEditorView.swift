@@ -507,7 +507,7 @@ struct ScreenshotEditorView: View {
             }
             let panel = NSSavePanel()
             panel.allowedContentTypes = [format.contentType]
-            panel.nameFieldStringValue = Self.defaultFilename(format: format)
+            panel.nameFieldStringValue = "\(capture.fileName).\(format.fileExtension)"
             guard panel.runModal() == .OK, let url = panel.url else { return }
             do {
                 try encoded.write(to: url)
@@ -520,13 +520,6 @@ struct ScreenshotEditorView: View {
         }
     }
 
-    private static func defaultFilename(
-        format: ScreenshotFileFormat, now: Date = Date()
-    ) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        return "Screenshot \(formatter.string(from: now)).\(format.fileExtension)"
-    }
 }
 
 /// SwiftUI's DragGesture only speaks the primary button, so the canvas listens through AppKit:

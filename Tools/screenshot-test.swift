@@ -310,6 +310,32 @@ private enum ScreenshotTest {
                 and: CGRect(x: 0, y: 0, width: 1, height: 0.1)) == 1,
             "identical spans score a full overlap")
 
+        let stamp = Date(timeIntervalSince1970: 1_785_000_000)
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        check(
+            ScreenshotFileName.name(forApp: "Claude", at: stamp, timeZone: tokyo)
+                == "Claude_SpotterScreenshot_2607260220",
+            "a capture is named after the app it came from")
+        check(
+            ScreenshotFileName.name(forApp: "Visual Studio Code", at: stamp, timeZone: tokyo)
+                == "VisualStudioCode_SpotterScreenshot_2607260220",
+            "spaces and separators are stripped out of the app name")
+        check(
+            ScreenshotFileName.name(forApp: nil, at: stamp, timeZone: tokyo)
+                == "SpotterScreenshot_2607260220",
+            "an unknown app leaves the marker and the stamp")
+        check(
+            ScreenshotFileName.name(forApp: "  ", at: stamp, timeZone: tokyo)
+                == "SpotterScreenshot_2607260220",
+            "an app name with nothing usable in it is dropped")
+        check(
+            ScreenshotFileName.isScreenshot(
+                fileName: ScreenshotFileName.name(forApp: "Mail", at: stamp) + ".png"),
+            "a name this scheme wrote reads back as a screenshot")
+        check(
+            !ScreenshotFileName.isScreenshot(fileName: "IMG_4021.png"),
+            "an ordinary image is not a screenshot")
+
         if failures > 0 { exit(1) }
         print("All screenshot tests passed.")
     }

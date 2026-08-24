@@ -27,7 +27,8 @@ final class ScreenshotPreviewHUD {
     static let appearDuration: TimeInterval = 0.26
     static let disappearDuration: TimeInterval = 0.18
 
-    private static let visibleDuration: Duration = .milliseconds(3500)
+    /// How long this thumbnail stays up, set from the Screenshot preference when it is prepared.
+    private var visibleDuration: Duration = .milliseconds(3500)
     /// How far the thumbnail drifts in from, along each axis.
     static let entryDrift: CGFloat = 8
 
@@ -63,7 +64,8 @@ final class ScreenshotPreviewHUD {
     }
 
     /// Measures the capture so the manager can lay the row out before anything is shown.
-    func prepare(_ image: CGImage) {
+    func prepare(_ image: CGImage, visibleFor seconds: Double) {
+        visibleDuration = .milliseconds(Int(seconds * 1000))
         cardSize = Self.thumbnailSize(for: image)
         model.image = image
         model.thumbnailSize = cardSize
@@ -94,8 +96,9 @@ final class ScreenshotPreviewHUD {
     /// otherwise the first thumbnail would vanish mid-row while the newest was still settling.
     /// A hovered thumbnail is left alone: the pointer already holds it, and rescheduling here would
     /// dismiss it out from under the pointer.
-    func extendVisibility() {
+    func extendVisibility(_ seconds: Double) {
         guard isPresented, !isHovered else { return }
+        visibleDuration = .milliseconds(Int(seconds * 1000))
         scheduleDismissal()
     }
 
@@ -177,8 +180,9 @@ final class ScreenshotPreviewHUD {
 
     private func scheduleDismissal() {
         dismissal?.cancel()
+        let visibleDuration = visibleDuration
         dismissal = Task { [weak self] in
-            try? await Task.sleep(for: Self.visibleDuration)
+            try? await Task.sleep(for: visibleDuration)
             guard !Task.isCancelled else { return }
             self?.dismiss()
         }

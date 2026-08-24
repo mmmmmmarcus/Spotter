@@ -93,6 +93,7 @@ run_harness() {
         clipboard)
             swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
                 Spotter/Plugins/Clipboard/ClipboardFilter.swift \
+                Spotter/Plugins/Screenshot/ScreenshotFileName.swift \
                 Tools/clipboard-test.swift -o "$output" && "$output"
             ;;
         file-search)
@@ -230,6 +231,7 @@ run_harness() {
                 Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
                 Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift \
                 Spotter/Plugins/Screenshot/ScreenshotTextLayout.swift \
+                Spotter/Plugins/Screenshot/ScreenshotFileName.swift \
                 Tools/screenshot-test.swift -o "$output" && "$output"
             ;;
         *)

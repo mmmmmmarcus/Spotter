@@ -19,6 +19,7 @@ struct ClipboardItem: Identifiable, Hashable, Sendable {
 
     var isPinned: Bool { pinnedAt != nil }
 
+
     init(text: String, sourceBundleID: String?) {
         self.init(
             id: UUID(), kind: .text, text: text, imagePath: nil, createdAt: Date(),
@@ -143,6 +144,8 @@ final class ClipboardStore: ObservableObject {
         """
 
     private let imagesDir: URL
+    /// Image file stems handed out since launch; see `uniqueStem`.
+    private var claimedImageStems: Set<String> = []
     private let dbURL: URL
     private var db: OpaquePointer?
     private var insertStmt: OpaquePointer?
@@ -218,14 +221,34 @@ final class ClipboardStore: ObservableObject {
         insert(ClipboardItem(text: text, sourceBundleID: sourceBundleID))
     }
 
-    func addImage(_ data: Data, sourceBundleID: String?) {
-        let url = imagesDir.appendingPathComponent(UUID().uuidString + ".png")
+    /// `name` is the file's stem, without an extension. A Spotter screenshot passes its own name
+    /// here; that name is also what marks the entry as a screenshot, so it must reach disk intact.
+    func addImage(_ data: Data, named name: String? = nil, sourceBundleID: String?) {
+        let url = imagesDir.appendingPathComponent(uniqueStem(name ?? UUID().uuidString) + ".png")
         let item = ClipboardItem(imagePath: url.path, sourceBundleID: sourceBundleID)
         // The blob write is multi-MB disk I/O; only the row insert (a failed write inserts nothing) returns to the main actor.
         Task.detached(priority: .utility) { [weak self] in
             guard (try? data.write(to: url, options: .atomic)) != nil else { return }
             await self?.insert(item)
         }
+    }
+
+    /// Two captures inside the same minute would otherwise write to one path, and the second would
+    /// overwrite the first's pixels under a row that still points at them. Names handed out this
+    /// session count as taken: the blob write is detached, so the file the previous call is about to
+    /// create does not exist yet when the next one asks.
+    private func uniqueStem(_ stem: String) -> String {
+        var candidate = stem
+        var suffix = 2
+        while claimedImageStems.contains(candidate)
+            || FileManager.default.fileExists(
+                atPath: imagesDir.appendingPathComponent(candidate + ".png").path)
+        {
+            candidate = "\(stem)-\(suffix)"
+            suffix += 1
+        }
+        claimedImageStems.insert(candidate)
+        return candidate
     }
 
     /// Bulk-insert history from an external source (e.g. a Raycast import). Entries carry their original `createdAt` and image *paths* are stored as external references (zero-copy) — the store never owns or prunes files outside `imagesDir`. Dedups within the batch and against existing rows; imported items older than `maxAge` are pruned on reload.
@@ -283,6 +306,7 @@ final class ClipboardStore: ObservableObject {
         if db != nil { sqlite3_exec(db, "DELETE FROM items", nil, nil, nil) }
         try? FileManager.default.removeItem(at: imagesDir)
         try? FileManager.default.createDirectory(at: imagesDir, withIntermediateDirectories: true)
+        claimedImageStems = []
         items = []
     }
 

@@ -94,6 +94,35 @@ extension AppCore {
         }
     }
 
+    /// A capture joins clipboard history under its own name — the second deliberate exception to
+    /// the internal-write marker, after recognized text. The pasteboard copy stays marked, so the
+    /// entry is inserted here rather than polled: that is what lets it keep the name the editor
+    /// would save it under, which is also what marks it as a screenshot.
+    private func recordScreenshotInHistory() {
+        guard plugins.isEnabled(.clipboard), let capture = screenshot.lastCapture else { return }
+        // An app the user excluded from history is excluded from this too.
+        if let bundleID = capture.sourceBundleID,
+            settings.clipboardDisabledApps.contains(bundleID)
+        {
+            return
+        }
+        let name = capture.fileName
+        let bundleID = capture.sourceBundleID
+        let store = clipboardStore
+        Task {
+            // Multi-megabyte encode; the row insert is all that returns to the main actor.
+            let png = await Task.detached(priority: .utility) {
+                ScreenshotImageProcessor.fileData(
+                    from: capture.image, format: .png, roundedCorners: capture.roundedCorners)
+            }.value
+            guard let png else {
+                AppLog.error("screenshot", "Could not encode the capture for clipboard history.")
+                return
+            }
+            store.addImage(png, named: name, sourceBundleID: bundleID)
+        }
+    }
+
     func dismissScreenshotEditor() {
         closePluginWindow(id: Self.screenshotEditorWindowID)
         screenshot.clearLastCapture()
@@ -146,6 +175,7 @@ extension AppCore {
             guard let self else { return }
             switch result {
             case .copied:
+                recordScreenshotInHistory()
                 showScreenshotPreview(from: screenshot.lastCaptureRect)
             case .textCopied:
                 hud.show(title: "Text Copied", symbol: "text.viewfinder")

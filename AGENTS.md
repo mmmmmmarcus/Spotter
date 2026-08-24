@@ -272,9 +272,14 @@ Never break these without an explicit task to do so.
   block observers, `isolated deinit` for `ClipboardStore`'s SQLite teardown, decode raw Carbon / C
   pointers to plain values before crossing into actor code.
 - **Clipboard writes stamp a private `internalType` marker** so the poller skips Spotter's own writes.
-  Screenshot's text recognition is the one deliberate exception (owner decision, Aug 2026): its
-  output is the user's own text and belongs in clipboard history, where an image capture — which has
-  its own thumbnail, pin and editor to return to — does not.
+  Screenshot has the two deliberate exceptions. Its text recognition writes *unmarked* (owner
+  decision, Aug 2026): the output is the user's own text and belongs in history. An image capture
+  stays marked but is inserted into the store directly (owner decision, Aug 2026), because that is
+  what lets it keep the name Spotter gives it — `<App>_SpotterScreenshot_<yyMMddHHmm>` — and that
+  name is the only thing that marks a history entry as a screenshot. `ClipboardItem.isScreenshot`
+  derives it from the file name through `ScreenshotFileName`, so the Screenshots filter needs no
+  column, migration or backfill; `ClipboardFilter.swift` therefore compiles beside
+  `Spotter/Plugins/Screenshot/ScreenshotFileName.swift`, which stays Foundation-only and pure.
 - **Settings sync reuses `SettingsBackup`.** The selected JSON file may live in iCloud Drive, but
   Spotter must coordinate access with `NSFileCoordinator`, observe replacement-safe file changes,
   hot-apply only fully decoded snapshots, suppress its own write notifications, and mirror all

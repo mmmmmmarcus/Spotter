@@ -24,12 +24,43 @@ struct ClipboardTests {
         persistence()
         migrationFromShippedDatabase()
         await portableSnapshot()
+        await namedImagesKeepTheirName()
 
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
     }
 
     // MARK: - Cases
+
+    /// A screenshot's whole identity is its file name, so the name it is given has to reach disk —
+    /// and two captures inside the same minute must not land on one path.
+    static func namedImagesKeepTheirName() async {
+        let dir = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = ClipboardStore(directory: dir)
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+
+        store.addImage(png, named: "Claude_SpotterScreenshot_2608041812", sourceBundleID: nil)
+        store.addImage(png, named: "Claude_SpotterScreenshot_2608041812", sourceBundleID: nil)
+        store.addImage(png, sourceBundleID: nil)
+        try? await Task.sleep(for: .milliseconds(400))
+
+        let images = store.items.filter { $0.kind == .image }
+        let names = Set(images.compactMap { ($0.imagePath as NSString?)?.lastPathComponent })
+        expect(images.count == 3, "every image was recorded")
+        expect(
+            names.contains("Claude_SpotterScreenshot_2608041812.png"),
+            "a named capture keeps its name on disk")
+        expect(
+            names.contains("Claude_SpotterScreenshot_2608041812-2.png"),
+            "a second capture in the same minute takes the next stem")
+        expect(
+            images.filter(\.isScreenshot).count == 2,
+            "both captures read back as screenshots, the unnamed image does not")
+        expect(
+            names.allSatisfy { FileManager.default.fileExists(atPath: dir.path + "/images/" + $0) },
+            "each row points at a file that exists")
+    }
 
     /// Pins stack in pin order, oldest pin first, regardless of how old the entries are.
     static func pinOrder() {
@@ -200,6 +231,24 @@ struct ClipboardTests {
                 store.search("", filter: .email).compactMap(\.text) == ["marcus@example.com"],
                 "Emails Only keeps the address")
             expect(store.search("", filter: .image).isEmpty, "no images were captured")
+
+            // A screenshot is an image with a name Spotter wrote; nothing is stored to say so.
+            let capture = ClipboardItem(
+                imagePath: "/tmp/images/Claude_SpotterScreenshot_2608041812.png",
+                sourceBundleID: nil)
+            let pasted = ClipboardItem(imagePath: "/tmp/images/IMG_4021.png", sourceBundleID: nil)
+            expect(capture.isScreenshot, "a Spotter capture reads as a screenshot")
+            expect(!pasted.isScreenshot, "an image copied from elsewhere does not")
+            expect(
+                ClipboardFilter.screenshot.matches(capture)
+                    && !ClipboardFilter.screenshot.matches(pasted),
+                "Screenshots Only keeps captures and drops other images")
+            expect(
+                ClipboardFilter.image.matches(capture),
+                "a screenshot is still an image, so Images Only keeps it")
+            expect(
+                !ClipboardFilter.screenshot.matches(entry("prose", at: Date())),
+                "text is never a screenshot")
 
             store.togglePinned(item(store, "https://example.com/one"))
             expect(

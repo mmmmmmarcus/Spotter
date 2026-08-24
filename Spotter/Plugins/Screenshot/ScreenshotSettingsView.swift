@@ -61,6 +61,23 @@ struct ScreenshotSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
+                    title: "Thumbnail Duration",
+                    subtitle: "Seconds the capture thumbnail stays on screen before it dismisses itself. Hovering it holds it open.",
+                    systemImage: "timer",
+                    tint: .blue
+                ) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        TextField("", value: durationBinding, format: .number.precision(.fractionLength(0...1)))
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 56)
+                        Text("sec")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                SettingsDivider()
+                SettingsRow(
                     title: "Window Shadow",
                     subtitle: "Include the window's drop shadow when capturing a whole window.",
                     systemImage: "square.on.square.dashed",
@@ -103,6 +120,14 @@ struct ScreenshotSettingsView: View {
                 message: "macOS protects screen pixels behind Screen Recording access. Spotter captures only after you invoke this action and stores the result only on the clipboard.",
                 systemImage: "lock.shield")
         }
+    }
+
+    /// Clamped on commit rather than rejected: a typed 0 or 900 becomes the nearest allowed value
+    /// instead of leaving the field holding something the app will not honour.
+    private var durationBinding: Binding<Double> {
+        Binding(
+            get: { screenshot.previewDuration },
+            set: { screenshot.previewDuration = ScreenshotManager.clampPreviewDuration($0) })
     }
 
     private var enabledBinding: Binding<Bool> {

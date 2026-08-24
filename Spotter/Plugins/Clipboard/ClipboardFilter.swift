@@ -5,6 +5,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
     case all
     case text
     case image
+    case screenshot
     case link
     case email
 
@@ -13,6 +14,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .all: return "All Types"
         case .text: return "Text Only"
         case .image: return "Images Only"
+        case .screenshot: return "Screenshots Only"
         case .link: return "Links Only"
         case .email: return "Emails Only"
         }
@@ -24,6 +26,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .all: return "line.3.horizontal.decrease"
         case .text: return "textformat"
         case .image: return "photo"
+        case .screenshot: return "camera.viewfinder"
         case .link: return "link"
         case .email: return "at"
         }
@@ -35,16 +38,20 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .all: return "Clipboard history is empty"
         case .text: return "No text in clipboard history"
         case .image: return "No images in clipboard history"
+        case .screenshot: return "No screenshots in clipboard history"
         case .link: return "No links in clipboard history"
         case .email: return "No email addresses in clipboard history"
         }
     }
 
-    /// The five are exclusive: a copied URL is a link, not a narrower kind of text.
+    /// The text kinds are exclusive: a copied URL is a link, not a narrower kind of text.
+    /// Screenshots are the one deliberate subset — a Spotter capture is an image, and an image
+    /// filter that hid the images Spotter itself took would simply be wrong.
     func matches(_ item: ClipboardItem) -> Bool {
         switch self {
         case .all: return true
         case .image: return item.kind == .image
+        case .screenshot: return item.isScreenshot
         case .text: return item.textForm == .plain
         case .link: return item.textForm == .link
         case .email: return item.textForm == .email
@@ -58,6 +65,14 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
 }
 
 extension ClipboardItem {
+    /// Read off the file name rather than a stored column, the same way `textForm` is derived:
+    /// Spotter names its own captures, so the name is the marker, and improving the rule stays a
+    /// code change instead of a column, a migration and a backfill.
+    var isScreenshot: Bool {
+        guard kind == .image, let imagePath else { return false }
+        return ScreenshotFileName.isScreenshot(fileName: (imagePath as NSString).lastPathComponent)
+    }
+
     /// What a text entry holds. `Kind` says how an entry is stored; this says what it is.
     enum TextForm: Sendable {
         case plain

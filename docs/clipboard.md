@@ -39,10 +39,20 @@ merging old rows back in.
 ## Type filter
 
 The trailing edge of the clipboard's search bar carries a filter button — **All Types, Text Only,
-Images Only, Links Only, Emails Only** — opened by the button or by **⌘P**. It is the same
+Images Only, Screenshots Only, Links Only, Emails Only** — opened by the button or by **⌘P**. It is the same
 `PopoverMenu` as ⌘K Actions, just anchored `.topTrailing` under its button and narrower, so the
 glass, rows and hover behaviour are shared rather than reimplemented as a second dropdown idiom. The
 button states the active filter, and the menu opens highlighting it the way a pop-up button does.
+
+**Screenshots are derived too, off the file name.** Spotter names its own captures
+`<App>_SpotterScreenshot_<yyMMddHHmm>.png`, and `ClipboardItem.isScreenshot` looks for that marker in
+the file's name — so the filter costs no column, no migration and no backfill, exactly like the text
+kinds below. Unlike them it is deliberately *not* exclusive: a capture is an image, so Images Only
+keeps it and Screenshots Only is the narrower slice. An image capture reaches history at all because
+`AppCore` inserts it directly after a successful capture; the pasteboard copy keeps its internal
+marker, which is what stops the poller from recording a second, differently-named copy of the same
+pixels. A capture from an app the user excluded from history is excluded here too, and disabling the
+Clipboard plugin stops the insert.
 
 **Links and emails are derived, never stored.** `ClipboardItem.Kind` stays `text`/`image` — the two
 things capture can actually tell apart — and `ClipboardFilter` reads `ClipboardItem.textForm`
