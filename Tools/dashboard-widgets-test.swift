@@ -155,6 +155,72 @@ struct DashboardWidgetsTests {
             !mixed.accessibilityLabel.isEmpty && mixed.accessibilityLabel.contains(","),
             "the three lines should be spoken as one sentence")
 
+        // Device battery: two scans merge into one card.
+        check(
+            DashboardDeviceBatteryEngine.kind(forMinorType: "Keyboard", productName: "")
+                == .keyboard,
+            "bluetoothd's minor type should decide the category outright")
+        check(
+            DashboardDeviceBatteryEngine.kind(forMinorType: "Headset", productName: "")
+                == .headphones,
+            "a headset is drawn as headphones")
+        check(
+            DashboardDeviceBatteryEngine.kind(forMinorType: "", productName: "Keyboard Craft")
+                == .keyboard,
+            "a missing minor type should fall back to the product name")
+        check(
+            DashboardDeviceBatteryEngine.kind(forProductName: "Bunny's AirPods") == .headphones,
+            "AirPods read as headphones by name")
+        check(
+            DashboardDeviceBatteryEngine.normalizedAddress("C0:44:42:D9:F9:83")
+                == "c0-44-42-d9-f9-83",
+            "bluetoothd's address spelling should normalize to IOKit's")
+
+        let profilerJSON = """
+            {"SPBluetoothDataType":[{"device_connected":[
+            {"Keyboard Craft":{"device_address":"F5:B7:55:5E:72:17",
+            "device_batteryLevelMain":"100%","device_minorType":"Keyboard"}},
+            {"Quiet Mouse":{"device_address":"C0:44:42:D9:F9:83","device_minorType":"Mouse"}},
+            {"AirPods Pro":{"device_address":"14:88:E6:AC:7F:37","device_batteryLevelLeft":"80%",
+            "device_batteryLevelRight":"75%","device_batteryLevelCase":"5%",
+            "device_minorType":"Headphones"}}],
+            "device_not_connected":[{"Old Keyboard":{"device_address":"AA:BB:CC:DD:EE:FF",
+            "device_batteryLevelMain":"50%"}}]}]}
+            """.data(using: .utf8)!
+        let bluetooth = DashboardDeviceBatteryEngine.bluetoothDevices(
+            fromProfilerJSON: profilerJSON)
+        check(
+            bluetooth.count == 2,
+            "only connected devices that report a level should be read")
+        check(
+            bluetooth.contains {
+                $0.kind == .keyboard && $0.percent == 100 && $0.id == "f5-b7-55-5e-72-17"
+            },
+            "a keyboard's main level and normalized address should come through")
+        check(
+            bluetooth.contains { $0.kind == .headphones && $0.percent == 75 },
+            "earbuds should read as their lowest bud, with the case ignored")
+        check(
+            bluetooth.allSatisfy { !$0.isCharging },
+            "bluetoothd reports no charging state, so no bolt")
+        check(
+            DashboardDeviceBatteryEngine.bluetoothDevices(fromProfilerJSON: Data()).isEmpty,
+            "unparseable profiler output should read as no devices")
+
+        let hidMouse = DeviceBattery(
+            id: "c0-44-42-d9-f9-83", productName: "Magic Mouse", kind: .mouse, percent: 85,
+            isCharging: true)
+        let merged = DashboardDeviceBatteryEngine.merged(hid: [hidMouse], bluetooth: bluetooth)
+        check(
+            merged.count == 3,
+            "the Bluetooth scan should add only devices the HID scan didn't find")
+        check(
+            merged.contains { $0.id == "c0-44-42-d9-f9-83" && $0.isCharging },
+            "a device both scans found should keep the HID reading and its charging flag")
+        check(
+            merged.first?.kind == .headphones,
+            "the merged list should stay ordered lowest-first")
+
         check(DashboardFileInfoSummary.size(bytes: 512).contains("512"), "bytes should stay bytes")
         check(DashboardFileInfoSummary.size(bytes: 1_000).contains("KB"), "kilobytes are file-style")
         check(

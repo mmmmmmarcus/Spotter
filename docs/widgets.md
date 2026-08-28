@@ -127,8 +127,11 @@ the cover and centres previous, play/pause and next on it, all three in white be
 artwork that could be any colour. They act on Music directly, and each is a full-cell hit target since
 a glyph alone leaves most of the control unclickable.
 
-A track with no cover would leave a blank square, so that case falls back to the card's own mark and
-the track's name until the pointer arrives. There is deliberately no progress readout: the card shows
+A track with no cover would leave a blank square, so that case shows the track's name and nothing
+else until the pointer arrives. With no track at all the `music.note` mark stands alone
+(owner decision, Aug 2026): "Nothing playing" restated what a bare music card already says, so the
+resting words live only in Settings and the accessibility label — where "Music is not open" still
+reads differently from nothing playing. There is deliberately no progress readout: the card shows
 what is playing and lets you change it, and a playhead is the one thing a glance at a launcher does
 not need.
 
@@ -136,7 +139,8 @@ Everything goes through one Apple Event run as an `osascript` subprocess off the
 like `Core/FinderSelection`: macOS's own Automation prompt is the gate, and a refused grant reads as
 "nothing playing" rather than an error. **Spotter never launches Music.** `tell application "Music"`
 starts the app if it is not running, so the store checks `NSWorkspace.runningApplications` before any
-script runs; with Music closed the card says so, which is not the same as nothing playing. Note also
+script runs; with Music closed the Settings row and accessibility label say so, which is not the same
+as nothing playing. Note also
 that `st` is a reserved token inside a Music `tell` block — the reader script spells its variables
 out rather than abbreviating them.
 
@@ -159,8 +163,8 @@ detail.
 ## Device battery
 
 The card is a grid of ring gauges, title-free and filled edge to edge like the clock — the rings
-*are* the card, and a heading would cost a row of them. Each connected mouse, keyboard or trackpad
-that reports a level gets one ring: a faint full track with the level swept clockwise from twelve
+*are* the card, and a heading would cost a row of them. Each connected peripheral that reports a
+level — a mouse, keyboard, trackpad, earbuds or speaker — gets one ring: a faint full track with the level swept clockwise from twelve
 over it, and the device's SF Symbol in the middle. The arc is green, red below 20%, which is the
 question a glance is asking. Exact percentages are deliberately not on the card — four small numbers
 at 44 points read worse than four arcs — and live in the Settings pane and the accessibility label
@@ -182,28 +186,40 @@ the whole card re-centring and every ring changing size under the same reading. 
 fifth device turns the last slot into a `+2` count rather than dropping those devices unremarked.
 Devices order lowest-first throughout, so whatever needs charging soonest is the first ring drawn.
 
-The category behind each symbol comes from the product name. A paired device is named after its
-owner ("Marcus's Magic Mouse"), so the stable part is the category noun inside it; anything Spotter
-doesn't recognize falls back to a generic battery glyph and keeps its own name in Settings, rather
-than being guessed at from a vendor/product table that would rot.
+The category behind each symbol comes from bluetoothd's minor type when the device came from that
+scan, and otherwise from the product name. A paired device is named after its owner ("Marcus's Magic
+Mouse"), so the stable part is the category noun inside it; anything Spotter doesn't recognize falls
+back to a generic battery glyph and keeps its own name in Settings, rather than being guessed at
+from a vendor/product table that would rot.
 
-Levels come from the `BatteryPercent` property that every HID peripheral publishes on its
-`AppleDeviceManagementHIDEventService` node in the IOKit registry. That read needs no consent gate,
-unlike the other two non-obvious cards: any process can read the registry, so there is no TCC prompt,
-no entitlement and no permission to explain. Nothing is persisted and nothing leaves the machine.
+Levels come from two reads merged into one list. The first is the `BatteryPercent` property a HID
+peripheral publishes on its `AppleDeviceManagementHIDEventService` node in the IOKit registry. The
+second exists because a BLE peripheral reporting through the battery GATT service — most third-party
+Bluetooth keyboards and mice, and AirPods — publishes nothing there: its level lives with
+bluetoothd, and one `system_profiler SPBluetoothDataType -json` subprocess is the unrestricted route
+to bluetoothd's answer. Only the connected section is read (the not-connected one carries stale
+cached readings), the `device_minorType` bluetoothd names decides the category before the
+product-name parse gets a say, and earbuds read as their lowest bud with the case ignored. The two
+scans agree on identity through normalized addresses (IOKit spells `c0-44-...`, bluetoothd
+`C0:44:...`), and on a duplicate the HID reading wins because it alone carries the charging flag —
+bluetoothd reports none, so a device from that scan never gets a bolt (owner decision, Aug 2026,
+superseding the earlier AirPods exclusion, whose reason was that this route hadn't been adopted).
 
-AirPods are deliberately out of scope. They are not HID devices, so they publish no `BatteryPercent`
-node; the only routes to their level are `system_profiler` or IOBluetooth, and IOBluetooth requires
-`NSBluetoothAlwaysUsageDescription` and prompts for Bluetooth access process-wide — a system
-permission for one card. Do not add it without an explicit owner decision.
+Neither read needs a consent gate, unlike the other two non-obvious cards: any process can read the
+registry, `system_profiler` only relays what bluetoothd already knows, and there is no TCC prompt,
+no entitlement and no permission to explain. IOBluetooth and CoreBluetooth remain off-limits — they
+require `NSBluetoothAlwaysUsageDescription` and prompt for Bluetooth access process-wide, a system
+permission for one card. Nothing is persisted and nothing leaves the machine.
 
 The card is hidden whenever nothing connected reports a level, since an empty square would imply a
 reading it doesn't have — a Mac with only a built-in keyboard is the normal case, not a fault. That
 hiding is why the scan also runs from `AppCore.showPalette`: the card's own poll lives with the card,
-so with the card unrendered nothing else would notice a device that has since connected. The scan is
-a handful of registry property reads, measured at ~0.03 ms, so it runs synchronously on the main
+so with the card unrendered nothing else would notice a device that has since connected. The registry
+scan is a handful of property reads, measured at ~0.03 ms, so it runs synchronously on the main
 actor; while the card is on screen it repeats once a minute, which is as fast as a whole percent
-moves.
+moves. The Bluetooth read is a ~0.2 s subprocess, so it runs off the main actor, re-publishes when it
+lands, and reuses an answer younger than 30 seconds rather than respawning `system_profiler` on
+every palette open.
 
 ## Weather privacy
 

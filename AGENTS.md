@@ -195,9 +195,12 @@ Never break these without an explicit task to do so.
   app is already running before any script, since `tell application "Music"` starts it — and it polls
   only while the launcher is on screen.
   `Plugins/DashboardWidgets/DashboardDeviceBatteryStore.swift` is deliberately *not* gated, and the
-  contrast with uptime is the point: reading `BatteryPercent` off the IOKit registry needs no TCC
-  grant, no entitlement and no monitor, persists nothing and sends nothing, so there is no ongoing
-  access for a switch to withdraw. Do not add a consent dialog to it, and do not reach for
+  contrast with uptime is the point: reading `BatteryPercent` off the IOKit registry and relaying
+  bluetoothd's levels through one `system_profiler` subprocess need no TCC grant, no entitlement and
+  no monitor, persist nothing and send nothing, so there is no ongoing access for a switch to
+  withdraw. Do not add a consent dialog to it, and do not reach for IOBluetooth or CoreBluetooth —
+  that route demands `NSBluetoothAlwaysUsageDescription` and prompts for Bluetooth access
+  process-wide, which is a system permission for one card and needs an explicit owner decision.
   The File Info card is likewise not consent-gated, but for a different reason: it asks the Finder,
   through `Core/FinderSelection.swift`, and macOS's own Automation prompt *is* the gate. Keep that the
   only place anything asks the Finder what is selected, keep the read to name/kind/size, and never
@@ -208,10 +211,7 @@ Never break these without an explicit task to do so.
   its own and sends nothing. Its structural exclusions are what hold that line — hidden paths, the
   interiors of `.app` bundles and `~/Library` as a general scope stay out of every search, so it
   never becomes a crawl of everything the user owns. Do not add a consent dialog to it, and do not
-  widen those exclusions without an explicit owner decision. Do not reach for
-  IOBluetooth or CoreBluetooth to cover AirPods — that route demands
-  `NSBluetoothAlwaysUsageDescription` and prompts for Bluetooth access process-wide, which is a
-  system permission for one card and needs an explicit owner decision.
+  widen those exclusions without an explicit owner decision.
   **Deliberate exceptions (owner decisions, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing

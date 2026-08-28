@@ -14,6 +14,8 @@ enum DeviceBatteryKind: String, CaseIterable, Equatable, Sendable {
     case mouse
     case keyboard
     case trackpad
+    case headphones
+    case speaker
     case other
 
     /// The noun the card uses in place of the full product name, which is usually the owner's —
@@ -23,6 +25,8 @@ enum DeviceBatteryKind: String, CaseIterable, Equatable, Sendable {
         case .mouse: return "Mouse"
         case .keyboard: return "Keyboard"
         case .trackpad: return "Trackpad"
+        case .headphones: return "Headphones"
+        case .speaker: return "Speaker"
         case .other: return "Device"
         }
     }
@@ -33,6 +37,8 @@ enum DeviceBatteryKind: String, CaseIterable, Equatable, Sendable {
         case .mouse: return "computermouse.fill"
         case .keyboard: return "keyboard.fill"
         case .trackpad: return "rectangle.and.hand.point.up.left.fill"
+        case .headphones: return "headphones"
+        case .speaker: return "hifispeaker.fill"
         case .other: return "battery.100percent"
         }
     }
@@ -73,7 +79,23 @@ enum DashboardDeviceBatteryEngine {
         if lowercased.contains("trackpad") { return .trackpad }
         if lowercased.contains("keyboard") { return .keyboard }
         if lowercased.contains("mouse") { return .mouse }
+        if lowercased.contains("airpods") || lowercased.contains("headphone") { return .headphones }
+        if lowercased.contains("speaker") { return .speaker }
         return .other
+    }
+
+    /// bluetoothd names each device's category outright, which beats guessing from the product
+    /// name; the name parse stays as the fallback for a device whose minor type is missing or one
+    /// Spotter doesn't map.
+    static func kind(forMinorType minorType: String, productName: String) -> DeviceBatteryKind {
+        switch minorType.lowercased() {
+        case "keyboard": return .keyboard
+        case "mouse": return .mouse
+        case "trackpad": return .trackpad
+        case "headphones", "headset": return .headphones
+        case "speaker": return .speaker
+        default: return kind(forProductName: productName)
+        }
     }
 
     /// A reported level outside 0–100 is a device lying rather than a device to hide, so it clamps.
@@ -147,6 +169,76 @@ enum DashboardDeviceBatteryEngine {
     /// of the word is undocumented, and "on external power" is exactly what a bolt claims, the same
     /// thing the menu-bar bolt means.
     static func isOnExternalPower(statusFlags: Int) -> Bool { statusFlags & 0x01 != 0 }
+
+    /// IOKit spells an address "c0-44-42-d9-f9-83" and bluetoothd "C0:44:42:D9:F9:83" — one form so
+    /// the two scans can agree on which device they both found. Serials and names pass through with
+    /// only their casing folded, which is harmless: they only ever meet their own kind.
+    static func normalizedAddress(_ raw: String) -> String {
+        raw.lowercased().replacingOccurrences(of: ":", with: "-")
+    }
+
+    /// The HID scan wins a duplicate: it alone has the charging flag. The Bluetooth list adds only
+    /// what the registry can't see — a BLE peripheral reports its level to bluetoothd, not to the
+    /// HID service node the registry scan reads.
+    static func merged(hid: [DeviceBattery], bluetooth: [DeviceBattery]) -> [DeviceBattery] {
+        let known = Set(hid.map { normalizedAddress($0.id) })
+        return ordered(hid + bluetooth.filter { !known.contains(normalizedAddress($0.id)) })
+    }
+
+    /// The connected devices in `system_profiler SPBluetoothDataType -json` output that report a
+    /// level. Devices in the not-connected section carry stale cached readings, so only
+    /// `device_connected` is read.
+    static func bluetoothDevices(fromProfilerJSON data: Data) -> [DeviceBattery] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let sections = root["SPBluetoothDataType"] as? [[String: Any]]
+        else { return [] }
+        var found: [DeviceBattery] = []
+        var seen: Set<String> = []
+        for section in sections {
+            for entry in section["device_connected"] as? [[String: Any]] ?? [] {
+                for (name, value) in entry {
+                    guard
+                        let details = value as? [String: Any],
+                        let percent = percent(fromDetails: details)
+                    else { continue }
+                    let identifier =
+                        (details["device_address"] as? String).map(normalizedAddress) ?? name
+                    guard !identifier.isEmpty, seen.insert(identifier).inserted else { continue }
+                    // bluetoothd reports no charging state, and the bolt is the claim that needs
+                    // evidence — a device from this scan never gets one.
+                    found.append(
+                        DeviceBattery(
+                            id: identifier, productName: name,
+                            kind: kind(
+                                forMinorType: details["device_minorType"] as? String ?? "",
+                                productName: name),
+                            percent: clampedPercent(percent),
+                            isCharging: false))
+                }
+            }
+        }
+        return found
+    }
+
+    /// Most devices report one main level; earbuds report left and right (and their case, which is
+    /// not the connected device, so it is ignored). The lowest bud is the reading — the card
+    /// headlines what needs charging soonest.
+    private static func percent(fromDetails details: [String: Any]) -> Int? {
+        if let main = percent(fromLevel: details["device_batteryLevelMain"]) { return main }
+        return [details["device_batteryLevelLeft"], details["device_batteryLevelRight"]]
+            .compactMap { percent(fromLevel: $0) }
+            .min()
+    }
+
+    /// A level reads "100%"; the leading digits are the number.
+    private static func percent(fromLevel value: Any?) -> Int? {
+        if let number = value as? Int { return number }
+        guard let label = (value as? String)?.trimmingCharacters(in: .whitespaces) else {
+            return nil
+        }
+        return Int(label.prefix(while: \.isWholeNumber))
+    }
 
     static func accessibilityLabel(for devices: [DeviceBattery]) -> String {
         guard !devices.isEmpty else { return "No device batteries" }

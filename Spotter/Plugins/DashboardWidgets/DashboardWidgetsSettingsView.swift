@@ -187,8 +187,8 @@ struct DashboardWidgetsSettingsView: View {
                     title: "No Devices",
                     subtitle:
                         "Nothing connected reports a battery level, so the card stays hidden. "
-                        + "Built-in keyboards and trackpads have none, and AirPods report theirs "
-                        + "somewhere Spotter doesn't read.",
+                        + "Built-in keyboards and trackpads have none, and Bluetooth devices "
+                        + "report theirs only while connected.",
                     systemImage: "questionmark.circle", tint: .secondary
                 ) {
                     EmptyView()

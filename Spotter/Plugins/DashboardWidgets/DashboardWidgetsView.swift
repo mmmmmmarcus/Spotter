@@ -141,22 +141,21 @@ struct DashboardWidgetsView: View {
         let snapshot = music.snapshot
         return ZStack {
             musicArtwork
-            // Without a cover there is nothing to show at rest, so the card falls back to its own
-            // mark rather than sitting there as a blank square.
+            // Without a cover there is nothing to show at rest: a coverless track is named and
+            // nothing else, and with no track at all the card's own mark stands alone — the
+            // resting words live in Settings and the accessibility label.
             if music.artwork == nil, !isHoveringMusic {
-                VStack(spacing: Theme.Spacing.sm) {
-                    Image(systemName: snapshot.isPlaying ? "music.note" : "music.note.list")
-                        .font(.title2)
+                if let title = snapshot.track?.title {
+                    Text(title)
+                        .font(.caption2)
                         .foregroundStyle(Theme.Colors.textSecondary)
-                    Text(
-                        snapshot.track?.title
-                            ?? DashboardMusicEngine.restingLine(isRunning: snapshot.isRunning)
-                    )
-                    .font(.caption2)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, Theme.Spacing.md)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Theme.Spacing.md)
+                } else {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 34))
+                        .foregroundStyle(Theme.Colors.textSecondary)
                 }
             }
             if isHoveringMusic {

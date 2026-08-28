@@ -200,7 +200,7 @@ swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.
     Spotter/Plugins/DashboardWidgets/DashboardDeviceBatteryEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardFileInfoEngine.swift \
     Tools/dashboard-widgets-test.swift \
-    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # arrangement, clock hands, weather codes, music parsing, battery lines, Finder selection
+    -o /tmp/dashboard-widgets-test && /tmp/dashboard-widgets-test # arrangement, clock hands, weather codes, music parsing, battery scans + merge, Finder selection
 swiftc -swift-version 6 Spotter/Plugins/Uptime/UptimeEngine.swift Tools/uptime-test.swift \
     -o /tmp/uptime-test && /tmp/uptime-test                       # session rollover + input tallies
 swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
