@@ -221,8 +221,8 @@ running dot and the availability of the quit actions:
   because About/Settings temporarily flips it to `.regular`), the list resolves **once**, the
   in-palette confirmation card asks, and exactly what was confirmed terminates.
 - **Uninstall with Mole** — appended to an application row's ⌘K menu when the Mole plugin is enabled
-  and the CLI installed (never for Spotter itself). It funnels through the confirmed `MoleAction`
-  path, returns to the launcher and reports through a background-task row ([mole.md](mole.md)).
+  and the CLI installed (never for Spotter itself). It confirms in-palette, then resolves the exact
+  copy and uninstalls entirely as a background-task row ([mole.md](mole.md)).
 
 Both quits are graceful `NSRunningApplication.terminate()`, so an app with unsaved work still puts up
 its own save sheet.

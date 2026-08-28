@@ -55,7 +55,12 @@ system Bash 3.2. Spotter obtains that read-only app inventory with Homebrew remo
 `PATH`, then independently reads `brew info --json=v2 --installed --cask` locally. A Homebrew cask is
 reveal-only because asking Mole to remove it as a normal app would leave Homebrew's installed receipt
 inconsistent. Copies that Mole cannot uniquely address by display name or bundle filename are also
-reveal-only, so selecting one can never delete a different copy.
+reveal-only, so selecting one can never delete a different copy. The Mole scan and the Homebrew read
+run concurrently, and the merged inventory is kept for the whole session: reopening Uninstall shows
+the last list immediately while a fresh scan replaces it in the background, a failed or empty refresh
+keeps the stale list on screen instead of an error row, and a successful uninstall drops its row from
+the kept list so the app cannot resurface in the stale flash. The cache is in-memory only — the first
+open after launch still waits for a full scan.
 
 Clean is an intrinsically broad disk scan in Mole. Spotter keeps it from multiplying that cost:
 cancelling, closing or refreshing interrupts the old subprocess; reopening the same completed screen
@@ -106,10 +111,13 @@ filter before returning to the hub.
 ## Launcher hand-off
 
 An app row's ⌘K menu in the launcher offers **Uninstall with Mole** (apps only, never Spotter
-itself, only while Mole is installed and the plugin enabled). It opens the Mole inventory filtered
-to that app, rather than passing an unverified display name directly; selecting the resolved row then
-uses the same `runMoleAction` confirmation and returns to the launcher with an Uninstalling
-background-task row.
+itself, only while Mole is installed and the plugin enabled). It confirms in-palette immediately,
+then does everything as one background task: the inventory read runs first, the app is resolved
+against it **by exact path** (`MoleParser.uninstallTarget`), and only a uniquely addressable,
+non-cask match starts the uninstall run. A missing, ambiguous or Homebrew-owned copy fails the task
+with the reason instead of deleting anything — an unverified display name is never passed to Mole.
+The palette never leaves the launcher and never waits on the inventory; the uninstall screen remains
+available separately via the Mole Uninstall App command.
 
 ## Parsing
 

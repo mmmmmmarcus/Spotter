@@ -150,6 +150,8 @@ enum MoleResults {
         case .apps(let apps):
             return PluginPaletteSnapshot(
                 sectionTitle: section, items: filtered(appItems(apps), query: query),
+                isLoading: manager.isLoadingPreview,
+                loadingMessage: loadingMessage(manager: manager),
                 emptyMessage: "No matching app")
         case .analysis(let analysis):
             return PluginPaletteSnapshot(
@@ -561,20 +563,63 @@ extension AppCore {
             })
     }
 
-    /// The one funnel every state-changing Mole run passes through, so no path skips the confirmation.
     /// Whether an app row can offer the Mole hand-off: real apps only, never Spotter itself.
     func canUninstallWithMole(_ app: AppEntry) -> Bool {
         plugins.isEnabled(.mole) && mole.isInstalled && app.kind == .application
             && app.bundleID != Bundle.main.bundleIdentifier
     }
 
-    /// Launcher app rows open the filtered inventory so the exact copy is resolved before deletion.
+    /// Launcher app rows confirm immediately, then resolve the exact copy and uninstall as one
+    /// background task — the palette never leaves the launcher and nothing waits on the inventory.
     func uninstallWithMole(_ app: AppEntry) {
-        guard canUninstallWithMole(app) else { return }
-        openMole(.uninstall)
-        palette.query = app.name
+        guard canUninstallWithMole(app), !mole.isRunning else { return }
+        let appPath = app.url.path
+        let name = app.name
+        confirmInPalette(
+            PaletteConfirmation(
+                title: "Uninstall “\(name)”?",
+                message:
+                    "\(name) and its support files will be moved to the Trash. Mole verifies the exact installed copy first and runs in the background.",
+                actionTitle: "Uninstall"
+            ) { [weak self] in
+                guard let self, !self.mole.isRunning else { return }
+                let taskID = self.backgroundTasks.begin(
+                    title: "Uninstalling \(name)",
+                    detail: "Checking the installed copy with Mole…",
+                    systemImage: "trash")
+                self.palette.prepare(mode: .launcher)
+                self.showPalette(mode: .launcher)
+                Task { [weak self] in
+                    guard let self else { return }
+                    switch await self.mole.loadUninstallInventory() {
+                    case .failure(let error):
+                        self.backgroundTasks.fail(id: taskID, detail: error.message)
+                    case .success(let apps):
+                        switch MoleParser.uninstallTarget(in: apps, appPath: appPath) {
+                        case .missing:
+                            self.backgroundTasks.fail(
+                                id: taskID,
+                                detail:
+                                    "Mole couldn't find this copy of \(name) in its app inventory.")
+                        case .blocked(let issue):
+                            self.backgroundTasks.fail(id: taskID, detail: issue)
+                        case .found(let target):
+                            if !self.mole.run(
+                                .uninstall(name: target.uninstallName, permanent: false),
+                                taskID: taskID)
+                            {
+                                self.backgroundTasks.fail(
+                                    id: taskID,
+                                    detail: "Mole is already running another task.")
+                            }
+                        }
+                    }
+                }
+            })
     }
 
+    /// The one funnel every state-changing Mole *screen* run passes through, so no palette-screen
+    /// path skips the confirmation; the launcher hand-off above carries its own confirmation.
     func runMoleAction(_ action: MoleAction) {
         guard plugins.isEnabled(.mole), !mole.isRunning else { return }
         confirmInPalette(

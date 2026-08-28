@@ -44,6 +44,8 @@ final class MoleManager: ObservableObject {
     private var loadGeneration = 0
     private var screenVisible = false
     private var lastSuccessfulLoad: (screen: MoleScreen, date: Date)?
+    /// Session-long uninstall inventory, shown instantly on reopen while a fresh scan replaces it.
+    private var appsCache: [MoleApp]?
     private static let previewReuseInterval: TimeInterval = 30
     private static let overrideKey = "mole.binary-path"
     /// Homebrew on Apple silicon, Homebrew on Intel, then a manual install.
@@ -149,6 +151,30 @@ final class MoleManager: ObservableObject {
             state = .idle
             return
         }
+        if screen == .uninstall {
+            // Stale-while-revalidate: the cached inventory shows instantly while the fresh scan runs.
+            state = appsCache.map { .apps($0) } ?? .loading
+            isLoadingPreview = true
+            loadTask = Task { [weak self] in
+                guard let self else { return }
+                let inventory = await self.loadUninstallInventory()
+                guard !Task.isCancelled, self.screen == .uninstall,
+                    self.loadGeneration == generation
+                else { return }
+                self.loadTask = nil
+                self.isLoadingPreview = false
+                switch inventory {
+                case .success(let apps):
+                    self.state = .apps(apps)
+                    self.markSuccessfulLoad(for: .uninstall)
+                case .failure(let error):
+                    // A failed refresh keeps the stale inventory rather than an error row.
+                    if case .apps = self.state {} else { self.state = .failed(error.message) }
+                    AppLog.error("mole", "Loading uninstall failed: \(error.message)")
+                }
+            }
+            return
+        }
         state = .loading
         isLoadingPreview = true
         let onOutput: (@Sendable (Data) -> Void)?
@@ -160,28 +186,44 @@ final class MoleManager: ObservableObject {
             onOutput = nil
         }
         loadTask = Task { [weak self] in
-            let environment = screen == .uninstall
-                ? Self.uninstallInventoryEnvironment : ["MO_NO_OPLOG": "1"]
             let result = await MoleProcessRunner.capture(
-                path: path, arguments: arguments, environment: environment,
+                path: path, arguments: arguments, environment: ["MO_NO_OPLOG": "1"],
                 onOutput: onOutput)
             guard !Task.isCancelled else { return }
-            guard screen == .uninstall, case .success = result else {
-                self?.apply(result, for: screen)
-                return
+            self?.apply(result, for: screen)
+        }
+    }
+
+    /// One inventory read shared by the uninstall screen and the launcher hand-off: Mole's list and
+    /// the slower Homebrew ownership read run concurrently, and a success refreshes the session cache.
+    func loadUninstallInventory() async -> Result<[MoleApp], MoleRunError> {
+        guard let path = binaryPath else {
+            return .failure(
+                MoleRunError(
+                    message:
+                        "Mole isn't installed. Get it at mole.fit, or set its path in Settings."))
+        }
+        async let casks = Self.loadHomebrewCasks()
+        let listing = await MoleProcessRunner.capture(
+            path: path, arguments: ["uninstall", "--list"],
+            environment: Self.uninstallInventoryEnvironment)
+        let data: Data
+        switch listing {
+        case .failure(let error): return .failure(error)
+        case .success(let value): data = value
+        }
+        switch await casks {
+        case .failure(let error):
+            return .failure(
+                MoleRunError(message: "Homebrew ownership check failed: \(error.message)"))
+        case .success(let catalog):
+            let apps = MoleParser.parseApps(data, homebrewCasks: catalog)
+            guard !apps.isEmpty else {
+                // Mole 1.50 can truncate this JSON under the system Bash.
+                return .failure(MoleRunError(message: "Mole didn't return an app list."))
             }
-            let casks = await Self.loadHomebrewCasks()
-            guard !Task.isCancelled else { return }
-            switch casks {
-            case .success(let catalog):
-                self?.apply(result, for: screen, homebrewCasks: catalog)
-            case .failure(let error):
-                self?.apply(
-                    .failure(
-                        MoleRunError(
-                            message: "Homebrew ownership check failed: \(error.message)")),
-                    for: screen)
-            }
+            appsCache = apps
+            return .success(apps)
         }
     }
 
@@ -270,6 +312,10 @@ final class MoleManager: ObservableObject {
             lastRunSummary =
                 report.summary.isEmpty ? ["\(action.title) finished."] : report.summary
         }
+        // The removed app must not resurface in the stale inventory the next reopen shows first.
+        if case .uninstall(let name, _) = action, succeeded {
+            appsCache?.removeAll { $0.uninstallName == name }
+        }
         // A hidden palette should not launch another expensive preview after the real run.
         if screen == action.screen {
             if screenVisible { reload() } else { state = .idle }
@@ -333,10 +379,7 @@ final class MoleManager: ObservableObject {
             .first { !$0.isEmpty }
     }
 
-    private func apply(
-        _ result: Result<Data, MoleRunError>, for screen: MoleScreen,
-        homebrewCasks: [String: String] = [:]
-    ) {
+    private func apply(_ result: Result<Data, MoleRunError>, for screen: MoleScreen) {
         // A screen switch mid-flight must not have its result overwritten by the older request.
         guard screen == self.screen else { return }
         loadTask = nil
@@ -362,9 +405,7 @@ final class MoleManager: ObservableObject {
             case .purge:
                 state = .purge(MoleParser.parsePurge(String(decoding: data, as: UTF8.self)))
             case .uninstall:
-                let apps = MoleParser.parseApps(data, homebrewCasks: homebrewCasks)
-                state = apps.isEmpty
-                    ? .failed("Mole didn't return an app list.") : .apps(apps)
+                break  // populated by the dedicated inventory branch in `reload`
             case .analyze:
                 guard let analysis = MoleParser.parseAnalysis(data) else {
                     state = .failed("Mole couldn't analyze \(analyzePath).")

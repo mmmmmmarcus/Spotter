@@ -323,8 +323,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   with an AX mover.
 - **Mole** (`Spotter/Plugins/Mole/`) — enabled by default (idle until the CLI is installed); a
   launcher front end for the Mole CLI with no Terminal hand-off — the installer screen is Spotter's
-  own scan and native Trash. Launcher app rows offer **Uninstall with Mole** by opening the filtered
-  inventory first, so Spotter resolves the exact copy before entering the confirmed funnel.
+  own scan and native Trash. Launcher app rows offer **Uninstall with Mole**, which confirms first
+  and then resolves the exact copy by path and uninstalls as one background task.
   Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
   off a menu hub; state-changing runs preview first, go through one confirmed funnel, then return to
   the launcher as persistent background-task rows. Nothing hands off to Terminal.

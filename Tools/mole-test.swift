@@ -304,6 +304,35 @@ struct MoleTests {
         check("Homebrew casks are blocked from incomplete Mole removal", caskApps.first?.canUninstall == false)
         check("malformed Homebrew data is rejected", MoleParser.parseHomebrewCasks(Data("nope".utf8)) == nil)
 
+        // Launcher hand-off resolution — the background uninstall targets the exact copy by path.
+        let inventory = duplicateApps + caskApps
+        check(
+            "the hand-off resolves a unique copy by its exact path",
+            MoleParser.uninstallTarget(in: inventory, appPath: "/Applications/Xcode-beta.app")
+                == .found(duplicateApps[3]))
+        check(
+            "a trailing slash still matches the same copy",
+            MoleParser.uninstallTarget(in: inventory, appPath: "/Applications/Xcode-beta.app/")
+                == .found(duplicateApps[3]))
+        check(
+            "an app Mole never listed is missing, not deleted by name",
+            MoleParser.uninstallTarget(in: inventory, appPath: "/Applications/Ghost.app")
+                == .missing)
+        if case .blocked = MoleParser.uninstallTarget(
+            in: inventory, appPath: "/Applications/Docker.app")
+        {
+            check("a Homebrew cask hand-off is blocked, never run", true)
+        } else {
+            check("a Homebrew cask hand-off is blocked, never run", false)
+        }
+        if case .blocked = MoleParser.uninstallTarget(
+            in: inventory, appPath: "/Applications/Antinote.app")
+        {
+            check("an ambiguous copy hand-off is blocked, never run", true)
+        } else {
+            check("an ambiguous copy hand-off is blocked, never run", false)
+        }
+
         // Disk analysis parsing
         let analysisJSON = """
         {"path": "/Users/me/Documents", "overview": false, "entries": [

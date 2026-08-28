@@ -280,6 +280,14 @@ struct MoleApp: Equatable, Sendable {
     var canUninstall: Bool { uninstallIssue == nil }
 }
 
+/// How the launcher hand-off resolved an app against the inventory. Pure so the harness pins the
+/// exact-copy rule the background uninstall depends on.
+enum MoleUninstallResolution: Equatable, Sendable {
+    case found(MoleApp)
+    case blocked(String)
+    case missing
+}
+
 /// One installer file found by Spotter's own scan of Mole's installer paths.
 struct MoleInstallerEntry: Equatable, Sendable {
     let name: String
@@ -576,6 +584,17 @@ enum MoleParser {
             }
         }
         return result
+    }
+
+    /// The launcher hand-off targets the exact installed copy by path, never by display name, so a
+    /// same-named second copy can never be the one that gets deleted.
+    static func uninstallTarget(in apps: [MoleApp], appPath: String) -> MoleUninstallResolution {
+        let key = normalizedPath(appPath)
+        guard let app = apps.first(where: { normalizedPath($0.path) == key }) else {
+            return .missing
+        }
+        if let issue = app.uninstallIssue { return .blocked(issue) }
+        return .found(app)
     }
 
     private static func normalizedName(_ value: String) -> String {
