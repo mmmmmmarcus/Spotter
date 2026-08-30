@@ -45,6 +45,9 @@ struct PluginPaletteScreenRegistration {
     var livePlaceholder: (() -> String?)?
     /// Set by a screen whose rows represent instants (World Clock): ←/→ scrub by ±1 hour while the query is empty.
     var adjustHours: ((Int) -> Void)?
+    /// Consumes one Esc / back-chevron press for a multi-level screen (1Password's item view):
+    /// return true after stepping back a level; false lets the palette exit to the launcher.
+    var handleBack: (() -> Bool)?
     let snapshot: (_ query: String) -> PluginPaletteSnapshot
     let performPrimaryAction: (_ itemID: String) -> Void
     /// Optional ⌘↵ action, for a screen whose rows have one obvious secondary (File Search reveals in Finder). Screens without one leave ⌘↵ inert rather than aliasing it onto the primary.
@@ -264,6 +267,14 @@ final class PluginRegistry: ObservableObject {
         else { return false }
         perform(itemID)
         return true
+    }
+
+    /// One back-step for the active plugin screen; false when the screen has no deeper level open.
+    func performPaletteBack(pluginID: PluginID) -> Bool {
+        guard isEnabled(pluginID),
+            let handleBack = registrations[pluginID]?.paletteScreen?.handleBack
+        else { return false }
+        return handleBack()
     }
 
     func paletteActions(pluginID: PluginID, itemID: String) -> PopoverMenuContent? {

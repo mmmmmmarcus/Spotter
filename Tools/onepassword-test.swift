@@ -66,14 +66,19 @@ struct OnePasswordTests {
             !OnePasswordItemAction.available(forCategory: "PASSWORD").contains(.copyUsername)
                 && !OnePasswordItemAction.available(forCategory: "PASSWORD").contains(.pasteUsername))
         check(
-            "a secure note only opens in 1Password",
-            OnePasswordItemAction.available(forCategory: "SECURE_NOTE") == [.openInApp])
+            "a secure note views or opens, nothing else",
+            OnePasswordItemAction.available(forCategory: "SECURE_NOTE") == [.view, .openInApp])
         check(
             "the preferred primary applies when available",
             OnePasswordItemAction.primary(preferred: .copyPassword, category: "LOGIN") == .copyPassword)
         check(
-            "an unavailable preference falls back to open",
-            OnePasswordItemAction.primary(preferred: .copyUsername, category: "PASSWORD") == .openInApp)
+            "an unavailable preference falls back to the item view",
+            OnePasswordItemAction.primary(preferred: .copyUsername, category: "PASSWORD") == .view)
+        check(
+            "every category can view",
+            ["LOGIN", "PASSWORD", "SECURE_NOTE", "CREDIT_CARD"].allSatisfy {
+                OnePasswordItemAction.available(forCategory: $0).contains(.view)
+            })
         check(
             "paste actions know they paste",
             OnePasswordItemAction.pastePassword.isPaste && !OnePasswordItemAction.copyPassword.isPaste)
@@ -112,6 +117,43 @@ struct OnePasswordTests {
             "deep links survive a missing account",
             OnePasswordCLI.viewItemURL(accountID: nil, vaultID: "v1", itemID: "i1")
                 == "onepassword://view-item/?v=v1&i=i1")
+
+        // Item view — the `op item get --format=json` shape, secrets masked by the render layer.
+        let detailJSON = Data(
+            """
+            {"id": "a", "title": "Apple", "category": "LOGIN", "vault": {"id": "v1", "name": "Private"},
+             "additional_information": "maki@example.com",
+             "urls": [{"href": "https://apple.com", "primary": true}, {"href": "https://icloud.com"}],
+             "fields": [
+               {"id": "username", "type": "STRING", "purpose": "USERNAME", "label": "username", "value": "maki@example.com", "reference": "op://x"},
+               {"id": "password", "type": "CONCEALED", "purpose": "PASSWORD", "label": "password", "value": "s3cret!", "reference": "op://y"},
+               {"id": "notesPlain", "type": "STRING", "purpose": "NOTES", "label": "notesPlain", "reference": "op://z"},
+               {"id": "onetimepassword", "type": "OTP", "label": "one-time password", "value": "otpauth://totp/x", "totp": "123456"},
+               {"id": "custom", "type": "STRING", "label": "License", "value": "ABC", "section": {"id": "s1", "label": "Extras"}}
+             ]}
+            """.utf8)
+        let detail = OnePasswordParser.parseItemDetail(detailJSON)
+        check("the item view parses", detail != nil)
+        check("the summary rides along", detail?.item.title == "Apple" && detail?.item.vaultID == "v1")
+        check("empty-value fields drop out", detail?.fields.count == 4)
+        check("field order follows op", detail?.fields.map(\.id) == ["username", "password", "onetimepassword", "custom"])
+        check("an OTP field carries its current code", detail?.fields[2].value == "123456")
+        check("OTP and concealed fields render masked", detail?.fields[1].isConcealed == true && detail?.fields[2].isConcealed == true)
+        check("plain fields render open", detail?.fields[0].isConcealed == false)
+        check("section labels survive", detail?.fields[3].sectionLabel == "Extras")
+        check("all websites list, primary first as given", detail?.websites == ["https://apple.com", "https://icloud.com"])
+        check("username fields get the person symbol", detail?.fields[0].symbol == "person")
+        check("detail garbage parses to nil", OnePasswordParser.parseItemDetail(Data("no".utf8)) == nil)
+        let bareOTP = OnePasswordParser.parseItemDetail(Data(
+            #"{"id":"b","title":"T","category":"LOGIN","vault":{"id":"v"},"fields":[{"id":"onetimepassword","type":"OTP","label":"one-time password"}]}"#.utf8))
+        check(
+            "an OTP field with nothing held keeps its row — copy re-fetches",
+            bareOTP?.fields.count == 1 && bareOTP?.fields[0].isOneTimePassword == true
+                && bareOTP?.fields[0].value == "")
+        check(
+            "the item view fetch scopes to the vault",
+            OnePasswordCLI.itemDetailArguments(itemID: "i1", vaultID: "v1")
+                == ["item", "get", "i1", "--vault", "v1", "--format=json"])
 
         // Account and generated-password payloads.
         check(

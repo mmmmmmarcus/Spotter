@@ -655,7 +655,11 @@ struct RootPaletteView: View {
                 return .handled
             }
             // Esc backs out one layer, matching Raycast: sub-screen → launcher, typed query →
-            // cleared; only Esc at the empty launcher root dismisses the palette.
+            // cleared; only Esc at the empty launcher root dismisses the palette. A multi-level
+            // plugin screen consumes the step first (1Password's item view → its list).
+            if case .plugin(let id) = vm.mode, plugins.performPaletteBack(pluginID: id) {
+                return .handled
+            }
             if vm.mode != .launcher {
                 exitToLauncher()
                 return .handled
@@ -759,7 +763,7 @@ struct RootPaletteView: View {
                 .focusable(false)
                 .help("Switch surface (⇥)")
             } else {
-                Button(action: exitToLauncher) {
+                Button(action: backOneLevel) {
                     Image(systemName: "chevron.left")
                         .font(Theme.Typography.headerIcon)
                         .symbolRenderingMode(.hierarchical)
@@ -1319,6 +1323,12 @@ struct RootPaletteView: View {
     /// Back out to a fresh root search — `prepare` is the same reset used when the palette is shown (clears query/selection, bumps focusToken to refocus the field).
     private func exitToLauncher() {
         vm.prepare(mode: .launcher)
+    }
+
+    /// The header chevron steps a multi-level plugin screen back one level before leaving it.
+    private func backOneLevel() {
+        if case .plugin(let id) = vm.mode, plugins.performPaletteBack(pluginID: id) { return }
+        exitToLauncher()
     }
 
     private func activateSelection() {

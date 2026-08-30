@@ -14,8 +14,20 @@ final class OnePasswordManager: ObservableObject {
         case failed(String)
     }
 
+    /// The in-palette item view. `loaded` holds field values — including secrets — in memory only;
+    /// leaving the view or disabling the plugin drops them.
+    enum DetailState: Equatable {
+        case none
+        case loading(OnePasswordItem)
+        case loaded(OnePasswordItemDetail)
+        case failed(OnePasswordItem, String)
+    }
+
     @Published private(set) var state: LoadState = .idle
     @Published private(set) var isRefreshing = false
+    @Published private(set) var detailState: DetailState = .none
+    /// Concealed fields the user explicitly revealed in the current view; cleared with the detail.
+    @Published private(set) var revealedFieldIDs: Set<String> = []
     /// Where `op` was found, or nil when it isn't installed — Settings and the palette both read this.
     @Published private(set) var binaryPath: String?
     /// The account uuid for `onepassword://` deep links; resolved lazily after the first item load.
@@ -25,6 +37,7 @@ final class OnePasswordManager: ObservableObject {
     private var itemsCache: [OnePasswordItem]?
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = 0
+    private var detailTask: Task<Void, Never>?
     private var clipboardClearTask: Task<Void, Never>?
 
     private static let overrideKey = "one-password.cli-path"
@@ -140,6 +153,58 @@ final class OnePasswordManager: ObservableObject {
         itemsCache = nil
         accountID = nil
         state = .idle
+        closeDetail()
+    }
+
+    // MARK: - Item view
+
+    /// Opening the view is the explicit act that fetches the item's fields; like the list read, the
+    /// fetch survives the palette hiding for an authorization prompt.
+    func openDetail(_ item: OnePasswordItem) {
+        if case .loading(let loading) = detailState, loading.id == item.id { return }
+        detailTask?.cancel()
+        revealedFieldIDs = []
+        guard let path = binaryPath else {
+            detailState = .failed(item, "The 1Password CLI isn't installed.")
+            return
+        }
+        detailState = .loading(item)
+        detailTask = Task { [weak self] in
+            let result = await OnePasswordProcessRunner.capture(
+                path: path,
+                arguments: OnePasswordCLI.itemDetailArguments(itemID: item.id, vaultID: item.vaultID))
+            guard !Task.isCancelled, let self,
+                case .loading(let current) = self.detailState, current.id == item.id
+            else { return }
+            self.detailTask = nil
+            switch result {
+            case .success(let data):
+                guard let detail = OnePasswordParser.parseItemDetail(data) else {
+                    self.detailState = .failed(item, "1Password returned an unreadable item.")
+                    return
+                }
+                self.detailState = .loaded(detail)
+            case .failure(let error):
+                self.detailState = .failed(item, error.message)
+                AppLog.error("1password", "Opening \(item.id) failed: \(error.message)")
+            }
+        }
+    }
+
+    /// Back to the list; the held field values are dropped with the state.
+    func closeDetail() {
+        detailTask?.cancel()
+        detailTask = nil
+        detailState = .none
+        revealedFieldIDs = []
+    }
+
+    func toggleRevealed(_ fieldID: String) {
+        if revealedFieldIDs.contains(fieldID) {
+            revealedFieldIDs.remove(fieldID)
+        } else {
+            revealedFieldIDs.insert(fieldID)
+        }
     }
 
     private func fetchAccountID(path: String) async {

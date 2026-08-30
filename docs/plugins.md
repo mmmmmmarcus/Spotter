@@ -331,10 +331,12 @@ shell-command feature; do not use shell commands as an internal plugin API.
   off a menu hub; state-changing runs preview first, go through one confirmed funnel, then return to
   the launcher as persistent background-task rows. Nothing hands off to Terminal.
 - **1Password** (`Spotter/Plugins/OnePassword/`) — enabled by default (idle until the `op` CLI is
-  installed); a palette screen listing 1Password items with open, copy and paste actions, plus a
-  hidden Generate Password command. Metadata comes from `op item list`; a secret is fetched only at
-  action time, copied concealed so no clipboard manager records it, and cleared after 90 seconds
-  unless replaced. 1Password 8's own authorization prompt is the gate; nothing is persisted.
+  installed); a palette screen listing 1Password items whose ↵ opens an in-palette item view —
+  fields masked until revealed, copied or pasted concealed — with open-in-app/browser actions and a
+  hidden Generate Password command. Metadata comes from `op item list`; secrets are fetched only on
+  an explicit action, held in memory only while a view is open, copied concealed so no clipboard
+  manager records them, and cleared after 90 seconds unless replaced. 1Password 8's own
+  authorization prompt is the gate; nothing is persisted.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.

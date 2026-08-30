@@ -12,8 +12,50 @@ struct OnePasswordItem: Equatable, Sendable, Identifiable {
     let websiteURL: String?
 }
 
+/// One field of an opened item, as returned by `op item get`. `value` may be a secret — it lives
+/// only in the manager's in-memory detail and is dropped when the view closes.
+struct OnePasswordFieldItem: Equatable, Sendable, Identifiable {
+    let id: String
+    let label: String
+    let type: String
+    let purpose: String?
+    let value: String
+    let sectionLabel: String?
+
+    /// Rendered masked until explicitly revealed; copies stay concealed either way.
+    var isConcealed: Bool { type == "CONCEALED" || type == "OTP" }
+    var isOneTimePassword: Bool { type == "OTP" }
+    var isNotes: Bool { purpose == "NOTES" }
+
+    var symbol: String {
+        switch purpose {
+        case "USERNAME": return "person"
+        case "PASSWORD": return "key"
+        case "NOTES": return "note.text"
+        default: break
+        }
+        switch type {
+        case "OTP": return "timer"
+        case "URL": return "link"
+        case "EMAIL": return "envelope"
+        case "PHONE": return "phone"
+        case "DATE", "MONTH_YEAR": return "calendar"
+        case "CONCEALED": return "asterisk"
+        default: return "textformat"
+        }
+    }
+}
+
+/// Everything the in-palette item view renders for one opened item.
+struct OnePasswordItemDetail: Equatable, Sendable {
+    let item: OnePasswordItem
+    let fields: [OnePasswordFieldItem]
+    let websites: [String]
+}
+
 /// The per-item actions Spotter offers, mirroring the 1Password 8 action set.
 enum OnePasswordItemAction: String, CaseIterable, Sendable {
+    case view = "view-item"
     case openInApp = "open-in-1password"
     case openInBrowser = "open-in-browser"
     case copyUsername = "copy-username"
@@ -25,6 +67,7 @@ enum OnePasswordItemAction: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
+        case .view: "View Item"
         case .openInApp: "Open in 1Password"
         case .openInBrowser: "Open in Browser"
         case .copyUsername: "Copy Username"
@@ -38,6 +81,7 @@ enum OnePasswordItemAction: String, CaseIterable, Sendable {
 
     var systemImage: String {
         switch self {
+        case .view: "eye"
         case .openInApp: "arrow.up.forward.app"
         case .openInBrowser: "safari"
         case .copyUsername, .copyPassword, .copyOneTimePassword: "doc.on.doc"
@@ -58,7 +102,7 @@ enum OnePasswordItemAction: String, CaseIterable, Sendable {
         case .copyUsername, .pasteUsername: "username"
         case .copyPassword, .pastePassword: "password"
         case .copyOneTimePassword, .pasteOneTimePassword: nil
-        case .openInApp, .openInBrowser: nil
+        case .view, .openInApp, .openInBrowser: nil
         }
     }
 
@@ -66,7 +110,8 @@ enum OnePasswordItemAction: String, CaseIterable, Sendable {
         self == .copyOneTimePassword || self == .pasteOneTimePassword
     }
 
-    /// What each category can do: logins everything, passwords everything but username, the rest open-only.
+    /// What each category can do: every category views and opens, logins add everything, passwords
+    /// everything but username.
     static func available(forCategory category: String) -> [OnePasswordItemAction] {
         switch category {
         case "LOGIN":
@@ -74,14 +119,14 @@ enum OnePasswordItemAction: String, CaseIterable, Sendable {
         case "PASSWORD":
             return allCases.filter { $0 != .copyUsername && $0 != .pasteUsername }
         default:
-            return [.openInApp]
+            return [.view, .openInApp]
         }
     }
 
-    /// The ↵ action for an item: the user's preferred action when the category supports it, else Open in 1Password.
+    /// The ↵ action for an item: the user's preferred action when the category supports it, else View Item.
     static func primary(preferred: OnePasswordItemAction, category: String) -> OnePasswordItemAction {
         let available = available(forCategory: category)
-        return available.contains(preferred) ? preferred : .openInApp
+        return available.contains(preferred) ? preferred : .view
     }
 }
 
@@ -150,6 +195,11 @@ enum OnePasswordCLI {
         ["item", "get", itemID, "--vault", vaultID, "--otp"]
     }
 
+    /// The full item for the in-palette view; the JSON includes concealed field values.
+    static func itemDetailArguments(itemID: String, vaultID: String) -> [String] {
+        ["item", "get", itemID, "--vault", vaultID, "--format=json"]
+    }
+
     /// `op` has no standalone generator; a dry-run item create returns a password without saving anything.
     static func generatePasswordArguments(length: Int, digits: Bool, symbols: Bool) -> [String] {
         var recipe = ["letters"]
@@ -197,6 +247,24 @@ enum OnePasswordParser {
         let id: String
     }
 
+    private struct RawDetailField: Decodable {
+        struct RawSection: Decodable {
+            let id: String?
+            let label: String?
+        }
+        let id: String
+        let type: String?
+        let purpose: String?
+        let label: String?
+        let value: String?
+        let totp: String?
+        let section: RawSection?
+    }
+
+    private struct RawDetailItem: Decodable {
+        let fields: [RawDetailField]?
+    }
+
     private struct RawGeneratedItem: Decodable {
         struct RawField: Decodable {
             let id: String
@@ -232,6 +300,32 @@ enum OnePasswordParser {
 
     static func parseAccountID(_ data: Data) -> String? {
         (try? JSONDecoder().decode(RawAccount.self, from: data))?.id
+    }
+
+    /// The in-palette view for one item: its non-empty fields in `op`'s order (1Password's own),
+    /// plus its websites. The summary rides along re-parsed so the view is self-contained.
+    static func parseItemDetail(_ data: Data) -> OnePasswordItemDetail? {
+        guard let items = parseItems(Data("[".utf8) + data + Data("]".utf8)),
+            let item = items.first,
+            let raw = try? JSONDecoder().decode(RawDetailItem.self, from: data)
+        else { return nil }
+        let fields = (raw.fields ?? []).compactMap { field -> OnePasswordFieldItem? in
+            // An OTP field's current code arrives in `totp`; everything else in `value`. An OTP
+            // field keeps its row even with nothing held — the copy action re-fetches via `--otp`.
+            let isOTP = field.type == "OTP"
+            let value = (isOTP ? (field.totp ?? field.value) : field.value) ?? ""
+            guard isOTP || !value.isEmpty else { return nil }
+            return OnePasswordFieldItem(
+                id: field.id,
+                label: field.label ?? field.id,
+                type: field.type ?? "STRING",
+                purpose: field.purpose,
+                value: value,
+                sectionLabel: field.section?.label)
+        }
+        let websites = (try? JSONDecoder().decode(RawItem.self, from: data))
+            .map { ($0.urls ?? []).map(\.href) } ?? []
+        return OnePasswordItemDetail(item: item, fields: fields, websites: websites)
     }
 
     static func parseGeneratedPassword(_ data: Data) -> String? {

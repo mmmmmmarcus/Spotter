@@ -5,7 +5,7 @@ struct OnePasswordSettingsView: View {
     @ObservedObject private var manager = AppCore.shared.onePassword
     @State private var pathDraft = AppCore.shared.onePassword.binaryPathOverride
     @AppStorage(OnePasswordManager.primaryActionKey) private var primaryActionRaw =
-        OnePasswordItemAction.openInApp.rawValue
+        OnePasswordItemAction.view.rawValue
     @AppStorage(OnePasswordManager.clearClipboardKey) private var clearClipboard = true
     @AppStorage(OnePasswordManager.passwordLengthKey) private var passwordLength = 20
     @AppStorage(OnePasswordManager.passwordDigitsKey) private var passwordDigits = true
@@ -57,7 +57,7 @@ struct OnePasswordSettingsView: View {
             SettingsCard(header: "Behavior") {
                 SettingsRow(
                     title: "Primary Action",
-                    subtitle: "What ↵ does on a login item; other categories fall back to Open in 1Password.",
+                    subtitle: "What ↵ does on a login item; categories that can't fall back to View Item.",
                     systemImage: "return", tint: .blue
                 ) {
                     Picker("", selection: $primaryActionRaw) {

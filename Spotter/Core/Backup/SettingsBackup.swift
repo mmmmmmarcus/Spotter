@@ -376,7 +376,7 @@ extension SettingsBackup {
         prefs.onePassword = PluginPrefs.OnePassword(
             cliPath: core.onePassword.binaryPathOverride,
             primaryAction: d.string(forKey: OnePasswordManager.primaryActionKey)
-                ?? OnePasswordItemAction.openInApp.rawValue,
+                ?? OnePasswordItemAction.view.rawValue,
             clearClipboard: d.object(forKey: OnePasswordManager.clearClipboardKey) == nil
                 || d.bool(forKey: OnePasswordManager.clearClipboardKey),
             passwordLength: d.object(forKey: OnePasswordManager.passwordLengthKey) == nil

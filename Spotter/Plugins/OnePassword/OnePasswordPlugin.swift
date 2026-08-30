@@ -16,6 +16,19 @@ enum OnePasswordPlugin {
         let generate: () -> Void = { [weak core] in core?.runOnePasswordGeneratePassword() }
         let screen = PluginPaletteScreenRegistration(
             placeholder: "Search your 1Password items…",
+            livePlaceholder: { [weak core] in
+                guard let core else { return nil }
+                switch core.onePassword.detailState {
+                case .none: return nil
+                case .loading(let item), .failed(let item, _): return "Search \(item.title)…"
+                case .loaded(let detail): return "Search \(detail.item.title)…"
+                }
+            },
+            handleBack: { [weak core] in
+                guard let core, core.onePassword.detailState != .none else { return false }
+                core.onePassword.closeDetail()
+                return true
+            },
             snapshot: { [weak core] query in
                 guard let core else {
                     return PluginPaletteSnapshot(
@@ -90,6 +103,22 @@ enum OnePasswordResults {
                 sectionTitle: "1Password", items: [installRow()],
                 emptyMessage: "1Password CLI not found")
         }
+        switch manager.detailState {
+        case .none:
+            break
+        case .loading(let item):
+            return PluginPaletteSnapshot(
+                sectionTitle: item.title, items: [backRow()] + provisionalRows(item),
+                isLoading: true,
+                loadingMessage: "Loading all fields…", emptyMessage: "Opening item…")
+        case .failed(let item, let message):
+            return PluginPaletteSnapshot(
+                sectionTitle: item.title,
+                items: [backRow(), detailRetryRow(message: message)],
+                emptyMessage: "Couldn't open this item")
+        case .loaded(let detail):
+            return detailSnapshot(detail, manager: manager, query: query)
+        }
         switch manager.state {
         case .idle, .loading:
             return PluginPaletteSnapshot(
@@ -112,6 +141,114 @@ enum OnePasswordResults {
                 loadingMessage: "Refreshing items…",
                 emptyMessage: items.isEmpty ? "No items in 1Password" : "No matching item")
         }
+    }
+
+    // MARK: - Item view
+
+    private static func detailSnapshot(
+        _ detail: OnePasswordItemDetail, manager: OnePasswordManager, query: String
+    ) -> PluginPaletteSnapshot {
+        var rows = [backRow()]
+        rows += detail.fields.map { field in
+            let revealed = !field.isConcealed || manager.revealedFieldIDs.contains(field.id)
+            var subtitleParts: [String] = []
+            if let section = field.sectionLabel, !section.isEmpty { subtitleParts.append(section) }
+            subtitleParts.append(revealed ? field.value : String(repeating: "•", count: 10))
+            return PluginPaletteItem(
+                id: "field:" + field.id,
+                title: field.label,
+                subtitle: subtitleParts.joined(separator: " · "),
+                icon: .symbol(field.symbol),
+                subtitleLineLimit: field.isNotes ? 3 : 1,
+                primaryActionTitle: "Copy \(field.label)")
+        }
+        rows += detail.websites.enumerated().map { index, website in
+            PluginPaletteItem(
+                id: "url:\(index)",
+                title: URL(string: website)?.host ?? website,
+                subtitle: website,
+                icon: .symbol("safari"),
+                primaryActionTitle: "Open in Browser")
+        }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            rows = rows.filter { row in
+                row.id == "back"
+                    || row.title.localizedCaseInsensitiveContains(trimmed)
+                    || row.subtitle?.localizedCaseInsensitiveContains(trimmed) == true
+            }
+        }
+        return PluginPaletteSnapshot(
+            sectionTitle: detail.item.title, items: rows, emptyMessage: "No matching field")
+    }
+
+    /// What the list already knows, rendered the moment the view opens — the full `op item get`
+    /// takes seconds, so these rows keep the common actions instant while it streams in. The ids
+    /// match the loaded rows, so the selection carries across the swap.
+    private static func provisionalRows(_ item: OnePasswordItem) -> [PluginPaletteItem] {
+        var rows: [PluginPaletteItem] = []
+        if let username = item.username {
+            rows.append(
+                PluginPaletteItem(
+                    id: "field:username",
+                    title: "username",
+                    subtitle: username,
+                    icon: .symbol("person"),
+                    primaryActionTitle: "Copy username"))
+        }
+        if item.category == "LOGIN" || item.category == "PASSWORD" {
+            rows.append(
+                PluginPaletteItem(
+                    id: "field:password",
+                    title: "password",
+                    subtitle: String(repeating: "•", count: 10),
+                    icon: .symbol("key"),
+                    primaryActionTitle: "Copy password"))
+        }
+        if let website = item.websiteURL {
+            rows.append(
+                PluginPaletteItem(
+                    id: "url:0",
+                    title: URL(string: website)?.host ?? website,
+                    subtitle: website,
+                    icon: .symbol("safari"),
+                    primaryActionTitle: "Open in Browser"))
+        }
+        return rows
+    }
+
+    private static func backRow() -> PluginPaletteItem {
+        PluginPaletteItem(
+            id: "back",
+            title: "Back",
+            subtitle: "All items",
+            icon: .symbol("arrow.uturn.backward"),
+            primaryActionTitle: "Go Back")
+    }
+
+    private static func detailRetryRow(message: String) -> PluginPaletteItem {
+        PluginPaletteItem(
+            id: "detail-retry",
+            title: "Couldn't open this item",
+            subtitle: message,
+            icon: .symbol("arrow.clockwise"),
+            subtitleLineLimit: 2,
+            primaryActionTitle: "Try Again")
+    }
+
+    static func field(manager: OnePasswordManager, itemID: String) -> OnePasswordFieldItem? {
+        guard case .loaded(let detail) = manager.detailState, itemID.hasPrefix("field:") else {
+            return nil
+        }
+        let fieldID = String(itemID.dropFirst("field:".count))
+        return detail.fields.first { $0.id == fieldID }
+    }
+
+    static func website(manager: OnePasswordManager, itemID: String) -> String? {
+        guard case .loaded(let detail) = manager.detailState, itemID.hasPrefix("url:"),
+            let index = Int(itemID.dropFirst("url:".count)), detail.websites.indices.contains(index)
+        else { return nil }
+        return detail.websites[index]
     }
 
     // MARK: - Rows
@@ -167,7 +304,7 @@ enum OnePasswordResults {
     static func primaryAction(for item: OnePasswordItem) -> OnePasswordItemAction {
         let preferred = OnePasswordItemAction(
             rawValue: UserDefaults.standard.string(forKey: OnePasswordManager.primaryActionKey)
-                ?? "") ?? .openInApp
+                ?? "") ?? .view
         return .primary(preferred: preferred, category: item.category)
     }
 
@@ -184,6 +321,74 @@ enum OnePasswordResults {
         let manager = core.onePassword
         var items: [PopoverMenuItem] = []
         var header = "1Password"
+
+        if case .loading(let item) = manager.detailState {
+            header = item.title
+            if itemID == "field:username" || itemID == "field:password" {
+                let label = itemID == "field:username" ? "username" : "password"
+                items.append(
+                    PopoverMenuItem(title: "Copy \(label)", systemImage: "doc.on.doc", shortcut: "↵") {
+                        core.performOnePasswordProvisionalRow(itemID, item: item, paste: false)
+                    })
+                items.append(
+                    PopoverMenuItem(title: "Paste \(label)", systemImage: "text.insert") {
+                        core.performOnePasswordProvisionalRow(itemID, item: item, paste: true)
+                    })
+            }
+            if itemID == "url:0" {
+                items.append(
+                    PopoverMenuItem(title: "Open in Browser", systemImage: "safari", shortcut: "↵") {
+                        core.performOnePasswordProvisionalRow(itemID, item: item, paste: false)
+                    })
+            }
+            items.append(
+                PopoverMenuItem(title: "Open in 1Password", systemImage: "arrow.up.forward.app") {
+                    core.performOnePasswordAction(.openInApp, item: item)
+                })
+            items.append(
+                PopoverMenuItem(title: "Back to All Items", systemImage: "arrow.uturn.backward") {
+                    manager.closeDetail()
+                })
+            return PopoverMenuContent(header: header, items: items)
+        }
+
+        if case .loaded(let detail) = manager.detailState {
+            header = detail.item.title
+            if let field = field(manager: manager, itemID: itemID) {
+                items.append(
+                    PopoverMenuItem(
+                        title: "Copy \(field.label)", systemImage: "doc.on.doc", shortcut: "↵"
+                    ) { core.performOnePasswordFieldCopy(field, item: detail.item, paste: false) })
+                items.append(
+                    PopoverMenuItem(title: "Paste \(field.label)", systemImage: "text.insert") {
+                        core.performOnePasswordFieldCopy(field, item: detail.item, paste: true)
+                    })
+                if field.isConcealed {
+                    let revealed = manager.revealedFieldIDs.contains(field.id)
+                    items.append(
+                        PopoverMenuItem(
+                            title: revealed ? "Conceal" : "Reveal",
+                            systemImage: revealed ? "eye.slash" : "eye"
+                        ) { manager.toggleRevealed(field.id) })
+                }
+            }
+            if let website = website(manager: manager, itemID: itemID) {
+                items.append(
+                    PopoverMenuItem(title: "Open in Browser", systemImage: "safari", shortcut: "↵") {
+                        core.hidePalette(restoreFocus: false)
+                        if let url = URL(string: website) { NSWorkspace.shared.open(url) }
+                    })
+            }
+            items.append(
+                PopoverMenuItem(title: "Open in 1Password", systemImage: "arrow.up.forward.app") {
+                    core.performOnePasswordAction(.openInApp, item: detail.item)
+                })
+            items.append(
+                PopoverMenuItem(title: "Back to All Items", systemImage: "arrow.uturn.backward") {
+                    manager.closeDetail()
+                })
+            return PopoverMenuContent(header: header, items: items)
+        }
 
         if let item = item(manager: manager, itemID: itemID) {
             header = item.title
@@ -230,6 +435,32 @@ extension AppCore {
             onePassword.refresh()
             return
         }
+        if itemID == "back" {
+            onePassword.closeDetail()
+            return
+        }
+        if itemID == "detail-retry" {
+            if case .failed(let item, _) = onePassword.detailState {
+                onePassword.openDetail(item)
+            }
+            return
+        }
+        if case .loaded(let detail) = onePassword.detailState {
+            if let field = OnePasswordResults.field(manager: onePassword, itemID: itemID) {
+                performOnePasswordFieldCopy(field, item: detail.item, paste: false)
+                return
+            }
+            if let website = OnePasswordResults.website(manager: onePassword, itemID: itemID) {
+                hidePalette(restoreFocus: false)
+                if let url = URL(string: website) { NSWorkspace.shared.open(url) }
+                return
+            }
+            return
+        }
+        if case .loading(let item) = onePassword.detailState {
+            performOnePasswordProvisionalRow(itemID, item: item, paste: false)
+            return
+        }
         guard let item = OnePasswordResults.item(manager: onePassword, itemID: itemID) else {
             return
         }
@@ -239,6 +470,9 @@ extension AppCore {
     func performOnePasswordAction(_ action: OnePasswordItemAction, item: OnePasswordItem) {
         guard plugins.isEnabled(.onePassword) else { return }
         switch action {
+        case .view:
+            // Stays in the palette: the fields render as rows once `op item get` returns.
+            onePassword.openDetail(item)
         case .openInApp:
             hidePalette(restoreFocus: false)
             let url = OnePasswordCLI.viewItemURL(
@@ -254,6 +488,53 @@ extension AppCore {
         case .copyUsername, .copyPassword, .copyOneTimePassword,
             .pasteUsername, .pastePassword, .pasteOneTimePassword:
             revealAndDeliver(action, item: item)
+        }
+    }
+
+    /// A field row's copy/paste from the item view: the value is already in the held detail, except
+    /// a one-time password, which re-fetches so an expired code is never delivered.
+    func performOnePasswordFieldCopy(
+        _ field: OnePasswordFieldItem, item: OnePasswordItem, paste: Bool
+    ) {
+        guard plugins.isEnabled(.onePassword) else { return }
+        if field.isOneTimePassword {
+            performOnePasswordAction(
+                paste ? .pasteOneTimePassword : .copyOneTimePassword, item: item)
+            return
+        }
+        deliverOnePasswordValue(field.value, label: field.label, paste: paste)
+    }
+
+    /// Hand a value already in memory straight to the pasteboard, concealed and clear-scheduled.
+    private func deliverOnePasswordValue(_ value: String, label: String, paste: Bool) {
+        let previous = paste ? previousApplication : nil
+        hidePalette(restoreFocus: false)
+        if paste {
+            Paster.pasteConcealedString(value, previousApp: previous)
+            hud.show(title: "Pasted \(label)", symbol: "key.fill")
+        } else {
+            Paster.copyConcealedString(value)
+            hud.show(title: "Copied \(label)", symbol: "key.fill")
+        }
+        onePassword.scheduleClipboardClear()
+    }
+
+    /// A provisional row's action while the full item is still loading: the username and website
+    /// are already in hand, the password takes the direct `op read` path rather than waiting.
+    func performOnePasswordProvisionalRow(_ itemID: String, item: OnePasswordItem, paste: Bool) {
+        guard plugins.isEnabled(.onePassword) else { return }
+        switch itemID {
+        case "field:username":
+            guard let username = item.username else { return }
+            deliverOnePasswordValue(username, label: "username", paste: paste)
+        case "field:password":
+            performOnePasswordAction(paste ? .pastePassword : .copyPassword, item: item)
+        case "url:0":
+            guard let website = item.websiteURL, let url = URL(string: website) else { return }
+            hidePalette(restoreFocus: false)
+            NSWorkspace.shared.open(url)
+        default:
+            break
         }
     }
 
