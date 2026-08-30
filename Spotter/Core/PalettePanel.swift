@@ -10,6 +10,10 @@ final class PalettePanel: NSPanel {
     var onBareReturn: (() -> Bool)?
     /// Called for a bare Escape when no footer menu owns the keyboard; focus-free palette screens otherwise never enter SwiftUI's key-press chain.
     var onBareEscape: (() -> Bool)?
+    /// The transparent drag strip occupying the top of the frame; its pill is the palette's one move affordance.
+    let dragHandle = PaletteDragHandleView()
+    /// How deep the pill's reveal zone reaches below the strip, into the glass's top edge.
+    private static let topHoverStrip: CGFloat = 12
     /// Arms the hover highlight from `sendEvent` — the one place both event streams pass through, so a keyboard-driven scroll under a still pointer never fires `.mouseMoved` and hover stays disarmed. Also carries the caret-hide hook fired when a footer menu opens.
     weak var paletteViewModel: PaletteViewModel? {
         didSet {
@@ -38,7 +42,13 @@ final class PalettePanel: NSPanel {
 
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
-        case .mouseMoved: paletteViewModel?.hoverHighlightArmed = true
+        case .mouseMoved:
+            paletteViewModel?.hoverHighlightArmed = true
+            if event.locationInWindow.y
+                >= frame.height - PaletteDragHandleView.stripHeight - Self.topHoverStrip
+            {
+                dragHandle.reveal()
+            }
         case .keyDown: paletteViewModel?.hoverHighlightArmed = false
         default: break
         }
@@ -120,8 +130,8 @@ final class PalettePanel: NSPanel {
         acceptsMouseMovedEvents = true
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Dragging the panel's own background moves it; SwiftUI rows and controls consume their own mouse-downs, so only empty chrome (the header beside the search field) initiates a drag.
-        isMovableByWindowBackground = true
+        // Deliberately not movable by background: AppKit's background drag raced SwiftUI's `.draggable` widget cards. The drag strip's pill at the top of the frame is the only move affordance, and it hands its gesture to `performDrag` itself.
+        isMovableByWindowBackground = false
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         isOpaque = false
@@ -134,7 +144,19 @@ final class PalettePanel: NSPanel {
         hosting.wantsLayer = true
         // The controller owns the frame: without this the hosting view resizes the panel to fit the SwiftUI content, dropping the top edge on the first compact→expanded mount.
         hosting.sizingOptions = []
-        contentView = hosting
+        // The glass fills the frame minus the drag strip's lane at the top; both track the frame by autoresizing since the width is fixed and only the height ever changes.
+        let strip = PaletteDragHandleView.stripHeight
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 750, height: 475 + strip))
+        hosting.frame = NSRect(
+            x: 0, y: 0, width: container.bounds.width, height: container.bounds.height - strip)
+        hosting.autoresizingMask = [.width, .height]
+        dragHandle.wantsLayer = true
+        dragHandle.frame = NSRect(
+            x: 0, y: container.bounds.height - strip, width: container.bounds.width, height: strip)
+        dragHandle.autoresizingMask = [.width, .minYMargin]
+        container.addSubview(hosting)
+        container.addSubview(dragHandle)
+        contentView = container
     }
 
     override var canBecomeKey: Bool { true }

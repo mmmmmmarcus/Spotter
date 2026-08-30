@@ -109,8 +109,37 @@ in the half-open interval `(minY, maxY]`: the topmost row is exactly `maxY`, whi
 while that same value is the `minY` of the display stacked above. `contains` would therefore hand a
 pointer parked at the top of one display to its neighbour. `NSMouseInRect` exists for precisely this.
 
-A user drag re-anchors the session, and with **Remember position** on the anchor persists across
-summons. Each show also runs `InputSourceLock.selectASCIIKeyboard()` when General → "Lock input
+The panel is deliberately **not** movable by its background (`isMovableByWindowBackground = false`):
+AppKit's background drag raced SwiftUI's `.draggable` widget cards, so grabbing a card to reorder the
+strip would move the whole window instead. The only move affordance is a grab pill in a transparent
+26pt strip across the top of the panel frame (`Core/PaletteDragHandle.swift`): the frame is one strip
+taller than the visible glass, `PaletteWindowController`'s anchor names the *glass* top edge, and the
+hosting view sits below the strip. The pill fades in when the pointer enters the strip or the glass's
+top ~12pt (the latter via `sendEvent`'s `.mouseMoved` funnel) and fades out shortly after it leaves
+both. The strip's transparent pixels are click-through at the window server, so the sliver of desktop
+above the glass stays clickable while the pill is hidden; only the pill's drawn pixels grab.
+
+Two hard-won invariants keep the pill and the palette grabbable — both trace to the same window-server
+behavior: **a window's input region does not reliably follow programmatic moves** (per-step
+`setFrameOrigin` drags, `setFrame` jumps on a visible window, even a same-turn orderOut/orderIn
+cycle); the window then draws correctly but takes no clicks until the region lazily rebuilds, and the
+next click inside it falls through to the window behind and dismisses the palette.
+
+- **The drag is handed to the window server.** Past a 3pt slop, the pill's `mouseDragged` calls
+  `performDrag(with:)` on its own window with the real event — the native path
+  `isMovableByWindowBackground` uses, which keeps the input region valid throughout. Never move the
+  panel with per-step `setFrameOrigin`.
+- **The click-to-reset jump repositions the panel while ordered out**, with a runloop hop between the
+  order-out and the `setFrame` + re-key (all three in one turn keeps the stale region), guarded by
+  `isRepositioningVisiblePanel` so the transient resign-key isn't mistaken for a click-away.
+- (And the fade-out must never run while the pointer rests on the strip — checked against the live
+  mouse location, since a resting pointer never re-fires `mouseEntered` — or the user's next grab
+  would fall through the just-faded pill to the desktop and dismiss the palette.)
+
+A plain click on the pill — under the 3pt slop — forgets the remembered position and re-places the
+palette at the computed default for the current screen. A user drag re-anchors the session via
+`windowDidMove` (which reads the glass top edge as `frame.maxY` minus the strip), and with
+**Remember position** on the anchor persists across summons. Each show also runs `InputSourceLock.selectASCIIKeyboard()` when General → "Lock input
 method to English" is on, so the query field always starts in an ASCII layout.
 
 ## Menu-open input freeze

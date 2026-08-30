@@ -11,6 +11,8 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
     private var anchor: (x: CGFloat, topEdgeY: CGFloat)?
     /// True while `positionPanel` is writing the frame, so the resulting `windowDidMove` isn't mistaken for a user drag.
     private var isPositioningPanel = false
+    /// True while the reset briefly orders the visible panel out to re-place it, so the resulting resign-key isn't mistaken for a click-away.
+    private var isRepositioningVisiblePanel = false
 
     init(core: AppCore) {
         self.core = core
@@ -98,6 +100,7 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
 
     /// Dismiss when the palette loses key status (click-away, ⌘-Tab, app switch).
     func windowDidResignKey(_ notification: Notification) {
+        guard !isRepositioningVisiblePanel else { return }
         guard isVisible else { return }
         // A capture overlay takes key across every display; that must not count as the user
         // clicking away, or the launcher would vanish even with Hide Spotter off. Reading the
@@ -154,8 +157,28 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
             self.core.performUpdatePrimaryAction()
             return true
         }
+        panel.dragHandle.onClick = { [weak self] in self?.resetPalettePosition() }
         self.panel = panel
         return panel
+    }
+
+    // MARK: - Drag handle
+
+    /// Click-to-reset from the drag strip's pill: forget the remembered position and re-place the palette at the computed default for the current screen.
+    private func resetPalettePosition() {
+        core.settings.palettePosition = nil
+        anchor = nil
+        guard let panel else { return }
+        // Jump the summon way — reposition while ordered out, then re-key. A `setFrame` on the *visible* panel leaves its window-server input region at the old spot, so the next click inside the palette would fall through and dismiss it. The order-out must commit before the move, hence the runloop hop; doing all three in one turn keeps the stale region.
+        isRepositioningVisiblePanel = true
+        panel.orderOut(nil)
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let panel = self.panel else { return }
+            self.positionPanel(panel, collapsed: self.core.paletteIsCollapsed)
+            panel.makeKeyAndOrderFront(nil)
+            panel.orderFrontRegardless()
+            self.isRepositioningVisiblePanel = false
+        }
     }
 
     /// Resize the panel to the given collapsed state, keeping the top edge anchored. Applied even while hidden (e.g. compact toggled in Settings) so the window is already correctly sized before the next show — otherwise the list would mount at the stale size and open scrolled up.
@@ -164,12 +187,14 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         positionPanel(panel, collapsed: collapsed)
     }
 
-    /// Size the panel to compact/expanded height (width fixed) and place it against the session anchor so its top edge stays put and the list grows downward. Resize is instant (no animation, matching Raycast).
+    /// Size the panel to compact/expanded height (width fixed) and place it against the session anchor so its top edge stays put and the list grows downward. Resize is instant (no animation, matching Raycast). The anchor names the *glass* top edge; the frame extends one drag-strip above it.
     private func positionPanel(_ panel: NSPanel, collapsed: Bool) {
         guard let anchor = resolveAnchor() else { return }
-        let height = collapsed ? Theme.Size.compactHeight : Theme.Size.panelHeight
+        let strip = PaletteDragHandleView.stripHeight
+        let height = (collapsed ? Theme.Size.compactHeight : Theme.Size.panelHeight) + strip
         let frame = NSRect(
-            x: anchor.x, y: anchor.topEdgeY - height, width: Theme.Size.panelWidth, height: height)
+            x: anchor.x, y: anchor.topEdgeY + strip - height,
+            width: Theme.Size.panelWidth, height: height)
         isPositioningPanel = true
         panel.setFrame(frame, display: true)
         isPositioningPanel = false
@@ -193,7 +218,9 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
             let saved = core.settings.palettePosition
         {
             let x = min(max(saved.x, visible.minX), visible.maxX - Theme.Size.panelWidth)
-            let topEdgeY = min(max(saved.y, visible.minY + Theme.Size.headerHeight), visible.maxY)
+            let topEdgeY = min(
+                max(saved.y, visible.minY + Theme.Size.headerHeight),
+                visible.maxY - PaletteDragHandleView.stripHeight)
             let resolved = (x: x, topEdgeY: topEdgeY)
             anchor = resolved
             return resolved
@@ -211,7 +238,9 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         guard !isPositioningPanel, let panel, notification.object as? NSWindow === panel else {
             return
         }
-        let moved = (x: panel.frame.minX, topEdgeY: panel.frame.maxY)
+        let moved = (
+            x: panel.frame.minX,
+            topEdgeY: panel.frame.maxY - PaletteDragHandleView.stripHeight)
         anchor = moved
         guard core.settings.remembersPalettePosition else { return }
         core.settings.palettePosition = CGPoint(x: moved.x, y: moved.topEdgeY)
