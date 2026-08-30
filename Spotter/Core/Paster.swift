@@ -56,13 +56,35 @@ enum Paster {
         }
     }
 
+    /// Concealed counterpart of `copyString` for secrets (1Password): marked internal so our history
+    /// skips it, and `org.nspasteboard.ConcealedType` so other clipboard managers skip it too.
     @MainActor
-    private static func writeString(_ text: String) {
+    static func copyConcealedString(_ text: String) {
+        writeString(text, concealed: true)
+    }
+
+    /// Concealed counterpart of `pasteString(_:previousApp:)`.
+    @MainActor
+    static func pasteConcealedString(_ text: String, previousApp: NSRunningApplication?) {
+        writeString(text, concealed: true)
+        previousApp?.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            postCommandV()
+        }
+    }
+
+    private static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+
+    @MainActor
+    private static func writeString(_ text: String, concealed: Bool = false) {
         let pb = NSPasteboard.general
         pb.clearContents()
-        pb.declareTypes([.string, ClipboardManager.internalType], owner: nil)
+        var types: [NSPasteboard.PasteboardType] = [.string, ClipboardManager.internalType]
+        if concealed { types.append(Self.concealedType) }
+        pb.declareTypes(types, owner: nil)
         pb.setString(text, forType: .string)
         pb.setData(Data(), forType: ClipboardManager.internalType)
+        if concealed { pb.setData(Data(), forType: Self.concealedType) }
     }
 
     /// Paste into `app` *without* activating it (⌘V delivered straight to its process), leaving Spotter frontmost so the palette stays open. Returns whether content was written (and thus promoted).

@@ -23,6 +23,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let aiChat = PluginID(rawValue: "ai-chat")
     static let commands = PluginID(rawValue: "commands")
     static let mole = PluginID(rawValue: "mole")
+    static let onePassword = PluginID(rawValue: "1password")
     static let coffee = PluginID(rawValue: "coffee")
     static let windowManagement = PluginID(rawValue: "window-management")
     static let dashboardWidgets = PluginID(rawValue: "dashboard-widgets")

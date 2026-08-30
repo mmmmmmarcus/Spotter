@@ -118,7 +118,11 @@ Never break these without an explicit task to do so.
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
   termination status, retain stderr, and supply synthetic stdin only to a post-confirmation
-  uninstall. `Plugins/Coffee/CoffeeTypes.swift`
+  uninstall. `Plugins/OnePassword/OnePasswordTypes.swift` stays Foundation-only and pure for
+  `Tools/onepassword-test.swift` (its harness never executes `op`); `OnePasswordProcessRunner` must
+  check the real termination status and keep stdout and stderr separate — stdout may be a secret and
+  is returned verbatim, stderr only ever becomes an error message, and a secret never appears in
+  argv or a log. `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
   `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
   `ScreenshotImageProcessor.swift`, `ScreenshotAnnotation.swift` and `ScreenshotTextLayout.swift`
@@ -232,6 +236,14 @@ Never break these without an explicit task to do so.
   click after the new bundle passes designated-requirement signature verification. See
   [`docs/updates.md`](docs/updates.md). `Core/UpdateFeed.swift` stays Foundation-only and pure for
   `Tools/update-test.swift`.
+  The 1Password plugin (owner decision, Aug 2026) ships enabled but inert: it only fronts the
+  user-installed `op` CLI, which cannot run at all until the user enables 1Password 8's CLI
+  integration, and every call is authorized by 1Password's own biometric prompt — the same gate as
+  running `op` in a terminal. Spotter adds no network path of its own, fetches a secret only at
+  explicit action time, persists nothing 1Password returns, and puts secrets on the pasteboard only
+  concealed (internal marker + `org.nspasteboard.ConcealedType`) with a changeCount-guarded 90-second
+  clear. Do not add a consent dialog to it, and do not copy this shape for a feature whose network
+  access is Spotter's own. See [`docs/1password.md`](docs/1password.md).
   Notes follows the same safe-default rule for its private CloudKit database: sync ships off,
   `NoteSyncManager` owns consent and re-checks it around every explicit fetch/send, disabling deletes
   only the local CloudKit state, and each Note/deletion is an independent record. Developer ID
@@ -347,7 +359,8 @@ Never break these without an explicit task to do so.
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/uptime.md`](docs/uptime.md) ·
   [`docs/selection-tools.md`](docs/selection-tools.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
-  [`docs/mole.md`](docs/mole.md) · [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
+  [`docs/mole.md`](docs/mole.md) · [`docs/1password.md`](docs/1password.md) ·
+  [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
   [`docs/ai-chat.md`](docs/ai-chat.md) ·
   [`docs/custom-commands.md`](docs/custom-commands.md) · [`docs/screenshot.md`](docs/screenshot.md) ·
   [`docs/file-search.md`](docs/file-search.md) · [`docs/widgets.md`](docs/widgets.md)

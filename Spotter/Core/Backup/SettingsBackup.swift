@@ -144,6 +144,14 @@ struct SettingsBackup: Codable, Sendable {
             // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
             var binaryPath: String?
         }
+        struct OnePassword: Codable, Sendable {
+            var cliPath: String?
+            var primaryAction: String?
+            var clearClipboard: Bool?
+            var passwordLength: Int?
+            var passwordDigits: Bool?
+            var passwordSymbols: Bool?
+        }
         struct Uptime: Codable, Sendable {
             // Consent travels with the trusted file: restoring one is itself the consent act. The
             // tallies themselves stay device-local.
@@ -161,6 +169,7 @@ struct SettingsBackup: Codable, Sendable {
         var caffeinate: Caffeinate?
         var windowManagement: WindowManagement?
         var mole: Mole?
+        var onePassword: OnePassword?
         var note: Note?
         var uptime: Uptime?
         // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
@@ -364,6 +373,18 @@ extension SettingsBackup {
             gap: d.integer(forKey: WindowManagementDefaults.gapKey),
             cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
         prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
+        prefs.onePassword = PluginPrefs.OnePassword(
+            cliPath: core.onePassword.binaryPathOverride,
+            primaryAction: d.string(forKey: OnePasswordManager.primaryActionKey)
+                ?? OnePasswordItemAction.openInApp.rawValue,
+            clearClipboard: d.object(forKey: OnePasswordManager.clearClipboardKey) == nil
+                || d.bool(forKey: OnePasswordManager.clearClipboardKey),
+            passwordLength: d.object(forKey: OnePasswordManager.passwordLengthKey) == nil
+                ? 20 : d.integer(forKey: OnePasswordManager.passwordLengthKey),
+            passwordDigits: d.object(forKey: OnePasswordManager.passwordDigitsKey) == nil
+                || d.bool(forKey: OnePasswordManager.passwordDigitsKey),
+            passwordSymbols: d.object(forKey: OnePasswordManager.passwordSymbolsKey) == nil
+                || d.bool(forKey: OnePasswordManager.passwordSymbolsKey))
         prefs.uptime = PluginPrefs.Uptime(enabled: core.uptime.isEnabled)
         prefs.note = PluginPrefs.Note(
             iCloudSyncEnabled: core.noteSync.isEnabled,
@@ -542,6 +563,17 @@ extension SettingsBackup {
             // Through the manager so `binaryPath` re-resolves; an empty string clears the override.
             core.mole.setBinaryPathOverride(path)
             count += 1
+        }
+        if let p = prefs.onePassword {
+            if let path = p.cliPath {
+                core.onePassword.setBinaryPathOverride(path)
+                count += 1
+            }
+            set(p.primaryAction, OnePasswordManager.primaryActionKey)
+            set(p.clearClipboard, OnePasswordManager.clearClipboardKey)
+            set(p.passwordLength, OnePasswordManager.passwordLengthKey)
+            set(p.passwordDigits, OnePasswordManager.passwordDigitsKey)
+            set(p.passwordSymbols, OnePasswordManager.passwordSymbolsKey)
         }
         if let transparency = prefs.note?.windowTransparency {
             core.notes.setWindowTransparency(transparency)

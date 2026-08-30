@@ -21,6 +21,7 @@ enum BuiltInPlugins {
             ImageModificationPlugin.registration(core: core),
             WindowManagementPlugin.registration(core: core),
             MolePlugin.registration(core: core),
+            OnePasswordPlugin.registration(core: core),
             CoffeePlugin.registration(core: core),
             ScreenshotPlugin.registration(core: core),
         ]

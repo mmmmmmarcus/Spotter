@@ -219,6 +219,7 @@ final class AppCore: ObservableObject {
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()
     let mole = MoleManager()
+    let onePassword = OnePasswordManager()
     let coffee = CoffeeManager()
     lazy var screenshot = ScreenshotManager(hotKeys: hotKeys)
     let updates = UpdateStore()

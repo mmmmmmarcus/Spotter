@@ -1,0 +1,93 @@
+# 1Password
+
+A launcher front end for the 1Password CLI (`op`), supporting 1Password 8 with the desktop-app
+integration. Search every item from the palette, then open it in 1Password or a browser, copy or
+paste its username, password or one-time password, and generate fresh passwords — without Spotter
+ever storing a secret.
+
+## Interaction model
+
+Palette-first, following the Kill Process reference: one `PluginPaletteScreenRegistration` renders
+the item list through the shared `PluginPaletteList`. There is no plugin window.
+
+- **Search 1Password** (`command:1password`, bindable) opens the screen. Rows show the item title,
+  the username (or category label) as subtitle, a category SF Symbol, a star for favorites and the
+  vault name as an accessory. Favorites sort first, then title.
+- **↵** runs the configured primary action (default *Open in 1Password*); categories that don't
+  support the configured action fall back to *Open in 1Password* — a secure note can't paste a
+  password. **⌘↵** copies the password when the category has one.
+- **⌘K** lists every available action for the row: Open in 1Password, Open in Browser, Copy/Paste
+  Username, Copy/Paste Password, Copy/Paste One-Time Password — mirroring the 1Password 8 category
+  rules (logins offer everything, passwords drop the username actions, all other categories are
+  open-only) — plus Refresh Items and 1Password Settings.
+- **Generate Password** (`command:1password-generate-password`, hidden by default, bindable) copies
+  a fresh password using the configured length/digits/symbols recipe via a `--dry-run` item create,
+  so nothing is saved to the vault.
+
+With no `op` binary the screen shows one install-guidance row (its action opens 1Password's CLI
+install guide); Settings shows a callout and a path-override field, Mole-style. A locked session
+renders an *Unlock 1Password* row whose action re-runs the list read — that is what makes the
+1Password app raise its own authorization prompt.
+
+## Architecture
+
+```text
+Spotter/Plugins/OnePassword/
+├── OnePasswordPlugin.swift         # registration, palette rows, AppCore actions
+├── OnePasswordTypes.swift          # pure: JSON parsing, argv builders, action rules (harnessed)
+├── OnePasswordProcessRunner.swift  # one `op` process off-main, stdout/stderr kept separate
+├── OnePasswordManager.swift        # AppCore-owned state: binary, item cache, reveals, clipboard clear
+└── OnePasswordSettingsView.swift
+```
+
+- `OnePasswordTypes.swift` stays Foundation-only and pure; `Tools/onepassword-test.swift` compiles
+  it standalone and never executes `op`.
+- `OnePasswordProcessRunner` checks the real termination status and keeps **stdout and stderr
+  separate**: stdout may be a secret and is returned verbatim; stderr is only distilled into an
+  error message (log prefixes stripped) and classified as locked-vs-failed. Secrets never appear in
+  argv, `AppLog`, or any error path.
+- `OnePasswordManager` locates `op` (Homebrew paths, then a Settings override under
+  `one-password.cli-path`), loads the item list on screen open with a session-long in-memory cache
+  (stale-while-revalidate; a failed refresh keeps the stale list), resolves the account uuid lazily
+  for `onepassword://view-item/` deep links, and owns the delayed clipboard clear.
+- **An in-flight list read survives the palette hiding, and must keep doing so.** The palette
+  dismisses itself the moment it loses key status — which is exactly what 1Password's authorization
+  window causes — so closing the screen never cancels the running `op` (cancelling would kill the
+  very request being authorized), and a reopen joins the in-flight read instead of restarting it
+  (a restart would dismiss the prompt and re-raise it). The finished read fills the session cache
+  for the next open; only disabling the plugin interrupts `op`.
+
+## What runs when
+
+Everything is `op`, executed only on an explicit user action:
+
+- Screen open → `op item list --format=json` (titles, categories, vaults, usernames, URLs —
+  **no secrets**), then once per session `op account get --format=json` for the deep-link account id.
+  Deliberately **without `--long`**: the plain listing already carries everything Spotter renders,
+  and the per-item field detail `--long` adds pushed a ~1000-item vault past `op`'s internal
+  30-second desktop-app timeout. A timeout gets one automatic retry (a cold `op` daemon can trip it
+  once, then answer from its cache in seconds); a persistent failure renders as a *Try Again* row.
+- Copy/paste username or password → `op read op://<vault>/<item>/<field>`.
+- Copy/paste one-time password → `op item get <item> --vault <vault> --otp`.
+- Generate Password → `op item create --dry-run --category Password --generate-password=… --format=json`.
+
+## Security posture
+
+- **Consent** (owner decision, Aug 2026): the plugin ships enabled but is inert until the user has
+  installed `op` and enabled the CLI integration in 1Password — and every `op` call is authorized by
+  1Password 8's own biometric/authorization prompt, the same gate as running `op` in a terminal.
+  Spotter adds no network path of its own; the CLI talks to 1Password exactly as it does for the
+  user. Do not add a second consent dialog, and do not copy this shape for a feature whose network
+  access is Spotter's own.
+- **Nothing persists.** The item list lives in memory for the session and is dropped on disable;
+  no index, no cache file, no secret is ever written to disk. Only preferences (CLI path override,
+  primary action, clipboard-clear switch, password recipe) persist, and those sync through
+  `SettingsBackup.PluginPrefs.OnePassword`.
+- **Secrets pass through the pasteboard concealed.** `Paster.copyConcealedString` /
+  `pasteConcealedString` stamp both Spotter's internal marker and `org.nspasteboard.ConcealedType`,
+  so Spotter's own history and other clipboard managers skip them. A copied or pasted secret is
+  cleared after 90 seconds (1Password's own default) unless something replaced it; the clear is
+  changeCount-guarded so it never wipes a later copy, and it stays armed even if the plugin is
+  disabled meanwhile. The switch lives in Settings (`one-password.clear-clipboard`, default on).
+- Paste targets the recorded previous app through the shared `Paster` ⌘V path, so it requires the
+  Accessibility permission the plugin declares.
