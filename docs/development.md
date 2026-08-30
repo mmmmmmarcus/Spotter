@@ -222,11 +222,12 @@ swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
 swiftc -swift-version 6 -framework CoreGraphics -framework CoreText -framework ImageIO \
     -framework UniformTypeIdentifiers Spotter/Plugins/Screenshot/ScreenshotWindowPicker.swift \
     Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
+    Spotter/Plugins/Screenshot/ScreenshotColorSampler.swift \
     Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
     Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift \
     Spotter/Plugins/Screenshot/ScreenshotTextLayout.swift \
     Spotter/Plugins/Screenshot/ScreenshotFileName.swift Tools/screenshot-test.swift \
-    -o /tmp/screenshot-test && /tmp/screenshot-test             # cursor swap + geometry + annotation pixels
+    -o /tmp/screenshot-test && /tmp/screenshot-test             # geometry + colour sampling + annotation pixels
 ```
 
 `Tools/fuzz-test.swift` compiles the real `Spotter/Core/SearchRelevance.swift`, so that file must

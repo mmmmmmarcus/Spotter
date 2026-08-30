@@ -14,34 +14,60 @@ enum ScreenshotCursor {
     /// Offsets on a circle of `outlineWidth` dilate the glyph into an even outer border.
     private static let outlineSteps = 24
 
-    static let region = cursor(from: regionArtwork)
-    static let window = cursor(from: windowArtwork)
-    static let screen = cursor(from: screenArtwork)
-    static let text = cursor(from: textArtwork)
+    static let screenshot = cursor(from: screenshotArtwork)
+    static let ocr = cursor(from: ocrArtwork)
+    static let colorPicker = cursor(from: colorPickerArtwork, hotSpotAtTip: true)
 
-    private static let regionArtwork = artwork(symbolName: "dot.crosshair")
-    private static let windowArtwork = artwork(symbolName: "camera.fill")
-    private static let screenArtwork = artwork(symbolName: "display")
-    /// The same crosshair as a region drag, in orange: text recognition is still a region drag, so
-    /// only the colour changes. The pointer is the only thing on screen saying the result will be
-    /// text rather than a picture.
-    private static let textArtwork = artwork(
+    private static let screenshotArtwork = artwork(symbolName: "dot.crosshair")
+    /// The same crosshair as a region drag, in orange: OCR is still a region drag, so only the
+    /// colour changes. The pointer is the only thing on screen saying the result will be text
+    /// rather than a picture.
+    private static let ocrArtwork = artwork(
         symbolName: "dot.crosshair", fill: Theme.Colors.screenshotCrosshairTextFill)
+    private static let colorPickerArtwork = artwork(symbolName: "eyedropper")
 
     static func cursor(for mode: ScreenshotCaptureMode) -> NSCursor {
         switch mode {
-        case .region: region
-        case .window: window
-        case .screen: screen
-        case .text: text
+        case .screenshot: screenshot
+        case .ocr: ocr
+        case .colorPicker: colorPicker
         }
     }
 
-    private static func cursor(from artwork: NSImage?) -> NSCursor {
+    private static func cursor(from artwork: NSImage?, hotSpotAtTip: Bool = false) -> NSCursor {
         guard let artwork else { return .crosshair }
+        let center = CGPoint(x: artwork.size.width / 2, y: artwork.size.height / 2)
         return NSCursor(
             image: artwork,
-            hotSpot: CGPoint(x: artwork.size.width / 2, y: artwork.size.height / 2))
+            hotSpot: hotSpotAtTip ? tipHotSpot(of: artwork) ?? center : center)
+    }
+
+    /// An eyedropper samples at its tip, so its hotspot is the ink pixel nearest the artwork's
+    /// bottom-left corner rather than the canvas centre. Scanning the rasterized artwork survives
+    /// any SF Symbol redraw; the soft shadow stays below the solid-ink alpha threshold.
+    private static func tipHotSpot(of artwork: NSImage) -> CGPoint? {
+        let width = Int(artwork.size.width.rounded()), height = Int(artwork.size.height.rounded())
+        guard width > 0, height > 0,
+            let cgImage = artwork.cgImage(forProposedRect: nil, context: nil, hints: nil),
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let data = context.data else { return nil }
+        var tip: (score: Int, x: Int, row: Int)?
+        for row in 0..<height {
+            for x in 0..<width {
+                let alpha = data.load(fromByteOffset: row * context.bytesPerRow + x * 4 + 3, as: UInt8.self)
+                guard alpha >= 128 else { continue }
+                // Memory row 0 is the top, so the bottom-left corner minimizes both terms.
+                let score = x + (height - 1 - row)
+                if tip == nil || score < tip!.score { tip = (score, x, row) }
+            }
+        }
+        // NSCursor hotspots use a top-left origin, matching the memory row directly.
+        return tip.map { CGPoint(x: CGFloat($0.x), y: CGFloat($0.row)) }
     }
 
     private static func artwork(

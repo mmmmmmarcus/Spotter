@@ -342,14 +342,15 @@ shell-command feature; do not use shell commands as an internal plugin API.
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
 - **Screenshot** (`Spotter/Plugins/Screenshot/`) — enabled by default; Option-Z (seeded once and
   user-editable), the launcher command and the menu-bar menu open the same non-activating crosshair
-  overlay, which captures the chosen region through a display-scoped ScreenCaptureKit filter and
-  places the image on the system clipboard without taking focus from the current app. Capture is
-  one-shot and protected by macOS Screen Recording permission. Its custom 35×35 blue
-  cursor replaces the system pointer from compiled Union.svg geometry; Spotter adds a one-point white
-  outline and subtle drop shadow. The display stays visually unchanged;
-  a one-alpha-step hit surface keeps the panel interactive, while the selected region receives an
-  exact 5%-black overlay. A default-on synced preference gives the overlay, black selection border and
-  output pixels a 4px radius.
+  overlay without taking focus from the current app. A left drag captures a region through a
+  display-scoped ScreenCaptureKit filter, a right click captures the window under the pointer, and
+  a per-display Liquid Glass button beside the Dock captures that whole screen; Space cycles the
+  session's output between screenshot, OCR text and a hex colour sample. Images land on the system
+  clipboard; capture is one-shot and protected by macOS Screen Recording permission. The mode
+  pointers are rendered once from SF Symbols with a one-point white outline and subtle drop shadow.
+  The display stays visually unchanged; a one-alpha-step hit surface keeps the panel interactive,
+  while a dragged region receives an exact 5% overlay. A default-on synced preference gives the
+  overlay, selection border and output pixels a 4px radius.
   The overlay architecture is adapted from Capso under BSL 1.1; no Capso service or idle process is
   loaded.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Uptime](uptime.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),

@@ -35,6 +35,41 @@ enum ScreenshotGeometry {
         min(cornerRadiusPixels, min(size.width / 2, size.height / 2))
     }
 
+    /// The one-point source rectangle a colour sample reads, aligned to the point grid and kept on
+    /// the display so a click on the very edge still captures a real pixel.
+    static func colorSampleRect(around point: CGPoint, within bounds: CGRect) -> CGRect {
+        CGRect(
+            x: min(max(point.x.rounded(.down), bounds.minX), bounds.maxX - 1),
+            y: min(max(point.y.rounded(.down), bounds.minY), bounds.maxY - 1),
+            width: 1,
+            height: 1)
+    }
+
+    static let screenButtonSize = CGSize(width: 56, height: 56)
+    static let screenButtonInset: CGFloat = 24
+    /// The least the button ever floats above the display's bottom edge.
+    static let screenButtonBottomGap: CGFloat = 8
+
+    /// Where the whole-screen glass button sits, in display-local coordinates: inset from the right
+    /// edge of the usable area and vertically centred on the Dock strip when the Dock sits on this
+    /// display's bottom edge, or resting at a fixed height above the bottom when it does not.
+    static func screenButtonFrame(
+        screenFrame: CGRect, visibleFrame: CGRect,
+        size: CGSize = screenButtonSize, inset: CGFloat = screenButtonInset
+    ) -> CGRect {
+        let dockHeight = visibleFrame.minY - screenFrame.minY
+        let restingCenter = inset + size.height / 2
+        let dockCenter = dockHeight >= size.height ? dockHeight / 2 : restingCenter
+        let centerY = max(dockCenter, size.height / 2 + screenButtonBottomGap)
+        // A Dock on the right edge shrinks the usable width; the button stays clear of it.
+        let trailingLimit = min(visibleFrame.maxX, screenFrame.maxX) - screenFrame.minX
+        return CGRect(
+            x: trailingLimit - inset - size.width,
+            y: centerY - size.height / 2,
+            width: size.width,
+            height: size.height)
+    }
+
     private static func clamped(_ point: CGPoint, to bounds: CGRect) -> CGPoint {
         CGPoint(
             x: min(max(point.x, bounds.minX), bounds.maxX),

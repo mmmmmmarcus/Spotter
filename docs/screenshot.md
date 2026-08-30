@@ -30,14 +30,17 @@ primary remain covered. Each panel uses Capso's prevents-activation window flag 
 so AppKit routes pointer and Escape events without bringing Spotter to the front.
 
 The selection view replaces the system pointer for the bounded session, then restores the exact
-previous cursor on every exit path. Both pointers are built once from SF Symbols — `dot.crosshair`
-for region mode, `camera.viewfinder` for window mode — at 24-point `.medium`, tinted `#2076FF`
-through a palette symbol configuration. Spotter generates the one-point external white outline by
-stamping the same glyph in white around a 24-step circle before drawing the blue body on top, so any
+previous cursor on every exit path. The pointers are built once from SF Symbols — `dot.crosshair`
+for the screenshot and OCR modes, `eyedropper` for the colour picker — at 24-point `.medium`, tinted
+`#2076FF` through a palette symbol configuration (OCR keeps the crosshair and only swaps the tint to
+orange). Spotter generates the one-point external white outline by
+stamping the same glyph in white around a 24-step circle before drawing the body on top, so any
 symbol outlines correctly without a hand-transcribed path. A two-point, 28%-black drop shadow sits
 one point below that artwork, with three points of transparent canvas padding keeping the blur
-unclipped. Both glyphs are ink-centered in their own canvas, so the hotspot is simply the canvas
-center: 41×39 points for the crosshair, 38×36 for the viewfinder. There is no runtime SVG parsing or
+unclipped. The glyphs are ink-centered in their own canvas, so the hotspot is simply the canvas
+center — except the eyedropper, which samples at its tip: its hotspot is scanned to the solid-ink
+pixel nearest the artwork's bottom-left corner, a scan that survives any SF Symbol redraw while the
+soft shadow stays below the alpha threshold. There is no runtime SVG parsing or
 second overlay-drawn pointer. Cursor rects cover each display and the cursor is set
 on presentation, every inactive-panel mouse move and explicitly during a drag, so Option-key release
 and the previous app's cursor rect cannot reintroduce the arrow before or after mouse-down. Because
@@ -53,20 +56,22 @@ During a drag, the selected rectangle is replaced with an exact 5% overlay so it
 clear without obscuring the source. Both that fill and the selection border follow the system
 appearance — white on dark, black on light — since a black outline disappears into a dark desktop. With Rounded Corners on, both that fill and the selection border
 use a four-physical-pixel radius on every display scale. Releasing the button accepts any region at
-least one point in both dimensions. Escape, a secondary click or a zero-area click cancels without
-touching the clipboard, and every exit path restores the cursor before removing the panels. Escape
+least one point in both dimensions. Escape or a zero-area click cancels without touching the
+clipboard — a right click deliberately does not: it is the window capture (below) — and every exit
+path restores the cursor before removing the panels. Escape
 arrives two ways: the selection view's own `keyDown`, which only fires when the overlay actually
 holds keyboard focus, and — because that depends on what was frontmost when the shortcut fired — a
 transient Carbon key held for the life of the selection and released with the panels, the same
 mechanism the preview thumbnail uses for Return.
 
-## Window, screen and text capture modes
+## One picking mode, three outputs
 
-Space cycles the live selection: region → window → whole screen → region, as often as the user
-likes. **Tab** swaps to text recognition and back to whichever picking mode was in use, so reading
-something and returning does not lose the user's place; Space is inert in text mode, since there is
-no sensible whole-window or whole-display version of "read this bit of text". Every capture starts
-in region mode — no mode is sticky across invocations.
+Space cycles what the session produces — screenshot → OCR → colour picker → back around — as often
+as the user likes, and every capture starts in screenshot mode: no mode is sticky across
+invocations. The gestures live inside the mode rather than being modes themselves: in screenshot
+mode a left drag selects a region, a right click captures the window under the pointer, and each
+display's glass button captures that whole screen. OCR and the colour picker have their own
+sections below.
 
 Switching mode swaps the pointer outright rather than animating between symbols. The pointer *is*
 the mode indicator, so it has to be legible the instant the key lands — including for a pointer that
@@ -75,35 +80,22 @@ previous symbol, but AppKit drops the live pointer to the arrow while it rebuild
 a rect's cursor once the pointer enters it, so the cursor is set again after the rebuild as well as
 before it. Without that second pass a stationary pointer sat on the plain arrow until the user
 twitched the mouse. The manager owns the mode and pushes it to every panel at once, so the
-displays never disagree. In window mode the pointer becomes `camera.fill`, dragging is inert,
-and the window under the pointer is filled and outlined with the same tokens a dragged region uses.
-A left click captures the highlighted window; Escape and a secondary click still cancel.
+displays never disagree.
 
-Screen mode is the same interaction one step further out: the pointer becomes `display`, the whole
-display under the pointer is highlighted, and a click captures it. It runs through the same
-display-capture path a dragged region uses, with the source rectangle set to the display's full
-bounds — so the resolution setting applies identically, and a Retina capture of a whole display is
-its framebuffer's pixel count. Nothing is rounded: a full display has no corners to clip.
+## Window capture
 
-Each swap plays a short pointer transition, since a hardware cursor cannot animate itself: the
-outgoing symbol shrinks to 60% while it fades out, the incoming one grows from 60% back to full size
-as it fades in, and the two overlap for the middle fifth of the swap. Both stay centered on the
-hotspot, so the pointer never drifts. `ScreenshotCursorAnimator` replays seven composed frames and
-lands on the shared resting cursor over `Theme.Animation.quick` (140 ms), rebuilding each panel's
-cursor rect per frame so a pointer move mid-swap cannot restore the previous symbol. The frames are
-composed once per direction from artwork rasterized at the deepest backing scale on the Mac and only
-ever shrink it, so no frame is resampled upward. The curve itself lives in the pure
-`ScreenshotCursorTransition`, whose harness pins its endpoints, its monotonic progress, the overlap
-and the clamped out-of-range steps.
+A right click captures the window under the pointer instantly — no hover highlight and no
+confirmation pass, because a right click is a fast action, so the hit test runs once at the click
+itself. It is inert mid-drag, outside screenshot mode, and over nothing eligible, which is a no-op
+that leaves the selection up rather than a cancel.
 
-Hit testing reads `CGWindowListCopyWindowInfo` (on-screen, desktop elements excluded) on each pointer
-move and keeps the window server's front-to-back order, so the first match under the pointer is the
+Hit testing reads `CGWindowListCopyWindowInfo` (on-screen, desktop elements excluded) and keeps the
+window server's front-to-back order, so the first match under the pointer is the
 top-most window. The pure `ScreenshotWindowPicker` applies the filters and both coordinate flips:
 Spotter's own overlay panels are excluded by process id, only layer-0 windows qualify, and windows
 that are effectively invisible (alpha under 0.05) or smaller than 24 points on a side are skipped.
 Window rectangles arrive top-origin relative to the primary display and are flipped into AppKit's
-global space before each panel converts them to its own display-local coordinates, so a window that
-straddles two displays highlights correctly on both.
+global space.
 
 Capture resolves the picked window id against `SCShareableContent` and uses
 `SCContentFilter(desktopIndependentWindow:)`, so the window is captured from its own content rather
@@ -112,6 +104,26 @@ result. Shadows are excluded for a tight crop, the window's own rounded alpha co
 and the Rounded Corners setting is deliberately not reapplied to a window capture. If the window
 disappears between the click and the request, the capture fails through the same HUD as any other
 failure.
+
+## The whole-screen button
+
+Each display's overlay carries one Liquid Glass square — a 56-point rounded rect holding a small
+`display` glyph — and clicking it captures that display in full, through the same display-capture
+path a dragged region uses with the source rectangle set to the display's full bounds. The
+Resolution setting therefore applies identically, and nothing is rounded: a full display has no
+corners to clip. That also makes the button the quickest end-to-end check of the Resolution
+setting: a Retina capture of a whole display should match its framebuffer exactly (point size times
+backing scale), and `1x` should match its point size.
+
+The button sits inset from the right edge of the display's usable width — a Dock on the right edge
+pushes it inward — and vertically centred on the Dock strip when the Dock is on that display's
+bottom edge, resting at a fixed height above the bottom when it is not. The pure
+`ScreenshotGeometry.screenButtonFrame` owns that placement and the harness pins it. The button
+shows only in screenshot mode: whole-screen capture is a picture, not an OCR or colour action. Its
+hosting view accepts the first click like the overlay around it, its clicks never start a drag, and
+the pointer over its footprint is the plain arrow rather than the mode pointer — enforced both
+through cursor rects and on every pointer-move set, since the overlay otherwise reasserts the mode
+pointer continuously.
 
 The pure `ScreenshotGeometry` normalizes drag direction, clamps local points and flips a display-local
 AppKit rectangle into ScreenCaptureKit's display-local top-origin space. Its standalone harness pins
@@ -139,14 +151,13 @@ handed out this session as taken, since the blob write is detached and the previ
 exist yet when the next call asks. Only the capture itself is recorded; a marked-up copy made in the
 editor is a deliberate edit of an entry history already holds.
 
-## Capture options
+## Text recognition (OCR mode)
 
-## Text recognition
-
-Tab turns the selection orange: the pointer keeps the region `dot.crosshair` and only changes colour
+OCR mode turns the selection orange: the pointer keeps the `dot.crosshair` and only changes colour
 to `screenshotCrosshairTextFill`, because text recognition *is* a region drag — the shape says what
-the gesture is and the colour says what comes out of it. The drag behaves exactly as a region drag — the two share
-`isDragSelection`, so neither picks windows nor whole displays. On release the pixels are captured
+the gesture is and the colour says what comes out of it. The drag behaves exactly as a region drag —
+the two share `isDragSelection`. A right click and the whole-screen button are inert here: there is
+no sensible whole-window or whole-display version of "read this bit of text". On release the pixels are captured
 only to be read: Vision recognizes the text, the image is dropped, and the text alone goes to the
 clipboard. "Text Copied" reports through the plain command HUD, and a selection with nothing legible
 in it reports "No Text Found" as a no-op without touching the clipboard.
@@ -170,9 +181,28 @@ vertical overlap measured against the *shorter* fragment, so a tall heading does
 beneath it, then sorts lines top-to-bottom and each line left-to-right. Its harness pins the
 ordering, the empty cases and the heading-versus-body grouping.
 
-Screen mode is also the quickest way to check the Resolution setting end to end: a Retina capture of
-a whole display should match that display's framebuffer exactly (its point size times its backing
-scale), and `1x` should match its point size.
+## Colour picker
+
+The third Space stop samples a colour instead of pixels or text. The pointer becomes an eyedropper
+whose hotspot is its tip, a left click reads the point under it, and the value lands on the
+clipboard as uppercase `#RRGGBB` — confirmed by a "Copied #A1B2C3" command HUD. Dragging and right
+clicks are inert; Escape still cancels. There is no loupe: click-to-copy ships first, and a zoomed
+preview would need live screen streaming that the idle-between-invocations architecture deliberately
+avoids.
+
+The sample is one point captured through the ordinary display path at `1x` regardless of the
+Resolution setting — one point is the colour the user sees, and the single pixel ScreenCaptureKit
+distils from its Retina quad is the honest value for it. The overlay panels come down first and the
+capture waits the same one-frame beat as a region, since the hit surface's single alpha step would
+otherwise tint the reading. The pure `ScreenshotColorSampler` converts the pixel to sRGB before
+formatting — a raw byte read off a Display-P3 capture would name a colour every other app renders
+differently — and the pure `ScreenshotGeometry.colorSampleRect` keeps an edge click on the display;
+the harness pins both.
+
+Like recognized text, the hex value is written **unmarked** and enters clipboard history: it is the
+user's own value, not a picture with a thumbnail and an editor (owner decision, Aug 2026).
+
+## Capture options
 
 Four preferences shape what a capture produces. All persist under bundle-scoped
 `screenshot.*` keys, ride the trusted v3 backup/sync snapshot and apply live.

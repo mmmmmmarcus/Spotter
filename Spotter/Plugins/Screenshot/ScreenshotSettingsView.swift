@@ -7,12 +7,12 @@ struct ScreenshotSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "Screenshot",
-            subtitle: "Select any screen region and copy its pixels to the clipboard."
+            subtitle: "Capture regions, windows and screens, read text, or sample a color — straight to the clipboard."
         ) {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
                     title: "Screenshot",
-                    subtitle: "Show a global crosshair for region capture.",
+                    subtitle: "Show a global crosshair for region, window and screen capture.",
                     systemImage: "camera.viewfinder",
                     tint: .blue
                 ) {

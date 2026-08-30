@@ -6,6 +6,7 @@ import ScreenCaptureKit
 enum ScreenshotCaptureResult {
     case copied
     case textCopied
+    case colorCopied(String)
     case noTextFound
     case cancelled
     case permissionRequired
@@ -40,26 +41,26 @@ struct ScreenshotCapturePayload: Sendable {
     }
 }
 
-/// Region selection is where every capture starts; Space cycles on through whole-window and
-/// whole-display picking and back around, and Tab swaps to text recognition and back.
+/// One selection session, three outputs: Space cycles what a capture produces. Screenshot mode is
+/// where every session starts — a left drag selects a region, a right click captures the window
+/// under the pointer, and each display's glass button captures that whole screen.
 enum ScreenshotCaptureMode: CaseIterable {
-    case region
-    case window
-    case screen
-    /// Drag a region and keep only the text inside it. Deliberately off the Space cycle: there is
-    /// no sensible whole-window or whole-display version of "read this bit of text".
-    case text
+    case screenshot
+    /// Drag a region and keep only the text inside it.
+    case ocr
+    /// Click a pixel and copy its hex value.
+    case colorPicker
 
     var next: ScreenshotCaptureMode {
         switch self {
-        case .region: .window
-        case .window: .screen
-        case .screen, .text: .region
+        case .screenshot: .ocr
+        case .ocr: .colorPicker
+        case .colorPicker: .screenshot
         }
     }
 
-    /// Whether the user draws the area, as opposed to picking something already on screen.
-    var isDragSelection: Bool { self == .region || self == .text }
+    /// Whether the user draws an area, as opposed to clicking a single point.
+    var isDragSelection: Bool { self == .screenshot || self == .ocr }
 }
 
 private enum ScreenshotCaptureFailure: LocalizedError {
@@ -88,10 +89,7 @@ final class ScreenshotManager: ObservableObject {
     private var completion: ((ScreenshotCaptureResult) -> Void)?
     private var captureTask: Task<Void, Never>?
     private var previousCursor: NSCursor?
-    private var mode: ScreenshotCaptureMode = .region
-    private var hoveredWindow: ScreenshotWindowCandidate?
-    /// Where Tab returns to; Space never leaves text mode, so this only tracks picking modes.
-    private var modeBeforeText: ScreenshotCaptureMode = .region
+    private var mode: ScreenshotCaptureMode = .screenshot
     private var selectionStartedAt: Date?
     /// Recorded when the selection opens, before any overlay can take the frontmost app's place.
     private var captureSource: (name: String?, bundleID: String?)?
@@ -226,9 +224,7 @@ final class ScreenshotManager: ObservableObject {
         self.completion = completion
         let frontmost = NSWorkspace.shared.frontmostApplication
         captureSource = (frontmost?.localizedName, frontmost?.bundleIdentifier)
-        mode = .region
-        modeBeforeText = .region
-        hoveredWindow = nil
+        mode = .screenshot
         previousCursor = NSCursor.current
         BackgroundCursor.setAllowed(true)
         panels = screens.map(makePanel)
@@ -388,35 +384,28 @@ final class ScreenshotManager: ObservableObject {
     private func makePanel(for screen: NSScreen) -> ScreenshotSelectionPanel {
         let view = ScreenshotSelectionView(
             screenFrame: screen.frame,
+            visibleFrame: screen.visibleFrame,
             roundedCorners: roundedCorners)
         let panel = ScreenshotSelectionPanel(screen: screen, contentView: view)
         view.onSelection = { [weak self, weak screen] localRect in
             guard let self, let screen else { return }
             finishSelection(localRect, on: screen)
         }
-        view.onWindowSelection = { [weak self] in self?.capturePickedTarget() }
+        view.onColorPick = { [weak self, weak screen] localPoint in
+            guard let self, let screen else { return }
+            pickColor(at: localPoint, on: screen)
+        }
+        view.onWindowCapture = { [weak self] in self?.captureWindowUnderPointer() }
+        view.onScreenCapture = { [weak self, weak screen] in
+            guard let self, let screen else { return }
+            captureScreen(of: screen)
+        }
         view.onToggleMode = { [weak self] in self?.toggleMode() }
-        view.onToggleTextMode = { [weak self] in self?.toggleTextMode() }
-        view.onPointerMoved = { [weak self] in self?.refreshHoveredWindow() }
         view.onCancel = { [weak self] in self?.cancel() }
         return panel
     }
 
-    /// Tab is a toggle, not a step: it swaps to text recognition and back to whichever picking mode
-    /// was in use, so switching to read something and back does not lose the user's place.
-    private func toggleTextMode() {
-        if mode == .text {
-            mode = modeBeforeText
-        } else {
-            modeBeforeText = mode
-            mode = .text
-        }
-        applyMode()
-    }
-
     private func toggleMode() {
-        // Space is the picking cycle; in text mode there is nothing for it to cycle through.
-        guard mode != .text else { return }
         mode = mode.next
         applyMode()
     }
@@ -424,47 +413,6 @@ final class ScreenshotManager: ObservableObject {
     private func applyMode() {
         AppLog.info("screenshot", "Capture mode is now \(mode).")
         for panel in panels { panel.apply(mode: mode) }
-        refreshHoveredWindow()
-    }
-
-    /// Window and screen modes highlight whatever sits under the pointer, so this reruns on every pointer move.
-    private func refreshHoveredWindow() {
-        if mode == .screen {
-            hoveredWindow = nil
-            applyHighlight(Self.screenUnderPointer()?.frame)
-            return
-        }
-        guard mode == .window else {
-            // Region and text both draw their own rectangle; neither highlights anything.
-            guard hoveredWindow != nil else { return }
-            hoveredWindow = nil
-            applyHighlight(nil)
-            return
-        }
-        let primaryScreenMaxY = NSScreen.screens.first?.frame.maxY ?? 0
-        let point = ScreenshotWindowPicker.displaySpacePoint(
-            fromAppKit: NSEvent.mouseLocation, primaryScreenMaxY: primaryScreenMaxY)
-        let target = ScreenshotWindowPicker.target(
-            at: point,
-            in: Self.windowCandidates(),
-            excluding: ProcessInfo.processInfo.processIdentifier)
-        guard target != hoveredWindow else { return }
-        hoveredWindow = target
-        applyHighlight(
-            target.map {
-                ScreenshotWindowPicker.appKitRect(
-                    fromDisplaySpace: $0.bounds, primaryScreenMaxY: primaryScreenMaxY)
-            })
-    }
-
-    /// NSMouseInRect, not `contains`: on the top edge the pointer's y sits on `frame.maxY`.
-    private static func screenUnderPointer() -> NSScreen? {
-        NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-            ?? NSScreen.main
-    }
-
-    private func applyHighlight(_ globalRect: CGRect?) {
-        for panel in panels { panel.apply(highlight: globalRect) }
     }
 
     private static func windowCandidates() -> [ScreenshotWindowCandidate] {
@@ -496,7 +444,7 @@ final class ScreenshotManager: ObservableObject {
         let captureRect = ScreenshotGeometry.captureRect(
             fromScreenLocal: localRect, screenHeight: screen.frame.height)
         lastCaptureRect = localRect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
-        if mode == .text {
+        if mode == .ocr {
             recognizeText(in: captureRect, displayID: displayID)
             return
         }
@@ -555,18 +503,10 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
-    private func capturePickedTarget() {
-        if mode == .screen {
-            captureHoveredScreen()
-        } else {
-            captureHoveredWindow()
-        }
-    }
-
-    /// The whole display under the pointer, captured through the same display path a region uses —
-    /// the source rectangle is simply the display's full bounds.
-    private func captureHoveredScreen() {
-        guard let screen = Self.screenUnderPointer(), let displayID = screen.displayID else {
+    /// The whole display whose glass button was clicked, captured through the same display path a
+    /// region uses — the source rectangle is simply the display's full bounds.
+    private func captureScreen(of screen: NSScreen) {
+        guard let displayID = screen.displayID else {
             cancel()
             return
         }
@@ -592,16 +532,24 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
-    /// A window image already carries its own rounded alpha corners, so it skips the corner pass.
-    private func captureHoveredWindow() {
-        refreshHoveredWindow()
-        guard let target = hoveredWindow else {
-            cancel()
+    /// A right click captures the window under the pointer, hit-tested once at the click itself. A
+    /// window image already carries its own rounded alpha corners, so it skips the corner pass.
+    private func captureWindowUnderPointer() {
+        let primaryScreenMaxY = NSScreen.screens.first?.frame.maxY ?? 0
+        let point = ScreenshotWindowPicker.displaySpacePoint(
+            fromAppKit: NSEvent.mouseLocation, primaryScreenMaxY: primaryScreenMaxY)
+        guard
+            let target = ScreenshotWindowPicker.target(
+                at: point,
+                in: Self.windowCandidates(),
+                excluding: ProcessInfo.processInfo.processIdentifier)
+        else {
+            // Nothing under the pointer is a no-op, not a cancel; the selection stays up.
+            AppLog.info("screenshot", "Right click found no window under the pointer.")
             return
         }
         let captureScale = captureScale
         let includesWindowShadow = includesWindowShadow
-        let primaryScreenMaxY = NSScreen.screens.first?.frame.maxY ?? 0
         lastCaptureRect = ScreenshotWindowPicker.appKitRect(
             fromDisplaySpace: target.bounds, primaryScreenMaxY: primaryScreenMaxY)
         dismissPanels()
@@ -617,6 +565,49 @@ final class ScreenshotManager: ObservableObject {
                 await deliver(image, roundedCorners: false)
             } catch {
                 AppLog.error("screenshot", "Window capture failed: \(error.localizedDescription)")
+                captureTask = nil
+                finish(.failed)
+            }
+        }
+    }
+
+    /// Captures one point only to name it: the pixel is sampled, the image is dropped, and the hex
+    /// value goes to the clipboard. Sampled at 1x regardless of the Resolution setting — one point
+    /// is the colour the user sees, and averaging its Retina quad is the honest single value.
+    private func pickColor(at localPoint: CGPoint, on screen: NSScreen) {
+        guard let displayID = screen.displayID else {
+            cancel()
+            return
+        }
+        let sampleRect = ScreenshotGeometry.colorSampleRect(
+            around: localPoint, within: CGRect(origin: .zero, size: screen.frame.size))
+        let captureRect = ScreenshotGeometry.captureRect(
+            fromScreenLocal: sampleRect, screenHeight: screen.frame.height)
+        dismissPanels()
+
+        captureTask = Task { [weak self] in
+            guard let self else { return }
+            // The overlay's hit surface carries one alpha step of black, so the sample waits for
+            // WindowServer to remove the panels the same way a region capture does.
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            do {
+                let image = try await Self.captureImage(
+                    in: captureRect, displayID: displayID, scale: .oneX)
+                let hex = await Task.detached(priority: .userInitiated) {
+                    ScreenshotColorSampler.hexColor(from: image)
+                }.value
+                guard !Task.isCancelled else { return }
+                captureTask = nil
+                guard let hex else {
+                    finish(.failed)
+                    return
+                }
+                writeTextToPasteboard(hex)
+                AppLog.info("screenshot", "Copied the sampled colour \(hex).")
+                finish(.colorCopied(hex))
+            } catch {
+                AppLog.error("screenshot", "Colour sampling failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
             }
@@ -694,9 +685,9 @@ final class ScreenshotManager: ObservableObject {
             contentFilter: filter, configuration: configuration)
     }
 
-    /// Deliberately unmarked, unlike every other Spotter write: recognized text is the user's own
-    /// content and belongs in clipboard history, where an image capture — which has its own
-    /// thumbnail, pin and editor — does not. Owner decision, Aug 2026.
+    /// Deliberately unmarked, unlike every other Spotter write: recognized text and a sampled hex
+    /// value are the user's own content and belong in clipboard history, where an image capture —
+    /// which has its own thumbnail, pin and editor — does not. Owner decision, Aug 2026.
     private func writeTextToPasteboard(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -726,7 +717,6 @@ final class ScreenshotManager: ObservableObject {
         hotKeys.releaseTransientKey(id: Self.escapeKeyID)
         for panel in panels { panel.deactivate() }
         panels = []
-        hoveredWindow = nil
         previousCursor?.set()
         previousCursor = nil
         BackgroundCursor.setAllowed(false)
@@ -808,10 +798,6 @@ private final class ScreenshotSelectionPanel: NSPanel {
         selectionView.apply(mode: mode)
     }
 
-    func apply(highlight: CGRect?) {
-        selectionView.apply(highlight: highlight)
-    }
-
     func deactivate() {
         orderOut(nil)
     }
@@ -819,25 +805,33 @@ private final class ScreenshotSelectionPanel: NSPanel {
 
 private final class ScreenshotSelectionView: NSView {
     var onSelection: ((CGRect) -> Void)?
-    var onWindowSelection: (() -> Void)?
+    var onColorPick: ((CGPoint) -> Void)?
+    var onWindowCapture: (() -> Void)?
+    var onScreenCapture: (() -> Void)?
     var onToggleMode: (() -> Void)?
-    var onToggleTextMode: (() -> Void)?
-    var onPointerMoved: (() -> Void)?
     var onCancel: (() -> Void)?
 
     private let roundedCorners: Bool
     private let screenFrame: CGRect
-    private var mode: ScreenshotCaptureMode = .region
+    private var mode: ScreenshotCaptureMode = .screenshot
     private var cursor: NSCursor { ScreenshotCursor.cursor(for: mode) }
-    private var highlight: CGRect?
     private var dragStart: CGPoint?
     private var selection: CGRect?
+    /// The glass button's footprint; the pointer over it is the plain arrow, not the crosshair.
+    private let screenButtonFrame: CGRect
+    /// Created lazily so its action can capture `self`.
+    private lazy var screenButton = ScreenshotScreenButtonHost(
+        rootView: ScreenshotScreenButton { [weak self] in self?.onScreenCapture?() })
     private static let selectionStrokeWidthPixels: CGFloat = 1
 
-    init(screenFrame: CGRect, roundedCorners: Bool) {
+    init(screenFrame: CGRect, visibleFrame: CGRect, roundedCorners: Bool) {
         self.roundedCorners = roundedCorners
         self.screenFrame = screenFrame
+        screenButtonFrame = ScreenshotGeometry.screenButtonFrame(
+            screenFrame: screenFrame, visibleFrame: visibleFrame)
         super.init(frame: NSRect(origin: .zero, size: screenFrame.size))
+        screenButton.frame = screenButtonFrame
+        addSubview(screenButton)
         addTrackingArea(NSTrackingArea(
             rect: bounds,
             options: [
@@ -856,20 +850,19 @@ private final class ScreenshotSelectionView: NSView {
     override func resetCursorRects() {
         super.resetCursorRects()
         addCursorRect(bounds, cursor: cursor)
+        if !screenButton.isHidden { addCursorRect(screenButtonFrame, cursor: .arrow) }
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        cursor.set()
+        setPointerCursor()
     }
 
     override func mouseMoved(with event: NSEvent) {
-        cursor.set()
-        onPointerMoved?()
+        setPointerCursor()
     }
 
     override func mouseEntered(with event: NSEvent) {
-        cursor.set()
-        onPointerMoved?()
+        setPointerCursor()
     }
 
     func prepareForPresentation() {
@@ -881,8 +874,25 @@ private final class ScreenshotSelectionView: NSView {
         self.mode = mode
         dragStart = nil
         selection = nil
+        // Whole-screen capture is a picture; the button sits out the text and colour modes.
+        screenButton.isHidden = mode != .screenshot
         refreshCursorRects()
         needsDisplay = true
+    }
+
+    /// The glass button owns the pointer over its own footprint.
+    private func setPointerCursor() {
+        if !screenButton.isHidden, screenButtonFrame.contains(localPointerLocation()) {
+            NSCursor.arrow.set()
+        } else {
+            cursor.set()
+        }
+    }
+
+    private func localPointerLocation() -> CGPoint {
+        CGPoint(
+            x: NSEvent.mouseLocation.x - screenFrame.minX,
+            y: NSEvent.mouseLocation.y - screenFrame.minY)
     }
 
     /// Rebuilding the cursor rects is what stops a later pointer move from restoring the previous
@@ -900,21 +910,11 @@ private final class ScreenshotSelectionView: NSView {
     /// which a plain rect-contains misses.
     private func setCursorIfPointerInside() {
         guard let window, NSMouseInRect(NSEvent.mouseLocation, window.frame, false) else { return }
-        cursor.set()
-    }
-
-    func apply(highlight rect: CGRect?) {
-        let local = rect.map { $0.offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY) }
-        guard local != highlight else { return }
-        highlight = local
-        needsDisplay = true
+        setPointerCursor()
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard event.buttonNumber == 0 else {
-            onCancel?()
-            return
-        }
+        guard event.buttonNumber == 0 else { return }
         window?.makeKey()
         window?.makeFirstResponder(self)
         cursor.set()
@@ -935,12 +935,12 @@ private final class ScreenshotSelectionView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         guard event.buttonNumber == 0 else { return }
-        guard mode.isDragSelection else {
-            onWindowSelection?()
+        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
+        if mode == .colorPicker {
+            onColorPick?(point)
             return
         }
         guard let dragStart else { return }
-        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
         let rect = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
         self.dragStart = nil
         selection = nil
@@ -951,8 +951,12 @@ private final class ScreenshotSelectionView: NSView {
         }
     }
 
+    /// A right click is the window capture, hit-tested where it lands. It no longer cancels in any
+    /// mode — Escape and a second shortcut press remain the ways out — and it is inert mid-drag and
+    /// outside screenshot mode, where a window picture would be a surprise.
     override func rightMouseDown(with event: NSEvent) {
-        onCancel?()
+        guard mode == .screenshot, dragStart == nil else { return }
+        onWindowCapture?()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -961,8 +965,6 @@ private final class ScreenshotSelectionView: NSView {
             onCancel?()
         case 49:
             onToggleMode?()
-        case 48:
-            onToggleTextMode?()
         default:
             super.keyDown(with: event)
         }
@@ -971,11 +973,7 @@ private final class ScreenshotSelectionView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawHitSurface()
-        if !mode.isDragSelection {
-            if let highlight, ScreenshotGeometry.isCapturable(highlight) {
-                drawSelection(highlight)
-            }
-        } else if let selection, ScreenshotGeometry.isCapturable(selection) {
+        if let selection, ScreenshotGeometry.isCapturable(selection) {
             drawSelection(selection)
         }
     }

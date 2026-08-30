@@ -23,6 +23,33 @@ private func solidImage(width: Int, height: Int) -> CGImage {
     return context.makeImage()!
 }
 
+private func colorImage(
+    width: Int, height: Int, red: CGFloat, green: CGFloat, blue: CGFloat,
+    space: CGColorSpace = CGColorSpaceCreateDeviceRGB()
+) -> CGImage {
+    let context = CGContext(
+        data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+        space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(CGColor(colorSpace: space, components: [red, green, blue, 1])!)
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    return context.makeImage()!
+}
+
+/// Red, green, blue across three pixels, so the sampled one names which pixel was read.
+private func stripedImage() -> CGImage {
+    let context = CGContext(
+        data: nil, width: 3, height: 1, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+    context.setFillColor(red: 0, green: 1, blue: 0, alpha: 1)
+    context.fill(CGRect(x: 1, y: 0, width: 1, height: 1))
+    context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+    context.fill(CGRect(x: 2, y: 0, width: 1, height: 1))
+    return context.makeImage()!
+}
+
 private func decodedImage(_ data: Data) -> CGImage? {
     guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
     return CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -93,6 +120,64 @@ private enum ScreenshotTest {
         check(
             ScreenshotGeometry.roundedCornerRadius(forPixelSize: CGSize(width: 6, height: 20)) == 3,
             "small captures clamp the radius to half their shortest side")
+
+        check(
+            ScreenshotGeometry.colorSampleRect(
+                around: CGPoint(x: 10.6, y: 20.4), within: bounds)
+                == CGRect(x: 10, y: 20, width: 1, height: 1),
+            "a colour sample reads the one point under the pointer")
+        check(
+            ScreenshotGeometry.colorSampleRect(
+                around: CGPoint(x: 1440, y: 900), within: bounds)
+                == CGRect(x: 1439, y: 899, width: 1, height: 1),
+            "a sample on the display edge stays on the display")
+
+        // An 80-point Dock strip on the display's bottom edge.
+        let docked = ScreenshotGeometry.screenButtonFrame(
+            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 80, width: 1440, height: 820))
+        check(
+            docked == CGRect(x: 1360, y: 12, width: 56, height: 56),
+            "the glass button centres on the Dock strip, inset from the right edge")
+        let hiddenDock = ScreenshotGeometry.screenButtonFrame(
+            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 875))
+        check(
+            hiddenDock == CGRect(x: 1360, y: 24, width: 56, height: 56),
+            "a hidden Dock leaves the button at its resting height")
+        let rightDock = ScreenshotGeometry.screenButtonFrame(
+            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 0, width: 1360, height: 900))
+        check(
+            rightDock.maxX == 1360 - ScreenshotGeometry.screenButtonInset,
+            "a right-edge Dock pushes the button inward")
+        let secondary = ScreenshotGeometry.screenButtonFrame(
+            screenFrame: CGRect(x: 1440, y: 100, width: 1000, height: 800),
+            visibleFrame: CGRect(x: 1440, y: 180, width: 1000, height: 720))
+        check(
+            secondary == CGRect(x: 920, y: 12, width: 56, height: 56),
+            "a secondary display's button frame is display-local")
+        let tinyDock = ScreenshotGeometry.screenButtonFrame(
+            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 30, width: 1440, height: 870))
+        check(
+            tinyDock.minY == 24,
+            "a Dock shorter than the button falls back to the resting height")
+
+        check(
+            ScreenshotColorSampler.hexColor(
+                from: colorImage(width: 1, height: 1, red: 1, green: 0, blue: 0)) == "#FF0000",
+            "a red pixel names itself #FF0000")
+        check(
+            ScreenshotColorSampler.hexColor(
+                from: colorImage(width: 1, height: 1, red: 0, green: 1, blue: 0)) == "#00FF00",
+            "the hex channel order is red-green-blue")
+        check(
+            ScreenshotColorSampler.hexColor(from: stripedImage()) == "#00FF00",
+            "a multi-pixel capture samples its centre")
+        let p3Hex = ScreenshotColorSampler.hexColor(
+            from: colorImage(
+                width: 1, height: 1, red: 0.8, green: 0.2, blue: 0.2,
+                space: CGColorSpace(name: CGColorSpace.displayP3)!))
+        check(
+            p3Hex != nil && p3Hex != "#CC3333",
+            "a Display-P3 capture converts to sRGB rather than reading raw bytes")
 
         let candidates = [
             ScreenshotWindowCandidate(

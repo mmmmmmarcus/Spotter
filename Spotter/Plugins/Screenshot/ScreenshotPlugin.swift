@@ -22,7 +22,7 @@ enum ScreenshotPlugin {
             metadata: PluginMetadata(
                 id: .screenshot,
                 name: "Screenshot",
-                summary: "Select a region of any display and copy it to the clipboard.",
+                summary: "Capture a region, window or screen, read text, or sample a color.",
                 systemImage: "camera.viewfinder",
                 tint: .blue),
             defaultEnabled: true,
@@ -179,6 +179,8 @@ extension AppCore {
                 showScreenshotPreview(from: screenshot.lastCaptureRect)
             case .textCopied:
                 hud.show(title: "Text Copied", symbol: "text.viewfinder")
+            case .colorCopied(let hex):
+                hud.show(title: "Copied \(hex)", symbol: "eyedropper")
             case .noTextFound:
                 hud.show(title: "No Text Found", symbol: "text.viewfinder", isNoOp: true)
             case .permissionRequired:
