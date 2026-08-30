@@ -30,6 +30,7 @@ TESTS=(
     window-command
     background-task
     mole
+    onepassword
     coffee
     ai-chat
     dashboard-widgets
@@ -184,6 +185,10 @@ run_harness() {
                 Spotter/Plugins/Mole/MoleProcessRunner.swift Tools/mole-test.swift \
                 -o "$output" && "$output"
             ;;
+        onepassword)
+            swiftc -swift-version 6 Spotter/Plugins/OnePassword/OnePasswordTypes.swift \
+                Tools/onepassword-test.swift -o "$output" && "$output"
+            ;;
         coffee)
             swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift \
                 Tools/coffee-test.swift -o "$output" && "$output"
@@ -233,6 +238,7 @@ run_harness() {
                 -framework ImageIO -framework UniformTypeIdentifiers \
                 Spotter/Plugins/Screenshot/ScreenshotWindowPicker.swift \
                 Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
+                Spotter/Plugins/Screenshot/ScreenshotColorSampler.swift \
                 Spotter/Plugins/Screenshot/ScreenshotImageProcessor.swift \
                 Spotter/Plugins/Screenshot/ScreenshotAnnotation.swift \
                 Spotter/Plugins/Screenshot/ScreenshotTextLayout.swift \
