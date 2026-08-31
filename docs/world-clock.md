@@ -14,6 +14,12 @@ navigation). Both city and local values move together, and editing the query res
 zone. Common aliases are hand-curated, while the remaining city catalog is derived from
 `TimeZone.knownTimeZoneIdentifiers`.
 
+Each saved-city and Add City row leads with the country's flag emoji rather than a clock glyph. The
+mapping is the tz database's own: `WorldClockEngine.countryCodes(fromZoneTab:)` parses the country
+column purely (harness-covered), the store reads `/usr/share/zoneinfo/zone.tab` once (the store may
+touch the filesystem, the engine may not), and `flagEmoji(countryCode:)` renders the ISO code as
+regional indicators. A zone the table doesn't place falls back to the original symbol.
+
 ## Saved cities
 
 Launching World Clock opens a `PluginPaletteScreenRegistration` rendered by `PluginPaletteList`.

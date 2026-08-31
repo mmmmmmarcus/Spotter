@@ -196,6 +196,32 @@ enum WorldClockEngine {
         return locationsByAlias[location]
     }
 
+    /// tz-database `zone.tab` text → ISO country code per canonical zone identifier. Pure parse for
+    /// the harness; the store feeds it the system's own copy of the table.
+    static func countryCodes(fromZoneTab text: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for line in text.split(whereSeparator: \.isNewline) {
+            guard !line.hasPrefix("#") else { continue }
+            let columns = line.split(separator: "\t")
+            guard columns.count >= 3, columns[0].count == 2 else { continue }
+            result[String(columns[2])] = String(columns[0])
+        }
+        return result
+    }
+
+    /// The two regional-indicator scalars that render as a country's flag emoji.
+    static func flagEmoji(countryCode: String) -> String? {
+        let code = countryCode.uppercased()
+        guard code.count == 2, code.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
+        var flag = ""
+        for scalar in code.unicodeScalars {
+            guard let regional = Unicode.Scalar(0x1F1E6 + scalar.value - Unicode.Scalar("A").value)
+            else { return nil }
+            flag.unicodeScalars.append(regional)
+        }
+        return flag
+    }
+
     private static func normalized(_ raw: String) -> String {
         let characters = raw.folding(
             options: [.caseInsensitive, .diacriticInsensitive], locale: .current)

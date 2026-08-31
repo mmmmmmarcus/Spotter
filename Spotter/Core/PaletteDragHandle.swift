@@ -113,19 +113,16 @@ final class PaletteDragHandleView: NSView {
     }
 }
 
-/// The grab pill itself: a small capsule chip, legible over any wallpaper in either appearance,
-/// built from semantic colors so the system flips both stops together.
+/// The grab pill itself: one bare bar, semantic-colored so both appearances get their own stop.
+/// The near-invisible backing capsule is hit area, not decoration — the window server only routes
+/// clicks to pixels above its transparency threshold, and a 6-point bar alone is too thin a target.
 private final class PalettePillView: NSView {
     override func draw(_ dirtyRect: NSRect) {
-        let chip = NSRect(x: bounds.midX - 32, y: bounds.midY - 6, width: 64, height: 12)
-        let chipPath = NSBezierPath(roundedRect: chip, xRadius: 6, yRadius: 6)
-        NSColor.windowBackgroundColor.withAlphaComponent(0.9).setFill()
-        chipPath.fill()
-        NSColor.separatorColor.setStroke()
-        chipPath.lineWidth = 1
-        chipPath.stroke()
-        let bar = NSRect(x: bounds.midX - 18, y: bounds.midY - 2.5, width: 36, height: 5)
-        NSColor.tertiaryLabelColor.setFill()
-        NSBezierPath(roundedRect: bar, xRadius: 2.5, yRadius: 2.5).fill()
+        let backing = NSRect(x: bounds.midX - 32, y: bounds.midY - 7, width: 64, height: 14)
+        NSColor.labelColor.withAlphaComponent(0.015).setFill()
+        NSBezierPath(roundedRect: backing, xRadius: 7, yRadius: 7).fill()
+        let bar = NSRect(x: bounds.midX - 22, y: bounds.midY - 3, width: 44, height: 6)
+        NSColor.secondaryLabelColor.setFill()
+        NSBezierPath(roundedRect: bar, xRadius: 3, yRadius: 3).fill()
     }
 }

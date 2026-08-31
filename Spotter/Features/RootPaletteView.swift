@@ -452,12 +452,13 @@ struct RootPaletteView: View {
         _ content: Content, clips: [ClipboardItem], clipFollow: ClipFollowKey
     ) -> some View {
         content
-        // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up).
+        // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up). The scroll snaps home too: a reopen that preserved its state should still start reading from the top.
         .onChange(of: vm.focusToken) {
             aliasTarget = nil
             aliasFocused = false
             searchFocused = vm.mode != .updates
             openMenu = nil
+            scroll = ScrollIntent(kind: .top)
         }
         .onChange(of: vm.query) {
             vm.selection = 0

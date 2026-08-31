@@ -59,6 +59,7 @@ struct SettingsBackup: Codable, Sendable {
         var showFavoritesInCompactMode: Bool?
         var searchScopes: [String]?
         var openOnCursorScreen: Bool?
+        var preferredTerminal: String?
         var remembersPalettePosition: Bool?
         var lockInputToEnglish: Bool?
         // The key is the OpenRouter gate (owner decision): importing or syncing a file that carries one activates the AI path on this Mac.
@@ -241,6 +242,7 @@ extension SettingsBackup {
             showFavoritesInCompactMode: s.showFavoritesInCompactMode,
             searchScopes: s.searchScopes,
             openOnCursorScreen: s.openOnCursorScreen,
+            preferredTerminal: s.preferredTerminal.rawValue,
             remembersPalettePosition: s.remembersPalettePosition,
             lockInputToEnglish: s.lockInputToEnglish,
             openRouterAPIKey: core.openRouter.apiKey,
@@ -659,6 +661,10 @@ extension SettingsBackup {
         }
         if let flag = s.openOnCursorScreen {
             settings.openOnCursorScreen = flag
+            count += 1
+        }
+        if let raw = s.preferredTerminal, let terminal = PreferredTerminal(rawValue: raw) {
+            settings.preferredTerminal = terminal
             count += 1
         }
         if let flag = s.remembersPalettePosition {

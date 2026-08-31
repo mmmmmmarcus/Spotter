@@ -79,6 +79,21 @@ struct WorldClockTests {
         let restored = WorldClockStore(defaults: defaults, now: { instant })
         expect(restored.cities.map(\.name) == ["Shanghai", "San Francisco", "Tokyo"], "city edits persist in order")
 
+        let zoneTab = """
+            # comment line
+            JP\t+353916+1394441\tAsia/Tokyo
+            GB\t+513030-0000731\tEurope/London\tsome comment
+            bad line without tabs
+            """
+        let countries = WorldClockEngine.countryCodes(fromZoneTab: zoneTab)
+        expect(countries["Asia/Tokyo"] == "JP", "zone.tab rows map zone to country")
+        expect(countries["Europe/London"] == "GB", "a trailing comment column is ignored")
+        expect(countries.count == 2, "comments and malformed rows are dropped")
+        expect(WorldClockEngine.flagEmoji(countryCode: "JP") == "🇯🇵", "a country code becomes its flag")
+        expect(WorldClockEngine.flagEmoji(countryCode: "gb") == "🇬🇧", "lowercase codes are accepted")
+        expect(WorldClockEngine.flagEmoji(countryCode: "J") == nil, "a one-letter code is rejected")
+        expect(WorldClockEngine.flagEmoji(countryCode: "J2") == nil, "a non-letter code is rejected")
+
         print("World Clock: \(passed) passed, \(failed) failed")
         if failed > 0 { exit(1) }
     }

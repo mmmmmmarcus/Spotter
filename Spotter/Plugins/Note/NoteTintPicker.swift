@@ -18,9 +18,12 @@ struct NoteTintPicker: View {
     var body: some View {
         Button { showsPanel.toggle() } label: {
             Image(systemName: "paintbrush.fill")
-                .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: Theme.Size.noteGlassButton, height: Theme.Size.noteGlassButton)
+                .contentShape(Circle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Circle())
         .help("Note Color")
         .popover(isPresented: $showsPanel, arrowEdge: .bottom) {
             NoteTintPanel(

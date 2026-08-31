@@ -202,6 +202,25 @@ struct OnePasswordTests {
             !OnePasswordParser.indicatesLockedSession(
                 "Retrieving all items from the \"Private\" vault timed out"))
 
+        let window = Date(timeIntervalSince1970: 1_700_000_010)
+        check(
+            "an OTP fetched in the current window is still current",
+            OnePasswordOTP.codeStillCurrent(
+                fetchedAt: window, now: Date(timeIntervalSince1970: 1_700_000_025)))
+        check(
+            "an OTP from the previous window is stale",
+            !OnePasswordOTP.codeStillCurrent(
+                fetchedAt: window, now: Date(timeIntervalSince1970: 1_700_000_045)))
+        check(
+            "a fetch after now never reads as current",
+            !OnePasswordOTP.codeStillCurrent(
+                fetchedAt: Date(timeIntervalSince1970: 1_700_000_025), now: window))
+        check(
+            "the boundary second starts a new window",
+            !OnePasswordOTP.codeStillCurrent(
+                fetchedAt: Date(timeIntervalSince1970: 1_700_000_039),
+                now: Date(timeIntervalSince1970: 1_700_000_040)))
+
         if failures > 0 {
             print("\n\(failures) failure(s)")
             exit(1)

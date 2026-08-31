@@ -136,7 +136,16 @@ protocol PluginQueryProvider: Sendable {
 /// A palette-screen row icon that stays Foundation-only until the shared SwiftUI list renders it.
 enum PluginPaletteIcon: Equatable, Sendable {
     case symbol(String)
+    /// A colored icon tile — the symbol on a rounded tinted square, the way category icons read.
+    case tintedSymbol(String, tint: PluginPaletteIconTint)
+    /// A literal glyph row marker, e.g. a country flag.
+    case emoji(String)
     case file(path: String)
+}
+
+/// Semantic tints for `tintedSymbol`, named here so the enum stays Foundation-only; the shared list maps them to theme colors.
+enum PluginPaletteIconTint: Equatable, Sendable {
+    case blue, brown, gray, green, indigo, orange, pink, purple, red, teal, yellow
 }
 
 /// Compact trailing metadata rendered by the shared palette row grammar.

@@ -190,7 +190,11 @@ command registry.
 In the flat selection order the rows follow background tasks, the optional inline answer, and every
 app/command match. AI Chat reuses the normal fresh-session send path and preserves the draft when no
 OpenRouter key is configured. ChatGPT reuses the encoded web handoff. Terminal receives the command
-as one `osascript` argv value and executes it in a new Terminal shell only after the user activates
+in the user's preferred terminal (General → "Run in Terminal uses"; `AppSettings.preferredTerminal`,
+synced): Terminal and iTerm2 get it as one `osascript` argv value — never interpolated into
+AppleScript source — while Ghostty, Alacritty and kitty launch with the command as their own `-e`
+shell input, followed by an `exec zsh -i` so the window outlives it. The picker lists only installed
+terminals. Either way it executes in a new shell only after the user activates
 that row; file search uses macOS's native Finder search. Both external-app actions dismiss Spotter
 without restoring focus.
 

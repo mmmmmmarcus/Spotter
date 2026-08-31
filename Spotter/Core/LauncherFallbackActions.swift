@@ -22,8 +22,9 @@ extension AppCore {
 
     private func runInTerminal(_ command: String) {
         hidePalette(restoreFocus: false)
+        let terminal = settings.preferredTerminal
         Task {
-            let outcome = await TerminalCommandRunner.run(command)
+            let outcome = await TerminalCommandRunner.run(command, terminal: terminal)
             guard outcome != .success else { return }
             AppLog.error("launcher", "Terminal handoff failed: \(outcome)")
             hud.show(

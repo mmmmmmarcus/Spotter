@@ -26,6 +26,8 @@ final class OnePasswordManager: ObservableObject {
     @Published private(set) var state: LoadState = .idle
     @Published private(set) var isRefreshing = false
     @Published private(set) var detailState: DetailState = .none
+    /// When the loaded detail's field values — including any OTP code — were fetched.
+    private(set) var detailLoadedAt: Date?
     /// Concealed fields the user explicitly revealed in the current view; cleared with the detail.
     @Published private(set) var revealedFieldIDs: Set<String> = []
     /// Where `op` was found, or nil when it isn't installed — Settings and the palette both read this.
@@ -183,6 +185,7 @@ final class OnePasswordManager: ObservableObject {
                     self.detailState = .failed(item, "1Password returned an unreadable item.")
                     return
                 }
+                self.detailLoadedAt = Date()
                 self.detailState = .loaded(detail)
             case .failure(let error):
                 self.detailState = .failed(item, error.message)
@@ -196,6 +199,7 @@ final class OnePasswordManager: ObservableObject {
         detailTask?.cancel()
         detailTask = nil
         detailState = .none
+        detailLoadedAt = nil
         revealedFieldIDs = []
     }
 

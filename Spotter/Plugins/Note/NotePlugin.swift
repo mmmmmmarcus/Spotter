@@ -66,13 +66,14 @@ extension AppCore {
                 width: Theme.Size.noteWindowMinimumWidth,
                 height: NoteEditorMetrics.windowHeight(
                     forEditorHeight: NoteEditorMetrics.minimumEditorHeight)),
-            closeButtonOnly: true, contentExtendsIntoTitleBar: true
+            hidesStandardButtons: true, contentExtendsIntoTitleBar: true
         ) {
             NoteView(
                 store: notes,
                 resizeHeight: { [weak self] height, animated in
                     self?.resizePluginWindow(id: "notes", height: height, animated: animated)
-                })
+                },
+                close: { [weak self] in self?.closePluginWindow(id: "notes") })
         }
     }
 }

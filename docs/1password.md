@@ -22,7 +22,11 @@ the item list through the shared `PluginPaletteList`. There is no plugin window.
   a field copies it concealed; ⌘K adds Paste, Open in 1Password and Back. A website row's ↵ opens
   the browser. The search field filters fields by name. **Esc and the header chevron step back to
   the item list first** (via the screen's `handleBack` hook) — only from the list do they leave the
-  screen. Copying a one-time password re-fetches through `--otp` so an expired code is never
+  screen. Item rows lead with a colored category icon tile (`PluginPaletteIcon.tintedSymbol`),
+  1Password-adjacent colors mapped per `op` category. Copying a one-time password from the open item
+  view delivers the code already fetched with the item whenever its 30-second TOTP window still
+  holds (`OnePasswordOTP.codeStillCurrent`, harness-covered) — instant instead of a second `op`
+  round trip — and otherwise re-fetches through `--otp` so an expired code is never
   delivered.
 - **The view renders instantly.** The full `op item get` costs seconds (the desktop app charges per
   concealed value), so the view opens immediately with provisional rows built from list metadata —

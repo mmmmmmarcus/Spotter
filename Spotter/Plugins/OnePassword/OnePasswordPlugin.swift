@@ -296,9 +296,33 @@ enum OnePasswordResults {
             id: item.id,
             title: item.title,
             subtitle: item.username ?? OnePasswordCategory.label(for: item.category),
-            icon: .symbol(OnePasswordCategory.symbol(for: item.category)),
+            icon: .tintedSymbol(
+                OnePasswordCategory.symbol(for: item.category),
+                tint: categoryTint(for: item.category)),
             accessories: accessories,
             primaryActionTitle: primaryAction(for: item).title)
+    }
+
+    /// 1Password-adjacent category colors; presentation only, so the Foundation-only types file stays untouched.
+    private static func categoryTint(for category: String) -> PluginPaletteIconTint {
+        switch category {
+        case "LOGIN": .blue
+        case "PASSWORD": .gray
+        case "SECURE_NOTE": .yellow
+        case "CREDIT_CARD": .green
+        case "IDENTITY": .orange
+        case "BANK_ACCOUNT": .teal
+        case "API_CREDENTIAL", "SOFTWARE_LICENSE": .purple
+        case "SSH_KEY", "SERVER", "DATABASE": .indigo
+        case "EMAIL_ACCOUNT", "WIRELESS_ROUTER": .teal
+        case "MEDICAL_RECORD", "SOCIAL_SECURITY_NUMBER": .red
+        case "MEMBERSHIP", "REWARD_PROGRAM": .pink
+        case "PASSPORT": .blue
+        case "DRIVER_LICENSE", "CRYPTO_WALLET": .orange
+        case "OUTDOOR_LICENSE": .green
+        case "DOCUMENT", "CUSTOM": .brown
+        default: .blue
+        }
     }
 
     static func primaryAction(for item: OnePasswordItem) -> OnePasswordItemAction {
@@ -498,6 +522,13 @@ extension AppCore {
     ) {
         guard plugins.isEnabled(.onePassword) else { return }
         if field.isOneTimePassword {
+            // The detail fetch already carried the current code; while its TOTP window holds, deliver it straight from memory instead of another multi-second `op` round trip.
+            if !field.value.isEmpty, let loadedAt = onePassword.detailLoadedAt,
+                OnePasswordOTP.codeStillCurrent(fetchedAt: loadedAt, now: Date())
+            {
+                deliverOnePasswordValue(field.value, label: field.label, paste: paste)
+                return
+            }
             performOnePasswordAction(
                 paste ? .pasteOneTimePassword : .copyOneTimePassword, item: item)
             return

@@ -21,7 +21,9 @@ needed and opens the shared `AuxWindowController` workspace. The translucent win
 resizing, `.floating` level and all-Spaces visibility, but the plugin never creates or retains an
 `NSWindow`. The native window backdrop stays clear while its host neutralizes the title-bar safe-area
 inset, leaving the clipped Note material as the only rounded surface. The surface and toolbar extend
-through one seamless title bar, with the lone close button directly left of the centered note title
+through one seamless title bar; the window hides its standard buttons entirely, and close is a
+toolbar control like the rest — every toolbar control (close, note color, notes list, new note) is a
+`NoteGlassButton`, an interactive Liquid Glass circle, with close leading and ⌘W bound to it
 in the same native-height row; minimize and zoom controls are hidden. Nothing separates that row from
 the editor — the window is one continuous surface, so a rule under the title would be the only hard
 edge on it. An empty note shows the current date and time in place of a prompt to start writing: it

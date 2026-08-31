@@ -965,6 +965,9 @@ private final class ScreenshotSelectionView: NSView {
             onCancel?()
         case 49:
             onToggleMode?()
+        // Tab is the keyboard's screen button: the whole display, only where the button itself shows (screenshot mode, no drag in flight).
+        case 48 where mode == .screenshot && dragStart == nil:
+            onScreenCapture?()
         default:
             super.keyDown(with: event)
         }

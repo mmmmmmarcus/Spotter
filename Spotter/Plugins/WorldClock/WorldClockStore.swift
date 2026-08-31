@@ -28,6 +28,18 @@ final class WorldClockStore: ObservableObject {
 
     var cities: [WorldClockCity] { cityIDs.compactMap(WorldClockEngine.city(id:)) }
 
+    /// The system's own tz-database country table, read once — the store may touch the filesystem, the pure engine may not.
+    private nonisolated static let zoneCountries: [String: String] = {
+        let text =
+            (try? String(contentsOfFile: "/usr/share/zoneinfo/zone.tab", encoding: .utf8)) ?? ""
+        return WorldClockEngine.countryCodes(fromZoneTab: text)
+    }()
+
+    /// The row's flag: the zone's country as emoji, or nil for zones the table doesn't place.
+    nonisolated func flag(forTimeZoneIdentifier identifier: String) -> String? {
+        Self.zoneCountries[identifier].flatMap(WorldClockEngine.flagEmoji(countryCode:))
+    }
+
     var usesDefaults: Bool { cityIDs == WorldClockEngine.defaultCities.map(\.id) }
 
     func availableCities(matching query: String) -> [WorldClockCity] {

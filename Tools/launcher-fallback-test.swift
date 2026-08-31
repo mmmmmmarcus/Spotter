@@ -27,11 +27,36 @@ struct LauncherFallbackTests {
         check("fallback IDs are unique", Set(suggestions.map(\.id)).count == suggestions.count)
 
         let hostile = "printf '%s\\n' \"$HOME\"; echo \\ done"
-        let arguments = TerminalCommandRunner.arguments(for: hostile)
-        check("Terminal invocation exists for non-empty input", arguments != nil)
-        check("Terminal command is passed after the argv separator", arguments?.suffix(2).first == "--")
-        check("Terminal command stays one exact argv value", arguments?.last == hostile)
-        check("empty Terminal input is rejected", TerminalCommandRunner.arguments(for: " \n ") == nil)
+        let terminal = TerminalCommandRunner.invocation(for: hostile, terminal: .terminal)
+        check("Terminal invocation exists for non-empty input", terminal != nil)
+        check("Terminal handoff goes through osascript", terminal?.executablePath == "/usr/bin/osascript")
+        check(
+            "Terminal command is passed after the argv separator",
+            terminal?.arguments.suffix(2).first == "--")
+        check("Terminal command stays one exact argv value", terminal?.arguments.last == hostile)
+        check(
+            "empty Terminal input is rejected",
+            TerminalCommandRunner.invocation(for: " \n ", terminal: .terminal) == nil)
+
+        let iterm = TerminalCommandRunner.invocation(for: hostile, terminal: .iterm)
+        check("iTerm2 handoff goes through osascript", iterm?.executablePath == "/usr/bin/osascript")
+        check("iTerm2 command stays one exact argv value", iterm?.arguments.last == hostile)
+        check(
+            "iTerm2 script never interpolates the command",
+            iterm?.arguments.contains { $0.contains(hostile) && $0 != hostile } == false)
+
+        let ghostty = TerminalCommandRunner.invocation(for: hostile, terminal: .ghostty)
+        check("Ghostty launches through open", ghostty?.executablePath == "/usr/bin/open")
+        check(
+            "Ghostty gets the command as its own shell input",
+            ghostty?.arguments.contains("-e") == true
+                && ghostty?.arguments.last?.hasPrefix(hostile) == true)
+        check(
+            "Ghostty keeps the window alive after the command",
+            ghostty?.arguments.last?.hasSuffix("exec /bin/zsh -i") == true)
+
+        let kitty = TerminalCommandRunner.invocation(for: hostile, terminal: .kitty)
+        check("kitty launches through open without -e", kitty?.arguments.contains("-e") == false)
 
         print(failures == 0 ? "\nLauncher Fallbacks: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)

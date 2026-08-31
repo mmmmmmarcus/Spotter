@@ -66,6 +66,9 @@ mechanism the preview thumbnail uses for Return.
 
 ## One picking mode, three outputs
 
+Tab captures the whole display the pointer is on, exactly like clicking the glass screen button —
+and like the button it only answers in screenshot mode with no drag in flight.
+
 Space cycles what the session produces — screenshot → OCR → colour picker → back around — as often
 as the user likes, and every capture starts in screenshot mode: no mode is sticky across
 invocations. The gestures live inside the mode rather than being modes themselves: in screenshot

@@ -35,7 +35,9 @@ The calendar card shows only what is next, and the event's own title is the head
 top-left corner with the time pinned to the bottom-left — an "Up Next" heading would spend the card's
 best line saying what the card obviously is, and the date left for the clock's corner so a second
 copy here wouldn't be the strip repeating itself. Splitting the two to opposite ends of the card is
-what puts the time in the same place whether the title runs to one line or three.
+what puts the time in the same place whether the title runs to one line or three. Clicking the card
+hides the palette and opens Calendar — the card is a door to the real thing; the access-state
+buttons it shows before authorization consume their own clicks first.
 
 The File Info card states what is selected in the Finder: its kind in the title slot, its own Finder
 icon as the card's middle, then what it is called and how big it is. It reads a selection only when
@@ -55,7 +57,12 @@ without a migration and the strip can index the result without a second existenc
 `DashboardWidgetsEngine.reorder(_:moving:to:)` moves one kind to the position a dragged card was
 dropped on, rather than SwiftUI's `move(fromOffsets:toOffset:)` index, which is off by one downward.
 
-**The strip reorders itself.** Dragging a card onto another in the palette puts it in that one's
+**The strip reorders itself, live.** Hold a card briefly and it lifts, scales up and follows the
+pointer while the other cards spring out of its way, home-screen style; releasing writes the order
+once. The gesture is a long-press-then-drag (`DashboardWidgetsView.reorderGesture`), so a quick
+click still taps a card and a quick swipe still scrolls the list. The strip lays cards out by
+computed slot offsets rather than an `HStack`, which is what lets slots change hands under a spring
+while the lifted card keeps tracking the pointer. Dragging a card onto another's slot puts it in that one's
 place; there is no list of names in Settings for it, because the cards are the thing being arranged
 and a name is a worse handle than the card. Dashboard cards are the launcher's only non-selectable
 rows, which is what makes a drag here unambiguous — it can never be confused with picking a result.

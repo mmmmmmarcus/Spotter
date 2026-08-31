@@ -102,7 +102,7 @@ enum WorldClockPlugin {
                 id: city.id,
                 title: city.name,
                 subtitle: result.date + " · " + city.timeZoneIdentifier,
-                icon: .symbol("clock"),
+                icon: rowIcon(for: city, store: store, fallback: "clock"),
                 accessories: [
                     PluginPaletteAccessory(systemImage: "clock.fill", text: result.time)
                 ],
@@ -114,10 +114,24 @@ enum WorldClockPlugin {
                     id: "add:" + city.id,
                     title: city.name,
                     subtitle: city.timeZoneIdentifier,
-                    icon: .symbol("plus.circle"),
+                    icon: rowIcon(for: city, store: store, fallback: "plus.circle"),
                     primaryActionTitle: "Add City")
             }
         }
+        return finishSnapshot(items: items, store: store, trimmed: trimmed)
+    }
+
+    /// The city's country flag where the tz table places it; the symbol is only the fallback.
+    private static func rowIcon(
+        for city: WorldClockCity, store: WorldClockStore, fallback: String
+    ) -> PluginPaletteIcon {
+        store.flag(forTimeZoneIdentifier: city.timeZoneIdentifier).map(PluginPaletteIcon.emoji)
+            ?? .symbol(fallback)
+    }
+
+    private static func finishSnapshot(
+        items: [PluginPaletteItem], store: WorldClockStore, trimmed: String
+    ) -> PluginPaletteSnapshot {
         // The scrubbed offset is part of the section header so a shifted list can't read as now.
         let offset = store.previewOffsetHours
         let title = offset == 0 ? "Cities" : String(format: "Cities · %+d h", offset)

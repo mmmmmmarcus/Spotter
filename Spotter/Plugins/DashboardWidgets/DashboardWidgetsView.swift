@@ -7,6 +7,7 @@ struct DashboardWidgetsView: View {
     @ObservedObject var music: DashboardMusicStore
     @ObservedObject var battery: DashboardDeviceBatteryStore
     @ObservedObject var fileInfo: DashboardFileInfoStore
+    @EnvironmentObject private var core: AppCore
     /// The music card shows its controls only under the pointer; the cover is the card at rest.
     @State private var isHoveringMusic = false
 
@@ -20,28 +21,23 @@ struct DashboardWidgetsView: View {
         return !battery.devices.isEmpty
     }
 
+    /// Live-reorder state: hold a card briefly and it lifts and follows the pointer while the other
+    /// cards slide out of its way, home-screen style. `liveOrder` is the working order for the
+    /// gesture's duration; the store is written once, on release.
+    @State private var dragKind: DashboardWidgetKind?
+    @State private var dragStartSlot = 0
+    @State private var dragTranslation: CGFloat = 0
+    @State private var liveOrder: [DashboardWidgetKind] = []
+
+    /// One card plus one gap — the stride between slot origins.
+    private static let slotSpan = Theme.Size.launcherDashboardHeight + Theme.Spacing.md
+
     @ViewBuilder
     var body: some View {
         let visible = store.orderedWidgets.filter(isVisible)
         if !visible.isEmpty {
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                HStack(spacing: Theme.Spacing.md) {
-                    ForEach(visible, id: \.self) { kind in
-                        card(kind, now: context.date)
-                            // The strip reorders itself: drag a card onto another to take its place.
-                            // The cards are the only non-selectable rows in the launcher, so a drag
-                            // here can't be confused with picking a result.
-                            .draggable(kind.rawValue) {
-                                card(kind, now: context.date).opacity(0.85)
-                            }
-                            .dropDestination(for: String.self) { items, _ in
-                                move(items, onto: kind)
-                            }
-                    }
-                }
-                .frame(height: Theme.Size.launcherDashboardHeight)
-                // Every card is a square that hugs its width, so pin the strip to the list's leading edge.
-                .frame(maxWidth: .infinity, alignment: .leading)
+                strip(visible: visible, now: context.date)
             }
             .onAppear {
                 store.start()
@@ -56,13 +52,85 @@ struct DashboardWidgetsView: View {
         }
     }
 
-    /// A drop carrying anything but a widget's own raw value is simply not a reorder — text dragged
-    /// in from another app lands here too.
-    private func move(_ items: [String], onto target: DashboardWidgetKind) {
-        guard let raw = items.first, let moved = DashboardWidgetKind(rawValue: raw),
-            let destination = store.orderedWidgets.firstIndex(of: target)
-        else { return }
-        store.moveWidget(moved, to: destination)
+    /// Slot layout instead of an HStack: every card owns a computed offset, so reordering is just
+    /// slots changing hands under a spring while the lifted card keeps tracking the pointer.
+    private func strip(visible: [DashboardWidgetKind], now: Date) -> some View {
+        let order = dragKind == nil ? visible : liveOrder
+        return ZStack(alignment: .topLeading) {
+            ForEach(order, id: \.self) { kind in
+                let slot = order.firstIndex(of: kind) ?? 0
+                card(kind, now: now)
+                    .scaleEffect(kind == dragKind ? 1.06 : 1)
+                    .shadow(
+                        color: .black.opacity(kind == dragKind ? 0.25 : 0), radius: 10, y: 4)
+                    .offset(
+                        x: kind == dragKind
+                            ? Self.slotSpan * CGFloat(dragStartSlot) + dragTranslation
+                            : Self.slotSpan * CGFloat(slot))
+                    .zIndex(kind == dragKind ? 1 : 0)
+                    .gesture(reorderGesture(for: kind, visible: visible))
+            }
+        }
+        .animation(.spring(duration: 0.3), value: order)
+        .animation(.spring(duration: 0.3), value: dragKind)
+        .frame(height: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
+        // Every card is a square that hugs its width, so pin the strip to the list's leading edge.
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Hold-then-drag, so a quick click still taps the card and a quick swipe still scrolls the list.
+    private func reorderGesture(
+        for kind: DashboardWidgetKind, visible: [DashboardWidgetKind]
+    ) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.2)
+            .sequenced(before: DragGesture())
+            .onChanged { value in
+                guard case .second(true, let drag) = value else { return }
+                if dragKind == nil {
+                    dragKind = kind
+                    liveOrder = visible
+                    dragStartSlot = visible.firstIndex(of: kind) ?? 0
+                    dragTranslation = 0
+                }
+                guard dragKind == kind else { return }
+                dragTranslation = drag?.translation.width ?? 0
+                let target = targetSlot(count: liveOrder.count)
+                if let current = liveOrder.firstIndex(of: kind), current != target {
+                    liveOrder.remove(at: current)
+                    liveOrder.insert(kind, at: target)
+                }
+            }
+            .onEnded { _ in commitReorder(kind) }
+    }
+
+    private func targetSlot(count: Int) -> Int {
+        let position = Self.slotSpan * CGFloat(dragStartSlot) + dragTranslation
+        return min(max(Int((position / Self.slotSpan).rounded()), 0), count - 1)
+    }
+
+    /// Write the finished order once: the dragged card's final slot, translated from the visible
+    /// list into the full order (a hidden card must keep its place without pinning its neighbors).
+    private func commitReorder(_ kind: DashboardWidgetKind) {
+        defer {
+            withAnimation(.spring(duration: 0.3)) {
+                dragKind = nil
+                dragTranslation = 0
+                liveOrder = []
+            }
+        }
+        guard dragKind == kind, let slot = liveOrder.firstIndex(of: kind) else { return }
+        let remaining = store.orderedWidgets.filter { $0 != kind }
+        let destination: Int
+        if let next = liveOrder.dropFirst(slot + 1).first,
+            let nextIndex = remaining.firstIndex(of: next)
+        {
+            destination = nextIndex
+        } else if slot > 0, let previousIndex = remaining.firstIndex(of: liveOrder[slot - 1]) {
+            destination = previousIndex + 1
+        } else {
+            destination = 0
+        }
+        store.moveWidget(kind, to: destination)
     }
 
     @ViewBuilder
@@ -400,6 +468,18 @@ struct DashboardWidgetsView: View {
             width: Theme.Size.launcherDashboardHeight,
             height: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
         .dashboardCardSurface()
+        // The card is a door to the real thing: clicking it opens Calendar. The access-state buttons consume their own clicks first.
+        .contentShape(Rectangle())
+        .onTapGesture { openCalendarApp() }
+    }
+
+    private func openCalendarApp() {
+        core.hidePalette(restoreFocus: false)
+        guard
+            let url = NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: "com.apple.iCal")
+        else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
     @ViewBuilder

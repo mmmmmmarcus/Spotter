@@ -7,7 +7,9 @@ The command palette is a borderless floating `NSPanel` hosting SwiftUI; see
 
 `PaletteViewModel` (mode / query / selection / `focusToken`) is the bridge between the panel and
 `AppCore`. Showing the palette calls `prepare(mode:)`, which resets state and bumps `focusToken` (a
-UUID) so the SwiftUI search field re-focuses. `RootPaletteView` switches its content on `mode`:
+UUID) so the SwiftUI search field re-focuses. Every `focusToken` bump also snaps the list scroll to
+the top — a reopen that preserved its state (Pop to Root Search's timeout) still starts reading from
+the top rather than wherever it was left. `RootPaletteView` switches its content on `mode`:
 
 - `.launcher` → `LauncherList`
 - `.clipboard` → `ClipboardList` + preview

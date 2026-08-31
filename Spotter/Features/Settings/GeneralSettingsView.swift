@@ -11,6 +11,15 @@ struct GeneralSettingsView: View {
     /// The Hyper modifier chord as prose glyphs, tracking the Include Shift toggle.
     private var hyperGlyphs: String { settings.hyperKeyIncludesShift ? "⌃⌥⇧⌘" : "⌃⌥⌘" }
 
+    /// Only terminals actually on this Mac, plus the current choice so a synced-but-missing app still shows what is selected. Terminal always qualifies.
+    private var installedTerminals: [PreferredTerminal] {
+        PreferredTerminal.allCases.filter { terminal in
+            terminal == .terminal || terminal == settings.preferredTerminal
+                || NSWorkspace.shared.urlForApplication(
+                    withBundleIdentifier: terminal.bundleIdentifier) != nil
+        }
+    }
+
     private var hyperStatusDot: Color? {
         switch hyperTap.status {
         case .off: return nil
@@ -193,6 +202,21 @@ struct GeneralSettingsView: View {
             }
 
             SettingsCard(header: "General") {
+                SettingsRow(
+                    title: "Run in Terminal uses",
+                    subtitle: "The terminal the launcher's Run in Terminal action hands commands to.",
+                    systemImage: "terminal",
+                    tint: .indigo
+                ) {
+                    Picker("", selection: $settings.preferredTerminal) {
+                        ForEach(installedTerminals, id: \.self) { terminal in
+                            Text(terminal.displayName).tag(terminal)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                SettingsDivider()
                 SettingsRow(
                     title: "Launch at login",
                     subtitle: "Start Spotter automatically when you log in.",

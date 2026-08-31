@@ -130,6 +130,21 @@ enum OnePasswordItemAction: String, CaseIterable, Sendable {
     }
 }
 
+/// TOTP codes roll on epoch-aligned windows: a code fetched in the same window as "now" is still
+/// the current code, so it can be delivered from memory without another `op` round trip.
+enum OnePasswordOTP {
+    static let period: TimeInterval = 30
+
+    static func codeStillCurrent(
+        fetchedAt: Date, now: Date, period: TimeInterval = period
+    ) -> Bool {
+        guard now >= fetchedAt, period > 0 else { return false }
+        let fetchedWindow = (fetchedAt.timeIntervalSince1970 / period).rounded(.down)
+        let nowWindow = (now.timeIntervalSince1970 / period).rounded(.down)
+        return fetchedWindow == nowWindow
+    }
+}
+
 /// Category presentation: an SF Symbol and a readable label per `op` category string.
 enum OnePasswordCategory {
     private static let symbols: [String: String] = [

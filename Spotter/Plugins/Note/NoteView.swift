@@ -4,15 +4,20 @@ import SwiftUI
 struct NoteView: View {
     @ObservedObject var store: NoteStore
     let resizeHeight: (CGFloat, Bool) -> Void
+    let close: () -> Void
     @State private var query = ""
     @State private var showsNoteList = false
     @State private var editorHeight: CGFloat
     @State private var placeholderStamp = Date()
     @FocusState private var searchIsFocused: Bool
 
-    init(store: NoteStore, resizeHeight: @escaping (CGFloat, Bool) -> Void) {
+    init(
+        store: NoteStore, resizeHeight: @escaping (CGFloat, Bool) -> Void,
+        close: @escaping () -> Void
+    ) {
         self.store = store
         self.resizeHeight = resizeHeight
+        self.close = close
         _editorHeight = State(
             initialValue: NoteEditorMetrics.estimatedEditorHeight(
                 for: store.selectedNote?.content ?? ""))
@@ -157,29 +162,24 @@ struct NoteView: View {
             .padding(.horizontal, Theme.Size.noteToolbarTitleInset)
             .frame(maxWidth: .infinity)
 
-            HStack(spacing: Theme.Spacing.xs) {
+            HStack(spacing: Theme.Spacing.sm) {
+                // The window hides its standard buttons, so close is a toolbar control like the rest.
+                NoteGlassButton(systemImage: "xmark", help: "Close Notes", action: close)
+                    .keyboardShortcut("w", modifiers: .command)
+
                 Spacer(minLength: 0)
 
                 NoteTintPicker(
                     tint: store.selectedNote?.tint, transparency: store.windowTransparency,
                     select: setTint, setTransparency: store.setWindowTransparency)
 
-                Button(action: toggleNoteList) {
-                    Image(systemName: "note.text")
-                        .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
-                }
-                .buttonStyle(.borderless)
-                .help(showsNoteList ? "Hide Notes List" : "Show Notes List")
+                NoteGlassButton(
+                    systemImage: "note.text",
+                    help: showsNoteList ? "Hide Notes List" : "Show Notes List",
+                    action: toggleNoteList)
 
-                Button {
-                    createNote()
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
-                }
-                .buttonStyle(.borderless)
-                .keyboardShortcut("n", modifiers: .command)
-                .help("New Note")
+                NoteGlassButton(systemImage: "plus", help: "New Note") { createNote() }
+                    .keyboardShortcut("n", modifiers: .command)
             }
             .padding(.horizontal, Theme.Spacing.xl)
         }
@@ -247,6 +247,26 @@ struct NoteView: View {
         showsNoteList = false
         searchIsFocused = false
         resizeHeight(editorWindowHeight, true)
+    }
+}
+
+/// One Liquid Glass toolbar control: an interactive glass circle holding a single glyph.
+struct NoteGlassButton: View {
+    let systemImage: String
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(
+                    width: Theme.Size.noteGlassButton, height: Theme.Size.noteGlassButton)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Circle())
+        .help(help)
     }
 }
 

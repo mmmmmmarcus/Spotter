@@ -131,6 +131,18 @@ private struct PluginPaletteRowIcon: View {
                     .font(.title3)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
+            case .tintedSymbol(let name, let tint):
+                RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)
+                    .fill(Self.color(for: tint).gradient)
+                    .overlay(
+                        Image(systemName: name)
+                            .font(.caption.weight(.semibold))
+                            // Deliberately white in both appearances: it sits on the tile's own saturated tint, never on the theme surface.
+                            .foregroundStyle(.white)
+                    )
+            case .emoji(let glyph):
+                Text(glyph)
+                    .font(.title3)
             case .file:
                 if let fileImage {
                     Image(nsImage: fileImage).resizable()
@@ -143,6 +155,22 @@ private struct PluginPaletteRowIcon: View {
         .task(id: icon) {
             guard case .file(let path) = icon, fileImage == nil else { return }
             fileImage = await IconCache.loadAsync(forFile: path)
+        }
+    }
+
+    private static func color(for tint: PluginPaletteIconTint) -> Color {
+        switch tint {
+        case .blue: .blue
+        case .brown: .brown
+        case .gray: .gray
+        case .green: .green
+        case .indigo: .indigo
+        case .orange: .orange
+        case .pink: .pink
+        case .purple: .purple
+        case .red: .red
+        case .teal: .teal
+        case .yellow: .yellow
         }
     }
 }

@@ -41,6 +41,7 @@ final class AppSettings: ObservableObject {
         static let showFavoritesInCompactMode = "showFavoritesInCompactMode"
         static let searchScopes = "launcherSearchScopes"
         static let openOnCursorScreen = "openOnCursorScreen"
+        static let preferredTerminal = "preferredTerminal"
         static let remembersPalettePosition = "remembersPalettePosition"
         static let palettePositionX = "palettePositionX"
         static let palettePositionY = "palettePositionY"
@@ -119,6 +120,11 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(openOnCursorScreen, forKey: Key.openOnCursorScreen) }
     }
 
+    /// Where "Run in Terminal" hands its command; an unknown stored value falls back to Terminal.
+    @Published var preferredTerminal: PreferredTerminal {
+        didSet { defaults.set(preferredTerminal.rawValue, forKey: Key.preferredTerminal) }
+    }
+
     /// Keep wherever the user dragged the palette instead of re-centering on every summon.
     @Published var remembersPalettePosition: Bool {
         didSet {
@@ -193,5 +199,8 @@ final class AppSettings: ObservableObject {
         openOnCursorScreen =
             defaults.object(forKey: Key.openOnCursorScreen) == nil
             || defaults.bool(forKey: Key.openOnCursorScreen)
+        preferredTerminal =
+            PreferredTerminal(rawValue: defaults.string(forKey: Key.preferredTerminal) ?? "")
+            ?? .terminal
     }
 }
