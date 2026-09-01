@@ -59,6 +59,8 @@ struct SettingsBackup: Codable, Sendable {
         var showFavoritesInCompactMode: Bool?
         var searchScopes: [String]?
         var openOnCursorScreen: Bool?
+        var launcherSectionOrder: [String]?
+        var launcherHiddenSections: [String]?
         var preferredTerminal: String?
         var remembersPalettePosition: Bool?
         var lockInputToEnglish: Bool?
@@ -242,6 +244,8 @@ extension SettingsBackup {
             showFavoritesInCompactMode: s.showFavoritesInCompactMode,
             searchScopes: s.searchScopes,
             openOnCursorScreen: s.openOnCursorScreen,
+            launcherSectionOrder: s.launcherSectionOrder.map(\.rawValue),
+            launcherHiddenSections: s.launcherHiddenSections.map(\.rawValue).sorted(),
             preferredTerminal: s.preferredTerminal.rawValue,
             remembersPalettePosition: s.remembersPalettePosition,
             lockInputToEnglish: s.lockInputToEnglish,
@@ -665,6 +669,14 @@ extension SettingsBackup {
         }
         if let raw = s.preferredTerminal, let terminal = PreferredTerminal(rawValue: raw) {
             settings.preferredTerminal = terminal
+            count += 1
+        }
+        if let raw = s.launcherSectionOrder {
+            settings.launcherSectionOrder = LauncherSectionsEngine.order(fromRaw: raw)
+            count += 1
+        }
+        if let raw = s.launcherHiddenSections {
+            settings.launcherHiddenSections = LauncherSectionsEngine.hidden(fromRaw: raw)
             count += 1
         }
         if let flag = s.remembersPalettePosition {

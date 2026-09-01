@@ -66,14 +66,13 @@ mechanism the preview thumbnail uses for Return.
 
 ## One picking mode, three outputs
 
-Tab captures the whole display the pointer is on, exactly like clicking the glass screen button —
-and like the button it only answers in screenshot mode with no drag in flight.
+Tab captures the whole display the pointer is on — see Whole-screen capture below.
 
 Space cycles what the session produces — screenshot → OCR → colour picker → back around — as often
 as the user likes, and every capture starts in screenshot mode: no mode is sticky across
 invocations. The gestures live inside the mode rather than being modes themselves: in screenshot
 mode a left drag selects a region, a right click captures the window under the pointer, and each
-display's glass button captures that whole screen. OCR and the colour picker have their own
+Tab captures that whole display. OCR and the colour picker have their own
 sections below.
 
 Switching mode swaps the pointer outright rather than animating between symbols. The pointer *is*
@@ -108,30 +107,16 @@ and the Rounded Corners setting is deliberately not reapplied to a window captur
 disappears between the click and the request, the capture fails through the same HUD as any other
 failure.
 
-## The whole-screen button
+## Whole-screen capture
 
-Each display's overlay carries one Liquid Glass square — a 56-point rounded rect holding a small
-`display` glyph — and clicking it captures that display in full, through the same display-capture
-path a dragged region uses with the source rectangle set to the display's full bounds. The
-Resolution setting therefore applies identically, and nothing is rounded: a full display has no
-corners to clip. That also makes the button the quickest end-to-end check of the Resolution
-setting: a Retina capture of a whole display should match its framebuffer exactly (point size times
-backing scale), and `1x` should match its point size.
-
-The button sits inset from the right edge of the display's usable width — a Dock on the right edge
-pushes it inward — and vertically centred on the Dock strip when the Dock is on that display's
-bottom edge, resting at a fixed height above the bottom when it is not. The pure
-`ScreenshotGeometry.screenButtonFrame` owns that placement and the harness pins it. The button
-shows only in screenshot mode: whole-screen capture is a picture, not an OCR or colour action. Its
-hosting view accepts the first click like the overlay around it, its clicks never start a drag, and
-the pointer over its footprint is the plain arrow rather than the mode pointer — enforced both
-through cursor rects and on every pointer-move set, since the overlay otherwise reasserts the mode
-pointer continuously.
-
-The pure `ScreenshotGeometry` normalizes drag direction, clamps local points and flips a display-local
-AppKit rectangle into ScreenCaptureKit's display-local top-origin space. Its standalone harness pins
-normal, reverse, clamped and secondary-display coordinates without depending on the display's global
-origin.
+Tab captures the whole display the pointer is on, through the same display-capture path a dragged
+region uses with the source rectangle set to the display's full bounds. The Resolution setting
+therefore applies identically, and nothing is rounded: a full display has no corners to clip. That
+also makes it the quickest end-to-end check of the Resolution setting: a Retina capture of a whole
+display should match its framebuffer exactly (point size times backing scale), and `1x` should match
+its point size. Tab answers only in screenshot mode with no drag in flight — whole-screen capture is
+a picture, not an OCR or colour action. The overlay's earlier Liquid Glass corner button is retired:
+the keyboard already owns the gesture, and the crosshair keeps a clean field.
 
 ## Naming and clipboard history
 
@@ -159,7 +144,7 @@ editor is a deliberate edit of an entry history already holds.
 OCR mode turns the selection orange: the pointer keeps the `dot.crosshair` and only changes colour
 to `screenshotCrosshairTextFill`, because text recognition *is* a region drag — the shape says what
 the gesture is and the colour says what comes out of it. The drag behaves exactly as a region drag —
-the two share `isDragSelection`. A right click and the whole-screen button are inert here: there is
+the two share `isDragSelection`. A right click and Tab are inert here: there is
 no sensible whole-window or whole-display version of "read this bit of text". On release the pixels are captured
 only to be read: Vision recognizes the text, the image is dropped, and the text alone goes to the
 clipboard. "Text Copied" reports through the plain command HUD, and a selection with nothing legible

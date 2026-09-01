@@ -21,7 +21,7 @@ struct AIChatView: View {
                 )
             } else if historySessions.isEmpty {
                 EmptyResults(
-                    text: "Ask anything — Tab sends here, and ⌃⌥⌘C sends to ChatGPT on the web.")
+                    text: "Ask anything — ↵ sends here, and ⌃⌥⌘C sends to ChatGPT on the web.")
             } else {
                 history
             }

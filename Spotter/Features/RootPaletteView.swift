@@ -6,6 +6,7 @@ struct RootPaletteView: View {
     @EnvironmentObject private var appIndex: AppIndex
     @EnvironmentObject private var store: ClipboardStore
     @EnvironmentObject private var favorites: FavoritesStore
+    @EnvironmentObject private var runningApps: RunningAppsMonitor
     @EnvironmentObject private var visibility: VisibilityStore
     @EnvironmentObject private var aliases: AliasStore
     @EnvironmentObject private var calcHistory: CalculatorHistoryStore
@@ -53,15 +54,64 @@ struct RootPaletteView: View {
         return favs.prefix(4).map(CompactFavoriteSlot.app) + [.more]
     }
 
-    /// Ordered launcher results (the single source of truth for list, selection and activation): empty query pins favorites to the top, otherwise plain ranked matches.
-    private var appResults: [AppEntry] {
+    /// Ordered launcher results (the single source of truth for list, selection and activation): an
+    /// empty query browses the settings-ordered sections, otherwise plain ranked matches.
+    private var appResults: [AppEntry] { launcherBrowseLayout.entries }
+
+    private struct LauncherBrowse {
+        let entries: [AppEntry]
+        /// Section headers over the flat entries; nil in query mode (the plain "Results" list).
+        let sections: [LauncherSectionSlice]?
+        /// Usage accessory per entry ID, only for entries seated in the Active Apps section.
+        let usage: [String: String]
+    }
+
+    private var launcherBrowseLayout: LauncherBrowse {
         // Visibility filtering stays downstream of `matches` so its one-deep memo cache is never keyed on hidden state; hidden favorites drop out here too.
         let base = appIndex.matches(vm.query)
             .filter(visibility.isVisible)
             .filter { plugins.isCommandEnabled($0.id) }
-        guard isQueryEmpty, !favorites.keys.isEmpty else { return base }
-        let split = favorites.ordered(base)
-        return split.favorites + split.rest
+        guard isQueryEmpty else { return LauncherBrowse(entries: base, sections: nil, usage: [:]) }
+
+        // The flat array is rebuilt in section order, so the flat selection index and the visible
+        // row order stay one and the same. A hidden section's take is skipped: its Applications-kind
+        // entries fall through to the Applications pool (hiding Favorites just un-pins them) while
+        // pane/command entries drop out of browsing entirely.
+        let visible = settings.visibleLauncherSections
+        let favoritesEnabled = visible.contains(.favorites) && !favorites.keys.isEmpty
+        let split = favoritesEnabled
+            ? favorites.ordered(base) : (favorites: [AppEntry](), rest: base)
+        var pool = split.rest
+        var entries: [AppEntry] = []
+        var sections: [LauncherSectionSlice] = []
+        var usage: [String: String] = [:]
+        for section in visible {
+            let taken: [AppEntry]
+            switch section {
+            case .favorites:
+                taken = split.favorites
+            case .activeApps:
+                taken = pool.filter { $0.kind == .application && runningApps.isRunning($0) }
+                let takenIDs = Set(taken.map(\.id))
+                pool.removeAll { takenIDs.contains($0.id) }
+                for entry in taken {
+                    guard let bundleID = entry.bundleID,
+                        let reading = runningApps.usage[bundleID]
+                    else { continue }
+                    usage[entry.id] = reading.text
+                }
+            case .applications:
+                taken = pool.filter { $0.kind == .application }
+            case .systemSettings:
+                taken = pool.filter { $0.kind == .systemSettings }
+            case .commands:
+                taken = pool.filter { $0.kind == .command }
+            }
+            guard !taken.isEmpty else { continue }
+            entries += taken
+            sections.append(LauncherSectionSlice(title: section.title, count: taken.count))
+        }
+        return LauncherBrowse(entries: entries, sections: sections, usage: usage)
     }
     private var clipResults: [ClipboardItem] {
         store.search(vm.query, filter: vm.clipboardFilter)
@@ -276,7 +326,8 @@ struct RootPaletteView: View {
 
     var body: some View {
         // Filter once per render for the active mode only, so the matcher/search doesn't run several times per render (rare event handlers use the computed properties above).
-        let apps = vm.mode == .launcher ? appResults : []
+        let browse = vm.mode == .launcher ? launcherBrowseLayout : nil
+        let apps = browse?.entries ?? []
         let tasks = vm.mode == .launcher && isQueryEmpty ? backgroundTasks.tasks : []
         let clips = vm.mode == .clipboard ? clipResults : []
         let hist = vm.mode == .calculatorHistory ? histResults : []
@@ -303,9 +354,6 @@ struct RootPaletteView: View {
         let inlineSelected = inline != nil && sel == taskOffset
         let inlineActionTitle = inlineSelected && inline?.result.isActionable == true
             ? inline?.actionTitle : nil
-        let showSections = vm.mode == .launcher && isQueryEmpty
-        let favoriteCount =
-            showSections ? apps.prefix(while: { favorites.isFavorite($0) }).count : 0
         let appIndex = sel - taskOffset - inlineOffset
         let selectedApp = apps.indices.contains(appIndex) ? apps[appIndex] : nil
         let fallbackIndex = appIndex - apps.count
@@ -327,8 +375,7 @@ struct RootPaletteView: View {
             apps: apps, tasks: tasks, clips: clips, hist: hist, emojiSections: emojiSections,
             inline: inline, fallbacks: fallbacks, plugin: plugin, dashboard: dashboard,
             selection: sel,
-            favoriteCount: favoriteCount,
-            showSections: showSections, pillLabel: pillLabel,
+            sections: browse?.sections, usage: browse?.usage ?? [:], pillLabel: pillLabel,
             showActionGroup: showActionGroup, showActionsButton: showActionsButton
         )
         let statefulLayout = paletteWithStateHandlers(
@@ -342,8 +389,8 @@ struct RootPaletteView: View {
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
         fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
-        selection: Int, favoriteCount: Int,
-        showSections: Bool, pillLabel: String, showActionGroup: Bool,
+        selection: Int, sections: [LauncherSectionSlice]?, usage: [String: String],
+        pillLabel: String, showActionGroup: Bool,
         showActionsButton: Bool
     ) -> some View {
         // The `header` (and its single search field) is always attached in the same position via safeAreaInset so its focus survives the compact↔expanded swap — only the results below it toggle. Collapsed shows the bar alone; expanded floats header + action bar over the list with edge-dissolve (see docs/ui.md).
@@ -355,7 +402,7 @@ struct RootPaletteView: View {
                     apps: apps, tasks: tasks, clips: clips, hist: hist,
                     emojiSections: emojiSections, inline: inline, fallbacks: fallbacks, plugin: plugin,
                     dashboard: dashboard, selection: selection,
-                    favoriteCount: favoriteCount, showSections: showSections
+                    sections: sections, usage: usage
                 )
             }
         }
@@ -635,6 +682,12 @@ struct RootPaletteView: View {
                 guard command, histResults.indices.contains(index) else { return .ignored }
                 core.copyHistoryExpression(histResults[index])
             case .launcher:
+                // A typed draft makes ⌘↵ the ask-AI chord; Reveal in Finder keeps the empty-query chord and its Actions-menu entry.
+                let draft = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
+                if command, !draft.isEmpty {
+                    core.startAIChat(prompt: draft)
+                    return .handled
+                }
                 guard command, let app = selectedAppEntry, app.canRevealInFinder
                 else { return .ignored }
                 core.showInFinder(app)
@@ -642,7 +695,11 @@ struct RootPaletteView: View {
                 guard command, let item = selectedPluginItem,
                     plugins.performPaletteSecondaryAction(pluginID: id, itemID: item.id)
                 else { return .ignored }
-            case .aiChat, .updates:
+            case .aiChat:
+                // ⌘↵ sends like plain ↵ — muscle memory from the launcher's ask-AI chord shouldn't misfire in the composer.
+                guard command else { return .ignored }
+                sendChatMessage()
+            case .updates:
                 return .ignored
             }
             return .handled
@@ -833,7 +890,7 @@ struct RootPaletteView: View {
         emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
         fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
-        selection: Int, favoriteCount: Int, showSections: Bool
+        selection: Int, sections: [LauncherSectionSlice]?, usage: [String: String]
     ) -> some View {
         switch vm.mode {
         case .launcher:
@@ -849,8 +906,8 @@ struct RootPaletteView: View {
             LauncherList(
                 results: apps,
                 selectedID: selectedTask == nil && !inlineSelected ? selectedID : nil,
-                favoriteCount: favoriteCount,
-                showSections: showSections,
+                sections: sections,
+                usage: usage,
                 scroll: scroll,
                 backgroundTasks: tasks,
                 inline: inline,
@@ -1264,12 +1321,7 @@ struct RootPaletteView: View {
             return
         }
         if menuOpen { return }
-        let hasDraft = !vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if hasDraft, !shift, vm.mode == .aiChat {
-            sendChatMessage()
-            return
-        }
-        // Shift-Tab is always the backward cycle; the ChatGPT web handoff lives on ⌃⌥⌘C.
+        // Tab never sends: ↵ / ⌘↵ own sending now, so both Tab directions are purely the cycle.
         cycleMode(forward: !shift)
     }
 
@@ -1300,15 +1352,14 @@ struct RootPaletteView: View {
         }
     }
 
-    /// Tab's chat contract: always a fresh session, and typed content is sent on arrival — type a
-    /// question in the launcher, Tab, and it's already asked. Without a key the text stays in the
-    /// composer next to the add-a-key notice.
+    /// Tab's chat contract: always a fresh session, with a typed launcher query carried into the
+    /// composer *unsent* — ⌘↵ from the launcher is the chord that both enters and asks.
     private func enterChat(prompt: String) {
         vm.selection = 0
-        core.startAIChat(prompt: prompt)
+        core.openAIChat(draft: prompt)
     }
 
-    /// The chat composer is the shared search field: Tab or ↵ sends through Spotter and clears it.
+    /// The chat composer is the shared search field: ↵ (or ⌘↵) sends through Spotter and clears it.
     private func sendChatMessage() {
         let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !core.aiChat.isWaiting else { return }

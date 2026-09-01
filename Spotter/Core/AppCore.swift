@@ -456,10 +456,15 @@ final class AppCore: ObservableObject {
             dashboardDeviceBattery.refresh()
             refreshDashboardFileInfo()
         }
+        // Live only while the palette shows: the section's CPU/memory readings poll `ps`, and a hidden palette must not keep sampling.
+        if settings.visibleLauncherSections.contains(.activeApps) {
+            runningApps.startUsageSampling()
+        }
     }
 
     func hidePalette(restoreFocus: Bool = true) {
         if let id = palette.mode.pluginID { plugins.deactivatePaletteScreen(id) }
+        runningApps.stopUsageSampling()
         windowController.hide(restoreFocus: restoreFocus)
     }
 

@@ -115,10 +115,6 @@ struct ScreenshotSettingsView: View {
                 }
             }
 
-            SettingsCallout(
-                title: "Screen Recording permission required",
-                message: "macOS protects screen pixels behind Screen Recording access. Spotter captures only after you invoke this action and stores the result only on the clipboard.",
-                systemImage: "lock.shield")
         }
     }
 

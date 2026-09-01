@@ -132,34 +132,6 @@ private enum ScreenshotTest {
                 == CGRect(x: 1439, y: 899, width: 1, height: 1),
             "a sample on the display edge stays on the display")
 
-        // An 80-point Dock strip on the display's bottom edge.
-        let docked = ScreenshotGeometry.screenButtonFrame(
-            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 80, width: 1440, height: 820))
-        check(
-            docked == CGRect(x: 1360, y: 12, width: 56, height: 56),
-            "the glass button centres on the Dock strip, inset from the right edge")
-        let hiddenDock = ScreenshotGeometry.screenButtonFrame(
-            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 875))
-        check(
-            hiddenDock == CGRect(x: 1360, y: 24, width: 56, height: 56),
-            "a hidden Dock leaves the button at its resting height")
-        let rightDock = ScreenshotGeometry.screenButtonFrame(
-            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 0, width: 1360, height: 900))
-        check(
-            rightDock.maxX == 1360 - ScreenshotGeometry.screenButtonInset,
-            "a right-edge Dock pushes the button inward")
-        let secondary = ScreenshotGeometry.screenButtonFrame(
-            screenFrame: CGRect(x: 1440, y: 100, width: 1000, height: 800),
-            visibleFrame: CGRect(x: 1440, y: 180, width: 1000, height: 720))
-        check(
-            secondary == CGRect(x: 920, y: 12, width: 56, height: 56),
-            "a secondary display's button frame is display-local")
-        let tinyDock = ScreenshotGeometry.screenButtonFrame(
-            screenFrame: bounds, visibleFrame: CGRect(x: 0, y: 30, width: 1440, height: 870))
-        check(
-            tinyDock.minY == 24,
-            "a Dock shorter than the button falls back to the resting height")
-
         check(
             ScreenshotColorSampler.hexColor(
                 from: colorImage(width: 1, height: 1, red: 1, green: 0, blue: 0)) == "#FF0000",

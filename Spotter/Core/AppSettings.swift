@@ -42,6 +42,8 @@ final class AppSettings: ObservableObject {
         static let searchScopes = "launcherSearchScopes"
         static let openOnCursorScreen = "openOnCursorScreen"
         static let preferredTerminal = "preferredTerminal"
+        static let launcherSectionOrder = "launcherSectionOrder"
+        static let launcherHiddenSections = "launcherHiddenSections"
         static let remembersPalettePosition = "remembersPalettePosition"
         static let palettePositionX = "palettePositionX"
         static let palettePositionY = "palettePositionY"
@@ -125,6 +127,34 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(preferredTerminal.rawValue, forKey: Key.preferredTerminal) }
     }
 
+    /// The empty-query launcher's section order; always complete (the engine repairs on read).
+    @Published var launcherSectionOrder: [LauncherSection] {
+        didSet {
+            defaults.set(launcherSectionOrder.map(\.rawValue), forKey: Key.launcherSectionOrder)
+        }
+    }
+
+    /// Sections hidden from browsing; search is never affected.
+    @Published var launcherHiddenSections: Set<LauncherSection> {
+        didSet {
+            defaults.set(
+                launcherHiddenSections.map(\.rawValue).sorted(),
+                forKey: Key.launcherHiddenSections)
+        }
+    }
+
+    var visibleLauncherSections: [LauncherSection] {
+        launcherSectionOrder.filter { !launcherHiddenSections.contains($0) }
+    }
+
+    /// Settings' reorder arrows: swap the section with its neighbour in the given direction.
+    func moveLauncherSection(_ section: LauncherSection, delta: Int) {
+        guard let index = launcherSectionOrder.firstIndex(of: section) else { return }
+        let target = index + delta
+        guard launcherSectionOrder.indices.contains(target) else { return }
+        launcherSectionOrder.swapAt(index, target)
+    }
+
     /// Keep wherever the user dragged the palette instead of re-centering on every summon.
     @Published var remembersPalettePosition: Bool {
         didSet {
@@ -202,5 +232,9 @@ final class AppSettings: ObservableObject {
         preferredTerminal =
             PreferredTerminal(rawValue: defaults.string(forKey: Key.preferredTerminal) ?? "")
             ?? .terminal
+        launcherSectionOrder = LauncherSectionsEngine.order(
+            fromRaw: defaults.stringArray(forKey: Key.launcherSectionOrder))
+        launcherHiddenSections = LauncherSectionsEngine.hidden(
+            fromRaw: defaults.stringArray(forKey: Key.launcherHiddenSections))
     }
 }

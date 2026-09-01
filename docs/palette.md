@@ -28,12 +28,13 @@ in some direction. Each hop goes through `prepare`, so the arriving surface star
 query and selection — every surface has its own row order, and a selection carried across would
 point at the wrong row.
 
-With a typed launcher query, Tab instead enters a fresh AI Chat session and sends through Spotter's
-OpenRouter-backed default. With a typed AI Chat draft, Tab sends in the current Spotter session.
+With a typed launcher query, Tab enters a fresh AI Chat session carrying the draft into the
+composer *unsent*; ⌘↵ from the launcher both enters and asks, and in the composer ↵ (or ⌘↵) sends.
 Hyper-C (⌃⌥⌘C) sends a typed draft from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the
-default browser; Shift-Tab is always the plain backward cycle. Only the launcher's query
-follows into chat — a clipboard or emoji filter string is dropped rather than sent as a message
-nobody typed.
+default browser; Shift-Tab is always the plain backward cycle. With a typed launcher draft ⌘↵ is
+the ask-AI chord, so Reveal in Finder keeps ⌘↵ only on an empty query (and stays in the Actions
+menu). Only the launcher's query follows into chat — a clipboard or emoji filter string is dropped
+rather than sent as a message nobody typed.
 
 Every mode outside the cycle (Calculator History, Software Update, plugin screens) is a sub-screen
 reached from the launcher by a command or a hotkey; Tab from one exits back to the launcher rather

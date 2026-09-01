@@ -201,6 +201,54 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            SettingsCard(header: "Launcher Sections") {
+                ForEach(
+                    Array(settings.launcherSectionOrder.enumerated()), id: \.element
+                ) { index, section in
+                    if index > 0 { SettingsDivider() }
+                    SettingsRow(
+                        title: section.title,
+                        subtitle: section.settingsSubtitle,
+                        systemImage: section.systemImage,
+                        tint: .teal
+                    ) {
+                        HStack(spacing: Theme.Spacing.md) {
+                            Button {
+                                settings.moveLauncherSection(section, delta: -1)
+                            } label: {
+                                Image(systemName: "chevron.up")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(index == 0)
+                            .help("Move Up")
+                            Button {
+                                settings.moveLauncherSection(section, delta: 1)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(index == settings.launcherSectionOrder.count - 1)
+                            .help("Move Down")
+                            Toggle(
+                                "",
+                                isOn: Binding(
+                                    get: { !settings.launcherHiddenSections.contains(section) },
+                                    set: { shown in
+                                        if shown {
+                                            settings.launcherHiddenSections.remove(section)
+                                        } else {
+                                            settings.launcherHiddenSections.insert(section)
+                                        }
+                                    })
+                            )
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+
             SettingsCard(header: "General") {
                 SettingsRow(
                     title: "Run in Terminal uses",

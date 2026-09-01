@@ -1,11 +1,13 @@
 # AI Chat
 
 A conversation inside the palette, at launcher size. The shared header search field is the composer,
-the body renders the running transcript, and two destinations are a chord away: **Tab** sends
+the body renders the running transcript, and two destinations are a chord away: **↵** (or ⌘↵) sends
 through Spotter's OpenRouter-backed chat while **Hyper-C** (⌃⌥⌘C, shift-tolerant for a Hyper Key
-that carries ⇧) sends the draft to ChatGPT on the web.
+that carries ⇧) sends the draft to ChatGPT on the web. Tab never sends — both Tab directions are
+purely the surface cycle.
 
-From the launcher, **Tab** with a typed query starts a fresh AI Chat session and sends immediately;
+From the launcher, **⌘↵** with a typed query starts a fresh AI Chat session and sends immediately,
+while **Tab** enters chat carrying the draft into the composer unsent;
 without a key, the text stays in the composer beside the add-a-key notice. **Hyper-C** with a typed
 query instead opens `https://chatgpt.com/?q=…` in the default browser and dismisses Spotter — from
 the launcher and from inside AI Chat alike. The chord rides a stolen-chord token
@@ -90,7 +92,7 @@ whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw M
 
 ## Interaction
 
-- **Tab or ↵ sends to Spotter AI** and clears the field after the request is accepted; the reply
+- **↵ or ⌘↵ sends to Spotter AI** and clears the field after the request is accepted; the reply
   appends when it lands. While a reply is in flight the footer pill reads "Thinking…" and a pulsing
   status row sits under the transcript.
 - **Hyper-C sends to ChatGPT on the web** by opening an encoded `q` query in the default browser.

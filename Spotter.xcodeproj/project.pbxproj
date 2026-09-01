@@ -101,7 +101,6 @@
 		5D40DCFE0F29E6D10B497D72 /* UpdateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7829EA08561C01C47794D1C /* UpdateStore.swift */; };
 		5F5F4190161FA6569021181C /* EmojiIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B017FD6AEF925DB962DFB5C /* EmojiIndex.swift */; };
 		5FA01CA9837F3746BD3DACBB /* ScreenshotCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C08D22C393B014A63B01D24 /* ScreenshotCursor.swift */; };
-		61A6DB3E1042A90A38C9B0ED /* ScreenshotScreenButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0F817CF407E7E79E6A2E39 /* ScreenshotScreenButton.swift */; };
 		61D1312CDF6F88E027BFDD8B /* AppIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = B106F55A48529154846D232B /* AppIndex.swift */; };
 		64B05A63190110CCC027E700 /* ImageModificationTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */; };
 		66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 307535C846A5B39643CCB935 /* UpdateViews.swift */; };
@@ -221,6 +220,7 @@
 		E0199EACDC6E6F009043E624 /* DashboardFileInfoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB2878DBC8906BA0DA2D59C /* DashboardFileInfoStore.swift */; };
 		E0249DE883462907B2C973C4 /* ScreenshotAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3727A5B43FAFBC7DF3DC8E /* ScreenshotAnnotation.swift */; };
 		E0E09C4400A0ACE6E4AB6BAC /* FileSearchTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 478B7FC4FAF36ED85FD6372D /* FileSearchTypes.swift */; };
+		E13C4C6DFBB81B6B61DCFF64 /* LauncherSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3AFBBB7682E878E76099599 /* LauncherSections.swift */; };
 		E2CA02EBECB6ADE585002A6C /* SpotlightNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE5E4F4A4A0EB8523394BB4 /* SpotlightNames.swift */; };
 		E3B2E5B534B15C2A836D6213 /* SelectedTextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20E554F1050B16540CCBF5D /* SelectedTextReader.swift */; };
 		E4E95F5EB55D1C47857A1727 /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26C52121BB6D0B805E6ABE9 /* NoteStore.swift */; };
@@ -293,7 +293,6 @@
 		285F564EAE1C2E7706B5C84E /* ScreenshotColorSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotColorSampler.swift; sourceTree = "<group>"; };
 		29606EC2B43A6002BAF7DDD4 /* AIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatView.swift; sourceTree = "<group>"; };
 		2A5DFB42EBEFD22C5C9136F8 /* CoffeePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeePlugin.swift; sourceTree = "<group>"; };
-		2C0F817CF407E7E79E6A2E39 /* ScreenshotScreenButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotScreenButton.swift; sourceTree = "<group>"; };
 		2C2B6E0210EE0AAE0B9CB19D /* ShortcutsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsView.swift; sourceTree = "<group>"; };
 		2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayScroller.swift; sourceTree = "<group>"; };
 		2EF4FC36249D2F239DC103AD /* CustomCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommand.swift; sourceTree = "<group>"; };
@@ -437,6 +436,7 @@
 		C17AE76ADC7A9EC2466F6587 /* ClipboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardView.swift; sourceTree = "<group>"; };
 		C1DCDA3DDA71EB23010C3B83 /* QuicklinksPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinksPlugin.swift; sourceTree = "<group>"; };
 		C33991D52E55CC9584A33759 /* LauncherFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherFallback.swift; sourceTree = "<group>"; };
+		C3AFBBB7682E878E76099599 /* LauncherSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherSections.swift; sourceTree = "<group>"; };
 		C4E0FCA72B3EF5C8E00F2ED6 /* TerminalCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalCommandRunner.swift; sourceTree = "<group>"; };
 		C56565B07BE5151D843D54F5 /* EmojiSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSettingsView.swift; sourceTree = "<group>"; };
 		C56CDF128216DD71A2A2C54D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -697,7 +697,6 @@
 				390FC9E8B9340545BF6A3405 /* ScreenshotPinWindow.swift */,
 				B4EC6D4EEA70F7417040D5AB /* ScreenshotPlugin.swift */,
 				F12D82E314EC41F6F38616E5 /* ScreenshotPreviewHUD.swift */,
-				2C0F817CF407E7E79E6A2E39 /* ScreenshotScreenButton.swift */,
 				E316818499A51F277F1FC8D4 /* ScreenshotSettingsView.swift */,
 				41D1D0ACCF427836713FD8EE /* ScreenshotTextLayout.swift */,
 				0AA7AB56ACBC149482D05CB9 /* ScreenshotTextRecognizer.swift */,
@@ -918,6 +917,7 @@
 				C33991D52E55CC9584A33759 /* LauncherFallback.swift */,
 				0AFF3EF0C5EF7422975327E3 /* LauncherFallbackActions.swift */,
 				0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */,
+				C3AFBBB7682E878E76099599 /* LauncherSections.swift */,
 				669FECA0B11D71E765DC0F0D /* NotificationToken.swift */,
 				7B2B1D180CB11167DFD22ECF /* OnboardingState.swift */,
 				81C05FD6E0B2F1E7D0123EE0 /* OpenRouterModelCatalog.swift */,
@@ -1235,6 +1235,7 @@
 				2E65CBDE4E58A89065A8A832 /* LauncherFallback.swift in Sources */,
 				EB0C4F02103548E77E6F2139 /* LauncherFallbackActions.swift in Sources */,
 				BDAA91D3A56013BB740673D9 /* LauncherRankingStore.swift in Sources */,
+				E13C4C6DFBB81B6B61DCFF64 /* LauncherSections.swift in Sources */,
 				B4A5B407BC1F9D8B6870D0D5 /* LauncherView.swift in Sources */,
 				3410D4A4451ABC6AC439C246 /* MoleManager.swift in Sources */,
 				0962B2B17A12619ECCFC81EF /* MolePlugin.swift in Sources */,
@@ -1295,7 +1296,6 @@
 				2C355DDDAE2429689A9E3631 /* ScreenshotPinWindow.swift in Sources */,
 				83C37637DD67A17B4D94E7C2 /* ScreenshotPlugin.swift in Sources */,
 				5AB7A011B760293695A0774E /* ScreenshotPreviewHUD.swift in Sources */,
-				61A6DB3E1042A90A38C9B0ED /* ScreenshotScreenButton.swift in Sources */,
 				003ED0A7EA94315E72C93EAA /* ScreenshotSettingsView.swift in Sources */,
 				AA4FAE5C81386E4C1D3191A0 /* ScreenshotTextLayout.swift in Sources */,
 				79BCB28D55F3D1BBDF864AAD /* ScreenshotTextRecognizer.swift in Sources */,

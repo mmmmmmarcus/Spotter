@@ -17,7 +17,7 @@ final class ScreenshotPreviewHUD {
     static let shadowRadius: CGFloat = 16
     static let shadowSpread: CGFloat = 4
     static let shadowOffsetY: CGFloat = 4
-    static let shadowOpacity: CGFloat = 0.4
+    static let shadowOpacity: CGFloat = 0.2
     /// Room for the blur, its spread and its downward offset, so no edge of the shadow is clipped.
     /// Also absorbs `appearBlur`, which spreads the artwork past its own bounds while it resolves.
     static let shadowPadding = shadowRadius + shadowSpread + shadowOffsetY

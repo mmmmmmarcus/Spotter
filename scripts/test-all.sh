@@ -11,6 +11,7 @@ TESTS=(
     app-version
     ranking
     launcher-fallback
+    launcher-sections
     calc
     clipboard
     scopes
@@ -85,6 +86,10 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Core/LauncherFallback.swift \
                 Spotter/Core/TerminalCommandRunner.swift Tools/launcher-fallback-test.swift \
                 -o "$output" && "$output"
+            ;;
+        launcher-sections)
+            swiftc -swift-version 6 Spotter/Core/LauncherSections.swift \
+                Tools/launcher-sections-test.swift -o "$output" && "$output"
             ;;
         calc)
             swiftc Spotter/Core/Calculator/*.swift \

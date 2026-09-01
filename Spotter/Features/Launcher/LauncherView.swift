@@ -3,8 +3,10 @@ import SwiftUI
 struct LauncherList: View {
     let results: [AppEntry]
     let selectedID: AppEntry.ID?
-    let favoriteCount: Int
-    let showSections: Bool
+    /// Section headers over the flat results for empty-query browsing; nil renders the plain query list.
+    let sections: [LauncherSectionSlice]?
+    /// CPU/memory accessory per entry ID, present only for Active Apps rows.
+    var usage: [String: String] = [:]
     /// Changes only when the list should scroll (keyboard nav / reset), so mouse selection never yanks the scroll position.
     let scroll: ScrollIntent
     /// Long-running work sits below the dashboard and above every selectable launcher result.
@@ -71,7 +73,7 @@ struct LauncherList: View {
     private var rows: [Row] {
         var inlineRows: [Row] = []
         if let inline { inlineRows = [.header(inline.sectionTitle), .inline(inline)] }
-        guard showSections else {
+        guard let sections else {
             var rows = inlineRows
             if !results.isEmpty {
                 rows.append(.header("Results"))
@@ -83,20 +85,13 @@ struct LauncherList: View {
             }
             return rows
         }
+        // The slices partition `results` exactly, in order — the flat array was built section-first upstream, so the selection index and the visible row order stay one and the same.
         var rows: [Row] = inlineRows
-        let favorites = results.prefix(favoriteCount)
-        let rest = results.dropFirst(favoriteCount)
-        // `rest` is apps-then-panes-then-commands by the AppIndex sort invariant, so filtering by kind keeps row order identical and the flat selection index valid.
-        let apps = rest.filter { $0.kind == .application }
-        let panes = rest.filter { $0.kind == .systemSettings }
-        let commands = rest.filter { $0.kind == .command }
-        for (title, group) in [
-            ("Favorites", Array(favorites)), ("Applications", apps),
-            ("System Settings", panes), ("Commands", commands),
-        ]
-        where !group.isEmpty {
-            rows.append(.header(title))
-            rows.append(contentsOf: group.map(Row.app))
+        var start = 0
+        for slice in sections where slice.count > 0 {
+            rows.append(.header(slice.title))
+            rows.append(contentsOf: results[start..<start + slice.count].map(Row.app))
+            start += slice.count
         }
         return rows
     }
@@ -144,7 +139,8 @@ struct LauncherList: View {
                                     AppRow(
                                         app: app,
                                         selected: app.id == selectedID,
-                                        running: runningApps.isRunning(app)
+                                        running: runningApps.isRunning(app),
+                                        usage: usage[app.id]
                                     )
                                     .contentShape(Rectangle())
                                     .onTapGesture { onActivate(app) }
@@ -166,6 +162,10 @@ struct LauncherList: View {
                     }
                     .edgeDissolve()
                     .thinScrollbar()
+                    // A remount (returning from a plugin screen) settles a hair below the origin once the floating header's safe-area inset lands, and the scroll intent set during the mode switch fired before this view existed — snap after layout instead.
+                    .onAppear {
+                        DispatchQueue.main.async { proxy.scrollToOrigin() }
+                    }
                     .onChange(of: scroll) { _, scroll in
                         switch scroll.kind {
                         case .top:
@@ -301,6 +301,8 @@ private struct AppRow: View {
     let app: AppEntry
     let selected: Bool
     let running: Bool
+    /// Live CPU/memory text for Active Apps rows; replaces the kind label on the trailing edge.
+    var usage: String? = nil
     /// Observed so a hotkey set/cleared in Settings re-renders the row's keycaps immediately.
     @EnvironmentObject private var hotKeys: HotKeyManager
     /// Observed for the same reason: the Hyper Key display settings (✦ collapse, Include Shift) change how `keycaps` renders.
@@ -358,8 +360,8 @@ private struct AppRow: View {
                 }
             }
             Spacer()
-            Text(app.kindLabel)
-                .font(Theme.Typography.rowTrailing)
+            Text(usage ?? app.kindLabel)
+                .font(Theme.Typography.rowTrailing.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, Theme.Spacing.md)

@@ -170,6 +170,22 @@ propagates instead of being repopulated by stale records on another Mac.
 
 Icons go through a byte-capped `NSCache` (`IconCache`, 32 MB, cost = decoded bitmap bytes).
 
+## Browse sections
+
+The empty-query launcher browses in sections — Favorites, Active Apps, Applications, System
+Settings, Commands — whose order and visibility live in Settings → General → Launcher Sections
+(`AppSettings.launcherSectionOrder` / `launcherHiddenSections`, both synced; the pure
+`LauncherSectionsEngine` repairs whatever was saved, harness-covered). Hiding a section hides it
+from browsing only: search always matches everything, and hiding Favorites returns its apps to the
+Applications pool rather than losing them. The flat results array is rebuilt in section order
+(`RootPaletteView.launcherBrowseLayout`), so the flat selection index and the visible row order stay
+one and the same — the critical invariant is untouched.
+
+Active Apps ships hidden. Enabled, it lists the running regular apps (pulled out of Applications so
+nothing appears twice) with a live CPU · memory reading on the trailing edge, summed per app bundle
+from one `ps` snapshot every few seconds (`RunningAppsMonitor.startUsageSampling`) — sampling runs
+only while the palette is on screen.
+
 ## Background tasks
 
 Long-running work is pinned below the empty-query dashboard and above Favorites; while a query is

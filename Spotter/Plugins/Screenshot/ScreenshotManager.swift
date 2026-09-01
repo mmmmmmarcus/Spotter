@@ -43,7 +43,7 @@ struct ScreenshotCapturePayload: Sendable {
 
 /// One selection session, three outputs: Space cycles what a capture produces. Screenshot mode is
 /// where every session starts — a left drag selects a region, a right click captures the window
-/// under the pointer, and each display's glass button captures that whole screen.
+/// under the pointer, and Tab captures the whole display.
 enum ScreenshotCaptureMode: CaseIterable {
     case screenshot
     /// Drag a region and keep only the text inside it.
@@ -817,21 +817,12 @@ private final class ScreenshotSelectionView: NSView {
     private var cursor: NSCursor { ScreenshotCursor.cursor(for: mode) }
     private var dragStart: CGPoint?
     private var selection: CGRect?
-    /// The glass button's footprint; the pointer over it is the plain arrow, not the crosshair.
-    private let screenButtonFrame: CGRect
-    /// Created lazily so its action can capture `self`.
-    private lazy var screenButton = ScreenshotScreenButtonHost(
-        rootView: ScreenshotScreenButton { [weak self] in self?.onScreenCapture?() })
     private static let selectionStrokeWidthPixels: CGFloat = 1
 
     init(screenFrame: CGRect, visibleFrame: CGRect, roundedCorners: Bool) {
         self.roundedCorners = roundedCorners
         self.screenFrame = screenFrame
-        screenButtonFrame = ScreenshotGeometry.screenButtonFrame(
-            screenFrame: screenFrame, visibleFrame: visibleFrame)
         super.init(frame: NSRect(origin: .zero, size: screenFrame.size))
-        screenButton.frame = screenButtonFrame
-        addSubview(screenButton)
         addTrackingArea(NSTrackingArea(
             rect: bounds,
             options: [
@@ -850,7 +841,6 @@ private final class ScreenshotSelectionView: NSView {
     override func resetCursorRects() {
         super.resetCursorRects()
         addCursorRect(bounds, cursor: cursor)
-        if !screenButton.isHidden { addCursorRect(screenButtonFrame, cursor: .arrow) }
     }
 
     override func cursorUpdate(with event: NSEvent) {
@@ -874,19 +864,12 @@ private final class ScreenshotSelectionView: NSView {
         self.mode = mode
         dragStart = nil
         selection = nil
-        // Whole-screen capture is a picture; the button sits out the text and colour modes.
-        screenButton.isHidden = mode != .screenshot
         refreshCursorRects()
         needsDisplay = true
     }
 
-    /// The glass button owns the pointer over its own footprint.
     private func setPointerCursor() {
-        if !screenButton.isHidden, screenButtonFrame.contains(localPointerLocation()) {
-            NSCursor.arrow.set()
-        } else {
-            cursor.set()
-        }
+        cursor.set()
     }
 
     private func localPointerLocation() -> CGPoint {

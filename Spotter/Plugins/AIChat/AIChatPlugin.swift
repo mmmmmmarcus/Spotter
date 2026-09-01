@@ -142,6 +142,13 @@ extension AppCore {
         showPalette(mode: .aiChat)
     }
 
+    /// Enter chat with the draft in the composer, unsent — Tab's carry-in path.
+    func openAIChat(draft: String) {
+        aiChat.startNewSession()
+        palette.mode = .aiChat
+        palette.query = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func startAIChat(prompt rawPrompt: String) {
         aiChat.startNewSession()
         palette.mode = .aiChat
