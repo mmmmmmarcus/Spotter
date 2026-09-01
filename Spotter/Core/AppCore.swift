@@ -118,6 +118,8 @@ final class PaletteViewModel: ObservableObject {
     @Published var followToken = UUID()
     /// Bumped by `PalettePanel` when ⌘. arrives in the clipboard. AppKit binds that chord to `cancelOperation:` alongside Escape, so the field editor consumes it and `onKeyPress(keys: ["."])` never fires — see docs/palette.md. `RootPaletteView` observes the token and resolves the row from the current results, so which row gets pinned still comes from one place.
     @Published var pinChordToken = UUID()
+    /// ⌃⌥⌘C (Hyper-C): hand the typed draft to ChatGPT on the web.
+    @Published var chatGPTChordToken = UUID()
     /// Bumped by `PalettePanel` when Shift-Tab arrives. AppKit routes it to the field editor's `insertBacktab:`, which walks the key-view loop and lands focus on the header's mode-glyph button, so `onKeyPress` never fires and the search field loses first responder — see docs/palette.md.
     @Published var backTabToken = UUID()
     /// The clipboard list's type filter. Reset to `.all` on every `prepare` and on any mode change: a filter left on from last time would silently hide history the user came back for.

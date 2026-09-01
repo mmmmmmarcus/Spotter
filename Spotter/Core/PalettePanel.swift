@@ -107,6 +107,15 @@ final class PalettePanel: NSPanel {
             paletteViewModel?.backTabToken = UUID()
             return
         }
+        // Hyper-C (⌃⌥⌘C, shift included when the Hyper Key carries it): the ChatGPT web handoff. A full modifier chord never reaches SwiftUI's `onKeyPress` — AppKit routes it through key-equivalents — so it rides a token like the other stolen chords.
+        if event.type == .keyDown,
+            Int(event.keyCode) == kVK_ANSI_C,
+            event.modifierFlags.intersection([.command, .option, .control])
+                == [.command, .option, .control]
+        {
+            paletteViewModel?.chatGPTChordToken = UUID()
+            return
+        }
         // ⌘. is macOS's Cancel chord, so AppKit routes it to `cancelOperation:` and the field editor eats it before SwiftUI's `onKeyPress` could see it. Intercept it here for the clipboard's pin, and only there — everywhere else it keeps meaning cancel.
         if event.type == .keyDown,
             Int(event.keyCode) == kVK_ANSI_Period,

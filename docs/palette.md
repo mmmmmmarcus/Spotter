@@ -30,8 +30,8 @@ point at the wrong row.
 
 With a typed launcher query, Tab instead enters a fresh AI Chat session and sends through Spotter's
 OpenRouter-backed default. With a typed AI Chat draft, Tab sends in the current Spotter session.
-Shift-Tab sends a typed draft from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the
-default browser; with no draft to send it is a plain backward cycle. Only the launcher's query
+Hyper-C (⌃⌥⌘C) sends a typed draft from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the
+default browser; Shift-Tab is always the plain backward cycle. Only the launcher's query
 follows into chat — a clipboard or emoji filter string is dropped rather than sent as a message
 nobody typed.
 

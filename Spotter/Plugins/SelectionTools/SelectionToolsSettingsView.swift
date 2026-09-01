@@ -61,24 +61,17 @@ struct SelectionToolsSettingsView: View {
                     subtitle: validationStatus,
                     systemImage: "network", tint: .secondary
                 ) {
-                    Button("Test API Key") {
-                        Task { await selectionTools.validateAPIKey() }
+                    HStack(spacing: Theme.Spacing.md) {
+                        Button("Test API Key") {
+                            Task { await selectionTools.validateAPIKey() }
+                        }
+                        .disabled(
+                            selectionTools.apiKey.isEmpty || selectionTools.validation == .checking)
+                        Link("Open Guide", destination: SelectionToolsManager.providerURL)
                     }
-                    .disabled(
-                        selectionTools.apiKey.isEmpty || selectionTools.validation == .checking)
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Google Cloud setup",
-                    subtitle: "Enable Cloud Translation and create a key for your project.",
-                    systemImage: "arrow.up.right.square", tint: .secondary
-                ) {
-                    Link("Open Guide", destination: SelectionToolsManager.providerURL)
-                }
-            }
-
-            SettingsCard(header: "Translate Into") {
                 if selectionTools.targets.isEmpty {
                     SettingsRow(
                         title: "No target languages",

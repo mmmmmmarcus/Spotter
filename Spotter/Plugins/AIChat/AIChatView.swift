@@ -14,13 +14,45 @@ struct AIChatView: View {
             EmptyResults(
                 text: "AI Chat needs an OpenRouter API key — add one in Settings → General → AI.")
         } else if chat.messages.isEmpty && chat.phase == .idle {
-            EmptyResults(
-                text: chat.isWaiting
-                    ? "Another session is thinking — switch back from Sessions or stop it in Actions."
-                    : "Ask anything — Tab sends here, and Shift-Tab sends to ChatGPT on the web.")
+            if chat.isWaiting {
+                EmptyResults(
+                    text:
+                        "Another session is thinking — switch back from Sessions or stop it in Actions."
+                )
+            } else if historySessions.isEmpty {
+                EmptyResults(
+                    text: "Ask anything — Tab sends here, and ⌃⌥⌘C sends to ChatGPT on the web.")
+            } else {
+                history
+            }
         } else {
             transcript
         }
+    }
+
+    /// Every past conversation, newest first; the blank current session is not history.
+    private var historySessions: [AIChatSession] {
+        chat.orderedSessions.filter { !$0.messages.isEmpty }
+    }
+
+    /// A fresh session opens on where you left off: the past conversations as rows, one click from
+    /// resuming any of them. Typing and sending still starts the new conversation as before.
+    private var history: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                SectionHeader(title: "History", isFirst: true)
+                ForEach(historySessions) { session in
+                    AIChatHistoryRow(session: session) { chat.switchTo(session.id) }
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.top, Theme.Spacing.xs)
+            .padding(.bottom, Theme.Spacing.md)
+            .hideNativeScrollers()
+            .scrollOriginAnchor()
+        }
+        .edgeDissolve()
+        .thinScrollbar()
     }
 
     private var transcript: some View {
@@ -58,6 +90,47 @@ struct AIChatView: View {
                 proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
             }
         }
+    }
+}
+
+private struct AIChatHistoryRow: View {
+    let session: AIChatSession
+    let open: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.lg) {
+            Image(systemName: "bubble.left.and.bubble.right")
+                .font(.title3)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(session.title)
+                    .font(Theme.Typography.rowTitle)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: Theme.Spacing.xl)
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
+                .fill(hovered ? Theme.Colors.rowHover : .clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: open)
+        .armedHover($hovered)
+    }
+
+    private var subtitle: String {
+        let turns = session.messages.count
+        let started = session.startedAt.formatted(.relative(presentation: .named))
+        return "\(started) · \(turns) \(turns == 1 ? "message" : "messages")"
     }
 }
 

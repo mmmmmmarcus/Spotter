@@ -524,6 +524,11 @@ struct RootPaletteView: View {
         }
         // Shift-Tab reaches us as a token for the same reason ⌘. does: AppKit gives the chord to the field editor before `onKeyPress` can see it.
         .onChange(of: vm.backTabToken) { handleTab(shift: true) }
+        // Hyper-C: hand the typed draft to ChatGPT on the web, from the launcher or the chat composer.
+        .onChange(of: vm.chatGPTChordToken) {
+            guard vm.mode == .aiChat || vm.mode == .launcher else { return }
+            sendChatGPTMessage()
+        }
         .onAppear { searchFocused = vm.mode != .updates }
         // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
         .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
@@ -1260,15 +1265,11 @@ struct RootPaletteView: View {
         }
         if menuOpen { return }
         let hasDraft = !vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if hasDraft, vm.mode == .aiChat || (vm.mode == .launcher && shift) {
-            if shift {
-                sendChatGPTMessage()
-            } else {
-                sendChatMessage()
-            }
+        if hasDraft, !shift, vm.mode == .aiChat {
+            sendChatMessage()
             return
         }
-        // With no draft to send, Shift-Tab walks the cycle the other way.
+        // Shift-Tab is always the backward cycle; the ChatGPT web handoff lives on ⌃⌥⌘C.
         cycleMode(forward: !shift)
     }
 
@@ -1314,7 +1315,7 @@ struct RootPaletteView: View {
         if core.aiChat.send(text) { vm.query = "" }
     }
 
-    /// Shift-Tab hands the draft to a new ChatGPT web query and lets the browser own the session.
+    /// Hyper-C hands the draft to a new ChatGPT web query and lets the browser own the session.
     private func sendChatGPTMessage() {
         let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
