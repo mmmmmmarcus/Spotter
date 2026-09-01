@@ -52,13 +52,20 @@ renders an *Unlock 1Password* row whose action re-runs the list read — that is
 Spotter/Plugins/OnePassword/
 ├── OnePasswordPlugin.swift         # registration, palette rows, AppCore actions
 ├── OnePasswordTypes.swift          # pure: JSON parsing, argv builders, action rules (harnessed)
-├── OnePasswordProcessRunner.swift  # one `op` process off-main, stdout/stderr kept separate
+├── OnePasswordProcessRunner.swift  # one `op` process off-main, stdout/stderr kept separate,
+│                                   # stdin the shared session TTY
 ├── OnePasswordManager.swift        # AppCore-owned state: binary, item cache, reveals, clipboard clear
 └── OnePasswordSettingsView.swift
 ```
 
 - `OnePasswordTypes.swift` stays Foundation-only and pure; `Tools/onepassword-test.swift` compiles
   it standalone and never executes `op`.
+- Every `op` runs with one app-lifetime pseudo-terminal as stdin. The desktop app scopes CLI
+  authorization to a terminal session, which `op` derives from the TTY it is attached to — with no
+  TTY each invocation read as a brand-new session and 1Password re-prompted on every copy. One
+  shared PTY makes all of Spotter's calls one session: authorize once, then only 1Password's own
+  inactivity and 12-hour caps apply. Only stdin is the PTY; stdout and stderr stay captured pipes
+  (with `NO_COLOR` set so TTY-colored diagnostics can't leak ANSI codes into error text).
 - `OnePasswordProcessRunner` checks the real termination status and keeps **stdout and stderr
   separate**: stdout may be a secret and is returned verbatim; stderr is only distilled into an
   error message (log prefixes stripped) and classified as locked-vs-failed. Secrets never appear in

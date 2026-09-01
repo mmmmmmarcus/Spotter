@@ -610,7 +610,8 @@ private struct DashboardFileInfoCard: View {
         if let path = snapshot.iconPath {
             DashboardFileIcon(path: path)
         } else {
-            Image(systemName: "doc")
+            // The Finder face, not a generic document: the resting card is about the app being watched, not a file it doesn't have.
+            Image(systemName: "finder")
                 .font(.system(size: Self.iconSize * 0.8, weight: .light))
                 .foregroundStyle(Theme.Colors.textTertiary)
         }

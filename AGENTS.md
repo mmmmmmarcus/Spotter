@@ -122,7 +122,9 @@ Never break these without an explicit task to do so.
   `Tools/onepassword-test.swift` (its harness never executes `op`); `OnePasswordProcessRunner` must
   check the real termination status and keep stdout and stderr separate — stdout may be a secret and
   is returned verbatim, stderr only ever becomes an error message, and a secret never appears in
-  argv or a log. `Plugins/Coffee/CoffeeTypes.swift`
+  argv or a log. Every `op` runs with the shared app-lifetime PTY as stdin (`OnePasswordSessionTTY`)
+  so 1Password sees one terminal session and authorizes once, not per action — stdin only; the
+  output pipes and their secret/error separation stay as they are. `Plugins/Coffee/CoffeeTypes.swift`
   stays Foundation-only and pure for `Tools/coffee-test.swift`, the
   `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
   `ScreenshotColorSampler.swift`, `ScreenshotImageProcessor.swift`, `ScreenshotAnnotation.swift` and

@@ -6,6 +6,31 @@ struct OnePasswordRunError: Error, Sendable {
     let isLocked: Bool
 }
 
+/// One pseudo-terminal kept for the app's lifetime and handed to every `op` as stdin. The desktop
+/// app scopes CLI authorization to a terminal session, which `op` derives from the TTY it is
+/// attached to — with no TTY, every invocation reads as a brand-new session and 1Password
+/// re-prompts on each action. Sharing one long-lived PTY makes all of Spotter's calls one session:
+/// authorize once, then only 1Password's own inactivity and 12-hour caps apply. Only stdin is the
+/// PTY — stdout and stderr stay captured pipes, so the secret/error separation is untouched.
+private enum OnePasswordSessionTTY {
+    static let slave: FileHandle? = {
+        // O_NOCTTY throughout: Spotter itself must never adopt this as its controlling terminal.
+        let master = posix_openpt(O_RDWR | O_NOCTTY)
+        guard master >= 0 else { return nil }
+        guard grantpt(master) == 0, unlockpt(master) == 0, let name = ptsname(master) else {
+            close(master)
+            return nil
+        }
+        let slaveDescriptor = open(name, O_RDWR | O_NOCTTY)
+        guard slaveDescriptor >= 0 else {
+            close(master)
+            return nil
+        }
+        // The master half is deliberately left open forever: closing it would hang up the slave.
+        return FileHandle(fileDescriptor: slaveDescriptor, closeOnDealloc: false)
+    }()
+}
+
 /// Runs one `op` process off-main and interrupts it when the awaiting task is cancelled.
 /// Unlike Mole's runner, stdout and stderr stay separate: stdout may be a secret and is returned
 /// verbatim, stderr is only ever distilled into an error message and never logged with a secret.
@@ -24,7 +49,12 @@ enum OnePasswordProcessRunner {
                     let err = Pipe()
                     process.standardOutput = out
                     process.standardError = err
-                    process.standardInput = FileHandle.nullDevice
+                    // The shared session TTY (see OnePasswordSessionTTY); a PTY that failed to open degrades to the old null stdin and per-call prompts.
+                    process.standardInput = OnePasswordSessionTTY.slave ?? FileHandle.nullDevice
+                    // `op` sees a TTY on stdin now; keep any diagnostics it colors for terminals out of the error text.
+                    var environment = ProcessInfo.processInfo.environment
+                    environment["NO_COLOR"] = "1"
+                    process.environment = environment
 
                     guard controller.attach(process) else {
                         continuation.resume(
