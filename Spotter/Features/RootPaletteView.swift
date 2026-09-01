@@ -501,7 +501,7 @@ struct RootPaletteView: View {
         .background(Theme.Colors.panelScrim)
         .background(VisualEffectView())
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
-        // The 200 ms summon: the panel arrives a touch blurred, faded and small, and snaps sharp.
+        // The 100 ms summon: the panel arrives a touch blurred, faded and small, and snaps sharp.
         // Primed at hide (never animated — the window is already ordered out), released on the
         // show's focus bump, so the first visible frame is always the start state.
         .modifier(SummonEffect(active: summoning))
@@ -518,7 +518,8 @@ struct RootPaletteView: View {
             searchFocused = vm.mode != .updates
             openMenu = nil
             scroll = ScrollIntent(kind: .top)
-            withAnimation(.easeOut(duration: 0.2)) { summoning = false }
+            // A hard decelerate: most of the sharpening lands in the first frames, then settles.
+            withAnimation(.timingCurve(0.05, 0.7, 0.1, 1, duration: 0.1)) { summoning = false }
         }
         .onChange(of: vm.query) {
             vm.selection = 0
