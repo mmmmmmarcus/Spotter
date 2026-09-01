@@ -36,6 +36,8 @@ struct RootPaletteView: View {
     @State private var confirmSelection = 0
     /// The pending scroll request for whichever list or grid is mounted (modes are exclusive, so one piece of state serves all of them). Set only by keyboard nav and resets; mouse selection targets a visible row, so it leaves this and the scroll position put.
     @State private var scroll = ScrollIntent(kind: .top)
+    /// True while the palette is offscreen or mid-arrival; starts true so the first-ever summon animates too.
+    @State private var summoning = true
 
     private var isQueryEmpty: Bool { vm.query.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -381,6 +383,12 @@ struct RootPaletteView: View {
         let statefulLayout = paletteWithStateHandlers(
             layout, clips: clips, clipFollow: clipFollow)
         return paletteWithKeyHandlers(statefulLayout)
+            // Kept off the big state-handler chain, which sits at the type-checker's budget.
+            .onChange(of: vm.dismissToken) {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { summoning = true }
+            }
     }
 
     private func paletteLayout(
@@ -493,6 +501,10 @@ struct RootPaletteView: View {
         .background(Theme.Colors.panelScrim)
         .background(VisualEffectView())
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
+        // The 200 ms summon: the panel arrives a touch blurred, faded and small, and snaps sharp.
+        // Primed at hide (never animated — the window is already ordered out), released on the
+        // show's focus bump, so the first visible frame is always the start state.
+        .modifier(SummonEffect(active: summoning))
     }
 
     private func paletteWithStateHandlers<Content: View>(
@@ -506,6 +518,7 @@ struct RootPaletteView: View {
             searchFocused = vm.mode != .updates
             openMenu = nil
             scroll = ScrollIntent(kind: .top)
+            withAnimation(.easeOut(duration: 0.2)) { summoning = false }
         }
         .onChange(of: vm.query) {
             vm.selection = 0
@@ -1438,6 +1451,18 @@ struct RootPaletteView: View {
         case .plugin(let result):
             core.copyPluginQueryResult(result)
         }
+    }
+}
+
+/// The palette's arrival treatment, one modifier so the root chain stays type-checkable.
+private struct SummonEffect: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .blur(radius: active ? 8 : 0)
+            .opacity(active ? 0.55 : 1)
+            .scaleEffect(active ? 0.98 : 1)
     }
 }
 

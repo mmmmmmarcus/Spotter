@@ -112,6 +112,8 @@ final class PaletteViewModel: ObservableObject {
     @Published var selection: Int = 0
     /// Changes every time the palette is shown so the search field can re-focus.
     @Published var focusToken = UUID()
+    /// Bumped when the palette hides, so the view can re-prime the summon animation without ever animating it.
+    @Published var dismissToken = UUID()
     /// Changes only when `prepare` resets the palette, so the lists snap their scroll to the top even when query/mode were already at their defaults (`focusToken` can't serve: it bumps on every reopen, which must preserve a within-timeout scroll).
     @Published var resetToken = UUID()
     /// Changes when an action reorders the list under the selection (pinning a clip lifts it into the Pinned section), so the list scrolls the highlight back into view.
