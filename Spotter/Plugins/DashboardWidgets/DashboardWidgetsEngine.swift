@@ -81,6 +81,24 @@ struct DashboardEvent: Equatable, Sendable {
     let isAllDay: Bool
     let calendarTitle: String
     let location: String?
+    /// The event's own URL field and its notes, carried for the schedule's meeting-link detection.
+    let urlString: String?
+    let notes: String?
+
+    init(
+        id: String, title: String, startDate: Date, endDate: Date, isAllDay: Bool,
+        calendarTitle: String, location: String?, urlString: String? = nil, notes: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAllDay = isAllDay
+        self.calendarTitle = calendarTitle
+        self.location = location
+        self.urlString = urlString
+        self.notes = notes
+    }
 }
 
 enum DashboardWidgetsEngine {

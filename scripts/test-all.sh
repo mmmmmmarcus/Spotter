@@ -35,6 +35,7 @@ TESTS=(
     coffee
     ai-chat
     dashboard-widgets
+    calendar-schedule
     uptime
     theme
     quicklink
@@ -189,6 +190,11 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
                 Spotter/Plugins/Mole/MoleProcessRunner.swift Tools/mole-test.swift \
                 -o "$output" && "$output"
+            ;;
+        calendar-schedule)
+            swiftc -swift-version 6 \
+                Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
+                Tools/calendar-schedule-test.swift -o "$output" && "$output"
             ;;
         onepassword)
             swiftc -swift-version 6 Spotter/Plugins/OnePassword/OnePasswordTypes.swift \

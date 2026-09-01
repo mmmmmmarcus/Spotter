@@ -37,7 +37,10 @@ best line saying what the card obviously is, and the date left for the clock's c
 copy here wouldn't be the strip repeating itself. Splitting the two to opposite ends of the card is
 what puts the time in the same place whether the title runs to one line or three. Clicking the card
 hides the palette and opens Calendar — the card is a door to the real thing; the access-state
-buttons it shows before authorization consume their own clicks first.
+buttons it shows before authorization consume their own clicks first. The card and the Calendar
+plugin's My Schedule screen are one feature: both read the same store's fetch, and the card's
+account/access/all-day preferences live on the plugin's Settings pane
+(see [calendar.md](calendar.md)); the Widgets page points there.
 
 The File Info card states what is selected in the Finder: its kind in the title slot, its own Finder
 icon as the card's middle, then what it is called and how big it is. It reads a selection only when

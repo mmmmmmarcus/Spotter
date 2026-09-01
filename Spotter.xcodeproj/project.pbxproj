@@ -131,6 +131,7 @@
 		78AAE8AFCD10B52EE0747CB1 /* CoffeeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056DCF4B8C817B965ECCC134 /* CoffeeManager.swift */; };
 		79BCB28D55F3D1BBDF864AAD /* ScreenshotTextRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA7AB56ACBC149482D05CB9 /* ScreenshotTextRecognizer.swift */; };
 		7A75443A31B6C2E93342259E /* HotKeyBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF34DE9C19A60F21D5D403BC /* HotKeyBinding.swift */; };
+		7A9380E44D7727C26EBA5886 /* CalendarScheduleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C93A1FF09AE9CF8AA77CC96B /* CalendarScheduleEngine.swift */; };
 		7B5F7B5B5C4C987947ECE477 /* CalculatorCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34AC17A52D175DC67680CADF /* CalculatorCardView.swift */; };
 		7F64A9B9794E31A20180A6C1 /* NoteMarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D14FFB0DE3F5834EF5C48BBD /* NoteMarkdownEditor.swift */; };
 		813424932AFB5279357EF53C /* DashboardFileInfoReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9402DE275CFCA602F9850F07 /* DashboardFileInfoReader.swift */; };
@@ -153,6 +154,7 @@
 		9B90649F3F54F2D036C08214 /* NoteEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153205CD1057E24782EA9A43 /* NoteEngine.swift */; };
 		9D1E9A3F37346DB2A4CEF564 /* RaycastImportSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB5A874A02DFEF5BC50CFA0 /* RaycastImportSelection.swift */; };
 		9E024363B68D9E64B01FD980 /* OnePasswordSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1462CA530043267E0B2DC2 /* OnePasswordSettingsView.swift */; };
+		9F9A281BB20783D92CE7FE96 /* CalendarSchedulePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060C7F004CD9699AAA1B8099 /* CalendarSchedulePlugin.swift */; };
 		A059071A015B9B1B3983FFA5 /* CoffeeTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFDD89FB9F6E2D228D27A01 /* CoffeeTypes.swift */; };
 		A0EF6A5216834020893AA042 /* ChangeCaseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF8C28A567670C9131C35CC /* ChangeCaseStore.swift */; };
 		A14BCA6DE687C5F3A0E2596F /* InputSourceLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D60D7E8BF89AC9EB221093E /* InputSourceLock.swift */; };
@@ -186,6 +188,7 @@
 		B9123AF49E8E4A437AEE84D6 /* EmojiSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56565B07BE5151D843D54F5 /* EmojiSettingsView.swift */; };
 		B975478C37367538F86BCED9 /* OverlayScroller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */; };
 		BA50A9C37147A0165031EB0E /* SettingsSyncFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D10E282B83D363D3D9A4FA8 /* SettingsSyncFile.swift */; };
+		BAD4C200F9690E5A105104C6 /* CalendarScheduleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED05D77382879F2D72FC905 /* CalendarScheduleSettingsView.swift */; };
 		BB8C5EF75B2A86422FA6F484 /* CalcPercent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05847FE1A1809D0FD8DF6908 /* CalcPercent.swift */; };
 		BBB59F62BF0A0AEBC9413787 /* QuicklinksPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1DCDA3DDA71EB23010C3B83 /* QuicklinksPlugin.swift */; };
 		BCC6829114B7E2CA83E9CA70 /* WindowMover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C21A51F218D5BF5BAF45E5B /* WindowMover.swift */; };
@@ -261,6 +264,7 @@
 		05847FE1A1809D0FD8DF6908 /* CalcPercent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcPercent.swift; sourceTree = "<group>"; };
 		0585A83889766AB5682CD10C /* NotePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePlugin.swift; sourceTree = "<group>"; };
 		059A3D52209A061BF964889D /* ImageModificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageModificationManager.swift; sourceTree = "<group>"; };
+		060C7F004CD9699AAA1B8099 /* CalendarSchedulePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarSchedulePlugin.swift; sourceTree = "<group>"; };
 		07B954546DFCF752D02810A5 /* WindowCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCommand.swift; sourceTree = "<group>"; };
 		080980BFAF7DEB7943384341 /* QuicklinksSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinksSettingsView.swift; sourceTree = "<group>"; };
 		08EFDC39436C21336F87FBB6 /* KillProcessPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KillProcessPlugin.swift; sourceTree = "<group>"; };
@@ -429,6 +433,7 @@
 		B86F0BE33EC12D76308E7A98 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		BAA6729A8C71A37B8800DB8A /* ScreenshotManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotManager.swift; sourceTree = "<group>"; };
 		BE606C002203EDEE75AD6EB9 /* CurrencyConversionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyConversionPlugin.swift; sourceTree = "<group>"; };
+		BED05D77382879F2D72FC905 /* CalendarScheduleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScheduleSettingsView.swift; sourceTree = "<group>"; };
 		BF34DE9C19A60F21D5D403BC /* HotKeyBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyBinding.swift; sourceTree = "<group>"; };
 		C043E4441629EFE8CA184AAB /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
 		C0D7FC8027F35E0F0E397BC7 /* PluginPaletteList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginPaletteList.swift; sourceTree = "<group>"; };
@@ -441,6 +446,7 @@
 		C56565B07BE5151D843D54F5 /* EmojiSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSettingsView.swift; sourceTree = "<group>"; };
 		C56CDF128216DD71A2A2C54D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandHUD.swift; sourceTree = "<group>"; };
+		C93A1FF09AE9CF8AA77CC96B /* CalendarScheduleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScheduleEngine.swift; sourceTree = "<group>"; };
 		C97BF8A52FC54B377D0C496E /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
 		CBC9C7B1C931032E7A8857D7 /* SelectionToolsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolsManager.swift; sourceTree = "<group>"; };
 		CFE5C655CA61F9B16280A3DA /* AliasStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AliasStore.swift; sourceTree = "<group>"; };
@@ -705,6 +711,16 @@
 			path = Screenshot;
 			sourceTree = "<group>";
 		};
+		7B0B889A5C585B19D683E12C /* CalendarSchedule */ = {
+			isa = PBXGroup;
+			children = (
+				C93A1FF09AE9CF8AA77CC96B /* CalendarScheduleEngine.swift */,
+				060C7F004CD9699AAA1B8099 /* CalendarSchedulePlugin.swift */,
+				BED05D77382879F2D72FC905 /* CalendarScheduleSettingsView.swift */,
+			);
+			path = CalendarSchedule;
+			sourceTree = "<group>";
+		};
 		7DF512BF41AF7303E5AC3C17 /* ImageModification */ = {
 			isa = PBXGroup;
 			children = (
@@ -772,6 +788,7 @@
 			isa = PBXGroup;
 			children = (
 				F78EF2A4E67208406BCEF154 /* AIChat */,
+				7B0B889A5C585B19D683E12C /* CalendarSchedule */,
 				A03E7136B6D2D09A9DD3F011 /* ChangeCase */,
 				EECA76EE9B2809822600D9EC /* Clipboard */,
 				85FB3AE480BADDE85B05DFE3 /* Coffee */,
@@ -1152,6 +1169,9 @@
 				7B5F7B5B5C4C987947ECE477 /* CalculatorCardView.swift in Sources */,
 				EABCAF4A8BE13B037FC861E5 /* CalculatorHistoryStore.swift in Sources */,
 				82696CF30E462E39BF06115C /* CalculatorHistoryView.swift in Sources */,
+				7A9380E44D7727C26EBA5886 /* CalendarScheduleEngine.swift in Sources */,
+				9F9A281BB20783D92CE7FE96 /* CalendarSchedulePlugin.swift in Sources */,
+				BAD4C200F9690E5A105104C6 /* CalendarScheduleSettingsView.swift in Sources */,
 				90A6A68B13096A72EDCA14CC /* ChangeCaseEngine.swift in Sources */,
 				6D4682A4982558F99F9A4AD7 /* ChangeCasePlugin.swift in Sources */,
 				0C0140615CF003D101DEA93D /* ChangeCaseSettingsView.swift in Sources */,

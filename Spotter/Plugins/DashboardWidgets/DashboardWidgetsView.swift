@@ -470,16 +470,7 @@ struct DashboardWidgetsView: View {
         .dashboardCardSurface()
         // The card is a door to the real thing: clicking it opens Calendar. The access-state buttons consume their own clicks first.
         .contentShape(Rectangle())
-        .onTapGesture { openCalendarApp() }
-    }
-
-    private func openCalendarApp() {
-        core.hidePalette(restoreFocus: false)
-        guard
-            let url = NSWorkspace.shared.urlForApplication(
-                withBundleIdentifier: "com.apple.iCal")
-        else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        .onTapGesture { core.openCalendarApp() }
     }
 
     @ViewBuilder

@@ -25,6 +25,8 @@ final class DashboardWidgetsStore: ObservableObject {
     @Published private(set) var calendarAccess: DashboardCalendarAccess
     @Published private(set) var calendarAccounts: [DashboardCalendarAccount] = []
     @Published private(set) var nextEvent: DashboardEvent?
+    /// The soonest events ahead (14 days, capped), for the Calendar schedule screen; `nextEvent` is its head.
+    @Published private(set) var upcomingEvents: [DashboardEvent] = []
     @Published private(set) var isRequestingCalendarAccess = false
 
     private let defaults: UserDefaults
@@ -161,6 +163,7 @@ final class DashboardWidgetsStore: ObservableObject {
         guard calendarAccess.canRead else {
             calendarAccounts = []
             nextEvent = nil
+            upcomingEvents = []
             return
         }
         let calendars = eventStore.calendars(for: .event)
@@ -169,6 +172,7 @@ final class DashboardWidgetsStore: ObservableObject {
             let horizon = calendar.date(byAdding: .year, value: 1, to: now)
         else {
             nextEvent = nil
+            upcomingEvents = []
             return
         }
         let effectiveSourceIdentifier = DashboardWidgetsEngine.effectiveCalendarSourceIdentifier(
@@ -189,20 +193,39 @@ final class DashboardWidgetsStore: ObservableObject {
                         selectedSourceIdentifier: effectiveSourceIdentifier,
                         includesAllDayEvents: preferences.includesAllDayEvents)
             }
-        guard let event = events
+        let scheduleHorizon = calendar.date(byAdding: .day, value: 14, to: now) ?? horizon
+        upcomingEvents = events
+            .filter { $0.startDate < scheduleHorizon }
+            .sorted { $0.startDate < $1.startDate }
+            .prefix(50)
+            .map { event in
+                DashboardEvent(
+                    id: event.eventIdentifier ?? UUID().uuidString,
+                    title: event.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                        ?? "Untitled event",
+                    startDate: event.startDate, endDate: event.endDate, isAllDay: event.isAllDay,
+                    calendarTitle: event.calendar.title,
+                    location: event.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .nilIfEmpty,
+                    urlString: event.url?.absoluteString,
+                    notes: event.notes?.nilIfEmpty)
+            }
+        // The widget's single reading stays derived from the same fetch, never a second one — with
+        // nothing inside 14 days it falls back to the year horizon's soonest event.
+        nextEvent = upcomingEvents.first
+            ?? events
             .filter({ $0.startDate < horizon })
             .min(by: { $0.startDate < $1.startDate })
-        else {
-            nextEvent = nil
-            return
-        }
-        nextEvent = DashboardEvent(
-            id: event.eventIdentifier ?? UUID().uuidString,
-            title: event.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                ?? "Untitled event",
-            startDate: event.startDate, endDate: event.endDate, isAllDay: event.isAllDay,
-            calendarTitle: event.calendar.title,
-            location: event.location?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty)
+            .map { event in
+                DashboardEvent(
+                    id: event.eventIdentifier ?? UUID().uuidString,
+                    title: event.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                        ?? "Untitled event",
+                    startDate: event.startDate, endDate: event.endDate, isAllDay: event.isAllDay,
+                    calendarTitle: event.calendar.title,
+                    location: event.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .nilIfEmpty)
+            }
     }
 
     private static func currentCalendarAccess() -> DashboardCalendarAccess {

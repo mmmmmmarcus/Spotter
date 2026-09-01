@@ -125,7 +125,9 @@ Never break these without an explicit task to do so.
   argv or a log. Every `op` runs with the shared app-lifetime PTY as stdin (`OnePasswordSessionTTY`)
   so 1Password sees one terminal session and authorizes once, not per action — stdin only; the
   output pipes and their secret/error separation stay as they are. `Plugins/Coffee/CoffeeTypes.swift`
-  stays Foundation-only and pure for `Tools/coffee-test.swift`, the
+  stays Foundation-only and pure for `Tools/coffee-test.swift`,
+  `Plugins/CalendarSchedule/CalendarScheduleEngine.swift` stays Foundation-only and pure (clock,
+  calendar and locale injected) for `Tools/calendar-schedule-test.swift`, the
   `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
   `ScreenshotColorSampler.swift`, `ScreenshotImageProcessor.swift`, `ScreenshotAnnotation.swift` and
   `ScreenshotTextLayout.swift`
@@ -315,9 +317,11 @@ Never break these without an explicit task to do so.
   trusted Settings state; CloudKit engine tokens and record system fields stay bundle-scoped and
   device-local. Concrete palette coordinates and system privacy grants also stay device-local. See
   [`docs/settings-sync.md`](docs/settings-sync.md).
-- **Text Replacement never records arbitrary typing or uses the clipboard.** Its matcher retains only
-  a suffix that can still become a configured trigger, and its synthetic deletion/insertion events use
-  the shared event-source marker so neither its own tap nor Hyper Key rewrites them.
+- **Snippets' expansion never records arbitrary typing or uses the clipboard.** The plugin keeps its
+  historical `text-replacement` identity (IDs, keys, file names); its matcher retains only a suffix
+  that can still become a configured trigger (built from keyworded snippets only — palette-only
+  snippets never touch typing), and its synthetic deletion/insertion events use the shared
+  event-source marker so neither its own tap nor Hyper Key rewrites them.
 - **Hotkeys persist under legacy `KeyboardShortcuts_<name>` UserDefaults keys** (from the removed
   KeyboardShortcuts package) so old bindings survive — and a `.combo` binding must keep encoding as
   the bare `KeyShortcut` record, or every existing binding and backup reads as unbound.
@@ -361,6 +365,7 @@ Never break these without an explicit task to do so.
   [`docs/image-modification.md`](docs/image-modification.md) ·
   [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md) ·
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/uptime.md`](docs/uptime.md) ·
+  [`docs/calendar.md`](docs/calendar.md) ·
   [`docs/selection-tools.md`](docs/selection-tools.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) · [`docs/1password.md`](docs/1password.md) ·

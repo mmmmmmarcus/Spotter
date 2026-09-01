@@ -181,7 +181,7 @@ struct SettingsBackup: Codable, Sendable {
 
     struct TextReplacementBackup: Codable, Sendable {
         var prefix: String?
-        var rules: [TextReplacementRule]?
+        var rules: [Snippet]?
     }
 
     struct NotesBackup: Codable, Sendable {
@@ -310,7 +310,7 @@ extension SettingsBackup {
         backup.quicklinks = core.quicklinks.sorted
         backup.textReplacement = TextReplacementBackup(
             prefix: core.textReplacements.prefix,
-            rules: core.textReplacements.rules)
+            rules: core.textReplacements.snippets)
         if case .include = noteTransfer {
             backup.notes = NotesBackup(notes: core.notes.notes, selectedID: core.notes.selectedID)
         }
@@ -440,7 +440,7 @@ extension SettingsBackup {
         }
         if let textReplacement {
             core.textReplacements.replace(
-                prefix: textReplacement.prefix, rules: textReplacement.rules ?? [])
+                prefix: textReplacement.prefix, snippets: textReplacement.rules ?? [])
             summary.settingsFields += 1
         }
         if case .include = noteTransfer, let notes {

@@ -58,9 +58,9 @@ final class TextReplacementManager: ObservableObject {
 
     init(store: TextReplacementStore) {
         self.store = store
-        engine = TextReplacementEngine(prefix: store.prefix, rules: store.rules)
-        store.onChange = { [weak self] prefix, rules in
-            self?.reload(prefix: prefix, rules: rules)
+        engine = TextReplacementEngine(prefix: store.prefix, snippets: store.snippets)
+        store.onChange = { [weak self] prefix, snippets in
+            self?.reload(prefix: prefix, snippets: snippets)
         }
     }
 
@@ -137,8 +137,8 @@ final class TextReplacementManager: ObservableObject {
         }
     }
 
-    private func reload(prefix: String, rules: [TextReplacementRule]) {
-        engine = TextReplacementEngine(prefix: prefix, rules: rules)
+    private func reload(prefix: String, snippets: [Snippet]) {
+        engine = TextReplacementEngine(prefix: prefix, snippets: snippets)
         guard isRunning else { return }
         syncTapPresence()
     }

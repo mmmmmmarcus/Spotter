@@ -138,6 +138,9 @@ swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift 
     -o /tmp/scopes-test && /tmp/scopes-test                       # launcher search scopes
 swiftc -swift-version 6 Spotter/Core/LauncherSections.swift Tools/launcher-sections-test.swift \
     -o /tmp/launcher-sections-test && /tmp/launcher-sections-test # browse section order/visibility
+swiftc -swift-version 6 Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
+    Tools/calendar-schedule-test.swift \
+    -o /tmp/calendar-schedule-test && /tmp/calendar-schedule-test # meeting links + schedule labels
 swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
     Spotter/Plugins/FileSearch/FileSearchTypes.swift Tools/file-search-test.swift \
     -o /tmp/file-search-test && /tmp/file-search-test             # file search policy

@@ -5,8 +5,8 @@ struct TextReplacementSettingsView: View {
     @ObservedObject var store: TextReplacementStore
     @ObservedObject var manager: TextReplacementManager
     @State private var prefixDraft: String
-    @State private var editor: TextReplacementEditorTarget?
-    @State private var pendingDeletion: TextReplacementRule?
+    @State private var editor: SnippetEditorTarget?
+    @State private var pendingDeletion: Snippet?
     @State private var prefixError: String?
 
     init(store: TextReplacementStore, manager: TextReplacementManager) {
@@ -17,13 +17,15 @@ struct TextReplacementSettingsView: View {
 
     var body: some View {
         SettingsPane(
-            title: "Text Replacement",
-            subtitle: "Expand memorable triggers into text wherever you type."
+            title: "Snippets",
+            subtitle:
+                "Reusable text to search and paste from the palette — give a snippet a keyword to expand it as you type."
         ) {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
-                    title: "Text Replacement",
-                    subtitle: "Watch for configured triggers and replace them in the active text field.",
+                    title: "Snippets",
+                    subtitle:
+                        "Search snippets in the launcher, and expand the keyworded ones in any text field.",
                     systemImage: "text.badge.plus",
                     tint: .teal
                 ) {
@@ -39,10 +41,13 @@ struct TextReplacementSettingsView: View {
                 }
             }
 
-            if plugins.isEnabled(.textReplacement), manager.status == .needsAccessibility {
+            if plugins.isEnabled(.textReplacement), manager.status == .needsAccessibility,
+                store.snippets.contains(where: { $0.keyword != nil })
+            {
                 SettingsCallout(
-                    title: "Accessibility access is required.",
-                    message: "Spotter needs permission to observe triggers and type their replacements.",
+                    title: "Accessibility access is required for expansion.",
+                    message:
+                        "Spotter needs permission to observe keyworded triggers and type their snippets. Palette search and paste work without it.",
                     systemImage: "accessibility",
                     tint: .orange
                 ) {
@@ -50,10 +55,40 @@ struct TextReplacementSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Trigger") {
+            SettingsCard(header: "Snippets") {
+                if sortedSnippets.isEmpty {
+                    SettingsRow(
+                        title: "No snippets",
+                        subtitle: "Add a named piece of text to paste from the palette.",
+                        systemImage: "text.badge.plus",
+                        tint: .secondary
+                    ) { EmptyView() }
+                } else {
+                    ForEach(Array(sortedSnippets.enumerated()), id: \.element.id) { index, snippet in
+                        if index > 0 { SettingsDivider() }
+                        SnippetSettingsRow(
+                            prefix: store.prefix, snippet: snippet,
+                            onEdit: { editor = SnippetEditorTarget(snippet: snippet) },
+                            onDelete: { pendingDeletion = snippet })
+                    }
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Add Snippet",
+                    subtitle: "Name it, write the text, and optionally give it an expansion keyword.",
+                    systemImage: "plus.circle",
+                    tint: .teal
+                ) {
+                    Button("Add…") { editor = SnippetEditorTarget(snippet: nil) }
+                        .controlSize(.small)
+                }
+            }
+
+            SettingsCard(header: "Expansion") {
                 SettingsRow(
                     title: "Prefix",
-                    subtitle: "Typed before every keyword. For example, @@ plus gmail becomes @@gmail.",
+                    subtitle:
+                        "Typed before every keyword. For example, @@ plus gmail becomes @@gmail.",
                     systemImage: "character.cursor.ibeam",
                     tint: .teal
                 ) {
@@ -78,52 +113,25 @@ struct TextReplacementSettingsView: View {
                     ) { EmptyView() }
                 }
             }
-
-            SettingsCard(header: "Replacements") {
-                if sortedRules.isEmpty {
-                    SettingsRow(
-                        title: "No replacements",
-                        subtitle: "Add a keyword and the text it should expand into.",
-                        systemImage: "text.badge.plus",
-                        tint: .secondary
-                    ) { EmptyView() }
-                } else {
-                    ForEach(Array(sortedRules.enumerated()), id: \.element.id) { index, rule in
-                        if index > 0 { SettingsDivider() }
-                        TextReplacementSettingsRow(
-                            prefix: store.prefix, rule: rule,
-                            onEdit: { editor = TextReplacementEditorTarget(rule: rule) },
-                            onDelete: { pendingDeletion = rule })
-                    }
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Add Replacement",
-                    subtitle: "Create another keyword and replacement pair.",
-                    systemImage: "plus.circle",
-                    tint: .teal
-                ) {
-                    Button("Add…") { editor = TextReplacementEditorTarget(rule: nil) }
-                        .controlSize(.small)
-                }
-            }
         }
         .sheet(item: $editor) { target in
-            TextReplacementEditorSheet(store: store, rule: target.rule)
+            SnippetEditorSheet(store: store, snippet: target.snippet)
         }
-        .alert(item: $pendingDeletion) { rule in
+        .alert(item: $pendingDeletion) { snippet in
             Alert(
-                title: Text("Delete “\(store.prefix)\(rule.keyword)”?"),
-                message: Text("Typing this trigger will no longer expand its replacement."),
-                primaryButton: .destructive(Text("Delete")) { store.delete(id: rule.id) },
+                title: Text("Delete “\(snippet.name)”?"),
+                message: Text(
+                    snippet.keyword.map { "Typing \(store.prefix)\($0) will no longer expand." }
+                        ?? "The snippet will leave the palette."),
+                primaryButton: .destructive(Text("Delete")) { store.delete(id: snippet.id) },
                 secondaryButton: .cancel())
         }
         .onChange(of: store.prefix) { prefixDraft = store.prefix }
     }
 
-    private var sortedRules: [TextReplacementRule] {
-        store.rules.sorted {
-            $0.keyword.localizedCaseInsensitiveCompare($1.keyword) == .orderedAscending
+    private var sortedSnippets: [Snippet] {
+        store.snippets.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
 
@@ -138,89 +146,98 @@ struct TextReplacementSettingsView: View {
     }
 }
 
-private struct TextReplacementSettingsRow: View {
+private struct SnippetSettingsRow: View {
     let prefix: String
-    let rule: TextReplacementRule
+    let snippet: Snippet
     let onEdit: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: "arrow.right")
+            Image(systemName: snippet.keyword == nil ? "text.quote" : "keyboard")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.teal)
                 .frame(width: Theme.Size.settingsRowIcon)
 
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
-                Text(prefix + rule.keyword)
-                    .font(.body.monospaced())
-                    .lineLimit(1)
-                Text(rule.replacement)
+                HStack(spacing: Theme.Spacing.sm) {
+                    Text(snippet.name)
+                        .lineLimit(1)
+                    if let keyword = snippet.keyword {
+                        Text(prefix + keyword)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, Theme.Spacing.sm)
+                            .padding(.vertical, Theme.Spacing.xxs)
+                            .background(
+                                RoundedRectangle(
+                                    cornerRadius: Theme.Radius.keyCap, style: .continuous
+                                )
+                                .fill(Theme.Colors.controlSurface))
+                    }
+                }
+                Text(snippet.content)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .help(rule.replacement)
+                    .help(snippet.content)
             }
 
             Spacer(minLength: Theme.Spacing.lg)
             Button(action: onEdit) { Image(systemName: "pencil") }
                 .buttonStyle(.plain)
-                .help("Edit Replacement")
+                .help("Edit Snippet")
             Button(action: onDelete) {
                 Image(systemName: "trash").foregroundStyle(.red)
             }
             .buttonStyle(.plain)
-            .help("Delete Replacement")
+            .help("Delete Snippet")
         }
         .padding(.horizontal, Theme.Spacing.xl)
         .padding(.vertical, Theme.Spacing.lg)
     }
 }
 
-private struct TextReplacementEditorTarget: Identifiable {
+private struct SnippetEditorTarget: Identifiable {
     let id = UUID()
-    let rule: TextReplacementRule?
+    let snippet: Snippet?
 }
 
-private struct TextReplacementEditorSheet: View {
+private struct SnippetEditorSheet: View {
     @ObservedObject var store: TextReplacementStore
-    let rule: TextReplacementRule?
+    let snippet: Snippet?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var content: String
     @State private var keyword: String
-    @State private var replacement: String
     @State private var errorMessage: String?
 
-    init(store: TextReplacementStore, rule: TextReplacementRule?) {
+    init(store: TextReplacementStore, snippet: Snippet?) {
         self.store = store
-        self.rule = rule
-        _keyword = State(initialValue: rule?.keyword ?? "")
-        _replacement = State(initialValue: rule?.replacement ?? "")
+        self.snippet = snippet
+        _name = State(initialValue: snippet?.name ?? "")
+        _content = State(initialValue: snippet?.content ?? "")
+        _keyword = State(initialValue: snippet?.keyword ?? "")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            Text(rule == nil ? "Add Replacement" : "Edit Replacement")
+            Text(snippet == nil ? "Add Snippet" : "Edit Snippet")
                 .font(.title2.weight(.bold))
 
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                Text("Trigger")
+                Text("Name")
                     .font(.callout.weight(.medium))
-                HStack(spacing: Theme.Spacing.md) {
-                    Text(store.prefix)
-                        .font(.body.monospaced())
-                        .foregroundStyle(.secondary)
-                    TextField("gmail", text: $keyword)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body.monospaced())
-                }
+                TextField("Work address", text: $name)
+                    .textFieldStyle(.roundedBorder)
             }
 
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                Text("Replacement")
+                Text("Snippet")
                     .font(.callout.weight(.medium))
-                TextEditor(text: $replacement)
+                TextEditor(text: $content)
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .padding(Theme.Spacing.sm)
@@ -235,9 +252,21 @@ private struct TextReplacementEditorSheet: View {
                     )
             }
 
-            Text("Example: \(store.prefix)gmail → abc@gmail.com")
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text("Expansion Keyword — optional")
+                    .font(.callout.weight(.medium))
+                HStack(spacing: Theme.Spacing.md) {
+                    Text(store.prefix)
+                        .font(.body.monospaced())
+                        .foregroundStyle(.secondary)
+                    TextField("gmail", text: $keyword)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body.monospaced())
+                }
+                Text("Leave empty for a palette-only snippet. With a keyword, typing \(store.prefix)\(keyword.isEmpty ? "gmail" : keyword) anywhere expands into the snippet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if let errorMessage {
                 Text(errorMessage)
@@ -252,8 +281,8 @@ private struct TextReplacementEditorSheet: View {
                 Button("Save", action: save)
                     .keyboardShortcut(.defaultAction)
                     .disabled(
-                        keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || replacement.isEmpty)
+                        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || content.isEmpty)
             }
         }
         .padding(Theme.Spacing.xxl)
@@ -261,10 +290,12 @@ private struct TextReplacementEditorSheet: View {
     }
 
     private func save() {
-        let draft = TextReplacementRule(
-            id: rule?.id ?? UUID(), keyword: keyword, replacement: replacement)
+        let draft = Snippet(
+            id: snippet?.id ?? UUID(), name: name, content: content,
+            keyword: keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil : keyword)
         do {
-            if rule == nil {
+            if snippet == nil {
                 try store.add(draft)
             } else {
                 try store.update(draft)
