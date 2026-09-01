@@ -52,8 +52,6 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
 
     func hide(restoreFocus: Bool) {
         panel?.orderOut(nil)
-        // Re-prime the summon animation while nothing is on screen, so the next show's first frame is already the blurred start state.
-        core.palette.dismissToken = UUID()
         // Drop the session anchor so the next summon re-resolves for the screen the user is on then.
         anchor = nil
         // Drop the multi-MB clipboard preview bitmaps now the window is gone, so idle RAM returns near baseline (row thumbnails stay cached).
