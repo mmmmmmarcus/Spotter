@@ -9,9 +9,10 @@ How to build, test, package, and release Spotter.
 
 ## First-time setup
 
-Create the `Spotter Self-Signed` code-signing identity once — builds sign with it, which keeps the
-macOS Accessibility grant from being forgotten every rebuild. Follow **[signing.md](signing.md) §1**
-(a few `openssl`/`security` commands).
+Debug builds sign with the release Developer ID identity when it is in the keychain, which keeps
+every macOS TCC grant (Full Disk Access, Accessibility, Input Monitoring) stable across rebuilds and
+dev↔stable swaps. Without that certificate, create the `Spotter Self-Signed` fallback identity once
+— **[signing.md](signing.md) §1** — and override `CODE_SIGN_IDENTITY`.
 
 ## Build & run
 

@@ -1,17 +1,23 @@
 # Signing and notarization
 
-Spotter uses two signing identities for two different purposes:
+Spotter signs everything with one identity where possible:
 
-- Ordinary Debug builds are local `-dev` versions signed with the stable self-signed
-  `Spotter Self-Signed` identity. This keeps Accessibility and Input Monitoring grants stable across
-  rebuilds. The opt-in CloudKit dev installer uses Apple Development signing instead.
-- Release builds use `Developer ID Application: Round Technology (Shanghai) Co.,Ltd (SM96W8VVK9)`,
-  enable Hardened Runtime, include a secure timestamp and are notarized by Apple.
+- Ordinary Debug builds are local `-dev` versions signed with the same
+  `Developer ID Application: Round Technology (Shanghai) Co.,Ltd (SM96W8VVK9)` identity releases
+  use. macOS keys TCC grants (Full Disk Access, Accessibility, Input Monitoring) to the signing
+  identity, so sharing one designated requirement means the grants survive rebuilds *and*
+  dev↔stable swaps of `/Applications/Spotter.app`. The opt-in CloudKit dev installer uses Apple
+  Development signing instead.
+- Release builds additionally enable Hardened Runtime, include a secure timestamp and are notarized
+  by Apple.
+- On a machine without the company certificate, fall back to the self-signed `Spotter Self-Signed`
+  identity (section 1) by overriding `CODE_SIGN_IDENTITY` — grants then survive rebuilds but reset
+  whenever the identity flips against a Developer ID build.
 
 Never commit a certificate private key, `.p12`, Apple Account password or any associated secret.
 Release credentials belong in the login keychain locally and encrypted GitHub Actions secrets in CI.
 
-## 1. Create the local Debug identity once
+## 1. Create the fallback local identity once (machines without the company certificate)
 
 Run these commands to generate and import the self-signed development identity:
 

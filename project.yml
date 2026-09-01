@@ -11,11 +11,13 @@ settings:
     MARKETING_VERSION: "1.5.19"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: SM96W8VVK9
     CODE_SIGN_STYLE: Manual
-    # Stable self-signed identity so macOS keeps the Accessibility grant across rebuilds.
-    # Create it once — see docs/signing.md.
-    CODE_SIGN_IDENTITY: "Spotter Self-Signed"
+    # Debug signs with the same Developer ID as releases, so TCC grants (Full Disk Access,
+    # Accessibility, Input Monitoring) survive dev↔stable swaps — macOS keys them to the signing
+    # identity, and flipping identities resets every grant. On a machine without the company
+    # certificate, fall back to the self-signed identity — see docs/signing.md.
+    CODE_SIGN_IDENTITY: "Developer ID Application"
     ENABLE_HARDENED_RUNTIME: NO
     SWIFT_STRICT_CONCURRENCY: complete
   configs:
