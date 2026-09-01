@@ -4,7 +4,7 @@ export const site = {
   name: "Spotter",
   tagline: "The essentials, without the bloat.",
   repo: "https://github.com/mmmmmmarcus/Spotter",
-  version: "v1.5.21",
+  version: "v1.5.22",
   platform: "macOS 26+",
   license: "AGPL-3.0",
   licenseUrl: "https://github.com/mmmmmmarcus/Spotter/blob/main/LICENSE",
