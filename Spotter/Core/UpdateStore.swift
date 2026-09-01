@@ -203,7 +203,11 @@ final class UpdateStore: ObservableObject {
 
         try verifySignature(of: newApp, matching: installedURL)
 
-        // Stage the copy next to the destination, then remove-and-rename so the swap window is one directory rename, not a long cross-volume copy. Never delete the working install before its replacement is fully staged beside it.
+        // Stage the copy next to the destination, then swap the two bundles in one atomic exchange
+        // (`renamex_np` with RENAME_SWAP). The installed path is never empty for even an instant —
+        // tccd watches app deletions and invalidates Full Disk Access for a bundle it saw removed,
+        // which is exactly what a remove-then-rename swap looked like. Never delete the working
+        // install before its replacement is fully staged beside it.
         let sibling = installedURL.deletingLastPathComponent()
             .appendingPathComponent(".update-\(UUID().uuidString)-" + installedURL.lastPathComponent)
         do {
@@ -212,6 +216,20 @@ final class UpdateStore: ObservableObject {
             try? fm.removeItem(at: sibling)
             throw UpdateError.installFailed(error.localizedDescription)
         }
+        let swapped = sibling.path.withCString { staged in
+            installedURL.path.withCString { installed in
+                renamex_np(staged, installed, UInt32(RENAME_SWAP)) == 0
+            }
+        }
+        if swapped {
+            // The retired bundle now sits under the staging name; clearing it is best-effort.
+            try? fm.removeItem(at: sibling)
+            return
+        }
+        // A filesystem without RENAME_SWAP falls back to the old remove-and-rename, trading the
+        // TCC guarantee for still completing the update.
+        AppLog.error(
+            "updates", "Atomic swap unavailable (errno \(errno)); falling back to remove-and-rename.")
         do {
             try fm.removeItem(at: installedURL)
         } catch {

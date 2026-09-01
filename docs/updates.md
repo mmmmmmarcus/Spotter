@@ -37,8 +37,13 @@ When an update has a zip asset, installation follows this sequence:
 1. Download into a temporary location and unpack with `ditto`.
 2. Read the running app's code-signing designated requirement.
 3. Require the downloaded bundle, including nested code and all architectures, to satisfy it.
-4. Copy the verified app beside the current installation before removing the old bundle.
-5. Rename the staged bundle into place and relaunch through the normal application shutdown path.
+4. Copy the verified app beside the current installation.
+5. Exchange the staged and installed bundles in one atomic `renamex_np(RENAME_SWAP)` and relaunch
+   through the normal application shutdown path. The installed path is never empty for even an
+   instant — tccd watches app deletions and invalidates Full Disk Access for a bundle it saw
+   removed, which is exactly what the earlier remove-then-rename swap looked like once per update.
+   A filesystem without `RENAME_SWAP` falls back to remove-and-rename, trading that TCC guarantee
+   for still completing the update; the retired bundle is deleted under its staging name.
 
 The signature check ties an update to both Spotter's bundle identifier and Developer ID. A stable
 bundle cannot replace beta, beta cannot replace stable, and an unrelated or differently signed app
