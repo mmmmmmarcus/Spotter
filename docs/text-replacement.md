@@ -18,6 +18,11 @@ one-line content preview, with keyworded snippets wearing a `prefix+keyword` acc
 pastes into the app the palette was summoned from, ⌘↵ copies, and the ⌘K menu adds both plus a jump
 to Settings. Search matches names, content and keywords.
 
+Every snippet is also a launcher row of its own: the plugin republishes its snippets as dynamic
+launcher commands (the Quicklinks pattern, `reloadDynamicCommands` on every store change), so a
+snippet's name is fuzzy-searchable from the root palette and ↵ pastes it directly — the Snippets
+screen remains the place to search *content* and to copy without pasting.
+
 ## Model and migration
 
 `Snippet { id, name, content, keyword? }` decodes both its own shape and the retired

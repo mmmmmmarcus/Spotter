@@ -7,6 +7,8 @@ final class TextReplacementStore: ObservableObject {
     @Published private(set) var snippets: [Snippet]
 
     var onChange: (@MainActor (String, [Snippet]) -> Void)?
+    /// Fires after any snippet mutation, for the launcher's dynamic command reload.
+    var onSnippetsChanged: (@MainActor () -> Void)?
 
     private let defaults: UserDefaults
     private static let prefixKey = "text-replacement.prefix"
@@ -67,6 +69,7 @@ final class TextReplacementStore: ObservableObject {
             defaults.set(data, forKey: Self.snippetsKey)
         }
         onChange?(prefix, snippets)
+        onSnippetsChanged?()
     }
 
     private static func loadPrefix(from defaults: UserDefaults, key: String) -> String {

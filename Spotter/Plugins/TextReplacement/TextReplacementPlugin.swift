@@ -68,6 +68,19 @@ enum TextReplacementPlugin {
                     id: "command:snippets", name: "Search Snippets",
                     systemImage: "text.badge.plus", actionKey: .openSnippets, perform: open)
             ],
+            // Every snippet is a launcher row of its own, searchable by name from the root palette; ↵ pastes it.
+            dynamicLauncherCommands: { [weak core] in
+                guard let core else { return [] }
+                return core.textReplacements.snippets
+                    .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                    .map { snippet in
+                        PluginCommandRegistration(
+                            id: "command:snippet:" + snippet.id.uuidString,
+                            name: snippet.name,
+                            systemImage: "text.quote"
+                        ) { core.pasteSnippet(id: snippet.id) }
+                    }
+            },
             paletteScreen: screen,
             onEnable: { [weak core] in core?.textReplacementManager.start() },
             onDisable: { [weak core] in
@@ -126,18 +139,27 @@ extension AppCore {
         showPalette(mode: .plugin(.textReplacement))
     }
 
+    /// The launcher row's ↵: paste straight into the app the palette was summoned from.
+    func pasteSnippet(id: UUID) {
+        guard plugins.isEnabled(.textReplacement),
+            let snippet = textReplacements.snippets.first(where: { $0.id == id })
+        else { return }
+        let previous = previousApplication
+        hidePalette(restoreFocus: false)
+        Paster.pasteString(snippet.content, previousApp: previous)
+    }
+
     /// A snippet row's action: paste into the previous app (↵), or copy without pasting (⌘↵).
     func performSnippetRow(itemID: String, paste: Bool) {
         guard plugins.isEnabled(.textReplacement),
             let snippet = textReplacements.snippets.first(where: { $0.id.uuidString == itemID })
         else { return }
-        let previous = previousApplication
-        hidePalette(restoreFocus: false)
         if paste {
-            Paster.pasteString(snippet.content, previousApp: previous)
-        } else {
-            Paster.copyPlainText(snippet.content)
-            hud.show(title: "Copied \(snippet.name)", symbol: "doc.on.doc")
+            pasteSnippet(id: snippet.id)
+            return
         }
+        hidePalette(restoreFocus: false)
+        Paster.copyPlainText(snippet.content)
+        hud.show(title: "Copied \(snippet.name)", symbol: "doc.on.doc")
     }
 }

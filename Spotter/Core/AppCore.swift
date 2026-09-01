@@ -294,6 +294,9 @@ final class AppCore: ObservableObject {
             QuicklinkManager.invalidateOpenerCache()
             self?.plugins.reloadDynamicCommands(for: .quicklinks)
         }
+        textReplacements.onSnippetsChanged = { [weak self] in
+            self?.plugins.reloadDynamicCommands(for: .textReplacement)
+        }
         // Each argument step reuses the same field, so the prompt has to start empty.
         quicklinkManager.onStepAdvanced = { [weak self] in
             self?.palette.query = ""
