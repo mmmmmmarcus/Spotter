@@ -22,9 +22,12 @@ resizing, `.floating` level and all-Spaces visibility, but the plugin never crea
 `NSWindow`. The native window backdrop stays clear while its host neutralizes the title-bar safe-area
 inset, leaving the clipped Note material as the only rounded surface. The surface and toolbar extend
 through one seamless title bar; the window hides its standard buttons entirely, and close is a
-toolbar control like the rest — every toolbar control (close, note color, notes list, new note) is a
-`NoteGlassButton`, an interactive Liquid Glass circle, with close leading and ⌘W bound to it
-in the same native-height row; minimize and zoom controls are hidden. Nothing separates that row from
+toolbar control like the rest — both toolbar controls (close and note color) are interactive Liquid
+Glass circles, with close leading and ⌘W bound to it. The toolbar's height centers the circles so
+their gap to the top edge equals the row's side padding. New Note and the notes list have no
+buttons: ⌘N and ⌘L keep their shortcuts (hidden buttons carry them) and clicking the pagination
+dots opens the list — a control that duplicates a shortcut and a click target both would be chrome.
+Minimize and zoom controls are hidden. Nothing separates that row from
 the editor — the window is one continuous surface, so a rule under the title would be the only hard
 edge on it. An empty note shows the current date and time in place of a prompt to start writing: it
 is what most notes open with anyway. The workspace opens as a
@@ -33,7 +36,7 @@ The centered toolbar carries page dots rather than a title — the title is alre
 the note directly beneath it, so what the header can add is *where in the stack you are*. One dot per
 note in list order, the current one larger, each wearing its note's own tint; past nine notes the
 strip slides around the current one. Clicking anywhere on it opens the notes list. The right side
-contains only the color, notes-list and New Note actions. The list starts hidden and opens as an inset material card
+holds only the color control. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting
 a row returns to the single-note editor. The card holds its search field and the rows and nothing
 else: a "Notes" heading over a list of notes says nothing, and the count is already the number of
@@ -43,7 +46,16 @@ buttons through the same animated relayout as the list and they visibly drifted.
 centred against the full toolbar width rather than its own measured width, so nothing beside it can
 re-centre it. The shared window owner keeps the top edge anchored while the
 editor grows from three visible lines to a maximum of twenty, after which the native overlay scroller
-takes over. Typing-driven height changes resize immediately from the anchored top edge, so the text
+takes over.
+
+Tab nests the caret's list line and Shift-Tab un-nests it, wherever the caret sits in the line (a
+selection moves every list line it touches together); on prose the keys fall through to a plain tab.
+A nesting level is two spaces in the source (`NoteEngine.listIndentUnit`, harness-covered), and list
+lines render a raw legacy tab at that same width instead of the 28-point default stop, so nesting
+reads as a step rather than a gulf. Restyling after an edit is synchronous, not debounced — a
+deferred pass left a frame where a new line's dash was plain text and the discs below the edit drew
+from stale ranges, a visible list blink on Return and delete; only caret-only moves keep the
+debounce. Typing-driven height changes resize immediately from the anchored top edge, so the text
 viewport never passes through intermediate heights or scrolls the content while catching up. The
 vertical scroller remains disabled until content genuinely exceeds the twenty-line cap, preventing
 the transient scrollbar flash that an about-to-grow viewport would otherwise produce. Explicit UI

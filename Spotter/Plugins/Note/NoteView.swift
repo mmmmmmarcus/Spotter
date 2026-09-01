@@ -169,19 +169,26 @@ struct NoteView: View {
 
                 Spacer(minLength: 0)
 
+                // Just close and color: New Note lives on ⌘N and the notes list on the pagination
+                // dots, so neither earns a second control here.
                 NoteTintPicker(
                     tint: store.selectedNote?.tint, transparency: store.windowTransparency,
                     select: setTint, setTransparency: store.setWindowTransparency)
-
-                NoteGlassButton(
-                    systemImage: "note.text",
-                    help: showsNoteList ? "Hide Notes List" : "Show Notes List",
-                    action: toggleNoteList)
-
-                NoteGlassButton(systemImage: "plus", help: "New Note") { createNote() }
-                    .keyboardShortcut("n", modifiers: .command)
             }
             .padding(.horizontal, Theme.Spacing.xl)
+            // The retired buttons' shortcuts survive them: ⌘N for a new note, ⌘L for the list.
+            .background {
+                Group {
+                    Button("") { createNote() }
+                        .keyboardShortcut("n", modifiers: .command)
+                    Button("") { toggleNoteList() }
+                        .keyboardShortcut("l", modifiers: .command)
+                }
+                .buttonStyle(.plain)
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
         }
         .frame(
             maxWidth: .infinity, minHeight: Theme.Size.noteToolbarHeight,

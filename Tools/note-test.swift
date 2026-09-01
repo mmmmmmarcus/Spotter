@@ -356,6 +356,31 @@ struct NoteTests {
             NoteSyncMerge.preferred(.note(redTwin), .note(blueTwin)),
             NoteSyncMerge.preferred(.note(blueTwin), .note(redTwin)))
 
+        let bulletLine = "- alpha\n- beta\n"
+        let indented = NoteEngine.applyingListIndent(
+            .indent, to: bulletLine, selection: NSRange(location: 4, length: 0))
+        check(
+            "tab mid-line nests the caret's list line",
+            "  - alpha\n- beta\n", indented?.text ?? "")
+        check(
+            "the caret rides its line through the indent",
+            NSRange(location: 6, length: 0), indented?.selection ?? NSRange())
+        let outdented = NoteEngine.applyingListIndent(
+            .outdent, to: "  - alpha\n", selection: NSRange(location: 6, length: 0))
+        check("shift-tab removes one indent unit", "- alpha\n", outdented?.text ?? "")
+        let tabOutdent = NoteEngine.applyingListIndent(
+            .outdent, to: "\t1. one\n", selection: NSRange(location: 3, length: 0))
+        check("a legacy tab level outdents whole", "1. one\n", tabOutdent?.text ?? "")
+        let span = NoteEngine.applyingListIndent(
+            .indent, to: "- a\nplain\n- b\n", selection: NSRange(location: 0, length: 12))
+        check(
+            "a spanning selection indents only its list lines",
+            "  - a\nplain\n  - b\n", span?.text ?? "")
+        check(
+            "tab on prose is not an indent",
+            true, NoteEngine.applyingListIndent(
+                .indent, to: "just prose\n", selection: NSRange(location: 3, length: 0)) == nil)
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

@@ -72,6 +72,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         textView.checkboxClickHandler = { [weak coordinator = context.coordinator] index in
             coordinator?.toggleCheckbox(atCharacterIndex: index) ?? false
         }
+        textView.indentHandler = { [weak coordinator = context.coordinator] direction in
+            coordinator?.applyIndent(direction) ?? false
+        }
         textView.navigationHandler = { [weak coordinator = context.coordinator] direction in
             coordinator?.navigate(direction)
         }
@@ -161,7 +164,11 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             refreshArithmeticAnswer()
             parent.text = textView.string
             reportContentHeight()
-            scheduleHighlight()
+            // Synchronous, not debounced: a deferred pass leaves a frame where a new line's dash is
+            // plain text and every disc below the edit draws from stale ranges — the list "blink"
+            // on Return and delete. Caret-only moves keep the debounce in the selection handler.
+            highlightWork?.cancel()
+            highlight()
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -328,6 +335,16 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             return true
         }
 
+        /// Tab / Shift-Tab: nest or un-nest the caret's list line; false lets the tab insert.
+        func applyIndent(_ direction: NoteIndentDirection) -> Bool {
+            guard let textView,
+                let result = NoteEngine.applyingListIndent(
+                    direction, to: textView.string, selection: textView.selectedRange())
+            else { return false }
+            apply(result, to: textView)
+            return true
+        }
+
         func apply(_ command: NoteMarkdownCommand) {
             guard let textView else { return }
             let result = NoteEngine.applying(
@@ -478,6 +495,11 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 style.firstLineHeadIndent = 0
                 style.headIndent = Self.listContinuationIndent(
                     indentation: indentation, marker: marker, font: font)
+                // A raw tab in list indentation renders one indent unit wide, not the default
+                // 28-point stop — nesting should read as a step, not a gulf.
+                style.tabStops = []
+                style.defaultTabInterval = (NoteEngine.listIndentUnit as NSString).size(
+                    withAttributes: [.font: bodyFont]).width
                 storage.addAttribute(.paragraphStyle, value: style, range: match.range)
             }
         }
@@ -858,6 +880,18 @@ private final class NoteTextView: NSTextView {
     var navigationHandler: ((NoteNavigationDirection) -> Void)?
     /// Reports the character index clicked and whether a todo box was toggled there.
     var checkboxClickHandler: ((Int) -> Bool)?
+    /// Returns whether the line took the indent, so a plain tab can still be typed elsewhere.
+    var indentHandler: ((NoteIndentDirection) -> Bool)?
+
+    override func insertTab(_ sender: Any?) {
+        if indentHandler?(.indent) == true { return }
+        super.insertTab(sender)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        if indentHandler?(.outdent) == true { return }
+        super.insertBacktab(sender)
+    }
 
     override func mouseDown(with event: NSEvent) {
         if let index = characterIndex(for: event), checkboxClickHandler?(index) == true { return }

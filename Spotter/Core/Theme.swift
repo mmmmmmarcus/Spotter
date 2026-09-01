@@ -95,7 +95,7 @@ enum Theme {
         static let noteWindowMinimumWidth: CGFloat = 360
         static let noteListWindowHeight: CGFloat = 500
         static let noteListTopInset: CGFloat = 84
-        static let noteToolbarHeight: CGFloat = 36
+        static let noteToolbarHeight: CGFloat = 48
         /// One glass toolbar control in the Note window — a circle this size holds a 12pt glyph with breathing room.
         static let noteGlassButton: CGFloat = 24
         /// One tint swatch in the Notes color ramp, and the smaller disc the toolbar button shows.

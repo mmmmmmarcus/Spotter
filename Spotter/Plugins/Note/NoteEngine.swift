@@ -97,6 +97,11 @@ enum NoteListContinuation: Equatable, Sendable {
     case endList
 }
 
+enum NoteIndentDirection: Equatable, Sendable {
+    case indent
+    case outdent
+}
+
 enum NoteNavigationDirection: Equatable, Sendable {
     case previous
     case next
@@ -391,6 +396,70 @@ enum NoteEngine {
         case .heading, .bulletedList, .numberedList, .checklist:
             return formattingLines(command, selection: safeSelection, in: text)
         }
+    }
+
+    /// One nesting level as written into the Markdown source — two spaces, so a level reads as a
+    /// step rather than the gulf a raw tab renders as.
+    static let listIndentUnit = "  "
+
+    /// Tab nests a list line and Shift-Tab un-nests it, wherever the caret sits in the line; every
+    /// list line a selection touches moves together. Nil when no touched line is a list line, so
+    /// the editor falls through to a plain tab.
+    static func applyingListIndent(
+        _ direction: NoteIndentDirection, to text: String, selection: NSRange
+    ) -> NoteEditResult? {
+        let source = text as NSString
+        let location = min(max(0, selection.location), source.length)
+        let length = min(max(0, selection.length), source.length - location)
+        let lineRange = source.lineRange(for: NSRange(location: location, length: length))
+        let block = source.substring(with: lineRange)
+        let keepsTrailingNewline = block.hasSuffix("\n")
+        var lines = block.components(separatedBy: "\n")
+        if keepsTrailingNewline { lines.removeLast() }
+        guard lines.contains(where: isListLine) else { return nil }
+
+        var firstLineDelta = 0
+        var transformed: [String] = []
+        for (index, line) in lines.enumerated() {
+            guard isListLine(line) else {
+                transformed.append(line)
+                continue
+            }
+            let updated: String
+            switch direction {
+            case .indent: updated = listIndentUnit + line
+            case .outdent: updated = removingIndentLevel(from: line)
+            }
+            if index == 0 { firstLineDelta = (updated as NSString).length - (line as NSString).length }
+            transformed.append(updated)
+        }
+
+        var replacement = transformed.joined(separator: "\n")
+        if keepsTrailingNewline { replacement += "\n" }
+        let result = source.replacingCharacters(in: lineRange, with: replacement)
+        // A bare caret stays where it was typing (shifted with its line); a spanning selection keeps
+        // the whole reshaped block, matching the block-format commands.
+        let newSelection: NSRange
+        if length == 0 {
+            newSelection = NSRange(
+                location: max(lineRange.location, location + firstLineDelta), length: 0)
+        } else {
+            newSelection = NSRange(
+                location: lineRange.location, length: (replacement as NSString).length)
+        }
+        return NoteEditResult(text: result, selection: newSelection)
+    }
+
+    private static func isListLine(_ line: String) -> Bool {
+        line.range(
+            of: #"^[ \t]*([-*+] |\d+\. )"#, options: .regularExpression) != nil
+    }
+
+    /// Drops one nesting level: a leading tab, or up to one indent unit of spaces.
+    private static func removingIndentLevel(from line: String) -> String {
+        if line.hasPrefix("\t") { return String(line.dropFirst()) }
+        let spaces = line.prefix(while: { $0 == " " }).count
+        return String(line.dropFirst(min(spaces, listIndentUnit.count)))
     }
 
     static func applyingBlockFormat(
