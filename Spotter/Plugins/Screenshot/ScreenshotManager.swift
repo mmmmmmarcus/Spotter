@@ -396,10 +396,7 @@ final class ScreenshotManager: ObservableObject {
             pickColor(at: localPoint, on: screen)
         }
         view.onWindowCapture = { [weak self] in self?.captureWindowUnderPointer() }
-        view.onScreenCapture = { [weak self, weak screen] in
-            guard let self, let screen else { return }
-            captureScreen(of: screen)
-        }
+        view.onScreenCapture = { [weak self] in self?.captureScreenUnderPointer() }
         view.onToggleMode = { [weak self] in self?.toggleMode() }
         view.onCancel = { [weak self] in self?.cancel() }
         return panel
@@ -503,8 +500,24 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
-    /// The whole display whose glass button was clicked, captured through the same display path a
-    /// region uses — the source rectangle is simply the display's full bounds.
+    /// Tab reaches whichever overlay panel happens to be key, which need not be the display the
+    /// pointer is on — so the captured screen is resolved from the live pointer, never from the
+    /// panel that received the keystroke. `NSMouseInRect`, not `contains`: a pointer on a display's
+    /// topmost row belongs to that display, not the one stacked above (the palette's same trap).
+    private func captureScreenUnderPointer() {
+        let mouse = NSEvent.mouseLocation
+        guard
+            let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })
+                ?? NSScreen.main
+        else {
+            cancel()
+            return
+        }
+        captureScreen(of: screen)
+    }
+
+    /// One whole display, captured through the same display path a region uses — the source
+    /// rectangle is simply the display's full bounds.
     private func captureScreen(of screen: NSScreen) {
         guard let displayID = screen.displayID else {
             cancel()
