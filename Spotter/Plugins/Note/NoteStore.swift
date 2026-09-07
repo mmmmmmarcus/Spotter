@@ -37,15 +37,10 @@ final class NoteStore: ObservableObject {
     /// a window with no surface left is invisible *and* lets clicks through to whatever is under it,
     /// which leaves the user nothing to grab to undo it.
     static let maximumWindowTransparency = 0.9
-    /// Full frost: transparency never thins the material at all unless the user asks it to. The
-    /// window always kept only 0.58 of it at the top of the transparency range, and the owner's
-    /// verdict on seeing the choice was that the frost should simply stay (owner decision, Sep 2026).
-    static let defaultWindowBlur = 1.0
 
     @Published private(set) var notes: [SpotterNote]
     @Published private(set) var saveState: NoteSaveState = .saved
     @Published private(set) var windowTransparency: Double
-    @Published private(set) var windowBlur: Double
     @Published private(set) var autoWindowSizing: Bool
     @Published var selectedID: UUID? {
         didSet {
@@ -60,7 +55,6 @@ final class NoteStore: ObservableObject {
     private let defaults: UserDefaults
     private let selectedKey = "note.selected-id"
     private static let windowTransparencyKey = "note.window-transparency"
-    private static let windowBlurKey = "note.window-blur"
     private static let autoWindowSizingKey = "note.auto-window-sizing"
     private let writer: NoteWriter
     private let now: () -> Date
@@ -82,9 +76,6 @@ final class NoteStore: ObservableObject {
             : min(
                 max(defaults.double(forKey: Self.windowTransparencyKey), 0),
                 Self.maximumWindowTransparency)
-        windowBlur = defaults.object(forKey: Self.windowBlurKey) == nil
-            ? Self.defaultWindowBlur
-            : min(max(defaults.double(forKey: Self.windowBlurKey), 0), 1)
         autoWindowSizing = defaults.object(forKey: Self.autoWindowSizingKey) == nil
             || defaults.bool(forKey: Self.autoWindowSizingKey)
 
@@ -149,15 +140,6 @@ final class NoteStore: ObservableObject {
         guard windowTransparency != clamped else { return }
         windowTransparency = clamped
         defaults.set(clamped, forKey: Self.windowTransparencyKey)
-    }
-
-    /// Stored normalized rather than as an alpha: how much frost that buys is the surface's mapping
-    /// to make, and a saved value has to survive a retune of that curve.
-    func setWindowBlur(_ value: Double) {
-        let clamped = min(max(value, 0), 1)
-        guard windowBlur != clamped else { return }
-        windowBlur = clamped
-        defaults.set(clamped, forKey: Self.windowBlurKey)
     }
 
     func setAutoWindowSizing(_ enabled: Bool) {

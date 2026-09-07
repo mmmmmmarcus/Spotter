@@ -1,17 +1,15 @@
 import SwiftUI
 
-/// The toolbar's appearance control: the note's tint, the window's transparency, its frost and its
-/// sizing — how a note looks, in the one place the user is already looking at the note. The
-/// brush keeps its own color — a control that changed color with the note would read as a swatch,
-/// and there would be nothing left to point at when the note has no tint at all.
+/// The toolbar's appearance control: the note's tint, the window's transparency and its sizing — how
+/// a note looks, in the one place the user is already looking at the note. The brush keeps its own
+/// color — a control that changed color with the note would read as a swatch, and there would be
+/// nothing left to point at when the note has no tint at all.
 struct NoteTintPicker: View {
     let tint: NoteTint?
     let transparency: Double
-    let blur: Double
     let autoWindowSizing: Bool
     let select: (NoteTint?) -> Void
     let setTransparency: (Double) -> Void
-    let setBlur: (Double) -> Void
     let setAutoWindowSizing: (Bool) -> Void
     @State private var showsPanel = false
 
@@ -31,9 +29,9 @@ struct NoteTintPicker: View {
         .help("Note Color")
         .popover(isPresented: $showsPanel, arrowEdge: .bottom) {
             NoteTintPanel(
-                tint: tint, transparency: transparency, blur: blur,
+                tint: tint, transparency: transparency,
                 autoWindowSizing: autoWindowSizing, select: choose,
-                setTransparency: setTransparency, setBlur: setBlur,
+                setTransparency: setTransparency,
                 setAutoWindowSizing: setAutoWindowSizing)
         }
     }
@@ -44,16 +42,14 @@ struct NoteTintPicker: View {
     }
 }
 
-/// The panel behind the brush: the ramp, the window's transparency and frost, and whether the window
-/// sizes itself to the note or stays exactly where the user dragged its edge.
+/// The panel behind the brush: the ramp, the window's transparency, and whether the window sizes
+/// itself to the note or stays exactly where the user dragged its edge.
 struct NoteTintPanel: View {
     let tint: NoteTint?
     let transparency: Double
-    let blur: Double
     let autoWindowSizing: Bool
     let select: (NoteTint?) -> Void
     let setTransparency: (Double) -> Void
-    let setBlur: (Double) -> Void
     let setAutoWindowSizing: (Bool) -> Void
 
     private let columns = Array(
@@ -75,8 +71,6 @@ struct NoteTintPanel: View {
                 "Window Transparency", value: transparency,
                 in: 0...NoteStore.maximumWindowTransparency, set: setTransparency)
 
-            slider("Window Blur", value: blur, in: 0...1, set: setBlur)
-
             Toggle(
                 "Auto Window Sizing",
                 isOn: Binding(get: { autoWindowSizing }, set: setAutoWindowSizing))
@@ -88,7 +82,7 @@ struct NoteTintPanel: View {
         .padding(Theme.Spacing.xl)
     }
 
-    /// Both sliders edit the same stored values Settings does, so the two surfaces cannot disagree.
+    /// The slider edits the same stored value Settings does, so the two surfaces cannot disagree.
     private func slider(
         _ title: String, value: Double, in bounds: ClosedRange<Double>,
         set: @escaping (Double) -> Void
