@@ -94,6 +94,26 @@ struct NoteSettingsView: View {
                             .frame(width: 38, alignment: .trailing)
                     }
                 }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Window Blur",
+                    subtitle: "Sets how much frost survives Window Transparency, from barely there to never thinning at all.",
+                    systemImage: "camera.filters", tint: .yellow
+                ) {
+                    HStack(spacing: Theme.Spacing.md) {
+                        Slider(
+                            value: Binding(
+                                get: { store.windowBlur },
+                                set: { store.setWindowBlur($0) }),
+                            in: 0...1,
+                            step: 0.05)
+                            .frame(width: 140)
+                        Text(store.windowBlur.formatted(.percent.precision(.fractionLength(0))))
+                            .font(.callout.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 38, alignment: .trailing)
+                    }
+                }
             }
 
             SettingsCard(header: "Sync") {

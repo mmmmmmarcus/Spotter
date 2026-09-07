@@ -94,18 +94,38 @@ slider would leave a tinted note visibly less see-through than a plain one, and 
 caret and list marker still carry the tint at full strength. Editor text and controls are untouched.
 In the notes list a tinted Note shows a small dot beside its title.
 
-The same popover carries the Window Transparency slider and the Auto Window Sizing switch, both
-bound to the values Settings edits, so the two surfaces can never disagree. Transparency fades the
-window's whole surface — the scrim, the tint film and the behind-window blur through
-`VisualEffectView.alpha` — so the desktop genuinely shows through rather than the window merely
-getting lighter. The scrim and the tint fade all the way to zero; the material does not. Its alpha
-interpolates from 1 at 0% down to `NoteView.minimumMaterialAlpha` (0.58) at the 90% ceiling, so the
-frost is unmistakably present at every setting. The slider buys its see-through-ness from the scrim
-and the tint, never from the frost: without that floor the top of the range showed the raw unblurred
-desktop, and the window read as a hole cut in the screen rather than as glass. That one constant is
-the only place the floor is tuned.
+The same popover carries the Window Transparency and Window Blur sliders and the Auto Window Sizing
+switch, all three bound to the values Settings edits, so the two surfaces can never disagree.
+Transparency fades the window's whole surface — the scrim, the tint film and the behind-window blur
+through `VisualEffectView.alpha` — so the desktop genuinely shows through rather than the window
+merely getting lighter. The scrim and the tint fade all the way to zero; the material does not. Its
+alpha interpolates from 1 at 0% down to a floor at the 90% ceiling, so the frost is unmistakably
+present at every setting. The slider buys its see-through-ness from the scrim and the tint, never
+from the frost: without that floor the top of the range showed the raw unblurred desktop, and the
+window read as a hole cut in the screen rather than as glass.
 The range stops at 90% rather than 100%: a window with no surface left is invisible *and* passes
 clicks through to whatever is under it, leaving nothing to grab to undo the setting.
+
+**Window Blur** (`note.window-blur`) is that floor, and it is the *only* thing it is. `NSVisualEffectView`
+publishes a named material, never a blur radius, so what the slider moves is frost *coverage* — how
+much of the `.hudWindow` material sits over the backdrop — not how wide the blur is. `NoteView`
+maps the stored 0–100% onto `materialAlphaFloorRange` (0.30…1.0), which is the alpha the material
+keeps once transparency is at its ceiling; the same one-line interpolation then runs between 1 at 0%
+transparency and that floor at 90%. The two sliders therefore compose along one curve rather than
+fighting: transparency chooses how far down the curve the window sits, blur chooses how far down the
+curve *goes*. At the top of the blur range the floor is 1 and the material never thins at all, so a
+90%-transparent note is scrim-free and tint-free but fully frosted. The bottom of the range is 0.30,
+not 0 — the frost-is-always-present guarantee is unchanged, only its strength is now the user's.
+
+The default is `NoteStore.defaultWindowBlur` (40%), which lands the floor on the 0.58 the window
+always had, so an existing install sees no change until the slider moves. It sits below the middle
+deliberately: the complaint was too little frost, so most of the range lies above today rather than
+below it. What the slider cannot do is add frost at **0% transparency** — the material is already at
+alpha 1 there, and a material at full alpha is the whole of what the public API offers. Blur bites
+wherever transparency has thinned the frost, and nowhere else. Going beyond that would mean either
+snapping between heavier `NSVisualEffectView.Material` values, which changes the window's tint as
+well as its weight, or the private `CGSSetWindowBackgroundBlurRadius` route to a true radius; neither
+is in the build, and both are owner decisions.
 
 **Auto Window Sizing** (on by default, `note.auto-window-sizing`) is what lets the window follow the
 note. `NoteView.fitWindow` is the one place the height is set, and it returns immediately when the
@@ -275,13 +295,13 @@ titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and t
 identical behavior. There is no separate title field, preview surface, formatting palette,
 word/character counter or save-status footer; persistence remains automatic in the background.
 
-The Appearance card in Notes Settings owns the Auto Window Sizing switch and one live Window
-Transparency slider from 0–90%, the same two controls the toolbar's color popover carries. The
-slider fades the whole window surface — the adaptive `panelScrim` and the tint film to nothing, the
-`.hudWindow` material only down to its frost floor — while editor content and controls remain fully
-opaque. Both values are bundle-scoped and
-ride in trusted Settings backup/sync state, while the system material continues to honor macOS
-appearance and accessibility.
+The Appearance card in Notes Settings owns the Auto Window Sizing switch, a live Window Transparency
+slider from 0–90% and a live Window Blur slider from 0–100%, the same three controls the toolbar's
+color popover carries. Transparency fades the whole window surface — the adaptive `panelScrim` and
+the tint film to nothing, the `.hudWindow` material only down to its frost floor — while Blur is
+where that floor sits, and editor content and controls remain fully opaque throughout. All three
+values are bundle-scoped and ride in trusted Settings backup/sync state, while the system material
+continues to honor macOS appearance and accessibility.
 
 ## Testing
 
@@ -294,7 +314,7 @@ swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/No
 ```
 
 The harness uses an injected temporary archive and defaults suite, checks archive-v2 tombstones,
-H1/H2/H3/Text block-format replacement, empty-Note cleanup, transparency persistence,
+H1/H2/H3/Text block-format replacement, empty-Note cleanup, transparency and blur persistence,
 deterministic Note/deletion merges and the former sync
 document's decode bridge; it never opens the floating window, contacts CloudKit or reads real
 application data.

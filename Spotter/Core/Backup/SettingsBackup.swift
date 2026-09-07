@@ -163,6 +163,7 @@ struct SettingsBackup: Codable, Sendable {
         struct Note: Codable, Sendable {
             var iCloudSyncEnabled: Bool?
             var windowTransparency: Double?
+            var windowBlur: Double?
             var autoWindowSizing: Bool?
         }
         var changeCase: ChangeCase?
@@ -396,6 +397,7 @@ extension SettingsBackup {
         prefs.note = PluginPrefs.Note(
             iCloudSyncEnabled: core.noteSync.isEnabled,
             windowTransparency: core.notes.windowTransparency,
+            windowBlur: core.notes.windowBlur,
             autoWindowSizing: core.notes.autoWindowSizing)
         return prefs
     }
@@ -585,6 +587,10 @@ extension SettingsBackup {
         }
         if let transparency = prefs.note?.windowTransparency {
             core.notes.setWindowTransparency(transparency)
+            count += 1
+        }
+        if let blur = prefs.note?.windowBlur {
+            core.notes.setWindowBlur(blur)
             count += 1
         }
         if let autoWindowSizing = prefs.note?.autoWindowSizing {

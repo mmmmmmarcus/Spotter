@@ -59,19 +59,30 @@ struct NoteView: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
     }
 
-    /// The slider buys its see-through-ness from the scrim and the tint, never from the frost: the
-    /// frost is what makes the window read as glass rather than as a hole cut in the screen, so the
-    /// material keeps at least this much alpha at the top of the range. Retune here alone.
-    private static let minimumMaterialAlpha = 0.58
+    /// How much frost the material keeps once Window Transparency is at its ceiling. Window Blur
+    /// slides that floor: `NoteStore.defaultWindowBlur` lands on the 0.58 the window always had, the
+    /// top of the range stops the frost thinning at all, and the lower bound stays well clear of
+    /// zero — the frost is what makes the window read as glass rather than as a hole cut in the
+    /// screen. Retune the range here alone; the stored value is normalized.
+    private static let materialAlphaFloorRange: ClosedRange<Double> = 0.30...1.0
+
+    /// `NSVisualEffectView` exposes a material, not a radius, so this is frost *coverage* rather
+    /// than blur width — and the material at alpha 1 is all the public API has, which is exactly
+    /// what a fully opaque Note window already shows. Blur therefore bites wherever transparency
+    /// has thinned the frost, and cannot add anything at 0% transparency.
+    private var materialAlphaFloor: Double {
+        let range = Self.materialAlphaFloorRange
+        return range.lowerBound + store.windowBlur * (range.upperBound - range.lowerBound)
+    }
 
     /// Everything the window is made of below the text: the blur, the scrim over it and the note's
     /// tint film. The transparency slider fades the scrim and the tint to nothing while the material
-    /// only fades to `minimumMaterialAlpha`, so the desktop genuinely shows through but always
-    /// through frost. Text and controls above stay at full strength.
+    /// only fades to `materialAlphaFloor`, so the desktop genuinely shows through but always through
+    /// frost. Text and controls above stay at full strength.
     private var noteSurface: some View {
         let opacity = 1 - store.windowTransparency
         let progress = store.windowTransparency / NoteStore.maximumWindowTransparency
-        let materialAlpha = 1 - progress * (1 - Self.minimumMaterialAlpha)
+        let materialAlpha = 1 - progress * (1 - materialAlphaFloor)
         return ZStack {
             VisualEffectView(material: .hudWindow, blending: .behindWindow, alpha: materialAlpha)
             Theme.Colors.panelScrim.opacity(opacity)
@@ -196,8 +207,9 @@ struct NoteView: View {
                 // dots, so neither earns a second control here.
                 NoteTintPicker(
                     tint: store.selectedNote?.tint, transparency: store.windowTransparency,
-                    autoWindowSizing: store.autoWindowSizing, select: setTint,
-                    setTransparency: store.setWindowTransparency,
+                    blur: store.windowBlur, autoWindowSizing: store.autoWindowSizing,
+                    select: setTint, setTransparency: store.setWindowTransparency,
+                    setBlur: store.setWindowBlur,
                     setAutoWindowSizing: store.setAutoWindowSizing)
             }
             .padding(.horizontal, Theme.Spacing.xl)

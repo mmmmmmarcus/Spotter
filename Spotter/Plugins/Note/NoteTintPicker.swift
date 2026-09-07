@@ -1,15 +1,17 @@
 import SwiftUI
 
-/// The toolbar's appearance control: the note's tint, the window's transparency and its sizing —
-/// how a note looks, in the one place the user is already looking at the note. The
+/// The toolbar's appearance control: the note's tint, the window's transparency, its frost and its
+/// sizing — how a note looks, in the one place the user is already looking at the note. The
 /// brush keeps its own color — a control that changed color with the note would read as a swatch,
 /// and there would be nothing left to point at when the note has no tint at all.
 struct NoteTintPicker: View {
     let tint: NoteTint?
     let transparency: Double
+    let blur: Double
     let autoWindowSizing: Bool
     let select: (NoteTint?) -> Void
     let setTransparency: (Double) -> Void
+    let setBlur: (Double) -> Void
     let setAutoWindowSizing: (Bool) -> Void
     @State private var showsPanel = false
 
@@ -29,8 +31,9 @@ struct NoteTintPicker: View {
         .help("Note Color")
         .popover(isPresented: $showsPanel, arrowEdge: .bottom) {
             NoteTintPanel(
-                tint: tint, transparency: transparency, autoWindowSizing: autoWindowSizing,
-                select: choose, setTransparency: setTransparency,
+                tint: tint, transparency: transparency, blur: blur,
+                autoWindowSizing: autoWindowSizing, select: choose,
+                setTransparency: setTransparency, setBlur: setBlur,
                 setAutoWindowSizing: setAutoWindowSizing)
         }
     }
@@ -41,14 +44,16 @@ struct NoteTintPicker: View {
     }
 }
 
-/// The panel behind the brush: the ramp, the window's transparency, and whether the window sizes
-/// itself to the note or stays exactly where the user dragged its edge.
+/// The panel behind the brush: the ramp, the window's transparency and frost, and whether the window
+/// sizes itself to the note or stays exactly where the user dragged its edge.
 struct NoteTintPanel: View {
     let tint: NoteTint?
     let transparency: Double
+    let blur: Double
     let autoWindowSizing: Bool
     let select: (NoteTint?) -> Void
     let setTransparency: (Double) -> Void
+    let setBlur: (Double) -> Void
     let setAutoWindowSizing: (Bool) -> Void
 
     private let columns = Array(
@@ -66,21 +71,11 @@ struct NoteTintPanel: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                HStack {
-                    Text("Window Transparency")
-                        .font(.callout)
-                    Spacer(minLength: Theme.Spacing.xl)
-                    Text(transparency.formatted(.percent.precision(.fractionLength(0))))
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-                // The same stored value Settings edits, so the two are never out of step.
-                Slider(
-                    value: Binding(get: { transparency }, set: setTransparency),
-                    in: 0...NoteStore.maximumWindowTransparency,
-                    step: 0.05)
-            }
+            slider(
+                "Window Transparency", value: transparency,
+                in: 0...NoteStore.maximumWindowTransparency, set: setTransparency)
+
+            slider("Window Blur", value: blur, in: 0...1, set: setBlur)
 
             Toggle(
                 "Auto Window Sizing",
@@ -91,6 +86,24 @@ struct NoteTintPanel: View {
         }
         .frame(width: Theme.Size.noteTintPanelWidth)
         .padding(Theme.Spacing.xl)
+    }
+
+    /// Both sliders edit the same stored values Settings does, so the two surfaces cannot disagree.
+    private func slider(
+        _ title: String, value: Double, in bounds: ClosedRange<Double>,
+        set: @escaping (Double) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            HStack {
+                Text(title)
+                    .font(.callout)
+                Spacer(minLength: Theme.Spacing.xl)
+                Text(value.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: Binding(get: { value }, set: set), in: bounds, step: 0.05)
+        }
     }
 
     private func button(for candidate: NoteTint?) -> some View {
