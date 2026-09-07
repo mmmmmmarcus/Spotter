@@ -32,11 +32,14 @@ final class OnePasswordManager: ObservableObject {
     @Published private(set) var revealedFieldIDs: Set<String> = []
     /// Where `op` was found, or nil when it isn't installed — Settings and the palette both read this.
     @Published private(set) var binaryPath: String?
-    /// The account uuid for `onepassword://` deep links; resolved lazily after the first item load.
-    private(set) var accountID: String?
+    /// The account uuid for `onepassword://` deep links; resolved on first use, then kept.
+    private var accountID: String?
 
-    /// Session-long metadata cache, shown instantly on reopen while a fresh list replaces it.
+    /// Session-long metadata cache, shown instantly on reopen while it is still fresh.
     private var itemsCache: [OnePasswordItem]?
+    /// When `itemsCache` last loaded successfully — stamped only on a parsed list, so a failed,
+    /// timed-out or unreadable read leaves the cache stale and the next open retries.
+    private var cacheLoadedAt: Date?
     private var loadTask: Task<Void, Never>?
     private var loadGeneration = 0
     private var detailTask: Task<Void, Never>?
@@ -83,12 +86,21 @@ final class OnePasswordManager: ObservableObject {
 
     // MARK: - Item list
 
-    /// Screen open: the cached list shows instantly while a fresh one replaces it.
+    /// Screen open: a still-fresh cache is shown as it is, running no `op` at all — every call can
+    /// cost a 1Password authorization prompt, and merely looking at the list shouldn't. A stale or
+    /// never-loaded cache loads; *Refresh Items* and the unlock / retry rows bypass the window.
     func open() {
         binaryPath = Self.locateBinary()
+        if let items = itemsCache,
+            OnePasswordItemCache.isFresh(loadedAt: cacheLoadedAt, now: Date())
+        {
+            state = .items(items)
+            return
+        }
         refresh()
     }
 
+    /// The unconditional path, for the explicit routes only — *Refresh Items*, unlock and retry.
     /// Idempotent while a read is in flight: interrupting `op` would dismiss the 1Password
     /// authorization prompt it may be waiting on, so a reopen joins the running read instead.
     func refresh() {
@@ -115,12 +127,13 @@ final class OnePasswordManager: ObservableObject {
             case .success(let data):
                 self.isRefreshing = false
                 guard let items = OnePasswordParser.parseItems(data) else {
+                    // Deliberately unstamped: an unreadable list must not start a fresh window.
                     self.state = .failed("1Password returned an unreadable item list.")
                     return
                 }
                 self.itemsCache = items
+                self.cacheLoadedAt = Date()
                 self.state = .items(items)
-                if self.accountID == nil { await self.fetchAccountID(path: path) }
             case .failure(let error):
                 // One automatic retry on `op`'s desktop-app timeout: a cold daemon can trip it
                 // once on a large vault and then answer from its cache in seconds.
@@ -130,7 +143,8 @@ final class OnePasswordManager: ObservableObject {
                     return
                 }
                 self.isRefreshing = false
-                // A failed refresh keeps the stale list; an item action will surface the unlock prompt.
+                // A failed refresh keeps the stale list — and deliberately leaves `cacheLoadedAt`
+                // alone, so the next open retries instead of resting on a read that never landed.
                 if self.itemsCache != nil { return }
                 if error.isLocked {
                     self.state = .locked(error.message)
@@ -153,6 +167,7 @@ final class OnePasswordManager: ObservableObject {
         loadGeneration &+= 1
         isRefreshing = false
         itemsCache = nil
+        cacheLoadedAt = nil
         accountID = nil
         state = .idle
         closeDetail()
@@ -211,13 +226,18 @@ final class OnePasswordManager: ObservableObject {
         }
     }
 
-    private func fetchAccountID(path: String) async {
-        // Best effort — a deep link without the account still resolves in a one-account setup.
-        if case .success(let data) = await OnePasswordProcessRunner.capture(
-            path: path, arguments: OnePasswordCLI.accountArguments)
-        {
-            accountID = OnePasswordParser.parseAccountID(data)
-        }
+    /// Resolved on the first Open in 1Password rather than after every list load — `op account get`
+    /// is a prompt-eligible call of its own, and most sessions never follow a deep link. Best effort
+    /// and kept for the session: a link without the account still resolves in a one-account setup.
+    func resolveAccountID() async -> String? {
+        if let accountID { return accountID }
+        guard let path = binaryPath else { return nil }
+        guard
+            case .success(let data) = await OnePasswordProcessRunner.capture(
+                path: path, arguments: OnePasswordCLI.accountArguments)
+        else { return nil }
+        accountID = OnePasswordParser.parseAccountID(data)
+        return accountID
     }
 
     // MARK: - Secrets

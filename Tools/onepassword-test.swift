@@ -221,6 +221,33 @@ struct OnePasswordTests {
                 fetchedAt: Date(timeIntervalSince1970: 1_700_000_039),
                 now: Date(timeIntervalSince1970: 1_700_000_040)))
 
+        // Item-list freshness — a look inside the window must cost no `op` process at all.
+        let loaded = Date(timeIntervalSince1970: 1_700_000_000)
+        check(
+            "a list loaded a minute ago is fresh",
+            OnePasswordItemCache.isFresh(
+                loadedAt: loaded, now: loaded.addingTimeInterval(60)))
+        check(
+            "a list loaded 29 minutes ago is fresh",
+            OnePasswordItemCache.isFresh(
+                loadedAt: loaded, now: loaded.addingTimeInterval(29 * 60)))
+        check(
+            "a list older than the window is stale",
+            !OnePasswordItemCache.isFresh(
+                loadedAt: loaded, now: loaded.addingTimeInterval(31 * 60)))
+        check(
+            "the window boundary is already stale",
+            !OnePasswordItemCache.isFresh(
+                loadedAt: loaded, now: loaded.addingTimeInterval(OnePasswordItemCache.freshness)))
+        check(
+            "a never-loaded list is never fresh",
+            !OnePasswordItemCache.isFresh(loadedAt: nil, now: loaded))
+        check(
+            "a load stamped in the future never reads as fresh",
+            !OnePasswordItemCache.isFresh(
+                loadedAt: loaded.addingTimeInterval(60), now: loaded))
+        check("the freshness window is thirty minutes", OnePasswordItemCache.freshness == 30 * 60)
+
         if failures > 0 {
             print("\n\(failures) failure(s)")
             exit(1)

@@ -499,9 +499,14 @@ extension AppCore {
             onePassword.openDetail(item)
         case .openInApp:
             hidePalette(restoreFocus: false)
-            let url = OnePasswordCLI.viewItemURL(
-                accountID: onePassword.accountID, vaultID: item.vaultID, itemID: item.id)
-            if let url = URL(string: url) { NSWorkspace.shared.open(url) }
+            // The account uuid is resolved here, on first use, and kept for the session.
+            Task { [weak self] in
+                guard let self else { return }
+                let url = OnePasswordCLI.viewItemURL(
+                    accountID: await self.onePassword.resolveAccountID(),
+                    vaultID: item.vaultID, itemID: item.id)
+                if let url = URL(string: url) { NSWorkspace.shared.open(url) }
+            }
         case .openInBrowser:
             guard let website = item.websiteURL, let url = URL(string: website) else {
                 hud.show(title: "No Website on This Item", symbol: "safari", isNoOp: true)

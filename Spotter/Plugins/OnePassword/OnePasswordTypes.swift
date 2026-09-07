@@ -145,6 +145,23 @@ enum OnePasswordOTP {
     }
 }
 
+/// How long a loaded item list stays good enough to show without running `op` again. The list is
+/// non-secret metadata that changes rarely, every `op` call is authorized by 1Password's own
+/// biometric prompt, and an explicit *Refresh Items* is always one action away in the Actions menu —
+/// so the thing worth conserving is the prompt. One constant, so the window is trivial to retune.
+enum OnePasswordItemCache {
+    static let freshness: TimeInterval = 30 * 60
+
+    /// Whether a list loaded at `loadedAt` may still be shown as-is. A never-loaded list is stale by
+    /// construction, so nil (and a clock that ran backwards) always retries.
+    static func isFresh(
+        loadedAt: Date?, now: Date, freshness: TimeInterval = freshness
+    ) -> Bool {
+        guard let loadedAt, now >= loadedAt else { return false }
+        return now.timeIntervalSince(loadedAt) < freshness
+    }
+}
+
 /// Category presentation: an SF Symbol and a readable label per `op` category string.
 enum OnePasswordCategory {
     private static let symbols: [String: String] = [

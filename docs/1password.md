@@ -71,9 +71,19 @@ Spotter/Plugins/OnePassword/
   error message (log prefixes stripped) and classified as locked-vs-failed. Secrets never appear in
   argv, `AppLog`, or any error path.
 - `OnePasswordManager` locates `op` (Homebrew paths, then a Settings override under
-  `one-password.cli-path`), loads the item list on screen open with a session-long in-memory cache
-  (stale-while-revalidate; a failed refresh keeps the stale list), resolves the account uuid lazily
-  for `onepassword://view-item/` deep links, and owns the delayed clipboard clear.
+  `one-password.cli-path`), loads the item list into a session-long in-memory cache, resolves the
+  account uuid lazily for `onepassword://view-item/` deep links, and owns the delayed clipboard
+  clear.
+- **A look costs nothing while the cached list is fresh.** Screen open runs `op` only when the cache
+  is stale or was never loaded; inside the freshness window it just shows what it has, launching no
+  process. The window is **30 minutes**, one constant (`OnePasswordItemCache.freshness`), and the
+  predicate lives in the pure types file beside `OnePasswordOTP.codeStillCurrent`. The rationale is
+  the prompt: the list is non-secret metadata that changes rarely, every `op` call is authorized by
+  1Password, and refreshing is one action away. `cacheLoadedAt` is stamped **only** on a parsed,
+  successful list — never on a failure, a timeout or an unreadable response — so a read that never
+  landed leaves the cache stale and the next open retries. `refresh()` ignores the window entirely
+  and is what *Refresh Items*, the unlock row and the retry row call; a failed refresh still keeps
+  the stale list on screen.
 - **An in-flight list read survives the palette hiding, and must keep doing so.** The palette
   dismisses itself the moment it loses key status — which is exactly what 1Password's authorization
   window causes — so closing the screen never cancels the running `op` (cancelling would kill the
@@ -86,11 +96,15 @@ Spotter/Plugins/OnePassword/
 Everything is `op`, executed only on an explicit user action:
 
 - Screen open → `op item list --format=json` (titles, categories, vaults, usernames, URLs —
-  **no secrets**), then once per session `op account get --format=json` for the deep-link account id.
-  Deliberately **without `--long`**: the plain listing already carries everything Spotter renders,
-  and the per-item field detail `--long` adds pushed a ~1000-item vault past `op`'s internal
-  30-second desktop-app timeout. A timeout gets one automatic retry (a cold `op` daemon can trip it
-  once, then answer from its cache in seconds); a persistent failure renders as a *Try Again* row.
+  **no secrets**) — but **only when the cached list is stale or missing**; a reopen within 30 minutes
+  runs nothing. Deliberately **without `--long`**: the plain listing already carries everything
+  Spotter renders, and the per-item field detail `--long` adds pushed a ~1000-item vault past `op`'s
+  internal 30-second desktop-app timeout. A timeout gets one automatic retry (a cold `op` daemon can
+  trip it once, then answer from its cache in seconds); a persistent failure renders as a *Try Again*
+  row.
+- Open in 1Password → `op account get --format=json`, at most once per session and **only on the
+  first deep link** — never on the list-load path. The resolved uuid is kept for the session; a link
+  without it still resolves in a one-account setup, so a failed resolve just opens the plain link.
 - View Item → `op item get <item> --vault <vault> --format=json`. This response includes the item's
   concealed field values: they are held **in memory only while the view is open** — rendered masked
   until explicitly revealed — and dropped on Back, on opening another item, and on disable.
