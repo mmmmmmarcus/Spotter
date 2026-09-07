@@ -194,9 +194,6 @@ swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift Tools/background-
 swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
     Spotter/Plugins/Mole/MoleProcessRunner.swift Tools/mole-test.swift \
     -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
-swiftc -swift-version 6 Spotter/Plugins/OnePassword/OnePasswordTypes.swift \
-    Tools/onepassword-test.swift \
-    -o /tmp/onepassword-test && /tmp/onepassword-test             # 1password parsing + argv + actions
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \

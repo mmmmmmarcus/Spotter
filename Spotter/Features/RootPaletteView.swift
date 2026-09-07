@@ -728,7 +728,7 @@ struct RootPaletteView: View {
             }
             // Esc backs out one layer, matching Raycast: sub-screen → launcher, typed query →
             // cleared; only Esc at the empty launcher root dismisses the palette. A multi-level
-            // plugin screen consumes the step first (1Password's item view → its list).
+            // plugin screen consumes the step first.
             if case .plugin(let id) = vm.mode, plugins.performPaletteBack(pluginID: id) {
                 return .handled
             }

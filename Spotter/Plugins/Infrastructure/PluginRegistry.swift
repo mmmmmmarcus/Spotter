@@ -45,8 +45,8 @@ struct PluginPaletteScreenRegistration {
     var livePlaceholder: (() -> String?)?
     /// Set by a screen whose rows represent instants (World Clock): ←/→ scrub by ±1 hour while the query is empty.
     var adjustHours: ((Int) -> Void)?
-    /// Consumes one Esc / back-chevron press for a multi-level screen (1Password's item view):
-    /// return true after stepping back a level; false lets the palette exit to the launcher.
+    /// Consumes one Esc / back-chevron press for a multi-level screen: return true after stepping
+    /// back a level; false lets the palette exit to the launcher.
     var handleBack: (() -> Bool)?
     let snapshot: (_ query: String) -> PluginPaletteSnapshot
     let performPrimaryAction: (_ itemID: String) -> Void

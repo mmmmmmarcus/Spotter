@@ -37,7 +37,6 @@ Spotter/Plugins/
 ├── ImageModification/
 ├── WindowManagement/
 ├── Mole/
-├── OnePassword/
 ├── Coffee/
 └── Screenshot/
 ```
@@ -132,8 +131,7 @@ is optional:
 - Per-plugin **preferences** (not just the enable flag) sync by extending
   `SettingsBackup.PluginPrefs` — gather effective values, apply through the owning manager when the
   manager caches state. Change Case, Kill Process, Image Modification, Screenshot, Caffeinate,
-  Window Management, Mole and 1Password are the current entries; a new plugin with preferences adds
-  its own.
+  Window Management and Mole are the current entries; a new plugin with preferences adds its own.
 
 Disabled plugin commands disappear from launcher search, shortcut actions no-op, query providers are
 removed from the hot-path cache, and `onDisable` stops ongoing work. A feature-specific entry point
@@ -330,13 +328,6 @@ shell-command feature; do not use shell commands as an internal plugin API.
   Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
   off a menu hub; state-changing runs preview first, go through one confirmed funnel, then return to
   the launcher as persistent background-task rows. Nothing hands off to Terminal.
-- **1Password** (`Spotter/Plugins/OnePassword/`) — enabled by default (idle until the `op` CLI is
-  installed); a palette screen listing 1Password items whose ↵ opens an in-palette item view —
-  fields masked until revealed, copied or pasted concealed — with open-in-app/browser actions and a
-  hidden Generate Password command. Metadata comes from `op item list`; secrets are fetched only on
-  an explicit action, held in memory only while a view is open, copied concealed so no clipboard
-  manager records them, and cleared after 90 seconds unless replaced. 1Password 8's own
-  authorization prompt is the gate; nothing is persisted.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
   persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
@@ -356,6 +347,6 @@ shell-command feature; do not use shell commands as an internal plugin API.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Uptime](uptime.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
 [Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
-[Mole](mole.md), [1Password](1password.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
+[Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
 [Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md),
 and [File Search](file-search.md).

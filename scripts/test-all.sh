@@ -31,7 +31,6 @@ TESTS=(
     window-command
     background-task
     mole
-    onepassword
     coffee
     ai-chat
     dashboard-widgets
@@ -195,10 +194,6 @@ run_harness() {
             swiftc -swift-version 6 \
                 Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
                 Tools/calendar-schedule-test.swift -o "$output" && "$output"
-            ;;
-        onepassword)
-            swiftc -swift-version 6 Spotter/Plugins/OnePassword/OnePasswordTypes.swift \
-                Tools/onepassword-test.swift -o "$output" && "$output"
             ;;
         coffee)
             swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift \
