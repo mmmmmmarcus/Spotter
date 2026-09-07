@@ -102,6 +102,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
+        // The note's source is Markdown, so pasted text lands verbatim: smart insert would add or
+        // eat a space around it, which is both wrong for syntax and wrong for scripts without spaces.
+        textView.smartInsertDeleteEnabled = false
         textView.textContainerInset = NSSize(width: Theme.Spacing.xxl, height: Theme.Spacing.xxl)
         textView.minSize = .zero
         textView.maxSize = NSSize(
@@ -127,6 +130,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         guard let textView = context.coordinator.textView else { return }
         if tintChanged { context.coordinator.applyTint() }
         if textView.string != text {
+            // Swapping the document under a live composition leaves the input method marking a range
+            // that no longer exists, so the uncommitted text is abandoned before the note changes.
+            if textView.hasMarkedText() { textView.inputContext?.discardMarkedText() }
             let selection = textView.selectedRange()
             textView.string = text
             textView.setSelectedRange(
@@ -174,13 +180,17 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView, !isHighlighting else { return }
             refreshArithmeticAnswer()
+            // Published even mid-composition, deliberately: the binding staying equal to the view's
+            // own string is what keeps a stray SwiftUI update from replacing the text under it.
             parent.text = textView.string
             reportContentHeight()
             // Synchronous, not debounced: a deferred pass leaves a frame where a new line's dash is
             // plain text and every disc below the edit draws from stale ranges — the list "blink"
             // on Return and delete. Caret-only moves keep the debounce in the selection handler.
             highlightWork?.cancel()
-            highlight()
+            // An uncommitted composition has nothing to restyle yet, and the debounced pass is what
+            // guarantees one lands after the commit however the input method finishes it.
+            if textView.hasMarkedText() { scheduleHighlight() } else { highlight() }
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -192,7 +202,10 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             _ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange,
             replacementString: String?
         ) -> Bool {
-            guard !isApplyingInputRule, affectedCharRange.length == 0,
+            // An input method inserts its uncommitted composition through this same callback, so the
+            // pinyin on its way to a Chinese character would otherwise be read as typing: a rule
+            // firing there rewrites text the user has not chosen yet and drops the composition.
+            guard !isApplyingInputRule, !textView.hasMarkedText(), affectedCharRange.length == 0,
                 let typed = replacementString
             else { return true }
             if applyChecklistInputRule(in: textView, at: affectedCharRange, inserting: typed) {
@@ -201,11 +214,11 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             if applyRuleInputRule(in: textView, at: affectedCharRange, inserting: typed) {
                 return false
             }
-            switch typed {
-            case "\n": return insertNewline(in: textView, at: affectedCharRange)
-            case "=": return evaluateArithmetic(in: textView, at: affectedCharRange)
-            default: return true
+            if typed == "\n" { return insertNewline(in: textView, at: affectedCharRange) }
+            if NoteEngine.isArithmeticEquals(typed) {
+                return evaluateArithmetic(in: textView, at: affectedCharRange, inserting: typed)
             }
+            return true
         }
 
         /// A Return typed at the visual end of a bold or italic run lands *inside* its hidden closing
@@ -247,7 +260,8 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         /// Keeps an answered line answered: edit the sum and the number after the `=` follows, and a
         /// formula that stops resolving says so rather than leaving a stale answer standing.
         private func refreshArithmeticAnswer() {
-            guard let textView, !isRewritingAnswer else { return }
+            // Rewriting the storage under the caret mid-composition takes the marked text with it.
+            guard let textView, !isRewritingAnswer, !textView.hasMarkedText() else { return }
             let source = textView.string as NSString
             let caret = textView.selectedRange()
             guard caret.length == 0, caret.location <= source.length else { return }
@@ -307,13 +321,15 @@ struct NoteMarkdownEditor: NSViewRepresentable {
 
         /// `129+92=` answers itself. The calculator engine already owns arithmetic, so a note gets it
         /// for free — and typing `=` after anything that isn't a sum still just types an `=`.
-        private func evaluateArithmetic(in textView: NSTextView, at caret: NSRange) -> Bool {
+        private func evaluateArithmetic(
+            in textView: NSTextView, at caret: NSRange, inserting equals: String
+        ) -> Bool {
             let source = textView.string as NSString
             let prefix = source.substring(with: linePrefixRange(before: caret, in: source))
             // A formula that cannot be answered is still a formula: it gets the unresolved marker,
             // where prose ending in an `=` just gets its equals sign.
             guard NoteEngine.arithmeticCandidate(inLinePrefix: prefix) != nil else { return true }
-            return !applyInputRule("=" + answer(for: prefix), over: caret, in: textView)
+            return !applyInputRule(equals + answer(for: prefix), over: caret, in: textView)
         }
 
         private func answer(for expressionPrefix: String) -> String {
@@ -349,7 +365,8 @@ struct NoteMarkdownEditor: NSViewRepresentable {
 
         /// Tab / Shift-Tab: nest or un-nest the caret's list line; false lets the tab insert.
         func applyIndent(_ direction: NoteIndentDirection) -> Bool {
-            guard let textView,
+            // Mid-composition the tab belongs to the input method's own handling, not to the list.
+            guard let textView, !textView.hasMarkedText(),
                 let result = NoteEngine.applyingListIndent(
                     direction, to: textView.string, selection: textView.selectedRange())
             else { return false }
@@ -372,6 +389,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         }
 
         private func apply(_ result: NoteEditResult, to textView: NSTextView) {
+            // Every one of these replaces the whole document; doing that under a live composition
+            // leaves the input method holding a marked range into text that no longer exists.
+            guard !textView.hasMarkedText() else { return }
             let wholeDocument = NSRange(location: 0, length: (textView.string as NSString).length)
             guard textView.shouldChangeText(in: wholeDocument, replacementString: result.text) else {
                 return
@@ -398,6 +418,12 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             guard let textView, let layout = textView.layoutManager as? NoteLayoutManager,
                 let storage = textView.textStorage
             else { return }
+            // The text storage is the input method's canvas while a composition is live: resetting
+            // attributes across the document strips the marked run's underline, `typingAttributes`
+            // is what its next update inherits, and a concealed range would collapse pinyin the user
+            // is still choosing from. The commit posts both a text change and a selection change, so
+            // the pass this skips runs the moment the characters are real.
+            guard !textView.hasMarkedText() else { return }
             let source = textView.string as NSString
             let wholeDocument = NSRange(location: 0, length: source.length)
             var typingAttributes = Self.baseAttributes
@@ -592,7 +618,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
 
         /// Toggles the checkbox under a click, reporting whether one was there.
         func toggleCheckbox(atCharacterIndex index: Int) -> Bool {
-            guard let textView,
+            // Mid-composition the markers are from the last pass and the click belongs to the input
+            // method: let the normal mouse path end the composition instead of editing under it.
+            guard let textView, !textView.hasMarkedText(),
                 let marker = taskMarkers.first(where: { NSLocationInRange(index, $0.range) })
             else { return false }
             guard textView.shouldChangeText(in: marker.state, replacementString: marker.isDone ? " " : "x")

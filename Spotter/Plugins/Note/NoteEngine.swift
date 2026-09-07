@@ -204,12 +204,16 @@ enum NoteEngine {
         if let marker = ["- ", "* ", "+ "].first(where: { body.hasPrefix($0) }) {
             body = body.dropFirst(marker.count)
         }
-        let completed = String(body) + typedText
-        guard completed == "[] " || completed == "【】 " || completed == "【 】"
-            || completed == "【　】"
-        else { return nil }
+        guard Self.checklistBrackets.contains(String(body) + typedText) else { return nil }
         return indentation + "- [ ] "
     }
+
+    /// The completed bracket pairs that open a todo. A Chinese keyboard types `[` and `]` as `【】`
+    /// with Chinese punctuation on and as `［］` in full-width mode, either with an interior space
+    /// of either width, so all three widths reach the same marker.
+    private static let checklistBrackets: Set<String> = [
+        "[] ", "【】 ", "【 】", "【　】", "［］ ", "［ ］", "［　］",
+    ]
 
     /// Typing the third `-`, `*` or `_` of a rule finishes the divider and opens the line under it:
     /// a rule separates what follows from what came before, so the caret belongs below it.
@@ -230,7 +234,7 @@ enum NoteEngine {
     /// reach the editor so it can mark it, rather than leave a stale number standing.
     static func arithmeticAnswer(inLine line: String) -> NoteArithmeticAnswer? {
         let text = line as NSString
-        let equals = text.range(of: "=", options: .backwards)
+        let equals = text.rangeOfCharacter(from: Self.equalsSigns, options: .backwards)
         guard equals.location != NSNotFound else { return nil }
         let head = text.substring(to: equals.location)
         let resultRange = NSRange(
@@ -243,6 +247,14 @@ enum NoteEngine {
 
     /// The answer the editor writes when the formula beside it no longer resolves.
     static let unresolvedArithmeticResult = "(?)"
+
+    /// A Chinese keyboard in full-width mode types `=` as `＝`, so both finish a sum and both are
+    /// echoed back as the user typed them.
+    static func isArithmeticEquals(_ typedText: String) -> Bool {
+        typedText == "=" || typedText == "＝"
+    }
+
+    private static let equalsSigns = CharacterSet(charactersIn: "=＝")
 
     private static func isArithmeticResult(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespaces)
@@ -280,9 +292,12 @@ enum NoteEngine {
             start = line.index(after: start)
         }
         // Anything glued to a word ("rev2+3") is an identifier, not a sum the user wants evaluated.
+        // CJK is written without spaces between words, so a Chinese character or full-width mark
+        // ends one the way a space does — otherwise `总计：12+3=` could never answer while
+        // `Total: 12+3=` does.
         if start > line.startIndex {
             let preceding = line[line.index(before: start)]
-            guard preceding == " " || preceding == "\t" else { return nil }
+            guard preceding == " " || preceding == "\t" || isCJK(preceding) else { return nil }
         }
 
         var body = line[start...]
@@ -308,6 +323,31 @@ enum NoteEngine {
     }
 
     private static let arithmeticCharacters = Set("0123456789.,+-*/×÷()%^ \t")
+
+    /// Whether a character belongs to a CJK script or to the punctuation those scripts write with —
+    /// the writing systems that put no space between a word and what follows it. Full-width letters
+    /// and digits are deliberately left out: those still spell words.
+    private static func isCJK(_ character: Character) -> Bool {
+        guard let scalar = character.unicodeScalars.first else { return false }
+        switch scalar.value {
+        case 0x1100...0x11FF,  // Hangul jamo
+            0x3000...0x303F,  // CJK symbols and punctuation
+            0x3040...0x30FF,  // Hiragana and katakana
+            0x3100...0x312F, 0x31A0...0x31BF,  // Bopomofo
+            0x3130...0x318F,  // Hangul compatibility jamo
+            0x31F0...0x31FF,  // Katakana phonetic extensions
+            0x3400...0x4DBF,  // CJK unified ideographs extension A
+            0x4E00...0x9FFF,  // CJK unified ideographs
+            0xAC00...0xD7AF,  // Hangul syllables
+            0xF900...0xFAFF,  // CJK compatibility ideographs
+            0xFF01...0xFF0F, 0xFF1A...0xFF20,  // Full-width punctuation
+            0xFF3B...0xFF40, 0xFF5B...0xFF65,
+            0x20000...0x3FFFF:  // CJK unified ideographs, later extensions
+            return true
+        default:
+            return false
+        }
+    }
 
     /// The length of a leading `12. ` marker — the trailing space is what separates it from `1.5`.
     private static func numberedListMarker(in body: Substring) -> Int? {

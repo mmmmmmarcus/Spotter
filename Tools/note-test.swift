@@ -131,6 +131,12 @@ struct NoteTests {
         check(
             "full-width spaced Chinese brackets become a todo when closed", "  - [ ] ",
             NoteEngine.checklistInputRule(forLinePrefix: "  【　", inserting: "】"))
+        check(
+            "full-width brackets become a todo after space", "- [ ] ",
+            NoteEngine.checklistInputRule(forLinePrefix: "［］"))
+        check(
+            "spaced full-width brackets become a todo when closed", "- [ ] ",
+            NoteEngine.checklistInputRule(forLinePrefix: "［　", inserting: "］"))
         check("text before brackets is left alone", nil, NoteEngine.checklistInputRule(forLinePrefix: "a []"))
         check("a lone bracket is not a todo", nil, NoteEngine.checklistInputRule(forLinePrefix: "["))
 
@@ -149,6 +155,21 @@ struct NoteTests {
         check("a bare number is not a sum", nil, NoteEngine.arithmeticExpression(inLinePrefix: "129"))
         check("prose does not calculate", nil, NoteEngine.arithmeticExpression(inLinePrefix: "meeting"))
         check("a trailing operator is incomplete", nil, NoteEngine.arithmeticExpression(inLinePrefix: "129+"))
+        check(
+            "a sum glued to Chinese text is still a sum", "12+3",
+            NoteEngine.arithmeticExpression(inLinePrefix: "总计12+3"))
+        check(
+            "a full-width colon ends the word before a sum", "12+3",
+            NoteEngine.arithmeticExpression(inLinePrefix: "总计：12+3"))
+        check(
+            "a sum after Japanese text is still a sum", "1.5*2",
+            NoteEngine.arithmeticExpression(inLinePrefix: "ごうけい1.5*2"))
+        check(
+            "an ASCII word still swallows the digits glued to it", nil,
+            NoteEngine.arithmeticExpression(inLinePrefix: "total12+3"))
+        check("an ASCII equals answers a sum", true, NoteEngine.isArithmeticEquals("="))
+        check("a full-width equals answers a sum", true, NoteEngine.isArithmeticEquals("＝"))
+        check("a letter is not an equals", false, NoteEngine.isArithmeticEquals("e"))
 
         let blocks = "Title\n> quoted\n---\n```swift\n- kept\n```\n| a | b |\n| --- | --- |\n| 1 | 2 |"
         let spans = NoteEngine.blockSpans(in: blocks)
@@ -305,6 +326,23 @@ struct NoteTests {
         check(
             "a URL is not an answer", nil,
             NoteEngine.arithmeticAnswer(inLine: "https://example.com/x=1"))
+        check(
+            "a full-width equals keeps its line answered", "129+92",
+            NoteEngine.arithmeticAnswer(inLine: "129+92＝221")?.expression)
+        check(
+            "a full-width equals reports its answer", "221",
+            NoteEngine.arithmeticAnswer(inLine: "129+92＝221")?.result)
+        check(
+            "a Chinese line keeps its answer", "12+3",
+            NoteEngine.arithmeticAnswer(inLine: "总计：12+3=15")
+                .flatMap { NoteEngine.arithmeticExpression(inLinePrefix: $0.expression) })
+        check(
+            "Chinese prose with an equals sign is not an answer", nil,
+            NoteEngine.arithmeticAnswer(inLine: "待办＝发布"))
+        check("a Chinese title survives markup stripping", "会议记录", NoteEngine.title(in: "# 会议记录\n正文"))
+        check(
+            "a Chinese checklist continues", .continueWith("- [ ] "),
+            NoteEngine.listContinuation(after: "- [ ] 写文档"))
 
         // Tints: a color is a user modification that syncs, but never one that reorders the list.
         let tintFile = directory.appendingPathComponent("tints.json")

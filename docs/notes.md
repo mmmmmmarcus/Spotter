@@ -251,21 +251,38 @@ Three input rules fire from `shouldChangeTextIn`, each keyed to one typed charac
   hidden closing marker: without that the newline lands *inside* `**bold**`, splitting the run across
   two lines and exposing the syntax the editor exists to hide.
 - **Space** after bare `[]` or `【】` becomes `- [ ] `, the one list marker Markdown makes awkward to
-  type. Closing `【 】` does the same, including a full-width interior space. The rule works at any
-  indentation and replaces an existing bullet rather than nesting inside it.
+  type. Closing `【 】` does the same, including a full-width interior space, and the full-width
+  `［］` an IME produces in full-width mode is accepted in all three of those shapes. The rule works
+  at any indentation and replaces an existing bullet rather than nesting inside it.
 - **`-`, `*` or `_`** completing a `---` rule also opens the line beneath it. A rule divides what
   follows from what came before, so the caret belongs under it, never stranded on top of it.
 - **`=`** after an arithmetic expression appends the answer, so `129+92=` finishes itself.
   `NoteEngine.arithmeticExpression` finds the expression and stays pure; the editor evaluates it
   through `CalcEngine`, which keeps arithmetic in its single owner. A list or numbered marker is
   stripped first, since `-` and `.` are also operators, and digits glued to a word (`rev2+3`) are an
-  identifier rather than a sum. Typing `=` after anything else still just types an `=` — but a line that *is* a formula and
+  identifier rather than a sum. CJK is written without spaces, so a Chinese character or a
+  full-width mark ends that word the way a space does — `总计：12+3=` answers exactly as
+  `Total: 12+3=` does — and the full-width `＝` triggers and separates an answer like the ASCII one,
+  echoed back in the width the user typed. Typing `=` after anything else still just types an `=` — but a line that *is* a formula and
   cannot be answered gets `(?)` rather than nothing, so a broken sum is visibly broken.
 
   An answered line then *stays* answered: editing the sum rewrites the number after the `=`, and a
   formula that stops resolving shows `(?)` rather than leaving a stale answer standing. Only the line
   the caret is on is rewritten, and only while the caret sits left of the answer — the answer itself
   is the user's to edit.
+
+**An uncommitted composition owns the text view, and every path that writes to it stands down.**
+A Chinese, Japanese or Korean input method puts its marked text into the storage before the user has
+chosen anything, so `hasMarkedText()` gates the input rules, the arithmetic refresh, the restyling
+pass, the checkbox click, Tab and the ⌘B/⌘I/⌘K and block-format commands; replacing the note under a
+live composition abandons it through the input context first. The restyling pass matters most: it
+resets attributes across the whole document, which would strip the marked run's underline, and its
+concealed ranges collapse to no width, which would hide pinyin still being chosen — and it ran on
+every marked-text update, several per committed character. The pass is deferred instead, and the
+commit's own text and selection changes are what run it, so a note is styled the moment its
+characters are real. Smart insert/delete is off with the other automatic substitutions: pasted
+Markdown has to land verbatim, and the space it would add belongs to neither syntax nor a script
+that writes without spaces.
 
 Block constructs are found by `NoteEngine.blockSpans`, a pure line scan returning UTF-16 ranges for
 fenced code, blockquotes, horizontal rules and pipe tables. A fenced block shadows everything inside
