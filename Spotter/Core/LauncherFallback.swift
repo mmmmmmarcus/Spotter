@@ -38,7 +38,8 @@ enum LauncherFallbackAction: String, CaseIterable, Identifiable, Sendable {
 
     var contextLabel: String {
         switch self {
-        case .aiChat: return "Spotter"
+        // Named for what the row does, not for the app it happens inside — every row is Spotter.
+        case .aiChat: return "Ask AI"
         case .chatGPT: return "Web"
         case .terminal: return "Terminal"
         // Named for where the row lands: the File Search screen when its plugin is on, Finder when it isn't.

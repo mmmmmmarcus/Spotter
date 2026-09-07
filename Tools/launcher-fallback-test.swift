@@ -40,6 +40,13 @@ struct LauncherFallbackTests {
             "the other rows ignore the model name",
             named.dropFirst().map(\.title) == ["Send to ChatGPT", "Run in Terminal", "Search Files"])
 
+        // Each row's trailing label names where it lands; the AI row names the act, since every
+        // row lands inside Spotter.
+        check(
+            "each fallback names its destination",
+            suggestions.map(\.action).map(\.contextLabel)
+                == ["Ask AI", "Web", "Terminal", "Files"])
+
         let hostile = "printf '%s\\n' \"$HOME\"; echo \\ done"
         let terminal = TerminalCommandRunner.invocation(for: hostile, terminal: .terminal)
         check("Terminal invocation exists for non-empty input", terminal != nil)
