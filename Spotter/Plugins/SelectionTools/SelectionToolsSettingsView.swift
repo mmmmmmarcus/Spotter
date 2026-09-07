@@ -33,8 +33,8 @@ struct SelectionToolsSettingsView: View {
                     title: "Google Translate needs an API key.",
                     message:
                         "Create a Google Cloud project, enable Cloud Translation Basic, then paste its "
-                        + "API key below. Without a key Spotter sends nothing to Google and Translate "
-                        + "Selected Text stays unavailable.",
+                        + "API key below. Without a key Spotter sends nothing to Google, and both "
+                        + "Translate Selected Text and the Translate page stay unavailable.",
                     systemImage: "key", tint: .orange)
             }
 
@@ -132,6 +132,14 @@ struct SelectionToolsSettingsView: View {
                     systemImage: "translate", tint: .teal
                 ) {
                     ShortcutRecorder(action: .plugin(.translateSelectedText))
+                }
+                SettingsDivider()
+                SettingsRow(
+                    title: "Translate Text",
+                    subtitle: "Opens the Translate page, where the search field is the text.",
+                    systemImage: "character.bubble", tint: .teal
+                ) {
+                    ShortcutRecorder(action: .plugin(.translateText))
                 }
             }
         }

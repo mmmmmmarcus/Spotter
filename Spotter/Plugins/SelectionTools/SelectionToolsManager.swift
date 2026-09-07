@@ -17,6 +17,8 @@ final class SelectionToolsManager: ObservableObject {
     }
 
     @Published private(set) var state: SelectionToolsState = .idle
+    /// Which surface the plugin's one palette screen shows; set by whichever entry point opened it.
+    @Published private(set) var screen: SelectionToolsScreen = .selection
     @Published private(set) var apiKey: String
     @Published private(set) var targetCodes: [String]
     @Published private(set) var validation: Validation = .unknown
@@ -100,7 +102,7 @@ final class SelectionToolsManager: ObservableObject {
         }
         guard !wanted.isEmpty else {
             showFailure(
-                "The selection is already in \(TranslationLanguages.name(for: source)). "
+                "The text is already in \(TranslationLanguages.name(for: source)). "
                     + "Add another translation language in Selection Tools settings.")
             return
         }
@@ -160,6 +162,13 @@ final class SelectionToolsManager: ObservableObject {
         case .idle, .failed:
             return nil
         }
+    }
+
+    /// Switches the shared palette screen and drops whatever the previous run left behind. Every
+    /// entry point goes through it, so the screen only ever changes where a command decides it.
+    func prepare(screen: SelectionToolsScreen) {
+        self.screen = screen
+        reset()
     }
 
     func showFailure(_ message: String) {

@@ -108,6 +108,13 @@ enum TranslationLanguages {
     }
 }
 
+/// Which surface the plugin's one palette screen is showing: the result of a selection action, or
+/// the enterable page whose search field is the text being translated.
+enum SelectionToolsScreen: Equatable, Sendable {
+    case selection
+    case compose
+}
+
 enum SelectionToolsState: Equatable, Sendable {
     case idle
     case loading(original: String, targets: [TranslationLanguage])
@@ -131,8 +138,10 @@ struct SelectionTranslation: Equatable, Sendable {
 }
 
 enum SelectionTranslationRowID {
-    /// A language code can never collide with this: none of them contain a letter sequence this long.
+    /// A language code can never collide with these: none of them contain a letter sequence this long.
     static let original = "original"
+    /// The Translate page's one action row — activating it is the only thing that spends a request.
+    static let translate = "translate-action"
 }
 
 struct GoogleTranslationRequest: Encodable, Equatable, Sendable {

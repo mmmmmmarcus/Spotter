@@ -111,16 +111,17 @@ struct SelectionToolsTests {
                 SelectionTranslationRow(code: "zh-CN", name: "Chinese (Simplified)", text: "你好"),
                 SelectionTranslationRow(code: "ja", name: "Japanese", text: "こんにちは"),
             ])
-        let snapshot = SelectionToolsResults.snapshot(state: .translated(translation))
+        let snapshot = SelectionToolsResults.snapshot(
+            screen: .selection, state: .translated(translation))
         check(
-            "the original leads, then every configured target",
-            snapshot.items.map(\.id) == ["original", "zh-CN", "ja"])
+            "every translation leads and the original comes last",
+            snapshot.items.map(\.id) == ["zh-CN", "ja", "original"])
         check(
             "translation rows carry the expected text",
-            snapshot.items.map(\.title) == ["Hello", "你好", "こんにちは"])
+            snapshot.items.map(\.title) == ["你好", "こんにちは", "Hello"])
         check(
             "the original names the detected language",
-            snapshot.items.first?.subtitle == "Original · English")
+            snapshot.items.last?.subtitle == "Original · English")
         check(
             "every completed row is copyable",
             snapshot.items.allSatisfy { $0.primaryActionTitle.hasPrefix("Copy ") })
@@ -129,14 +130,105 @@ struct SelectionToolsTests {
             snapshot.items.allSatisfy { $0.titleLineLimit == nil })
 
         let loading = SelectionToolsResults.snapshot(
+            screen: .selection,
             state: .loading(
                 original: "Source", targets: TranslationLanguages.targets(for: ["ja"])))
-        check("loading reserves the original and each target", loading.items.count == 2)
-        check("loading keeps the original immediately copyable", loading.items.first?.title == "Source")
+        check(
+            "loading reserves each target ahead of the original",
+            loading.items.map(\.id) == ["ja", "original"])
+        check("loading keeps the original immediately copyable", loading.items.last?.title == "Source")
 
         let filtered = SelectionToolsResults.snapshot(
-            state: .translated(translation), query: "Japanese")
+            screen: .selection, state: .translated(translation), query: "Japanese")
         check("translation rows can be filtered by language", filtered.items.map(\.id) == ["ja"])
+
+        let pageTargets = TranslationLanguages.targets(for: ["ja", "fr"])
+        func page(
+            _ state: SelectionToolsState, _ query: String, hasAPIKey: Bool = true,
+            targets: [TranslationLanguage]? = nil
+        ) -> PluginPaletteSnapshot {
+            SelectionToolsResults.snapshot(
+                screen: .compose, state: state, query: query,
+                targets: targets ?? pageTargets, hasAPIKey: hasAPIKey)
+        }
+
+        let noKey = page(.idle, "Hello", hasAPIKey: false)
+        check("the Translate page offers no row without a key", noKey.items.isEmpty)
+        check(
+            "the Translate page names the missing key",
+            noKey.errorMessage == GoogleTranslationError.missingAPIKey.localizedDescription)
+        check(
+            "a missing key is never assumed away",
+            SelectionToolsResults.snapshot(screen: .compose, state: .idle, query: "Hello")
+                .items.isEmpty)
+        let noTargets = page(.idle, "Hello", targets: [])
+        check("the Translate page offers no row without a target", noTargets.items.isEmpty)
+        check(
+            "the Translate page names the empty target list",
+            noTargets.errorMessage == GoogleTranslationError.noTargets.localizedDescription)
+
+        let untyped = page(.idle, "   \n ")
+        check("an empty Translate page has nothing to activate", untyped.items.isEmpty)
+        check(
+            "an empty Translate page says how to use it",
+            untyped.emptyMessage == "Type text to translate, then press ↵")
+
+        let ready = page(.idle, " Hello ")
+        check("typed text offers exactly one action row", ready.items.count == 1)
+        check(
+            "the action row is the only thing that spends a request",
+            ready.items.first?.id == "translate-action")
+        check(
+            "the action row names the configured targets",
+            ready.items.first?.subtitle == "Into Japanese, French")
+        check("the action row reads as an action", ready.items.first?.primaryActionTitle == "Translate")
+
+        check(
+            "the Translate page shows pending rows for the text it is translating",
+            page(.loading(original: "Hello", targets: pageTargets), "Hello").items.map(\.id)
+                == ["ja", "fr"])
+        check(
+            "the typed text itself is never repeated as a row",
+            page(.loading(original: "Hello", targets: pageTargets), "Hello").items
+                .allSatisfy { $0.id != "original" })
+        let answered = page(
+            .translated(
+                SelectionTranslation(
+                    original: "Hello", sourceLanguage: "en",
+                    rows: [
+                        SelectionTranslationRow(code: "ja", name: "Japanese", text: "こんにちは"),
+                        SelectionTranslationRow(code: "fr", name: "French", text: "Bonjour"),
+                    ])),
+            "Hello")
+        check("the Translate page lists one row per target", answered.items.map(\.id) == ["ja", "fr"])
+        check(
+            "the Translate page's rows are copyable",
+            answered.items.allSatisfy { $0.primaryActionTitle.hasPrefix("Copy ") })
+        let edited = page(
+            .translated(
+                SelectionTranslation(
+                    original: "Hello", sourceLanguage: "en",
+                    rows: [SelectionTranslationRow(code: "ja", name: "Japanese", text: "こんにちは")])),
+            "Hello there")
+        check(
+            "editing the text hands back the action row instead of a stale answer",
+            edited.items.map(\.id) == ["translate-action"])
+        let stalled = page(.loading(original: "Hello", targets: pageTargets), "Hello there")
+        check(
+            "a run for older text never claims the newly typed text",
+            stalled.items.map(\.id) == ["translate-action"])
+
+        let retry = page(.failed("Google Cloud Translation failed (HTTP 403)."), "Hello")
+        check("a failed page stays retryable", retry.items.map(\.id) == ["translate-action"])
+        check(
+            "a failed page says why in the row",
+            retry.items.first?.subtitle == "Google Cloud Translation failed (HTTP 403).")
+        check(
+            "a failed row reads as a retry",
+            retry.items.first?.primaryActionTitle == "Try Again")
+        check(
+            "a failure message is never truncated",
+            retry.items.first?.subtitleLineLimit == nil)
 
         check(
             "a missing key explains where to add one",

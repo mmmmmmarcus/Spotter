@@ -8,6 +8,8 @@ extension PluginActionKey {
     static let translateSelectedText = PluginActionKey(
         pluginID: .selectionTools, actionID: "translate", title: "Translate Selected Text",
         defaultsKey: "KeyboardShortcuts_plugin.selection-tools.translate")
+    static let translateText = standard(
+        pluginID: .selectionTools, actionID: "translate-text", title: "Translate Text")
 }
 
 @MainActor
@@ -19,22 +21,34 @@ enum SelectionToolsPlugin {
         let translateCommand: () -> Void = { [weak core] in
             core?.translateSelectedTextFromLauncher()
         }
+        let openTranslate: () -> Void = { [weak core] in core?.openTranslateText() }
         let screen = PluginPaletteScreenRegistration(
             placeholder: "Selection Tools",
             livePlaceholder: { [weak core] in
-                guard let state = core?.selectionTools.state else { return nil }
-                switch state {
-                case .loading: return "Translating selected text…"
-                case .translated: return "Filter translation rows…"
+                guard let manager = core?.selectionTools else { return nil }
+                switch (manager.screen, manager.state) {
+                case (.compose, .loading): return "Translating…"
+                // The page's search field is the text itself, so its prompt has to say so.
+                case (.compose, _): return "Type text to translate, then press ↵…"
+                case (.selection, .loading): return "Translating selected text…"
+                case (.selection, .translated): return "Filter translation rows…"
                 default: return nil
                 }
             },
             snapshot: { [weak core] query in
-                SelectionToolsResults.snapshot(
-                    state: core?.selectionTools.state ?? .idle, query: query)
+                guard let manager = core?.selectionTools else {
+                    return SelectionToolsResults.snapshot(screen: .selection, state: .idle)
+                }
+                return SelectionToolsResults.snapshot(
+                    screen: manager.screen, state: manager.state, query: query,
+                    targets: manager.targets, hasAPIKey: manager.isTranslationReady)
             },
             performPrimaryAction: { [weak core] itemID in
-                core?.copySelectionToolsResult(itemID: itemID)
+                if itemID == SelectionTranslationRowID.translate {
+                    core?.translateTypedText()
+                } else {
+                    core?.copySelectionToolsResult(itemID: itemID)
+                }
             },
             actions: { _ in nil },
             observeChanges: { [weak core] invalidate in
@@ -54,6 +68,7 @@ enum SelectionToolsPlugin {
             shortcutActions: [
                 PluginActionRegistration(key: .searchSelectedText, perform: runAction),
                 PluginActionRegistration(key: .translateSelectedText, perform: translateAction),
+                PluginActionRegistration(key: .translateText, perform: openTranslate),
             ],
             launcherCommands: [
                 PluginCommandRegistration(
@@ -68,10 +83,16 @@ enum SelectionToolsPlugin {
                     systemImage: "translate",
                     actionKey: .translateSelectedText,
                     perform: translateCommand),
+                PluginCommandRegistration(
+                    id: "command:selection-tools:translate-text",
+                    name: "Translate Text",
+                    systemImage: "character.bubble",
+                    actionKey: .translateText,
+                    perform: openTranslate),
             ],
             paletteScreen: screen,
             onDisable: { [weak core] in
-                core?.selectionTools.reset()
+                core?.selectionTools.prepare(screen: .selection)
                 if core?.palette.mode == .plugin(.selectionTools) {
                     core?.palette.prepare(mode: .launcher)
                 }
@@ -110,7 +131,7 @@ extension AppCore {
         case .failure(let error):
             showSelectionSearchFailure(error.message)
         case .success(let snapshot):
-            selectionTools.reset()
+            selectionTools.prepare(screen: .selection)
             guard let url = SearchURLBuilder.googleSearchURL(for: snapshot.text) else {
                 showSelectionSearchFailure(
                     "Spotter could not build a Google Search URL for the selected text.")
@@ -125,6 +146,7 @@ extension AppCore {
     }
 
     private func showSelectionSearchFailure(_ message: String) {
+        selectionTools.prepare(screen: .selection)
         selectionTools.showFailure(message)
         palette.prepare(mode: .plugin(.selectionTools))
         showPalette(mode: .plugin(.selectionTools))
@@ -165,6 +187,7 @@ extension AppCore {
         _ capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     ) {
         guard plugins.isEnabled(.selectionTools), selectionTools.isTranslationReady else { return }
+        selectionTools.prepare(screen: .selection)
         switch capture {
         case .failure(let error):
             selectionTools.showFailure(error.message)
@@ -176,9 +199,26 @@ extension AppCore {
     }
 
     private func showSelectionTranslationFailure(_ message: String) {
+        selectionTools.prepare(screen: .selection)
         selectionTools.showFailure(message)
         palette.prepare(mode: .plugin(.selectionTools))
         showPalette(mode: .plugin(.selectionTools))
+    }
+
+    /// Opens the Translate page. It is enterable with no key and no text: the page says what is
+    /// missing rather than refusing to open, exactly as the selection screen does.
+    func openTranslateText() {
+        guard plugins.isEnabled(.selectionTools) else { return }
+        selectionTools.prepare(screen: .compose)
+        palette.prepare(mode: .plugin(.selectionTools))
+        showPalette(mode: .plugin(.selectionTools))
+    }
+
+    /// The Translate page's one trigger: ↵ on its action row. Nothing typed ever reaches Google on
+    /// its own, so no keystroke can spend a billable request.
+    func translateTypedText() {
+        guard plugins.isEnabled(.selectionTools), selectionTools.screen == .compose else { return }
+        selectionTools.translate(palette.query.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     func copySelectionToolsResult(itemID: String) {
