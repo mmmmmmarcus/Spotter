@@ -1,14 +1,16 @@
 import SwiftUI
 
-/// The toolbar's appearance control: the note's tint and the window's transparency, the two things
-/// that decide how a note looks, in the one place the user is already looking at the note. The
+/// The toolbar's appearance control: the note's tint, the window's transparency and its sizing —
+/// how a note looks, in the one place the user is already looking at the note. The
 /// brush keeps its own color — a control that changed color with the note would read as a swatch,
 /// and there would be nothing left to point at when the note has no tint at all.
 struct NoteTintPicker: View {
     let tint: NoteTint?
     let transparency: Double
+    let autoWindowSizing: Bool
     let select: (NoteTint?) -> Void
     let setTransparency: (Double) -> Void
+    let setAutoWindowSizing: (Bool) -> Void
     @State private var showsPanel = false
 
     private let columns = Array(
@@ -27,8 +29,9 @@ struct NoteTintPicker: View {
         .help("Note Color")
         .popover(isPresented: $showsPanel, arrowEdge: .bottom) {
             NoteTintPanel(
-                tint: tint, transparency: transparency, select: choose,
-                setTransparency: setTransparency)
+                tint: tint, transparency: transparency, autoWindowSizing: autoWindowSizing,
+                select: choose, setTransparency: setTransparency,
+                setAutoWindowSizing: setAutoWindowSizing)
         }
     }
 
@@ -38,12 +41,15 @@ struct NoteTintPicker: View {
     }
 }
 
-/// The panel behind the brush: the ramp, and the window's transparency under it.
+/// The panel behind the brush: the ramp, the window's transparency, and whether the window sizes
+/// itself to the note or stays exactly where the user dragged its edge.
 struct NoteTintPanel: View {
     let tint: NoteTint?
     let transparency: Double
+    let autoWindowSizing: Bool
     let select: (NoteTint?) -> Void
     let setTransparency: (Double) -> Void
+    let setAutoWindowSizing: (Bool) -> Void
 
     private let columns = Array(
         repeating: GridItem(.fixed(Theme.Size.noteTintSwatch), spacing: Theme.Spacing.md),
@@ -75,6 +81,13 @@ struct NoteTintPanel: View {
                     in: 0...NoteStore.maximumWindowTransparency,
                     step: 0.05)
             }
+
+            Toggle(
+                "Auto Window Sizing",
+                isOn: Binding(get: { autoWindowSizing }, set: setAutoWindowSizing))
+                .font(.callout)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
         }
         .frame(width: Theme.Size.noteTintPanelWidth)
         .padding(Theme.Spacing.xl)

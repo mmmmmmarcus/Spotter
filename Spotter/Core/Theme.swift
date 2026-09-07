@@ -195,9 +195,10 @@ enum Theme {
             adaptive(dark: darkNoteTint(tint), light: lightNoteTint(tint))
         }
 
-        /// The film the tint lays over the Note window, above `panelScrim`. It is deliberately not
-        /// attenuated by Window Transparency: transparency dissolves the scrim, and a tint that
-        /// dissolved with it would leave the most see-through windows the least identifiable.
+        /// The film the tint lays over the Note window, above `panelScrim`. It fades with Window
+        /// Transparency like the rest of the surface: the slider dissolves the window itself, and a
+        /// film that survived it would leave a tinted note visibly less see-through than a plain
+        /// one. The dots, caret and list marker still carry the tint at full strength.
         static func noteTintWash(_ tint: NoteTint) -> Color {
             adaptive(dark: darkNoteTint(tint).opacity(0.24), light: lightNoteTint(tint).opacity(0.16))
         }

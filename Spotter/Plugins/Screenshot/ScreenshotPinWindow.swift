@@ -24,6 +24,8 @@ final class ScreenshotPinWindow {
 
     private let model = PinModel()
     private var panel: NSPanel?
+    /// The window-server id, so a capture can leave this out of its own hit testing.
+    var windowID: CGWindowID? { panel.map { CGWindowID($0.windowNumber) } }
     private var closing = false
     /// Taken from the thumbnail actually on screen, not from the raw image: the card includes its
     /// frame, so resizing by the image's own ratio would shift the shape on the first drag.

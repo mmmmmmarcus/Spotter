@@ -54,10 +54,22 @@ struct NoteView: View {
         .onDisappear { store.deleteEmptyNotes() }
         .onChange(of: store.selectedID) { placeholderStamp = Date() }
         .ignoresSafeArea(edges: .top)
-        .background(tintWash)
-        .background(Theme.Colors.panelScrim.opacity(1 - store.windowTransparency))
-        .background(VisualEffectView(material: .hudWindow, blending: .behindWindow))
+        .onChange(of: store.autoWindowSizing) { if store.autoWindowSizing { fitWindow() } }
+        .background(noteSurface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
+    }
+
+    /// Everything the window is made of below the text: the blur, the scrim over it and the note's
+    /// tint film. The transparency slider fades the whole stack — including the behind-window blur,
+    /// which is what actually lets the desktop through — while the text and controls above stay at
+    /// full strength.
+    private var noteSurface: some View {
+        let opacity = 1 - store.windowTransparency
+        return ZStack {
+            VisualEffectView(material: .hudWindow, blending: .behindWindow, alpha: opacity)
+            Theme.Colors.panelScrim.opacity(opacity)
+            tintWash.opacity(opacity)
+        }
     }
 
     @ViewBuilder private var tintWash: some View {
@@ -124,6 +136,7 @@ struct NoteView: View {
                     NoteMarkdownEditor(
                         text: selectedContent,
                         tint: note.tint,
+                        autoSizes: store.autoWindowSizing,
                         onContentHeightChange: updateEditorHeight,
                         onNavigate: navigate)
                     if note.content.isEmpty {
@@ -136,7 +149,10 @@ struct NoteView: View {
                             .allowsHitTesting(false)
                     }
                 }
-                .frame(height: editorHeight)
+                // A hand-sized window owns its own height, so the editor fills it rather than
+                // leaving dead space below the text that no click can reach.
+                .frame(height: store.autoWindowSizing ? editorHeight : nil)
+                .frame(maxHeight: store.autoWindowSizing ? nil : .infinity)
             } else {
                 ContentUnavailableView {
                     Label("No Notes", systemImage: "note.text")
@@ -173,7 +189,9 @@ struct NoteView: View {
                 // dots, so neither earns a second control here.
                 NoteTintPicker(
                     tint: store.selectedNote?.tint, transparency: store.windowTransparency,
-                    select: setTint, setTransparency: store.setWindowTransparency)
+                    autoWindowSizing: store.autoWindowSizing, select: setTint,
+                    setTransparency: store.setWindowTransparency,
+                    setAutoWindowSizing: store.setAutoWindowSizing)
             }
             .padding(.horizontal, Theme.Spacing.xl)
             // The retired buttons' shortcuts survive them: ⌘N for a new note, ⌘L for the list.
@@ -228,16 +246,13 @@ struct NoteView: View {
     private func navigate(_ direction: NoteNavigationDirection) {
         guard let note = store.selectAdjacent(direction) else { return }
         editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
-        resizeHeight(NoteEditorMetrics.windowHeight(forEditorHeight: editorHeight), true)
+        fitWindow()
     }
 
     private func updateEditorHeight(_ height: CGFloat) {
         guard abs(editorHeight - height) > 0.5 else { return }
         editorHeight = height
-        let contentHeight = NoteEditorMetrics.windowHeight(forEditorHeight: height)
-        resizeHeight(
-            showsNoteList ? max(contentHeight, Theme.Size.noteListWindowHeight) : contentHeight,
-            false)
+        fitWindow(animated: false)
     }
 
     private func toggleNoteList() {
@@ -245,7 +260,7 @@ struct NoteView: View {
             closeNoteList()
         } else {
             showsNoteList = true
-            resizeHeight(max(editorWindowHeight, Theme.Size.noteListWindowHeight), true)
+            fitWindow()
             DispatchQueue.main.async { searchIsFocused = true }
         }
     }
@@ -253,7 +268,17 @@ struct NoteView: View {
     private func closeNoteList() {
         showsNoteList = false
         searchIsFocused = false
-        resizeHeight(editorWindowHeight, true)
+        fitWindow()
+    }
+
+    /// The one place the window height is set. With auto sizing off the window is the user's to
+    /// size, so nothing here — a new note, a longer note, the list opening — may move it.
+    private func fitWindow(animated: Bool = true) {
+        guard store.autoWindowSizing else { return }
+        resizeHeight(
+            showsNoteList
+                ? max(editorWindowHeight, Theme.Size.noteListWindowHeight) : editorWindowHeight,
+            animated)
     }
 }
 

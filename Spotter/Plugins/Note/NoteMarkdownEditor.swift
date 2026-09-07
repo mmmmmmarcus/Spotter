@@ -5,24 +5,34 @@ import SwiftUI
 enum NoteEditorMetrics {
     static let minimumLines = 3
     static let maximumLines = 20
+    /// Room below the last line, on top of the text inset. The inset is symmetric while the window
+    /// is not — the toolbar sits above the text and nothing sits below it — so an auto-sized note
+    /// ends a hair under its final descender without this.
+    static let trailingRoom: CGFloat = Theme.Spacing.xl
 
     private static var bodyLineHeight: CGFloat {
         let font = NSFont.preferredFont(forTextStyle: .body)
         return ceil(font.ascender - font.descender + font.leading)
     }
 
+    static var minimumTextHeight: CGFloat { bodyLineHeight * CGFloat(minimumLines) }
+
+    static func editorHeight(forTextHeight textHeight: CGFloat) -> CGFloat {
+        textHeight + Theme.Spacing.xxl * 2 + trailingRoom
+    }
+
     static var minimumEditorHeight: CGFloat {
-        bodyLineHeight * CGFloat(minimumLines) + Theme.Spacing.xxl * 2
+        editorHeight(forTextHeight: minimumTextHeight)
     }
 
     static var maximumEditorHeight: CGFloat {
-        bodyLineHeight * CGFloat(maximumLines) + Theme.Spacing.xxl * 2
+        editorHeight(forTextHeight: bodyLineHeight * CGFloat(maximumLines))
     }
 
     static func estimatedEditorHeight(for markdown: String) -> CGFloat {
         let lines = NoteEngine.editorLineCount(
             in: markdown, minimum: minimumLines, maximum: maximumLines)
-        return bodyLineHeight * CGFloat(lines) + Theme.Spacing.xxl * 2
+        return editorHeight(forTextHeight: bodyLineHeight * CGFloat(lines))
     }
 
     static func windowHeight(forEditorHeight editorHeight: CGFloat) -> CGFloat {
@@ -33,6 +43,8 @@ enum NoteEditorMetrics {
 struct NoteMarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let tint: NoteTint?
+    /// Whether the window grows with the text; when it does not, the editor scrolls inside it.
+    let autoSizes: Bool
     let onContentHeightChange: (CGFloat) -> Void
     let onNavigate: (NoteNavigationDirection) -> Void
 
@@ -455,6 +467,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                     .underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
                 self.concealSyntax(around: range, in: match.range, storage: storage)
             }
+            applyOrderedMarkers(in: textView.string, storage: storage)
             applyBullets(in: textView.string, storage: storage, layout: layout)
             applyCheckboxes(in: textView.string, storage: storage, layout: layout)
             apply(Self.completedTask, to: textView.string) { match in
@@ -488,13 +501,19 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             apply(Self.listLine, to: textView.string) { match in
                 guard match.numberOfRanges > 2 else { return }
                 let indentation = source.substring(with: match.range(at: 1))
-                let marker = source.substring(with: match.range(at: 2))
+                let markerRange = match.range(at: 2)
+                let marker = source.substring(with: markerRange)
                 let font = storage.attribute(
                     .font, at: match.range.location, effectiveRange: nil) as? NSFont ?? bodyFont
+                // An ordered marker was just monospaced, so it is measured in its own font rather
+                // than in whatever the line starts with.
+                let markerFont = storage.attribute(
+                    .font, at: markerRange.location, effectiveRange: nil) as? NSFont ?? font
                 let style = NSMutableParagraphStyle()
                 style.firstLineHeadIndent = 0
                 style.headIndent = Self.listContinuationIndent(
-                    indentation: indentation, marker: marker, font: font)
+                    indentation: indentation, indentationFont: font,
+                    marker: marker, markerFont: markerFont)
                 // A raw tab in list indentation renders one indent unit wide, not the default
                 // 28-point stop — nesting should read as a step, not a gulf.
                 style.tabStops = []
@@ -505,10 +524,10 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         }
 
         private static func listContinuationIndent(
-            indentation: String, marker: String, font: NSFont
+            indentation: String, indentationFont: NSFont, marker: String, markerFont: NSFont
         ) -> CGFloat {
             let indentationWidth = (indentation as NSString).size(
-                withAttributes: [.font: font]).width
+                withAttributes: [.font: indentationFont]).width
             if marker.range(
                 of: #"^[-*+] \[[ xX]\] "#, options: .regularExpression) != nil
             {
@@ -516,7 +535,21 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 return indentationWidth + (bodyFont.ascender - bodyFont.descender).rounded()
             }
             return indentationWidth + (marker as NSString).size(
-                withAttributes: [.font: font]).width
+                withAttributes: [.font: markerFont]).width
+        }
+
+        /// `1.` `9.` `10.` only line up under one another in a font whose digits are all one width,
+        /// and the marker is the only part of the line that has to line up — the prose after it
+        /// stays in the body font. Runs before `listLine`, which measures the hanging indent from
+        /// whatever font the marker ended up in.
+        private func applyOrderedMarkers(in text: String, storage: NSTextStorage) {
+            let bodyFont = NSFont.preferredFont(forTextStyle: .body)
+            let monospaced = NSFont.monospacedSystemFont(
+                ofSize: bodyFont.pointSize, weight: .regular)
+            apply(Self.orderedMarker, to: text) { match in
+                guard match.numberOfRanges > 2 else { return }
+                storage.addAttribute(.font, value: monospaced, range: match.range(at: 2))
+            }
         }
 
         /// The list dash is drawn as a real bullet rather than swapped for the font's `bullet`
@@ -625,15 +658,19 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 let container = textView.textContainer
             else { return }
             layout.ensureLayout(for: container)
-            let usedHeight = max(
-                layout.usedRect(for: container).height,
-                NoteEditorMetrics.minimumEditorHeight - Theme.Spacing.xxl * 2)
-            let unboundedHeight = usedHeight + Theme.Spacing.xxl * 2
+            let textHeight = max(
+                layout.usedRect(for: container).height, NoteEditorMetrics.minimumTextHeight)
+            let unboundedHeight = NoteEditorMetrics.editorHeight(forTextHeight: textHeight)
             let height = min(
                 max(unboundedHeight, NoteEditorMetrics.minimumEditorHeight),
                 NoteEditorMetrics.maximumEditorHeight)
             if let scrollView = textView.enclosingScrollView {
-                let needsScroller = unboundedHeight > NoteEditorMetrics.maximumEditorHeight + 0.5
+                // A hand-sized window is bounded by its own frame, not by the height the window
+                // would have grown to, so the ceiling the scroller answers to differs per mode.
+                let ceiling = parent.autoSizes
+                    ? NoteEditorMetrics.maximumEditorHeight
+                    : scrollView.contentView.bounds.height
+                let needsScroller = unboundedHeight > ceiling + 0.5
                 if scrollView.hasVerticalScroller != needsScroller {
                     scrollView.hasVerticalScroller = needsScroller
                 }
@@ -717,6 +754,8 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         // A dash that opens a todo belongs to the checkbox, not to a bullet.
         private static let bulletMarker = try! NSRegularExpression(
             pattern: #"(?m)^([ \t]*)([-*+]) (?!\[[ xX]\] )"#)
+        private static let orderedMarker = try! NSRegularExpression(
+            pattern: #"(?m)^([ \t]*)(\d+\. )"#)
         private static let listLine = try! NSRegularExpression(
             pattern: #"(?m)^([ \t]*)([-*+] \[[ xX]\] |[-*+] |\d+\. ).+$"#)
     }

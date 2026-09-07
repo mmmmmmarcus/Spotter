@@ -46,6 +46,8 @@ final class ScreenshotPreviewHUD {
 
     private let model = Model()
     private var panel: NSPanel?
+    /// The window-server id, so a capture can leave this out of its own hit testing.
+    var windowID: CGWindowID? { panel.map { CGWindowID($0.windowNumber) } }
     private var dismissal: Task<Void, Never>?
     private var activationObserver: NotificationToken?
     private var flick = ScreenshotScrollFlick()

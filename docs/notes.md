@@ -46,7 +46,10 @@ buttons through the same animated relayout as the list and they visibly drifted.
 centred against the full toolbar width rather than its own measured width, so nothing beside it can
 re-centre it. The shared window owner keeps the top edge anchored while the
 editor grows from three visible lines to a maximum of twenty, after which the native overlay scroller
-takes over.
+takes over. Every auto-sized height is `NoteEditorMetrics.editorHeight(forTextHeight:)`: the text's
+own height, the symmetric 20-point text inset, and `trailingRoom` on top of it. The extra room below
+exists because the window is not symmetric — the toolbar sits above the text and nothing sits below
+it — so without it the last line ends a hair under its own descender.
 
 Tab nests the caret's list line and Shift-Tab un-nests it, wherever the caret sits in the line (a
 selection moves every list line it touches together); on prose the keys fall through to a plain tab.
@@ -86,14 +89,24 @@ an unrecognized tint written by a newer build decodes as untinted rather than fa
 
 The tint shows as a wash over the window surface, laid above `panelScrim`, and the caret and text
 selection wear the same color — a system-blue caret on a red note reads as another app's text field.
-The wash is deliberately *not* attenuated by Window Transparency: transparency dissolves the scrim,
-and a tint that dissolved with it would leave the most see-through windows the least identifiable.
-Editor text and controls are untouched. In the notes list a tinted Note shows a small dot beside its
-title.
+The wash fades with Window Transparency along with the rest of the surface; a film that survived the
+slider would leave a tinted note visibly less see-through than a plain one, and the pagination dots,
+caret and list marker still carry the tint at full strength. Editor text and controls are untouched.
+In the notes list a tinted Note shows a small dot beside its title.
 
-The same popover carries the Window Transparency slider, bound to the value Settings edits, so the
-two can never disagree. The range runs to 100%: at the top the scrim is gone entirely and the window
-is the system material, the tint and the text.
+The same popover carries the Window Transparency slider and the Auto Window Sizing switch, both
+bound to the values Settings edits, so the two surfaces can never disagree. Transparency fades the
+window's whole surface — the behind-window blur through `VisualEffectView.alpha`, the scrim and the
+tint film — so the desktop genuinely shows through rather than the window merely getting lighter.
+The range stops at 90% rather than 100%: a window with no surface left is invisible *and* passes
+clicks through to whatever is under it, leaving nothing to grab to undo the setting.
+
+**Auto Window Sizing** (on by default, `note.auto-window-sizing`) is what lets the window follow the
+note. `NoteView.fitWindow` is the one place the height is set, and it returns immediately when the
+preference is off — a new note, a longer note or the list opening then leaves a hand-sized window
+exactly where its edge was dragged, and the editor fills that height instead of the measured one.
+The editor's scroller answers to the window's own clip height in that mode rather than to the
+twenty-line ceiling auto sizing grows to.
 
 A tint is a user modification: it bumps `updatedAt`, so it syncs and wins conflicts like any edit.
 It deliberately does not bump `contentUpdatedAt`, which is what the newest-first list order is sorted
@@ -232,7 +245,8 @@ Block constructs are found by `NoteEngine.blockSpans`, a pure line scan returnin
 fenced code, blockquotes, horizontal rules and pipe tables. A fenced block shadows everything inside
 it, so a rule, table or `# ` written in an example stays literal text and its `- ` keeps its dash
 rather than becoming a bullet. Code and table lines are set monospaced — a table's own pipes are what
-align its columns — a quote is indented and secondary, and a rule's dashes stay hidden behind its
+align its columns — an ordered list's `1. ` marker is monospaced for the same reason, so `9.` and
+`10.` line up under one another while the prose after the marker stays in the body font — a quote is indented and secondary, and a rule's dashes stay hidden behind its
 drawn hairline.
 
 The fills those blocks imply are *drawn*, not inserted: `NoteLayoutManager` overrides background
@@ -255,10 +269,12 @@ titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and t
 identical behavior. There is no separate title field, preview surface, formatting palette,
 word/character counter or save-status footer; persistence remains automatic in the background.
 
-The Appearance card in Notes Settings owns one live Window Transparency slider from 0–80%. It
-attenuates only the adaptive `panelScrim` above the existing system `.hudWindow` material; editor
-content and controls remain fully opaque. The value is bundle-scoped and rides in trusted Settings
-backup/sync state, while the system material continues to honor macOS appearance and accessibility.
+The Appearance card in Notes Settings owns the Auto Window Sizing switch and one live Window
+Transparency slider from 0–90%, the same two controls the toolbar's color popover carries. The
+slider fades the whole window surface — the `.hudWindow` material, the adaptive `panelScrim` and the
+tint film — while editor content and controls remain fully opaque. Both values are bundle-scoped and
+ride in trusted Settings backup/sync state, while the system material continues to honor macOS
+appearance and accessibility.
 
 ## Testing
 

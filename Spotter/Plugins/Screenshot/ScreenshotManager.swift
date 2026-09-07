@@ -419,18 +419,26 @@ final class ScreenshotManager: ObservableObject {
         return entries.compactMap { entry in
             guard
                 let id = entry[kCGWindowNumber as String] as? Int,
-                let ownerPID = entry[kCGWindowOwnerPID as String] as? Int,
                 let layer = entry[kCGWindowLayer as String] as? Int,
                 let boundsEntry = entry[kCGWindowBounds as String] as? NSDictionary,
                 let bounds = CGRect(dictionaryRepresentation: boundsEntry as CFDictionary)
             else { return nil }
             return ScreenshotWindowCandidate(
                 id: CGWindowID(id),
-                ownerPID: Int32(ownerPID),
                 layer: layer,
                 alpha: entry[kCGWindowAlpha as String] as? CGFloat ?? 1,
                 bounds: bounds)
         }
+    }
+
+    /// The windows a capture must never target: the selection overlays it is being driven from, and
+    /// the thumbnails and pins earlier captures left on screen. Spotter's other windows — Notes
+    /// above all — are ordinary windows the user is entitled to shoot.
+    private func captureChromeWindowIDs() -> Set<CGWindowID> {
+        var ids = Set(panels.map { CGWindowID($0.windowNumber) })
+        ids.formUnion(previews.compactMap(\.windowID))
+        ids.formUnion(pins.compactMap(\.windowID))
+        return ids
     }
 
     private func finishSelection(_ localRect: CGRect, on screen: NSScreen) {
@@ -555,7 +563,7 @@ final class ScreenshotManager: ObservableObject {
             let target = ScreenshotWindowPicker.target(
                 at: point,
                 in: Self.windowCandidates(),
-                excluding: ProcessInfo.processInfo.processIdentifier)
+                excluding: captureChromeWindowIDs())
         else {
             // Nothing under the pointer is a no-op, not a cancel; the selection stays up.
             AppLog.info("screenshot", "Right click found no window under the pointer.")

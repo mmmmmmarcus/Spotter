@@ -4,7 +4,6 @@ import Foundation
 /// One on-screen window as the window server reports it, in top-origin display space.
 struct ScreenshotWindowCandidate: Equatable {
     let id: CGWindowID
-    let ownerPID: Int32
     let layer: Int
     let alpha: CGFloat
     let bounds: CGRect
@@ -14,14 +13,21 @@ struct ScreenshotWindowCandidate: Equatable {
 enum ScreenshotWindowPicker {
     static let minimumSide: CGFloat = 24
     static let minimumAlpha: CGFloat = 0.05
+    /// Normal windows, plus the floating level every utility panel sits at — Spotter's own Notes
+    /// window among them. Higher levels are system furniture (the menu bar, the Dock) and the
+    /// capture overlay itself, which nobody means to shoot.
+    static let capturableLayers: Set<Int> = [0, 3]
 
     /// `candidates` must keep the window server's front-to-back order, so the first hit is the topmost window.
+    /// `excludedIDs` is the capture's own chrome — the selection overlays, thumbnails and pins that
+    /// are on screen only because a capture is in progress.
     static func target(
-        at point: CGPoint, in candidates: [ScreenshotWindowCandidate], excluding pid: Int32
+        at point: CGPoint, in candidates: [ScreenshotWindowCandidate],
+        excluding excludedIDs: Set<CGWindowID>
     ) -> ScreenshotWindowCandidate? {
         candidates.first { candidate in
-            candidate.ownerPID != pid
-                && candidate.layer == 0
+            !excludedIDs.contains(candidate.id)
+                && capturableLayers.contains(candidate.layer)
                 && candidate.alpha >= minimumAlpha
                 && candidate.bounds.width >= minimumSide
                 && candidate.bounds.height >= minimumSide

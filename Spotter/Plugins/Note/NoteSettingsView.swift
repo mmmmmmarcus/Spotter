@@ -60,8 +60,24 @@ struct NoteSettingsView: View {
 
             SettingsCard(header: "Appearance") {
                 SettingsRow(
+                    title: "Auto Window Sizing",
+                    subtitle: "Grows and shrinks the window to fit the note. Off keeps the size you drag it to.",
+                    systemImage: "arrow.up.and.down.and.arrow.left.and.right", tint: .yellow
+                ) {
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { store.autoWindowSizing },
+                            set: { store.setAutoWindowSizing($0) })
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+                SettingsDivider()
+                SettingsRow(
                     title: "Window Transparency",
-                    subtitle: "Adjusts the Note background without fading text or controls.",
+                    subtitle: "Fades the Note background through to the desktop, leaving text and controls untouched.",
                     systemImage: "circle.lefthalf.filled", tint: .yellow
                 ) {
                     HStack(spacing: Theme.Spacing.md) {

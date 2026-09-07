@@ -1,9 +1,12 @@
+import AppKit
 import SwiftUI
 
-/// Native vibrancy background. On macOS 26+ the system renders these materials with Liquid Glass.
 struct VisualEffectView: NSViewRepresentable {
     var material: NSVisualEffectView.Material = .hudWindow
     var blending: NSVisualEffectView.BlendingMode = .behindWindow
+    /// Set on the view itself rather than through SwiftUI's `.opacity`: a behind-window blur is
+    /// composited by the window server, and `alphaValue` is what fades it toward the bare desktop.
+    var alpha: CGFloat = 1
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
@@ -11,11 +14,13 @@ struct VisualEffectView: NSViewRepresentable {
         view.blendingMode = blending
         view.state = .active
         view.isEmphasized = false
+        view.alphaValue = alpha
         return view
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
         nsView.material = material
         nsView.blendingMode = blending
+        nsView.alphaValue = alpha
     }
 }

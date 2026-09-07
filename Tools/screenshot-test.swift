@@ -153,44 +153,57 @@ private enum ScreenshotTest {
 
         let candidates = [
             ScreenshotWindowCandidate(
-                id: 1, ownerPID: 501, layer: 0, alpha: 1,
+                id: 1, layer: 0, alpha: 1,
                 bounds: CGRect(x: 100, y: 100, width: 400, height: 300)),
             ScreenshotWindowCandidate(
-                id: 2, ownerPID: 502, layer: 0, alpha: 1,
+                id: 2, layer: 0, alpha: 1,
                 bounds: CGRect(x: 0, y: 0, width: 1440, height: 900)),
         ]
         check(
             ScreenshotWindowPicker.target(
-                at: CGPoint(x: 200, y: 200), in: candidates, excluding: 999)?.id == 1,
+                at: CGPoint(x: 200, y: 200), in: candidates, excluding: [])?.id == 1,
             "the front-most window under the pointer wins")
         check(
             ScreenshotWindowPicker.target(
-                at: CGPoint(x: 800, y: 200), in: candidates, excluding: 999)?.id == 2,
+                at: CGPoint(x: 800, y: 200), in: candidates, excluding: [])?.id == 2,
             "the pointer outside the front window falls through to the one below")
         check(
             ScreenshotWindowPicker.target(
-                at: CGPoint(x: 200, y: 200), in: candidates, excluding: 501)?.id == 2,
-            "Spotter's own overlay panels are never a capture target")
+                at: CGPoint(x: 200, y: 200), in: candidates, excluding: [1])?.id == 2,
+            "the capture's own overlay panels are never a target")
         check(
             ScreenshotWindowPicker.target(
-                at: CGPoint(x: 2000, y: 2000), in: candidates, excluding: 999) == nil,
+                at: CGPoint(x: 2000, y: 2000), in: candidates, excluding: []) == nil,
             "the pointer over no window highlights nothing")
 
-        let rejected = [
+        let floating = [
             ScreenshotWindowCandidate(
-                id: 3, ownerPID: 503, layer: 25, alpha: 1,
-                bounds: CGRect(x: 0, y: 0, width: 400, height: 300)),
-            ScreenshotWindowCandidate(
-                id: 4, ownerPID: 504, layer: 0, alpha: 0,
-                bounds: CGRect(x: 0, y: 0, width: 400, height: 300)),
-            ScreenshotWindowCandidate(
-                id: 5, ownerPID: 505, layer: 0, alpha: 1,
-                bounds: CGRect(x: 0, y: 0, width: 400, height: 12)),
+                id: 6, layer: 3, alpha: 1,
+                bounds: CGRect(x: 0, y: 0, width: 440, height: 320)),
         ]
         check(
             ScreenshotWindowPicker.target(
-                at: CGPoint(x: 10, y: 10), in: rejected, excluding: 999) == nil,
-            "menu-bar layers, invisible windows and slivers are skipped")
+                at: CGPoint(x: 10, y: 10), in: floating, excluding: [])?.id == 6,
+            "a floating utility window — Spotter's own Notes among them — is capturable")
+
+        let rejected = [
+            ScreenshotWindowCandidate(
+                id: 3, layer: 25, alpha: 1,
+                bounds: CGRect(x: 0, y: 0, width: 400, height: 300)),
+            ScreenshotWindowCandidate(
+                id: 4, layer: 0, alpha: 0,
+                bounds: CGRect(x: 0, y: 0, width: 400, height: 300)),
+            ScreenshotWindowCandidate(
+                id: 5, layer: 0, alpha: 1,
+                bounds: CGRect(x: 0, y: 0, width: 400, height: 12)),
+            ScreenshotWindowCandidate(
+                id: 7, layer: 1000, alpha: 1,
+                bounds: CGRect(x: 0, y: 0, width: 400, height: 300)),
+        ]
+        check(
+            ScreenshotWindowPicker.target(
+                at: CGPoint(x: 10, y: 10), in: rejected, excluding: []) == nil,
+            "menu-bar layers, the capture overlay's level, invisible windows and slivers are skipped")
 
         let flipped = ScreenshotWindowPicker.appKitRect(
             fromDisplaySpace: CGRect(x: 120, y: 100, width: 300, height: 200),

@@ -33,11 +33,15 @@ private actor NoteWriter {
 
 @MainActor
 final class NoteStore: ObservableObject {
-    static let maximumWindowTransparency = 1.0
+    /// Short of fully transparent on purpose: the slider now fades the window's real surface, and
+    /// a window with no surface left is invisible *and* lets clicks through to whatever is under it,
+    /// which leaves the user nothing to grab to undo it.
+    static let maximumWindowTransparency = 0.9
 
     @Published private(set) var notes: [SpotterNote]
     @Published private(set) var saveState: NoteSaveState = .saved
     @Published private(set) var windowTransparency: Double
+    @Published private(set) var autoWindowSizing: Bool
     @Published var selectedID: UUID? {
         didSet {
             if let selectedID {
@@ -51,6 +55,7 @@ final class NoteStore: ObservableObject {
     private let defaults: UserDefaults
     private let selectedKey = "note.selected-id"
     private static let windowTransparencyKey = "note.window-transparency"
+    private static let autoWindowSizingKey = "note.auto-window-sizing"
     private let writer: NoteWriter
     private let now: () -> Date
     private var saveTask: Task<Void, Never>?
@@ -71,6 +76,8 @@ final class NoteStore: ObservableObject {
             : min(
                 max(defaults.double(forKey: Self.windowTransparencyKey), 0),
                 Self.maximumWindowTransparency)
+        autoWindowSizing = defaults.object(forKey: Self.autoWindowSizingKey) == nil
+            || defaults.bool(forKey: Self.autoWindowSizingKey)
 
         let archive = Self.load(from: resolvedURL)
         let loaded = archive.notes.sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
@@ -133,6 +140,12 @@ final class NoteStore: ObservableObject {
         guard windowTransparency != clamped else { return }
         windowTransparency = clamped
         defaults.set(clamped, forKey: Self.windowTransparencyKey)
+    }
+
+    func setAutoWindowSizing(_ enabled: Bool) {
+        guard autoWindowSizing != enabled else { return }
+        autoWindowSizing = enabled
+        defaults.set(enabled, forKey: Self.autoWindowSizingKey)
     }
 
     @discardableResult

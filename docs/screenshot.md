@@ -94,8 +94,12 @@ that leaves the selection up rather than a cancel.
 Hit testing reads `CGWindowListCopyWindowInfo` (on-screen, desktop elements excluded) and keeps the
 window server's front-to-back order, so the first match under the pointer is the
 top-most window. The pure `ScreenshotWindowPicker` applies the filters and both coordinate flips:
-Spotter's own overlay panels are excluded by process id, only layer-0 windows qualify, and windows
-that are effectively invisible (alpha under 0.05) or smaller than 24 points on a side are skipped.
+the capture's own chrome — the selection overlays, the thumbnails and the pins still on screen — is
+excluded by explicit window id rather than by process id, so Spotter's other windows (Notes above
+all) stay capturable; layer 0 and the floating level qualify, which is where every utility panel
+lives; and windows that are effectively invisible (alpha under 0.05) or smaller than 24 points on a
+side are skipped. Levels above floating are system furniture — the menu bar, the Dock, the capture
+overlay itself — and never a target.
 Window rectangles arrive top-origin relative to the primary display and are flipped into AppKit's
 global space.
 
