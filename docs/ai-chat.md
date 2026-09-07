@@ -26,8 +26,10 @@ user turn, the Notes derive-don't-ask rule) plus New Session (also **⌘N** anyw
 ⌘K menu adds Delete Session.
 
 Every non-empty launcher query also exposes those same two destinations in a final `Try With` group,
-after any normal results. Activating AI Chat follows the fresh-session Tab path; activating ChatGPT
-follows the Hyper-C web handoff.
+after any normal results. The AI Chat row names the selected chat model — `Ask Gemini 2.0 Flash…`,
+from `OpenRouterModelCatalog.modelName(for:in:)` — and falls back to `Send to AI Chat` with no API
+key, since the key is the gate and an unkeyed row can't promise a model. Activating AI Chat follows
+the fresh-session Tab path; activating ChatGPT follows the Hyper-C web handoff.
 
 AI Chat is an always-available system feature shown in Settings → System, but remains inert
 without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering

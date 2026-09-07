@@ -62,6 +62,17 @@ enum OpenRouterModelCatalog {
         return nil
     }
 
+    /// The brand-free name for a stored id — the catalog's own label when it carries the id, else the
+    /// id's tail prettified. Never nil for a non-empty id: an uncatalogued model still has a name.
+    static func modelName(for id: String, in brands: [OpenRouterModelBrand]) -> String? {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        for brand in brands {
+            if let model = brand.models.first(where: { $0.id == trimmed }) { return model.name }
+        }
+        return prettified(tail(of: trimmed))
+    }
+
     struct Entry: Decodable {
         let id: String
         let name: String?
@@ -110,6 +121,16 @@ enum OpenRouterModelCatalog {
     private static func prettified(_ slug: String) -> String {
         let words = slug.split(whereSeparator: { $0 == "-" || $0 == "_" })
         guard !words.isEmpty else { return slug }
-        return words.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+        return words.map(capitalized).joined(separator: " ")
+    }
+
+    /// Short vowel-free words are acronyms in this domain (gpt, glm, qwq, r1, 70b) — title-casing
+    /// them reads as a typo, so they go up whole.
+    private static func capitalized(_ word: Substring) -> String {
+        let vowels = Set("aeiou")
+        if word.count <= 4, !word.lowercased().contains(where: vowels.contains) {
+            return word.uppercased()
+        }
+        return word.prefix(1).uppercased() + word.dropFirst()
     }
 }

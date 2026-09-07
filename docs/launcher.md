@@ -197,11 +197,14 @@ Return. See [background-tasks.md](background-tasks.md).
 
 ## Query destinations
 
-Every non-empty launcher query appends four explicit `Try With` rows after its normal results: send to
-Spotter's AI Chat, send to ChatGPT on the web, run in Terminal, and search files in Finder. If there
-are no normal or inline results, this group replaces the empty state. These are transient rows backed
-by the current query; they never enter the app index, ranking, favorites, visibility settings or
-command registry.
+Every non-empty launcher query appends four explicit `Try With` rows after its normal results: ask
+Spotter's AI Chat, send to ChatGPT on the web, run in Terminal, and search files in Finder. The AI
+Chat row names the model it will ask — `Ask Gemini 2.0 Flash…` — resolved from
+`OpenRouterStore.chatModel` through `OpenRouterModelCatalog.modelName(for:in:)`, which prefers the
+live catalog's own label and otherwise prettifies the id's tail. Without an API key there is no
+request to promise, so the row reads `Send to AI Chat`. If there are no normal or inline results,
+this group replaces the empty state. These are transient rows backed by the current query; they
+never enter the app index, ranking, favorites, visibility settings or command registry.
 
 In the flat selection order the rows follow background tasks, the optional inline answer, and every
 app/command match. AI Chat reuses the normal fresh-session send path and preserves the draft when no

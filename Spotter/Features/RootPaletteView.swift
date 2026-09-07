@@ -17,6 +17,8 @@ struct RootPaletteView: View {
     @EnvironmentObject private var frequentEmoji: FrequentEmojiStore
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var updates = AppCore.shared.updates
+    /// Observed so the AI Chat fallback row renames itself the moment the chat model or the key changes.
+    @ObservedObject private var openRouter = AppCore.shared.openRouter
     @ObservedObject private var backgroundTasks = AppCore.shared.backgroundTasks
     /// Observed so a skin tone changed in Settings re-renders the grid glyphs immediately.
     @ObservedObject private var settings = AppCore.shared.settings
@@ -152,7 +154,13 @@ struct RootPaletteView: View {
     private var inlineCount: Int { inlineResult == nil ? 0 : 1 }
     private var launcherFallbackResults: [LauncherFallback] {
         guard vm.mode == .launcher else { return [] }
-        return LauncherFallback.suggestions(for: vm.query)
+        return LauncherFallback.suggestions(for: vm.query, aiChatModel: aiChatModelName)
+    }
+
+    /// Named only while a key exists: the key is the gate, so without one the row can't promise a model.
+    private var aiChatModelName: String? {
+        guard openRouter.isReady else { return nil }
+        return OpenRouterModelCatalog.modelName(for: openRouter.chatModel, in: openRouter.catalog)
     }
     /// Tasks are a resting-state surface, not a search result: typing a query is asking for something
     /// else, so the rows step aside rather than sitting above every match.
@@ -341,7 +349,8 @@ struct RootPaletteView: View {
         let clipFollow = ClipFollowKey(id: store.items.first?.id, token: vm.followToken)
         // Every count/selection below derives from the same task/inline offsets, so the flat index always matches the visible row order.
         let inline = inlineResult
-        let fallbacks = vm.mode == .launcher ? LauncherFallback.suggestions(for: vm.query) : []
+        let fallbacks = vm.mode == .launcher
+            ? LauncherFallback.suggestions(for: vm.query, aiChatModel: aiChatModelName) : []
         let inlineOffset = inline == nil ? 0 : 1
         let taskOffset = tasks.count
         // Only the active mode is non-empty.
@@ -1148,7 +1157,7 @@ struct RootPaletteView: View {
                 if backgroundTasks.canOpen(id: selectedTask.id) { return "Open" }
             }
             if let inlineActionTitle { return inlineActionTitle }
-            if let selectedFallback { return selectedFallback.action.title }
+            if let selectedFallback { return selectedFallback.title }
             switch selectedApp?.kind {
             case .systemSettings: return "Open System Setting"
             case .command: return "Run Command"

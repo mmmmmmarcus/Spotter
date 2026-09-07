@@ -26,6 +26,20 @@ struct LauncherFallbackTests {
             suggestions.allSatisfy { $0.query == "echo \"你好\" && pwd" })
         check("fallback IDs are unique", Set(suggestions.map(\.id)).count == suggestions.count)
 
+        // The AI Chat row names the model it will ask; without one it stays generic.
+        check(
+            "no model name keeps the generic AI Chat title",
+            suggestions.first?.title == "Send to AI Chat")
+        let named = LauncherFallback.suggestions(for: "why", aiChatModel: "Gemini Flash")
+        check("a model name renames the AI Chat row", named.first?.title == "Ask Gemini Flash…")
+        check(
+            "a blank model name is treated as none",
+            LauncherFallback.suggestions(for: "why", aiChatModel: "  ").first?.title
+                == "Send to AI Chat")
+        check(
+            "the other rows ignore the model name",
+            named.dropFirst().map(\.title) == ["Send to ChatGPT", "Run in Terminal", "Search Files"])
+
         let hostile = "printf '%s\\n' \"$HOME\"; echo \\ done"
         let terminal = TerminalCommandRunner.invocation(for: hostile, terminal: .terminal)
         check("Terminal invocation exists for non-empty input", terminal != nil)

@@ -264,6 +264,27 @@ struct AIChatTests {
         check(
             "an unknown id has no catalog label",
             OpenRouterModelCatalog.label(for: "anthropic/claude-gone", in: brands) == nil)
+
+        // The brand-free name behind the launcher's "Ask <model>…" row.
+        check(
+            "a catalogued id uses the catalog's own model name",
+            OpenRouterModelCatalog.modelName(for: "anthropic/claude-new", in: brands)
+                == "Claude New")
+        check(
+            "an uncatalogued id is prettified from its tail",
+            OpenRouterModelCatalog.modelName(for: "google/gemini-2.0-flash", in: brands)
+                == "Gemini 2.0 Flash")
+        check(
+            "short vowel-free words stay acronyms",
+            OpenRouterModelCatalog.modelName(for: "openai/gpt-5.1", in: []) == "GPT 5.1"
+                && OpenRouterModelCatalog.modelName(for: "deepseek/deepseek-r1", in: [])
+                    == "Deepseek R1")
+        check(
+            "an id without a vendor prefix is used whole",
+            OpenRouterModelCatalog.modelName(for: "sonar-pro", in: []) == "Sonar Pro")
+        check(
+            "a blank id has no name",
+            OpenRouterModelCatalog.modelName(for: "  ", in: brands) == nil)
         check(
             "an empty payload yields no brands",
             (try? OpenRouterModelCatalog.brands(fromJSON: Data(#"{"data": []}"#.utf8)))?.isEmpty

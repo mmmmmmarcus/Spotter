@@ -203,7 +203,7 @@ private struct LauncherFallbackRow: View {
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
-            Text(fallback.action.title)
+            Text(fallback.title)
                 .font(Theme.Typography.rowTitle)
                 .lineLimit(1)
             Spacer()
