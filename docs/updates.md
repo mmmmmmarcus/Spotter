@@ -34,7 +34,7 @@ requests use a private ephemeral `URLSession` with no URL cache.
 
 When an update has a zip asset, installation follows this sequence:
 
-1. Download into a temporary location and unpack with `ditto`.
+1. Stream the archive into a temporary file and unpack it with `ditto`.
 2. Read the running app's code-signing designated requirement.
 3. Require the downloaded bundle, including nested code and all architectures, to satisfy it.
 4. Copy the verified app beside the current installation.
@@ -44,6 +44,23 @@ When an update has a zip asset, installation follows this sequence:
    removed, which is exactly what the earlier remove-then-rename swap looked like once per update.
    A filesystem without `RENAME_SWAP` falls back to remove-and-rename, trading that TCC guarantee
    for still completing the update; the retired bundle is deleted under its staging name.
+
+## Progress reporting
+
+The download reports real bytes rather than a spinner, without giving up the fast download path.
+`UpdateStore` calls `download(for:delegate:)` on the same private ephemeral session — URLSession
+still writes the archive to a temporary file at full speed — and passes a per-task
+`URLSessionDownloadDelegate` that reads `totalBytesWritten` over `totalBytesExpectedToWrite` in
+`didWriteData`. The session itself stays delegate-free. That fraction reaches the UI through
+`@Published downloadFraction`, at most ten times a second, so the arriving bytes never drive a
+publish of their own. The fraction is `nil` whenever there is nothing to measure: before the first
+callback, when the expected length is unknown (`NSURLSessionTransferSizeUnknown`), and again during
+the unzip, signature check and bundle swap, which are short and unmeasurable.
+
+Both update surfaces — the Settings row and the in-palette Software Update view — render that state
+with `RingLoader` ([ui.md](ui.md)): the determinate ring while a fraction is known, the
+indeterminate one otherwise. The feed check is a single small request, so it is always
+indeterminate; it is never shown as a percentage.
 
 The signature check ties an update to both Spotter's bundle identifier and Developer ID. A stable
 bundle cannot replace beta, beta cannot replace stable, and an unrelated or differently signed app

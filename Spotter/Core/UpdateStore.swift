@@ -49,6 +49,9 @@ final class UpdateStore: ObservableObject {
     /// Explicit consent for the background check; absent reads as false and settings sync mirrors it.
     @Published private(set) var autoCheckEnabled: Bool
     @Published private(set) var status: Status = .idle
+    /// How much of the archive has arrived while `.installing`. Nil whenever there is nothing to
+    /// measure — a response without a content length, and the unzip/verify/swap phase after it.
+    @Published private(set) var downloadFraction: Double?
 
     /// Wired by `AppCore.start()` to `NSApp.terminate` so the store stays AppKit-free and shutdown hooks (Hyper Key remap cleanup) still run before the relaunch.
     var terminateForRelaunch: (() -> Void)?
@@ -143,9 +146,13 @@ final class UpdateStore: ObservableObject {
     func installAvailableUpdate() async {
         guard case .available(let release) = status, let zipURL = release.zipAssetURL else { return }
         status = .installing
+        downloadFraction = nil
         let installedURL = Bundle.main.bundleURL
         do {
-            try await Self.downloadAndInstall(zipURL: zipURL, over: installedURL)
+            try await Self.downloadAndInstall(zipURL: zipURL, over: installedURL) {
+                [weak self] fraction in
+                Task { @MainActor in self?.downloadFraction = fraction }
+            }
             // Relaunch after this process exits; the opener outlives us.
             let opener = Process()
             opener.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -153,9 +160,11 @@ final class UpdateStore: ObservableObject {
             try opener.run()
             terminateForRelaunch?()
         } catch let error as UpdateError {
+            downloadFraction = nil
             status = .failed(error.localizedDescription)
             AppLog.error("updates", "Install failed: \(error.localizedDescription)")
         } catch {
+            downloadFraction = nil
             status = .failed(UpdateError.installFailed(error.localizedDescription).localizedDescription)
             AppLog.error("updates", "Install failed: \(error.localizedDescription)")
         }
@@ -178,14 +187,29 @@ final class UpdateStore: ObservableObject {
         return data
     }
 
-    /// Off-main by way of `nonisolated async`; only plain values cross back.
-    private nonisolated static func downloadAndInstall(zipURL: URL, over installedURL: URL)
-        async throws
-    {
-        let (tempZip, response) = try await session.download(from: zipURL)
+    /// Downloads the archive to a temporary file, reporting the fraction received. `URLSession`
+    /// does the writing at full speed and the per-task delegate below turns its byte counters into
+    /// a fraction; a nil one (no expected length) leaves the caller with an indeterminate state.
+    private nonisolated static func downloadZip(
+        from zipURL: URL, progress: @escaping @Sendable (Double?) -> Void
+    ) async throws -> URL {
+        let (tempURL, response) = try await session.download(
+            for: URLRequest(url: zipURL, timeoutInterval: 60),
+            delegate: UpdateDownloadProgress(report: progress))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            try? FileManager.default.removeItem(at: tempURL)
             throw UpdateError.badDownload
         }
+        return tempURL
+    }
+
+    /// Off-main by way of `nonisolated async`; only plain values cross back.
+    private nonisolated static func downloadAndInstall(
+        zipURL: URL, over installedURL: URL, progress: @escaping @Sendable (Double?) -> Void
+    ) async throws {
+        let tempZip = try await downloadZip(from: zipURL, progress: progress)
+        // Unzip, verification and the swap are short and unmeasurable; the ring spins through them.
+        progress(nil)
 
         let fm = FileManager.default
         let stage = fm.temporaryDirectory.appendingPathComponent(
@@ -285,4 +309,42 @@ final class UpdateStore: ObservableObject {
             }
         }
     }
+}
+
+/// Per-task progress delegate for the update download. The shared session stays delegate-free and
+/// cacheless; this rides along on the one download task, throttling to ten publishes a second.
+/// URLSession may call it on any thread, hence the lock — only a `Double?` crosses back to the UI.
+private final class UpdateDownloadProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private static let interval: Duration = .milliseconds(100)
+
+    private let report: @Sendable (Double?) -> Void
+    private let lock = NSLock()
+    private var lastReport: ContinuousClock.Instant?
+
+    init(report: @escaping @Sendable (Double?) -> Void) {
+        self.report = report
+    }
+
+    func urlSession(
+        _ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64
+    ) {
+        // NSURLSessionTransferSizeUnknown (-1) and 0 are both "no denominator": let the ring spin.
+        guard totalBytesExpectedToWrite > 0 else {
+            report(nil)
+            return
+        }
+        let now = ContinuousClock.now
+        lock.lock()
+        let due = lastReport.map { now - $0 >= Self.interval } ?? true
+        if due { lastReport = now }
+        lock.unlock()
+        guard due else { return }
+        report(min(1, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)))
+    }
+
+    // Required by the protocol; the async `download(for:delegate:)` hands the file to its caller.
+    func urlSession(
+        _ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL
+    ) {}
 }

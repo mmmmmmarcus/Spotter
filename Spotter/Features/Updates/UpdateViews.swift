@@ -42,8 +42,10 @@ struct UpdatesSettingsCard: View {
     @ViewBuilder
     private var trailingControl: some View {
         switch store.status {
-        case .checking, .installing:
-            ProgressView().controlSize(.small)
+        case .checking:
+            RingLoader(progress: nil, size: Theme.Size.ringLoaderSmall)
+        case .installing:
+            RingLoader(progress: store.downloadFraction, size: Theme.Size.ringLoaderSmall)
         case .available(let release):
             if release.zipAssetURL != nil {
                 Button("Update to \(release.version.description)…") {
@@ -121,9 +123,10 @@ struct UpdatePaletteView: View {
     @ViewBuilder
     private var statusIcon: some View {
         switch store.status {
-        case .checking, .installing:
-            ProgressView()
-                .controlSize(.large)
+        case .checking:
+            RingLoader(progress: nil, size: Theme.Size.ringLoaderLarge)
+        case .installing:
+            RingLoader(progress: store.downloadFraction, size: Theme.Size.ringLoaderLarge)
         case .upToDate:
             Image(systemName: "checkmark.circle.fill")
                 .font(.largeTitle)

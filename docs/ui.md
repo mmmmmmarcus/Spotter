@@ -369,6 +369,18 @@ when destructive — with `selection`-fill highlight; ←/→/Tab move it, ↵ a
 layer cancel. The highlight always starts on Cancel. Typing freezes through the same channel as an
 open footer menu.
 
+## Ring loader — `Features/RingLoader.swift`
+
+The shared loading indicator, in place of the native spinner wherever a wait is Spotter's own work:
+a `controlSurface` track ring under a `textSecondary` arc, rounded cap, sweeping from the top. One
+parameter picks the mode — a fraction fills the arc (eased over 0.3s, so real progress animates
+between updates), `nil` spins a 28% arc one full turn every 0.9s. `size` drives the diameter and the
+line width (11% of it); `ringLoaderSmall 16` sits beside a settings row's controls and
+`ringLoaderLarge 32` stands in for a status view's headline glyph. The updater uses both: the feed
+check is indeterminate, the download determinate against its real byte count
+([updates.md](updates.md)). Background-task rows keep the native bar and spinner — they are a row's
+trailing control, not a view's whole state.
+
 ## Scrollbars — `Core/ThinScrollbar.swift`
 
 Custom thin overlay scrollbar (the native one flashes and reserves a gutter inside a transparent panel).

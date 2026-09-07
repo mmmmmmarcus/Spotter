@@ -142,6 +142,7 @@
 		8564913535478963824E1D7E /* SpotterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */; };
 		859FBBAB57809296CF4138B8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56CDF128216DD71A2A2C54D /* AppSettings.swift */; };
 		88A2EA112C2C5F31620416E7 /* OnePasswordTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CAB4C3AA7EE7B39B2AB73 /* OnePasswordTypes.swift */; };
+		8929D7BCA40EB1BDE4872030 /* RingLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1CAD19ED4D342735FFE8AD /* RingLoader.swift */; };
 		8DD2BEFA70C4D9FE2AD02E57 /* ScreenshotGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E2DD47B2282A644D030F0F /* ScreenshotGeometry.swift */; };
 		8FA4A54179920EE055A07D11 /* ScreenshotEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413F39384FC2DBC1095614F1 /* ScreenshotEditorView.swift */; };
 		9039498AF0C376FB8FEA9595 /* BuiltInPlugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054E9477DF5DF415492936A9 /* BuiltInPlugins.swift */; };
@@ -274,6 +275,7 @@
 		0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRankingStore.swift; sourceTree = "<group>"; };
 		0C8ACF3052CC0B630FA4B2AF /* QuicklinkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkStore.swift; sourceTree = "<group>"; };
 		0CA6658947F332E55343E683 /* NoteSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSyncManager.swift; sourceTree = "<group>"; };
+		0E1CAD19ED4D342735FFE8AD /* RingLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingLoader.swift; sourceTree = "<group>"; };
 		0FD20F68EEC018BED28E95EA /* HyperKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperKey.swift; sourceTree = "<group>"; };
 		10D143CDE86259528CFC5F56 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		11E71C4DD8183B1A7D86867A /* AIChatPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatPlugin.swift; sourceTree = "<group>"; };
@@ -603,6 +605,7 @@
 				9970D376F9EB8F57EC802707 /* Updates */,
 				9CEE076F5688F414675AC47E /* ConfirmationCard.swift */,
 				F2821459ECF8A3EB12E1D0D5 /* PopoverMenu.swift */,
+				0E1CAD19ED4D342735FFE8AD /* RingLoader.swift */,
 				EEC07C3A56248A192651F6D2 /* RootPaletteView.swift */,
 			);
 			path = Features;
@@ -1304,6 +1307,7 @@
 				138983CA70F4F4F45E4ABD87 /* RaycastImport.swift in Sources */,
 				9D1E9A3F37346DB2A4CEF564 /* RaycastImportSelection.swift in Sources */,
 				2522EA89910ED5DDF897AE02 /* RightClick.swift in Sources */,
+				8929D7BCA40EB1BDE4872030 /* RingLoader.swift in Sources */,
 				F83597883221D6F7EEE2A1FF /* RootPaletteView.swift in Sources */,
 				1AEBCC14B3F6E69AC2C53973 /* RunningApps.swift in Sources */,
 				E0249DE883462907B2C973C4 /* ScreenshotAnnotation.swift in Sources */,

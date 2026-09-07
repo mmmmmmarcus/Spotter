@@ -65,6 +65,10 @@ enum Theme {
         static let bottomBarHeight: CGFloat = 52
         static let rowIcon: CGFloat = 24
         static let backgroundTaskProgressWidth: CGFloat = 96
+        /// `RingLoader` beside a settings row's controls, sized like a small system spinner.
+        static let ringLoaderSmall: CGFloat = 16
+        /// `RingLoader` standing in for a status view's headline glyph, sized like a large spinner.
+        static let ringLoaderLarge: CGFloat = 32
         static let keyCap: CGFloat = 18
         /// Settings shortcut-recorder keycap — smaller than the palette's `keyCap` chip.
         static let recorderKeyCap: CGFloat = 16
