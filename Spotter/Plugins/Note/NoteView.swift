@@ -59,14 +59,21 @@ struct NoteView: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
     }
 
+    /// The slider buys its see-through-ness from the scrim and the tint, never from the frost: the
+    /// frost is what makes the window read as glass rather than as a hole cut in the screen, so the
+    /// material keeps at least this much alpha at the top of the range. Retune here alone.
+    private static let minimumMaterialAlpha = 0.58
+
     /// Everything the window is made of below the text: the blur, the scrim over it and the note's
-    /// tint film. The transparency slider fades the whole stack — including the behind-window blur,
-    /// which is what actually lets the desktop through — while the text and controls above stay at
-    /// full strength.
+    /// tint film. The transparency slider fades the scrim and the tint to nothing while the material
+    /// only fades to `minimumMaterialAlpha`, so the desktop genuinely shows through but always
+    /// through frost. Text and controls above stay at full strength.
     private var noteSurface: some View {
         let opacity = 1 - store.windowTransparency
+        let progress = store.windowTransparency / NoteStore.maximumWindowTransparency
+        let materialAlpha = 1 - progress * (1 - Self.minimumMaterialAlpha)
         return ZStack {
-            VisualEffectView(material: .hudWindow, blending: .behindWindow, alpha: opacity)
+            VisualEffectView(material: .hudWindow, blending: .behindWindow, alpha: materialAlpha)
             Theme.Colors.panelScrim.opacity(opacity)
             tintWash.opacity(opacity)
         }

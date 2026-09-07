@@ -96,8 +96,14 @@ In the notes list a tinted Note shows a small dot beside its title.
 
 The same popover carries the Window Transparency slider and the Auto Window Sizing switch, both
 bound to the values Settings edits, so the two surfaces can never disagree. Transparency fades the
-window's whole surface — the behind-window blur through `VisualEffectView.alpha`, the scrim and the
-tint film — so the desktop genuinely shows through rather than the window merely getting lighter.
+window's whole surface — the scrim, the tint film and the behind-window blur through
+`VisualEffectView.alpha` — so the desktop genuinely shows through rather than the window merely
+getting lighter. The scrim and the tint fade all the way to zero; the material does not. Its alpha
+interpolates from 1 at 0% down to `NoteView.minimumMaterialAlpha` (0.58) at the 90% ceiling, so the
+frost is unmistakably present at every setting. The slider buys its see-through-ness from the scrim
+and the tint, never from the frost: without that floor the top of the range showed the raw unblurred
+desktop, and the window read as a hole cut in the screen rather than as glass. That one constant is
+the only place the floor is tuned.
 The range stops at 90% rather than 100%: a window with no surface left is invisible *and* passes
 clicks through to whatever is under it, leaving nothing to grab to undo the setting.
 
@@ -271,8 +277,9 @@ word/character counter or save-status footer; persistence remains automatic in t
 
 The Appearance card in Notes Settings owns the Auto Window Sizing switch and one live Window
 Transparency slider from 0–90%, the same two controls the toolbar's color popover carries. The
-slider fades the whole window surface — the `.hudWindow` material, the adaptive `panelScrim` and the
-tint film — while editor content and controls remain fully opaque. Both values are bundle-scoped and
+slider fades the whole window surface — the adaptive `panelScrim` and the tint film to nothing, the
+`.hudWindow` material only down to its frost floor — while editor content and controls remain fully
+opaque. Both values are bundle-scoped and
 ride in trusted Settings backup/sync state, while the system material continues to honor macOS
 appearance and accessibility.
 
