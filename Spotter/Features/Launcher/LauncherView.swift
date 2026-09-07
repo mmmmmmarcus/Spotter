@@ -160,25 +160,11 @@ struct LauncherList: View {
                         .hideNativeScrollers()
                         .scrollOriginAnchor()
                     }
+                    .paletteScroll(
+                        scroll, proxy: proxy, followIsFirstRow: firstRowSelected,
+                        followRowID: selectedRowID)
                     .edgeDissolve()
                     .thinScrollbar()
-                    // A remount (returning from a plugin screen) settles a hair below the origin once the floating header's safe-area inset lands, and the scroll intent set during the mode switch fired before this view existed — snap after layout instead.
-                    .onAppear {
-                        DispatchQueue.main.async { proxy.scrollToOrigin() }
-                    }
-                    .onChange(of: scroll) { _, scroll in
-                        switch scroll.kind {
-                        case .top:
-                            proxy.scrollToOrigin()
-                        case .follow:
-                            // On the first row, snap to the origin so its section header shows too — a nil anchor won't, since the row is already visible.
-                            if firstRowSelected {
-                                proxy.scrollToOrigin()
-                            } else if let selectedRowID {
-                                proxy.reveal(selectedRowID)
-                            }
-                        }
-                    }
                 }
             }
         }

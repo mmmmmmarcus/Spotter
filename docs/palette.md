@@ -19,6 +19,16 @@ the top rather than wherever it was left. `RootPaletteView` switches its content
 - `.updates` → the Software Update status and install flow
 - `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
+Every scroll reset travels as a `ScrollIntent` (`Core/ScrollIntent.swift`), and every palette list
+applies it through the one shared `paletteScroll` modifier — never its own `onChange`. That modifier
+honours the intent **at mount as well as on change**, because a mode switch writes the arriving
+intent in the same update that mounts the arriving list: the list is *born* holding it, and
+`onChange` (which never fires for an initial value) would drop the reset on exactly the path that
+needs it — backing out of a sub-screen to the root. The modifier re-asserts a pending reset once
+more when the scroll view's top content inset lands, since a scroll view that mounted before its
+`safeAreaInset` header settles one header below the origin; keying that on the inset makes the
+correction deterministic where a post-mount timer only raced it.
+
 **Tab cycles empty root surfaces, Shift-Tab cycles them backward** — Apps → AI Chat → Clipboard →
 Emoji → Apps. `PaletteMode.cycle(isPluginEnabled:)` is the single source of truth for the stop list,
 read by both the key handling and the header glyph so the affordance can't promise a loop the keys

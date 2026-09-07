@@ -123,22 +123,12 @@ struct EmojiGridView: View {
                 .hideNativeScrollers()
                 .scrollOriginAnchor()
             }
+            .paletteScroll(
+                scroll, proxy: proxy,
+                followIsFirstRow: selectedRowID != nil && selectedRowID == firstRowID,
+                followRowID: selectedRowID)
             .edgeDissolve()
             .thinScrollbar()
-            .onChange(of: scroll) { _, scroll in
-                switch scroll.kind {
-                case .top:
-                    proxy.scrollToOrigin()
-                case .follow:
-                    guard let selectedRowID else { return }
-                    // On the first row, snap to the origin so its header shows too — a nil anchor won't, since the row is already visible.
-                    if selectedRowID == firstRowID {
-                        proxy.scrollToOrigin()
-                    } else {
-                        proxy.reveal(selectedRowID)
-                    }
-                }
-            }
         }
     }
 }

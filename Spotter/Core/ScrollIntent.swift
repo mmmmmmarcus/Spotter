@@ -38,3 +38,51 @@ extension ScrollViewProxy {
         scrollTo(id, anchor: nil)
     }
 }
+
+extension View {
+    /// Drives one palette list's scroll from the shared `ScrollIntent`. Attach to the `ScrollView`, inside its `ScrollViewReader`.
+    ///
+    /// The intent is applied **on mount as well as on change**: a mode switch writes the arriving intent in the same update that mounts the arriving list, so the list is born already holding it and `onChange` — which never fires for a view's initial value — would let that reset through unapplied. It is applied once more when the scroll view's top content inset lands, because a scroll view that mounted before its `safeAreaInset` header rests one inset below the origin; keying that on the inset itself makes the correction deterministic where a post-mount timer only raced it.
+    ///
+    /// `followIsFirstRow` snaps a `.follow` to the origin instead of revealing the row, so the first row's section header shows too — a nil anchor won't, since the row is already visible.
+    func paletteScroll(
+        _ intent: ScrollIntent, proxy: ScrollViewProxy, followIsFirstRow: Bool,
+        followRowID: String?
+    ) -> some View {
+        modifier(
+            PaletteScrollIntent(
+                intent: intent, proxy: proxy, followIsFirstRow: followIsFirstRow,
+                followRowID: followRowID))
+    }
+}
+
+/// The one place a `ScrollIntent` reaches a scroll view; see `View.paletteScroll`.
+private struct PaletteScrollIntent: ViewModifier {
+    let intent: ScrollIntent
+    let proxy: ScrollViewProxy
+    let followIsFirstRow: Bool
+    let followRowID: String?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear(perform: apply)
+            .onChange(of: intent) { apply() }
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentInsets.top } action: { _, _ in
+                // Only ever re-asserts a pending reset, and an inset never moves in response to the user's own scrolling, so this cannot fight a list the user has scrolled.
+                if case .top = intent.kind { proxy.scrollToOrigin() }
+            }
+    }
+
+    private func apply() {
+        switch intent.kind {
+        case .top:
+            proxy.scrollToOrigin()
+        case .follow:
+            if followIsFirstRow {
+                proxy.scrollToOrigin()
+            } else if let followRowID {
+                proxy.reveal(followRowID)
+            }
+        }
+    }
+}

@@ -75,21 +75,11 @@ struct ClipboardList: View {
                 .hideNativeScrollers()
                 .scrollOriginAnchor()
             }
+            .paletteScroll(
+                scroll, proxy: proxy, followIsFirstRow: firstRowSelected,
+                followRowID: selectedID?.uuidString)
             .edgeDissolve()
             .thinScrollbar()
-            .onChange(of: scroll) { _, scroll in
-                switch scroll.kind {
-                case .top:
-                    proxy.scrollToOrigin()
-                case .follow:
-                    // On the first row, snap to the origin so its section header shows too — a nil anchor won't, since the row is already visible.
-                    if firstRowSelected {
-                        proxy.scrollToOrigin()
-                    } else if let selectedID {
-                        proxy.reveal(selectedID.uuidString)
-                    }
-                }
-            }
         }
     }
 }

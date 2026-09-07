@@ -28,20 +28,10 @@ struct PluginPaletteList: View {
                     .hideNativeScrollers()
                     .scrollOriginAnchor()
             }
+            .paletteScroll(
+                scroll, proxy: proxy, followIsFirstRow: selectedIsFirst, followRowID: selectedID)
             .edgeDissolve()
             .thinScrollbar()
-            .onChange(of: scroll) { _, intent in
-                switch intent.kind {
-                case .top:
-                    proxy.scrollToOrigin()
-                case .follow:
-                    if selectedIsFirst {
-                        proxy.scrollToOrigin()
-                    } else if let selectedID {
-                        proxy.reveal(selectedID)
-                    }
-                }
-            }
         }
     }
 
