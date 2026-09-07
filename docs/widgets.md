@@ -45,8 +45,10 @@ account/access/all-day preferences live on the plugin's Settings pane
 The File Info card states what is selected in the Finder: its kind in the title slot, its own Finder
 icon as the card's middle, then what it is called and how big it is. It reads a selection only when
 the Finder is the app the palette was summoned from, but it keeps its place in the row either way —
-with nothing to report it rests on a generic glyph under `FINDER` / `No selection`, because a card
-that came and went with the Finder's focus couldn't be relied on to be there.
+with nothing to report the `finder` mark stands alone, sized and coloured exactly like the music
+card's resting glyph, because a card that came and went with the Finder's focus couldn't be relied on
+to be there. `FINDER` / `No selection` restated what the bare card already says, so those lines now
+live only in the accessibility label.
 
 ## Arrangement
 

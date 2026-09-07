@@ -86,8 +86,8 @@ struct DashboardWidgetsTests {
 
         // File Info: what the square says about a Finder selection.
         check(DashboardFileInfoSnapshot().isEmpty, "no selection should read as empty")
-        // The card stays on the strip with nothing selected, so the empty snapshot still has lines
-        // to draw — it names its source and says there is no selection.
+        // The empty card draws its mark alone, so these lines are spoken rather than drawn — the
+        // accessibility label is the one place they still name the source and the empty selection.
         check(
             DashboardFileInfoSnapshot().kindLine == "Finder",
             "an empty snapshot should name where it reads from")

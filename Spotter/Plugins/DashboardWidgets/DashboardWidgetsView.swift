@@ -559,24 +559,50 @@ private struct DashboardCardTitle: View {
 }
 
 /// Square like every other card: the kind in the title slot, the item's own Finder icon as the
-/// middle, then what it is called and how big it is. With nothing selected it rests on a generic
-/// glyph rather than leaving the strip — a card that came and went couldn't be relied on to be there.
+/// middle, then what it is called and how big it is. With nothing selected it rests on its mark
+/// rather than leaving the strip — a card that came and went couldn't be relied on to be there.
 private struct DashboardFileInfoCard: View {
     let snapshot: DashboardFileInfoSnapshot
 
     private static let iconSize: CGFloat = 34
 
     var body: some View {
+        ZStack {
+            if snapshot.isEmpty {
+                restingMark
+            } else {
+                details
+            }
+        }
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            height: Theme.Size.launcherDashboardHeight)
+        .dashboardCardSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(snapshot.accessibilityLabel)
+    }
+
+    /// The Finder face alone, built like the music card's resting mark: naming the source and saying
+    /// there is no selection restated what a bare card already says, so those words live only in
+    /// Settings and the accessibility label.
+    private var restingMark: some View {
+        Image(systemName: "finder")
+            .font(.system(size: Self.iconSize))
+            .foregroundStyle(Theme.Colors.textSecondary)
+    }
+
+    private var details: some View {
         VStack(spacing: 0) {
             DashboardCardTitle(snapshot.kindLine)
             Spacer(minLength: 0)
-            icon
-                .frame(width: Self.iconSize, height: Self.iconSize)
+            if let path = snapshot.iconPath {
+                DashboardFileIcon(path: path)
+                    .frame(width: Self.iconSize, height: Self.iconSize)
+            }
             Spacer(minLength: 0)
             // Truncated in the middle: the extension is half of what the card is reporting.
             Text(snapshot.nameLine)
                 .font(.caption2.weight(.medium))
-                .foregroundStyle(snapshot.isEmpty ? Theme.Colors.textSecondary : .primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             if !snapshot.sizeLine.isEmpty {
@@ -588,24 +614,6 @@ private struct DashboardFileInfoCard: View {
             }
         }
         .padding(Theme.Spacing.lg)
-        .frame(
-            width: Theme.Size.launcherDashboardHeight,
-            height: Theme.Size.launcherDashboardHeight)
-        .dashboardCardSurface()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(snapshot.accessibilityLabel)
-    }
-
-    @ViewBuilder
-    private var icon: some View {
-        if let path = snapshot.iconPath {
-            DashboardFileIcon(path: path)
-        } else {
-            // The Finder face, not a generic document: the resting card is about the app being watched, not a file it doesn't have.
-            Image(systemName: "finder")
-                .font(.system(size: Self.iconSize * 0.8, weight: .light))
-                .foregroundStyle(Theme.Colors.textTertiary)
-        }
     }
 }
 
