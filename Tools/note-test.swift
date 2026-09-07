@@ -343,6 +343,72 @@ struct NoteTests {
         check(
             "a Chinese checklist continues", .continueWith("- [ ] "),
             NoteEngine.listContinuation(after: "- [ ] 写文档"))
+        // Return on an item that "looks" empty deletes the whole line, so what counts as empty may
+        // only ever be the ASCII blanks Markdown pads with. An input method in full-width mode types
+        // U+3000 for the space bar, and `CharacterSet.whitespaces` counts it — and a non-breaking
+        // space — as blank, which silently deleted a character the user had typed.
+        check(
+            "an ideographic space is content, not an empty item", .continueWith("- "),
+            NoteEngine.listContinuation(after: "- \u{3000}"))
+        check(
+            "an ideographic space keeps a checklist item", .continueWith("- [ ] "),
+            NoteEngine.listContinuation(after: "- [ ] \u{3000}\u{3000}"))
+        check(
+            "an ideographic space keeps a numbered item", .continueWith("3. "),
+            NoteEngine.listContinuation(after: "2. \u{3000}"))
+        check(
+            "a non-breaking space is content too", .continueWith("- "),
+            NoteEngine.listContinuation(after: "- \u{00A0}"))
+        check(
+            "ASCII padding still exits the list", .endList,
+            NoteEngine.listContinuation(after: "-  \t "))
+
+        // Decorations are collected by a pass that stands down while an input method holds a
+        // composition, so they have to be moved onto the text as it stands now. An insertion before
+        // a marker shifts it, one after it leaves it alone, and an edit through it drops it — a disc
+        // drawn from an unadjusted range lands on the composing text while its own marker, cleared
+        // by the same pass, is never drawn at all.
+        let marker = NSRange(location: 4, length: 1)
+        check(
+            "a marker after an insertion shifts", NSRange(location: 9, length: 1),
+            NoteEngine.adjusting(
+                marker, forEdit: NSRange(location: 3, length: 0), changeInLength: 5,
+                documentLength: 20))
+        check(
+            "a marker before an insertion stays", marker,
+            NoteEngine.adjusting(
+                marker, forEdit: NSRange(location: 6, length: 0), changeInLength: 5,
+                documentLength: 20))
+        check(
+            "an insertion at a marker's own start shifts it", NSRange(location: 6, length: 1),
+            NoteEngine.adjusting(
+                marker, forEdit: NSRange(location: 4, length: 0), changeInLength: 2,
+                documentLength: 20))
+        check(
+            "an insertion at a marker's own end leaves it", marker,
+            NoteEngine.adjusting(
+                marker, forEdit: NSRange(location: 5, length: 0), changeInLength: 2,
+                documentLength: 20))
+        check(
+            "a marker the edit ran through is dropped", nil,
+            NoteEngine.adjusting(
+                marker, forEdit: NSRange(location: 3, length: 3), changeInLength: -2,
+                documentLength: 8))
+        check(
+            "a marker past the end of the document is dropped", nil,
+            NoteEngine.adjusting(
+                marker, forEdit: NSRange(location: 0, length: 6), changeInLength: -6,
+                documentLength: 0))
+        check(
+            "a block grows around an edit inside it", NSRange(location: 2, length: 12),
+            NoteEngine.adjusting(
+                NSRange(location: 2, length: 10), forEdit: NSRange(location: 5, length: 0),
+                changeInLength: 2, documentLength: 20))
+        check(
+            "a block shrinks around a deletion inside it", NSRange(location: 2, length: 7),
+            NoteEngine.adjusting(
+                NSRange(location: 2, length: 10), forEdit: NSRange(location: 5, length: 3),
+                changeInLength: -3, documentLength: 17))
 
         // Tints: a color is a user modification that syncs, but never one that reorders the list.
         let tintFile = directory.appendingPathComponent("tints.json")

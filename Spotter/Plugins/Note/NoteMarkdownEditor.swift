@@ -236,8 +236,13 @@ struct NoteMarkdownEditor: NSViewRepresentable {
 
         /// Steps a caret out of any concealed closing marker it is sitting at the front of.
         private func escapedCaret(for caret: NSRange) -> NSRange {
+            // The markers are the last pass's, so one that no longer fits the document is ignored
+            // rather than followed: the caret this returns is set on the text view.
+            let length = (textView?.string as NSString?)?.length ?? 0
             var location = caret.location
-            while let suffix = concealedSuffixes.first(where: { $0.location == location }) {
+            while let suffix = concealedSuffixes.first(where: { $0.location == location }),
+                NSMaxRange(suffix) <= length
+            {
                 location = NSMaxRange(suffix)
             }
             return NSRange(location: location, length: 0)
@@ -623,6 +628,12 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             guard let textView, !textView.hasMarkedText(),
                 let marker = taskMarkers.first(where: { NSLocationInRange(index, $0.range) })
             else { return false }
+            // This writes over a range the last pass collected, so it has to still be the state
+            // character it was found as — otherwise a stale marker would overwrite the user's text.
+            let source = textView.string as NSString
+            guard NSMaxRange(marker.state) <= source.length,
+                [" ", "x", "X"].contains(source.substring(with: marker.state))
+            else { return false }
             guard textView.shouldChangeText(in: marker.state, replacementString: marker.isDone ? " " : "x")
             else { return false }
             textView.textStorage?.replaceCharacters(
@@ -803,6 +814,14 @@ private final class NoteLayoutManager: NSLayoutManager {
             case .codeBlock(let range), .quoteBar(let range), .rule(let range): range
             }
         }
+
+        func moved(to range: NSRange) -> Decoration {
+            switch self {
+            case .codeBlock: .codeBlock(range)
+            case .quoteBar: .quoteBar(range)
+            case .rule: .rule(range)
+            }
+        }
     }
 
     /// One todo box, drawn over the kerned-out state character of a `- [ ] ` marker.
@@ -819,6 +838,41 @@ private final class NoteLayoutManager: NSLayoutManager {
     private static let checkboxMargin: CGFloat = 1.5
     private static let checkboxStroke: CGFloat = 1.5
     private static let minimumBulletDiameter: CGFloat = 5
+
+    /// These ranges come from a whole-document pass that deliberately stands down while an input
+    /// method holds a composition, so between passes the text moves under ranges already collected —
+    /// and a Chinese list line is where that shows: every disc and box below the caret would be
+    /// drawn one composition's worth of characters too early, on the user's own glyphs, while the
+    /// markers they belong to sit cleared and undrawn. The text storage fixes its attributes on
+    /// every edit; the decorations are fixed the same way, so a marker is only ever drawn where the
+    /// pass that found it still describes the text.
+    override func processEditing(
+        for textStorage: NSTextStorage, edited editMask: NSTextStorageEditActions,
+        range newCharRange: NSRange, changeInLength delta: Int, invalidatedRange: NSRange
+    ) {
+        super.processEditing(
+            for: textStorage, edited: editMask, range: newCharRange, changeInLength: delta,
+            invalidatedRange: invalidatedRange)
+        guard editMask.contains(.editedCharacters), delta != 0 || newCharRange.length > 0 else {
+            return
+        }
+        // `newCharRange` is the edit after the fact; the collected ranges predate it.
+        let edited = NSRange(
+            location: newCharRange.location, length: max(newCharRange.length - delta, 0))
+        let length = textStorage.length
+        func adjust(_ range: NSRange) -> NSRange? {
+            NoteEngine.adjusting(
+                range, forEdit: edited, changeInLength: delta, documentLength: length)
+        }
+        decorations = decorations.compactMap { decoration in
+            adjust(decoration.range).map(decoration.moved(to:))
+        }
+        checkboxes = checkboxes.compactMap { checkbox in
+            adjust(checkbox.range).map { Checkbox(range: $0, isDone: checkbox.isDone) }
+        }
+        bullets = bullets.compactMap(adjust)
+    }
+
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
         guard let container = textContainers.first else { return }

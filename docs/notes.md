@@ -248,6 +248,10 @@ not decoration.
 Three input rules fire from `shouldChangeTextIn`, each keyed to one typed character:
 
 - **Return** continues bulleted, numbered and checklist items; Return on an empty item exits the list.
+  Exiting deletes the line, so "empty" may only ever mean the ASCII spaces and tabs Markdown pads
+  with: `CharacterSet.whitespaces` counts the ideographic space an input method types in full-width
+  mode — and a non-breaking space — as blank, and ending the list on one silently deleted a
+  character the user had typed. `NoteEngine.listContinuation` judges it with its own ASCII test.
   A Return typed at the visual end of a bold or italic run first steps the caret over the run's
   hidden closing marker: without that the newline lands *inside* `**bold**`, splitting the run across
   two lines and exposing the syntax the editor exists to hide.
@@ -284,6 +288,19 @@ commit's own text and selection changes are what run it, so a note is styled the
 characters are real. Smart insert/delete is off with the other automatic substitutions: pasted
 Markdown has to land verbatim, and the space it would add belongs to neither syntax nor a script
 that writes without spaces.
+
+Standing the pass down leaves its *findings* behind, though, and a list line is made of them.
+`NoteLayoutManager` overrides `processEditing` and moves every stored decoration onto the text as it
+stands now — `NoteEngine.adjusting(_:forEdit:changeInLength:documentLength:)`, pure and
+harness-covered, applies the text storage's own rule for its attributes: a range before the edit is
+untouched, one after it shifts, one the edit happened strictly inside grows, and one the edit ran
+through is dropped until the next pass rebuilds it. Without that, a composition on a list line moved
+every disc and box below the caret onto the user's own glyphs while the markers they belong to —
+cleared to `NSColor.clear` by the same pass — were drawn nowhere at all: the bullets vanish and
+stray discs appear in the text, which is what reads as characters going missing. Nothing about it
+touches the source string. The two other places a previous pass's ranges are read now check them
+against the current text as well: the checkbox click refuses a marker that is no longer a state
+character, and the caret only steps over a concealed closing marker that still fits the document.
 
 Block constructs are found by `NoteEngine.blockSpans`, a pure line scan returning UTF-16 ranges for
 fenced code, blockquotes, horizontal rules and pipe tables. A fenced block shadows everything inside

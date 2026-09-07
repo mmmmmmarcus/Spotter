@@ -166,14 +166,12 @@ enum NoteEngine {
         let body = String(line.dropFirst(indentation.count))
 
         for marker in ["- [ ] ", "- [x] ", "- [X] "] where body.hasPrefix(marker) {
-            let content = body.dropFirst(marker.count)
-            return content.trimmingCharacters(in: .whitespaces).isEmpty
+            return isBlankListBody(body.dropFirst(marker.count))
                 ? .endList : .continueWith(indentation + "- [ ] ")
         }
 
         for marker in ["- ", "* ", "+ "] where body.hasPrefix(marker) {
-            let content = body.dropFirst(marker.count)
-            return content.trimmingCharacters(in: .whitespaces).isEmpty
+            return isBlankListBody(body.dropFirst(marker.count))
                 ? .endList : .continueWith(indentation + marker)
         }
 
@@ -181,9 +179,41 @@ enum NoteEngine {
         guard !digits.isEmpty, body.dropFirst(digits.count).hasPrefix(". "),
             let number = Int(digits)
         else { return nil }
-        let content = body.dropFirst(digits.count + 2)
-        return content.trimmingCharacters(in: .whitespaces).isEmpty
+        return isBlankListBody(body.dropFirst(digits.count + 2))
             ? .endList : .continueWith(indentation + "\(number + 1). ")
+    }
+
+    /// Whether a list item holds nothing but the ASCII blanks Markdown pads with — which is what
+    /// makes Return delete the line rather than continue it. `CharacterSet.whitespaces` counts the
+    /// ideographic space `U+3000` an input method types in full-width mode, and a non-breaking
+    /// space, as blank; those are characters the user typed, so ending the list there would delete
+    /// them silently.
+    private static func isBlankListBody(_ body: Substring) -> Bool {
+        body.allSatisfy { $0 == " " || $0 == "\t" }
+    }
+
+    /// Moves a UTF-16 range collected by an earlier pass onto the text as it stands now, following
+    /// the text storage's own rule for its attributes: a range before the edit is untouched, one
+    /// after it shifts, one the edit happened strictly inside grows with it, and one the edit ran
+    /// through is gone. Nil means the pass that found it no longer describes anything — whatever
+    /// was drawn there must not be drawn again until the next pass.
+    static func adjusting(
+        _ range: NSRange, forEdit edited: NSRange, changeInLength delta: Int, documentLength: Int
+    ) -> NSRange? {
+        let moved: NSRange
+        if NSMaxRange(range) <= edited.location {
+            moved = range
+        } else if range.location >= NSMaxRange(edited) {
+            moved = NSRange(location: range.location + delta, length: range.length)
+        } else if edited.location > range.location, NSMaxRange(edited) <= NSMaxRange(range),
+            range.length + delta > 0
+        {
+            moved = NSRange(location: range.location, length: range.length + delta)
+        } else {
+            return nil
+        }
+        guard moved.location >= 0, NSMaxRange(moved) <= documentLength else { return nil }
+        return moved
     }
 
     static func excerpt(in markdown: String) -> String {
