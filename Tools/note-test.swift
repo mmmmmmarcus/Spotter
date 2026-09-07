@@ -207,7 +207,7 @@ struct NoteTests {
         check("window transparency defaults to zero", 0.0, store.windowTransparency)
         store.setWindowTransparency(0.35)
         check("window transparency updates", 0.35, store.windowTransparency)
-        check("window blur defaults to today's frost", 0.4, store.windowBlur)
+        check("window blur defaults to full frost", 1.0, store.windowBlur)
         store.setWindowBlur(1.4)
         check("window blur clamps to the top of the range", 1.0, store.windowBlur)
         store.setWindowBlur(-0.2)

@@ -37,10 +37,10 @@ final class NoteStore: ObservableObject {
     /// a window with no surface left is invisible *and* lets clicks through to whatever is under it,
     /// which leaves the user nothing to grab to undo it.
     static let maximumWindowTransparency = 0.9
-    /// Reproduces the frost the window has always had, so an existing install sees no change until
-    /// the slider is moved. It sits below the middle deliberately: the complaint was too little
-    /// frost, so most of the range has to lie above today rather than below it.
-    static let defaultWindowBlur = 0.4
+    /// Full frost: transparency never thins the material at all unless the user asks it to. The
+    /// window always kept only 0.58 of it at the top of the transparency range, and the owner's
+    /// verdict on seeing the choice was that the frost should simply stay (owner decision, Sep 2026).
+    static let defaultWindowBlur = 1.0
 
     @Published private(set) var notes: [SpotterNote]
     @Published private(set) var saveState: NoteSaveState = .saved

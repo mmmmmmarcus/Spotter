@@ -117,10 +117,11 @@ curve *goes*. At the top of the blur range the floor is 1 and the material never
 90%-transparent note is scrim-free and tint-free but fully frosted. The bottom of the range is 0.30,
 not 0 — the frost-is-always-present guarantee is unchanged, only its strength is now the user's.
 
-The default is `NoteStore.defaultWindowBlur` (40%), which lands the floor on the 0.58 the window
-always had, so an existing install sees no change until the slider moves. It sits below the middle
-deliberately: the complaint was too little frost, so most of the range lies above today rather than
-below it. What the slider cannot do is add frost at **0% transparency** — the material is already at
+The default is `NoteStore.defaultWindowBlur` (100%): transparency does not thin the material at all
+unless the user asks it to. The window historically kept only 0.58 of its frost at the top of the
+transparency range, and shown the choice the owner's verdict was that it should simply stay (owner
+decision, Sep 2026) — so a note that has never touched the slider now reads more frosted at high
+transparency than it did before 1.5.25. What the slider cannot do is add frost at **0% transparency** — the material is already at
 alpha 1 there, and a material at full alpha is the whole of what the public API offers. Blur bites
 wherever transparency has thinned the frost, and nowhere else. Going beyond that would mean either
 snapping between heavier `NSVisualEffectView.Material` values, which changes the window's tint as
