@@ -72,6 +72,93 @@ struct MoleTests {
                 .allSatisfy { !$0.backgroundTaskTitle.isEmpty && !$0.systemImage.isEmpty })
         check("each action refreshes its own screen", MoleAction.purge.screen == .purge)
 
+        // Serial run queue — Mole runs one state-changing command at a time, in confirmed order.
+        let slack = MoleQueuedRun(
+            taskID: UUID(), action: .uninstall(name: "Slack", permanent: false))
+        let zoom = MoleQueuedRun(taskID: UUID(), action: .uninstall(name: "Zoom", permanent: false))
+        let figma = MoleQueuedRun(
+            taskID: UUID(), action: .uninstall(name: "Figma", permanent: false))
+
+        var queue = MoleRunQueue()
+        check("an idle queue is not busy", !queue.isBusy)
+        check("the first confirmed run starts immediately", queue.enqueue(slack) == .started(slack))
+        check("a second confirmed run waits", queue.enqueue(zoom) == .queued(position: 1))
+        check("a third confirmed run lines up behind it", queue.enqueue(figma) == .queued(position: 2))
+        check("the queue still runs exactly one thing", queue.running == slack)
+        check("waiting keeps confirmation order", queue.waiting.map(\.taskID) == [zoom.taskID, figma.taskID])
+        check("position is 1-based and skips the running run", queue.position(ofWaiting: figma.taskID) == 2)
+        check("the running run has no waiting position", queue.position(ofWaiting: slack.taskID) == nil)
+        check(
+            "confirming the same action twice never runs it twice",
+            queue.enqueue(
+                MoleQueuedRun(taskID: UUID(), action: .uninstall(name: "Zoom", permanent: false)))
+                == .duplicate)
+        check("a rejected duplicate does not lengthen the line", queue.waitingCount == 2)
+        check(
+            "a permanent delete is a different act from a Trash uninstall",
+            queue.enqueue(
+                MoleQueuedRun(taskID: UUID(), action: .uninstall(name: "Zoom", permanent: true)))
+                == .queued(position: 3))
+
+        check("the queued detail names the next in line", MoleRunQueue.queuedDetail(position: 1) == "Queued · next in line")
+        check("later positions are numbered", MoleRunQueue.queuedDetail(position: 3) == "Queued · #3 in line")
+
+        // Cancelling a queued run removes only it.
+        var cancelQueue = MoleRunQueue()
+        _ = cancelQueue.enqueue(slack)
+        _ = cancelQueue.enqueue(zoom)
+        _ = cancelQueue.enqueue(figma)
+        check(
+            "cancelling a queued run hands its row back",
+            cancelQueue.cancel(taskID: zoom.taskID) == .removedQueued(zoom))
+        check("cancelling a queued run leaves the running one alone", cancelQueue.running == slack)
+        check("the line closes up behind it", cancelQueue.position(ofWaiting: figma.taskID) == 1)
+        check("an unknown id cancels nothing", cancelQueue.cancel(taskID: UUID()) == .notFound)
+
+        // Cancelling the running run only marks it; the process is still exiting.
+        check(
+            "stopping the running run reports which run was stopped",
+            cancelQueue.cancel(taskID: slack.taskID) == .stoppedRunning(slack))
+        check("a stopped run is still the running run until it exits", cancelQueue.running == slack)
+        check("the stop is remembered so the row can say so", cancelQueue.runningWasStopped)
+        check("stopping twice is not a second stop", cancelQueue.cancel(taskID: slack.taskID) == .notFound)
+        check(
+            "the stopped run's exit starts the next one",
+            cancelQueue.finishRunning(taskID: slack.taskID) == figma)
+        check("the stop flag does not carry to the next run", !cancelQueue.runningWasStopped)
+        check("nothing is left waiting", cancelQueue.waitingCount == 0)
+        check(
+            "the last run's exit leaves the queue idle",
+            cancelQueue.finishRunning(taskID: figma.taskID) == nil && !cancelQueue.isBusy)
+
+        // A failed run must not silently swallow the rest of the line.
+        var failureQueue = MoleRunQueue()
+        _ = failureQueue.enqueue(slack)
+        _ = failureQueue.enqueue(zoom)
+        check(
+            "a failed run still hands over to the next confirmed one",
+            failureQueue.finishRunning(taskID: slack.taskID) == zoom)
+        check("the failed run is gone from the queue", !failureQueue.contains(taskID: slack.taskID))
+        check(
+            "a stale finish for an already-retired run advances nothing",
+            failureQueue.finishRunning(taskID: slack.taskID) == nil && failureQueue.running == zoom)
+
+        // Draining the line never touches the run in flight.
+        var drainQueue = MoleRunQueue()
+        _ = drainQueue.enqueue(slack)
+        _ = drainQueue.enqueue(zoom)
+        _ = drainQueue.enqueue(figma)
+        check("draining returns every waiting run", drainQueue.cancelWaiting() == [zoom, figma])
+        check("draining leaves the run in flight alone", drainQueue.running == slack)
+        check("draining empties the line", drainQueue.waitingCount == 0)
+
+        check(
+            "a queued run carries the preview total captured when it was confirmed",
+            MoleQueuedRun(taskID: UUID(), action: .clean, expectedItemCount: 42).expectedItemCount == 42)
+        check(
+            "every queued run is a post-confirmation action, so only uninstall gets stdin",
+            [MoleAction.clean, .optimize, .purge].allSatisfy { $0.standardInput == nil })
+
         // Preview arguments — the read-only pass behind each screen.
         check("clean previews with --dry-run",
             MoleScreen.clean.previewArguments == ["clean", "--dry-run"])

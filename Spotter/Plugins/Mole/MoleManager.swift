@@ -21,8 +21,8 @@ final class MoleManager: ObservableObject {
     @Published private(set) var state: LoadState = .idle
     @Published private(set) var screen: MoleScreen = .menu
     @Published private(set) var isLoadingPreview = false
-    /// Set while a state-changing command runs; the palette shows it and blocks a second start.
-    @Published private(set) var runningAction: MoleAction?
+    /// Mole runs one state-changing command at a time; confirmed runs wait here for their turn.
+    @Published private(set) var queue = MoleRunQueue()
     /// The last run's closing lines, shown above the refreshed list until the screen changes.
     @Published private(set) var lastRunSummary: [String] = []
 
@@ -34,6 +34,10 @@ final class MoleManager: ObservableObject {
 
     var onRunProgress: ((UUID, String, Double?) -> Void)?
     var onRunFinished: ((UUID, MoleAction, [String], Bool) -> Void)?
+    /// A queued run's turn came — its row stops saying Queued and starts reporting progress.
+    var onRunStarted: ((UUID, MoleAction) -> Void)?
+    /// Republished for every waiting run whenever the line moves.
+    var onQueuePosition: ((UUID, String) -> Void)?
 
     /// The directory the Analyze screen is showing, plus the trail back out of it.
     @Published private(set) var analyzePath: String = NSHomeDirectory()
@@ -66,7 +70,8 @@ final class MoleManager: ObservableObject {
     }
 
     var isInstalled: Bool { binaryPath != nil }
-    var isRunning: Bool { runningAction != nil }
+    var isRunning: Bool { queue.isBusy }
+    var runningAction: MoleAction? { queue.running?.action }
 
     func setBinaryPathOverride(_ path: String) {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -265,20 +270,64 @@ final class MoleManager: ObservableObject {
 
     // MARK: - Running
 
-    /// Starts a state-changing command. `AppCore` owns the confirmation, so this executes directly.
+    /// Takes one confirmed action into the serial queue, starting it when Mole is idle. `AppCore`
+    /// owns the confirmation — one card, one entry — so this executes directly. Nil means Mole
+    /// isn't installed and nothing was queued.
     @discardableResult
-    func run(_ action: MoleAction, taskID: UUID) -> Bool {
-        guard let path = binaryPath, !isRunning else { return false }
-        let expectedItemCount = expectedItemCount(for: action)
+    func enqueue(_ action: MoleAction, taskID: UUID) -> MoleEnqueueResult? {
+        guard binaryPath != nil else { return nil }
+        let entry = MoleQueuedRun(
+            taskID: taskID, action: action,
+            // Captured now, while the preview that justifies it is still the screen's state.
+            expectedItemCount: expectedItemCount(for: action))
+        let result = queue.enqueue(entry)
+        switch result {
+        case .started(let entry): start(entry)
+        case .queued: publishQueuePositions()
+        case .duplicate: break
+        }
+        return result
+    }
+
+    /// The user's call-off. A waiting run just leaves the line; the one in flight is interrupted and
+    /// reports how it ended through the ordinary finish path, which is what lets the next one start.
+    @discardableResult
+    func cancel(taskID: UUID) -> MoleQueueCancellation {
+        let outcome = queue.cancel(taskID: taskID)
+        switch outcome {
+        case .stoppedRunning: runTask?.cancel()
+        case .removedQueued: publishQueuePositions()
+        case .notFound: break
+        }
+        return outcome
+    }
+
+    /// Empties the line without touching the run in flight, and reports whose rows to drop.
+    @discardableResult
+    func cancelQueued() -> [MoleQueuedRun] {
+        queue.cancelWaiting()
+    }
+
+    /// Whether this exact action is already running or already in line, so a second confirmation
+    /// for it is never even offered.
+    func isPending(_ action: MoleAction) -> Bool { queue.contains(action: action) }
+
+    private func start(_ entry: MoleQueuedRun) {
+        guard let path = binaryPath else { return }
         loadTask?.cancel()
         loadTask = nil
         loadGeneration &+= 1
         isLoadingPreview = false
-        runTask?.cancel()
-        runningAction = action
-        screen = action.screen
+        // Adopting the run's screen is for the confirm-and-leave path; a later queued start must
+        // not yank a Mole screen the user is reading right now.
+        if !screenVisible { screen = entry.action.screen }
         lastSuccessfulLoad = nil
         lastRunSummary = []
+        onRunStarted?(entry.taskID, entry.action)
+        publishQueuePositions()
+        let action = entry.action
+        let taskID = entry.taskID
+        let expectedItemCount = entry.expectedItemCount
         runTask = Task { [weak self] in
             let result = await MoleProcessRunner.capture(
                 path: path, arguments: action.arguments,
@@ -289,21 +338,23 @@ final class MoleManager: ObservableObject {
                         expectedItemCount: expectedItemCount)
                 })
             guard let self else { return }
-            self.finish(result, for: action, taskID: taskID)
+            self.finish(result, for: entry)
         }
-        return true
     }
 
-    private func finish(
-        _ result: Result<Data, MoleRunError>, for action: MoleAction, taskID: UUID
-    ) {
-        runningAction = nil
+    private func finish(_ result: Result<Data, MoleRunError>, for entry: MoleQueuedRun) {
+        let action = entry.action
+        let wasStopped = queue.runningWasStopped
         runTask = nil
         let succeeded: Bool
         switch result {
         case .failure(let error):
             succeeded = false
-            lastRunSummary = [error.message]
+            lastRunSummary = [
+                wasStopped
+                    ? "Stopped before it finished — some files may already have been removed."
+                    : error.message
+            ]
             AppLog.error("mole", "\(action.title) failed: \(error.message)")
         case .success(let data):
             succeeded = true
@@ -316,11 +367,24 @@ final class MoleManager: ObservableObject {
         if case .uninstall(let name, _) = action, succeeded {
             appsCache?.removeAll { $0.uninstallName == name }
         }
-        // A hidden palette should not launch another expensive preview after the real run.
-        if screen == action.screen {
-            if screenVisible { reload() } else { state = .idle }
+        // A failure never drains the line: each waiting run carries its own confirmation, so one
+        // app refusing to go doesn't silently cancel the others.
+        let next = queue.finishRunning(taskID: entry.taskID)
+        onRunFinished?(entry.taskID, action, lastRunSummary, succeeded)
+        guard let next else {
+            // A hidden palette should not launch another expensive preview after the real run.
+            if screen == action.screen {
+                if screenVisible { reload() } else { state = .idle }
+            }
+            return
         }
-        onRunFinished?(taskID, action, lastRunSummary, succeeded)
+        start(next)
+    }
+
+    private func publishQueuePositions() {
+        for (index, entry) in queue.waiting.enumerated() {
+            onQueuePosition?(entry.taskID, MoleRunQueue.queuedDetail(position: index + 1))
+        }
     }
 
     private func expectedItemCount(for action: MoleAction) -> Int? {
@@ -340,7 +404,7 @@ final class MoleManager: ObservableObject {
         let snapshot = Self.runProgress(
             data, action: action, expectedItemCount: expectedItemCount)
         Task { @MainActor [weak self] in
-            guard self?.runningAction == action else { return }
+            guard self?.queue.running?.taskID == taskID else { return }
             self?.onRunProgress?(taskID, snapshot.detail, snapshot.progress)
         }
     }

@@ -8,13 +8,23 @@ snapshot that remains visible to the user.
 
 `AppCore.backgroundTasks` is the single `@MainActor` owner. A feature begins a task with a title,
 detail and symbol, then updates it by UUID and finishes it as Done or Failed. New tasks appear first.
-Running tasks cannot be dismissed; finished tasks remain until the user selects one and presses
-Return. Rows enter trusted v3 backups and automatic sync. A device identifier distinguishes remote
-progress from this Mac's executor: a local task that was still running when Spotter quit returns as
-Failed after relaunch, while a row owned by another live Mac can keep receiving remote progress.
+A row is **live** while it is Queued or Running: neither can be dismissed, and finished tasks remain
+until the user selects one and presses Return. Rows enter trusted v3 backups and automatic sync. A
+device identifier distinguishes remote progress from this Mac's executor: a local task that was still
+live when Spotter quit returns as Failed after relaunch — a queued promise this Mac can no longer
+keep is retired exactly like an interrupted run — while a row owned by another live Mac can keep
+receiving remote progress.
+
+**Queued** is for confirmed work a feature has accepted but not started, because its own serial queue
+is busy. The store holds only that fact and the position text the feature publishes; the queue itself
+belongs to the feature. `markQueued` renumbers a waiting row in place and `markRunning` starts it,
+and neither can revive a finished one.
 
 The executing manager remains responsible for cancellation policy and work isolation. Background
-tasks do not spawn processes, own network requests or mutate feature state themselves.
+tasks do not spawn processes, own network requests or mutate feature state themselves. A feature may
+register a cancellation alongside the row; the store only relays the call-off to that closure and
+leaves the row's fate to the feature, which either discards it or lets the work end and report how it
+ended. Cancellations are process-local for the same reason activations are.
 
 ## Launcher integration
 
@@ -29,18 +39,23 @@ part of the same flat selectable-row model:
 3. ordinary launcher results.
 
 A running row shows determinate progress when its feature can estimate a total and an indeterminate
-indicator otherwise. Return on a running row **opens the surface doing the work** — the footer reads
-Open — when its feature registered an activation with `begin(onOpen:)`. Activations are process-local
-by necessity: a closure cannot be synced, and a row mirrored from another Mac has no local work to
-open, so those rows stay inert. A Done or Failed row exposes only **Dismiss**; it has no Actions menu,
-and its activation is dropped when it finishes. Any task keeps compact mode expanded so progress
-cannot be hidden in the slim search bar.
+indicator otherwise; a queued row shows its place in line instead of progress it has not earned.
+Return on a running row **opens the surface doing the work** — the footer reads Open — when its
+feature registered an activation with `begin(onOpen:)`. Activations are process-local by necessity: a
+closure cannot be synced, and a row mirrored from another Mac has no local work to open, so those rows
+stay inert. A Done or Failed row exposes only **Dismiss**, and its activation is dropped when it
+finishes. A live row with a registered cancellation gets an Actions menu (⌘K) holding that one entry
+— *Cancel* for work not yet started, *Stop* (destructive) for work in flight — and no ↵ pill at all,
+so a reflexive Return can never halt something midway. Any task keeps compact mode expanded so
+progress cannot be hidden in the slim search bar.
 
 ## Integrated work
 
 The current one-shot work integrated with this surface is:
 
-- every state-changing Mole action: Clean, Optimize, Purge and Uninstall;
+- every state-changing Mole action: Clean, Optimize, Purge and Uninstall. Mole runs one at a time,
+  so a confirmed action can arrive Queued and start when the one ahead ends; the queue lives in the
+  plugin, not here (see [mole.md](mole.md));
 - every Image Modification operation, including multi-image batches and Vision work;
 - the one in-flight Spotter AI reply, which is also the only task with an activation today: Return
   switches to that conversation and opens the chat. The row is **titled with the conversation**
@@ -53,7 +68,8 @@ The current one-shot work integrated with this surface is:
 
 Mole and image batches publish determinate progress when they have a trustworthy total. Uninstall
 and AI requests stay indeterminate rather than inventing a percentage. Feature-owned cancellation
-(such as Stop Waiting or disabling Image Modification) discards the running row; user dismissal
+(such as Stop Waiting or disabling Image Modification) discards the running row; Mole's Stop instead
+lets the interrupted run report itself as Failed, since files may already be gone. User dismissal
 remains limited to Done and Failed rows. Built-in and custom Commands deliberately use the brief HUD
 instead of this persistent surface.
 

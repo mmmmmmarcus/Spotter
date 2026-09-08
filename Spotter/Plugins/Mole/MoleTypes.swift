@@ -221,6 +221,111 @@ enum MoleAction: Equatable, Sendable {
     }
 }
 
+/// One confirmed Mole run, either executing or waiting its turn. `AppCore` builds exactly one of
+/// these per confirmation card, so an entry can never stand for more than the app the user named.
+struct MoleQueuedRun: Equatable, Sendable {
+    let taskID: UUID
+    let action: MoleAction
+    /// The preview count captured when the user confirmed, so a run that starts later still
+    /// reports the progress its own preview justified rather than a stranger's.
+    let expectedItemCount: Int?
+
+    init(taskID: UUID, action: MoleAction, expectedItemCount: Int? = nil) {
+        self.taskID = taskID
+        self.action = action
+        self.expectedItemCount = expectedItemCount
+    }
+}
+
+/// What `MoleRunQueue.enqueue` did with a confirmed run.
+enum MoleEnqueueResult: Equatable, Sendable {
+    case started(MoleQueuedRun)
+    case queued(position: Int)
+    /// The same action is already running or already in line; confirming twice must not run twice.
+    case duplicate
+}
+
+/// What `MoleRunQueue.cancel` did. A queued entry leaves immediately; a running one is only marked,
+/// because the process is still exiting and `finishRunning` stays the single advancement point.
+enum MoleQueueCancellation: Equatable, Sendable {
+    case notFound
+    case removedQueued(MoleQueuedRun)
+    case stoppedRunning(MoleQueuedRun)
+}
+
+/// Mole's serial run order: one process at a time, in the order the user confirmed them.
+/// Pure — `MoleManager` owns the processes, this owns only who is next.
+struct MoleRunQueue: Equatable, Sendable {
+    private(set) var running: MoleQueuedRun?
+    private(set) var waiting: [MoleQueuedRun] = []
+    /// Set when the user stopped the running entry, so its row can say so instead of blaming Mole.
+    private(set) var runningWasStopped = false
+
+    var isBusy: Bool { running != nil }
+    var waitingCount: Int { waiting.count }
+
+    /// Adds a confirmed run, starting it when Mole is idle. A failure never drains the line: every
+    /// entry carries its own confirmation, so one app refusing to uninstall can't cancel the rest.
+    mutating func enqueue(_ entry: MoleQueuedRun) -> MoleEnqueueResult {
+        guard !contains(taskID: entry.taskID), !contains(action: entry.action) else {
+            return .duplicate
+        }
+        guard running != nil else {
+            running = entry
+            runningWasStopped = false
+            return .started(entry)
+        }
+        waiting.append(entry)
+        return .queued(position: waiting.count)
+    }
+
+    /// Retires the running entry and hands back whichever run starts next. The one place the queue
+    /// advances, so a run that ends by finishing, failing or being stopped all behave alike.
+    mutating func finishRunning(taskID: UUID) -> MoleQueuedRun? {
+        guard running?.taskID == taskID else { return nil }
+        running = nil
+        runningWasStopped = false
+        guard !waiting.isEmpty else { return nil }
+        let next = waiting.removeFirst()
+        running = next
+        return next
+    }
+
+    mutating func cancel(taskID: UUID) -> MoleQueueCancellation {
+        if let index = waiting.firstIndex(where: { $0.taskID == taskID }) {
+            return .removedQueued(waiting.remove(at: index))
+        }
+        guard let running, running.taskID == taskID, !runningWasStopped else { return .notFound }
+        runningWasStopped = true
+        return .stoppedRunning(running)
+    }
+
+    /// Drops everything still waiting without touching the run in flight — half-uninstalling an app
+    /// is worse than finishing the one the user already started.
+    mutating func cancelWaiting() -> [MoleQueuedRun] {
+        defer { waiting = [] }
+        return waiting
+    }
+
+    func contains(taskID: UUID) -> Bool {
+        running?.taskID == taskID || waiting.contains { $0.taskID == taskID }
+    }
+
+    func contains(action: MoleAction) -> Bool {
+        running?.action == action || waiting.contains { $0.action == action }
+    }
+
+    /// 1-based place in line, or nil when the entry is the one running (or isn't here at all).
+    func position(ofWaiting taskID: UUID) -> Int? {
+        waiting.firstIndex { $0.taskID == taskID }.map { $0 + 1 }
+    }
+
+    /// The row detail a waiting entry shows in place of progress it hasn't earned yet.
+    static func queuedDetail(position: Int) -> String {
+        position <= 1 ? "Queued · next in line" : "Queued · #\(position) in line"
+    }
+}
+
 /// The subset of `mole status` Spotter surfaces, already formatted for display.
 struct MoleStatus: Equatable, Sendable {
     struct Row: Equatable, Sendable {

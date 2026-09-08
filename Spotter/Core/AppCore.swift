@@ -314,6 +314,13 @@ final class AppCore: ObservableObject {
         mole.onRunProgress = { [weak self] taskID, detail, progress in
             self?.backgroundTasks.update(id: taskID, detail: detail, progress: progress)
         }
+        mole.onQueuePosition = { [weak self] taskID, detail in
+            self?.backgroundTasks.markQueued(id: taskID, detail: detail)
+        }
+        mole.onRunStarted = { [weak self] taskID, action in
+            self?.backgroundTasks.markRunning(
+                id: taskID, detail: "Starting \(action.title.lowercased())…")
+        }
         mole.onRunFinished = { [weak self] taskID, action, summary, succeeded in
             guard let self else { return }
             let detail = summary.first ?? "\(action.title) finished."

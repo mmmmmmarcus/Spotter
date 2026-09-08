@@ -3,14 +3,20 @@ import Foundation
 
 struct BackgroundTaskItem: Identifiable, Equatable, Codable, Sendable {
     enum State: String, Codable, Equatable, Sendable {
+        /// Confirmed work waiting on its feature's own serial queue — live, but not started.
+        case queued
         case running
         case done
         case failed
 
-        var isDismissible: Bool { self != .running }
+        var isDismissible: Bool { self == .done || self == .failed }
+
+        /// Work the feature is still on the hook for, whether or not it has begun.
+        var isLive: Bool { !isDismissible }
 
         var label: String {
             switch self {
+            case .queued: "Queued"
             case .running: "Running"
             case .done: "Done"
             case .failed: "Failed"
@@ -19,6 +25,7 @@ struct BackgroundTaskItem: Identifiable, Equatable, Codable, Sendable {
 
         var systemImage: String {
             switch self {
+            case .queued: "clock"
             case .running: "hourglass"
             case .done: "checkmark.circle.fill"
             case .failed: "exclamationmark.triangle.fill"
@@ -59,6 +66,9 @@ final class BackgroundTaskStore: ObservableObject {
     /// Where Return sends the user while a row is still running. Process-local by necessity: a
     /// closure cannot be synced, and a row mirrored from another Mac has no local work to open.
     private var activations: [UUID: () -> Void] = [:]
+    /// How the user calls off live work. Process-local for the same reason activations are, and the
+    /// closure belongs to the feature: the store never stops anything itself.
+    private var cancellations: [UUID: () -> Void] = [:]
 
     init(defaults: UserDefaults = .standard) {
         let key = "background-tasks.owner-id"
@@ -74,14 +84,16 @@ final class BackgroundTaskStore: ObservableObject {
     @discardableResult
     func begin(
         title: String, detail: String = "Starting…", systemImage: String = "gearshape.2",
-        id: UUID = UUID(), onOpen: (() -> Void)? = nil
+        id: UUID = UUID(), queued: Bool = false, onOpen: (() -> Void)? = nil,
+        onCancel: (() -> Void)? = nil
     ) -> UUID {
         executingIDs.insert(id)
         activations[id] = onOpen
+        cancellations[id] = onCancel
         tasks.insert(
             BackgroundTaskItem(
                 id: id, title: title, systemImage: systemImage, detail: detail,
-                progress: nil, state: .running, ownerID: ownerID),
+                progress: nil, state: queued ? .queued : .running, ownerID: ownerID),
             at: 0)
         return id
     }
@@ -92,6 +104,25 @@ final class BackgroundTaskStore: ObservableObject {
         else { return }
         tasks[index].detail = detail
         tasks[index].progress = progress.map { min(max($0, 0), 1) }
+    }
+
+    /// Re-states a live row's place in its feature's queue. Idempotent, so a feature can republish
+    /// every waiting row's position after any change without tracking what moved.
+    func markQueued(id: UUID, detail: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }), tasks[index].state.isLive
+        else { return }
+        tasks[index].state = .queued
+        tasks[index].detail = detail
+        tasks[index].progress = nil
+    }
+
+    /// The queued row's turn has come.
+    func markRunning(id: UUID, detail: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }), tasks[index].state.isLive
+        else { return }
+        tasks[index].state = .running
+        tasks[index].detail = detail
+        tasks[index].progress = nil
     }
 
     func complete(id: UUID, detail: String) {
@@ -105,13 +136,29 @@ final class BackgroundTaskStore: ObservableObject {
     func dismiss(id: UUID) {
         guard let task = tasks.first(where: { $0.id == id }), task.isDismissible else { return }
         activations[id] = nil
+        cancellations[id] = nil
         tasks.removeAll { $0.id == id }
     }
 
     func discard(id: UUID) {
         executingIDs.remove(id)
         activations[id] = nil
+        cancellations[id] = nil
         tasks.removeAll { $0.id == id }
+    }
+
+    /// Hands the call-off back to the feature that owns the work. The row's fate is the feature's
+    /// to decide: it may discard the row, or let the work end and report how it ended.
+    @discardableResult
+    func cancel(id: UUID) -> Bool {
+        guard canCancel(id: id), let cancellation = cancellations[id] else { return false }
+        cancellation()
+        return true
+    }
+
+    func canCancel(id: UUID) -> Bool {
+        guard let task = tasks.first(where: { $0.id == id }), task.state.isLive else { return false }
+        return cancellations[id] != nil
     }
 
     /// Return on a running row jumps to whatever surface owns the work. Reports `false` when the row
@@ -129,8 +176,9 @@ final class BackgroundTaskStore: ObservableObject {
     func replace(tasks newTasks: [BackgroundTaskItem]) {
         let liveLocal = tasks.filter { executingIDs.contains($0.id) }
         let liveIDs = Set(liveLocal.map(\.id))
+        // A queued row is this Mac's promise too, so a relaunch retires it exactly like a running one.
         let imported = newTasks.filter { !liveIDs.contains($0.id) }.map { task in
-            guard task.state == .running, task.ownerID == ownerID else { return task }
+            guard task.state.isLive, task.ownerID == ownerID else { return task }
             var interrupted = task
             interrupted.detail = "Interrupted when Spotter last quit."
             interrupted.progress = nil
@@ -139,11 +187,11 @@ final class BackgroundTaskStore: ObservableObject {
         }
         tasks = liveLocal + imported
         activations = activations.filter { liveIDs.contains($0.key) }
+        cancellations = cancellations.filter { liveIDs.contains($0.key) }
     }
 
     private func finish(id: UUID, detail: String, state: BackgroundTaskItem.State) {
-        guard let index = tasks.firstIndex(where: { $0.id == id }),
-            tasks[index].state == .running
+        guard let index = tasks.firstIndex(where: { $0.id == id }), tasks[index].state.isLive
         else { return }
         tasks[index].detail = detail
         tasks[index].progress = state == .done ? 1 : nil
@@ -151,5 +199,6 @@ final class BackgroundTaskStore: ObservableObject {
         executingIDs.remove(id)
         // A finished row's only action is Dismiss; the work it pointed at is over.
         activations[id] = nil
+        cancellations[id] = nil
     }
 }

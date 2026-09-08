@@ -49,6 +49,49 @@ struct BackgroundTaskTests {
         store.discard(id: cancelled)
         check("feature cancellation discards a running task", store.tasks.isEmpty)
 
+        // Queued rows: live work the feature has not started, and only the feature calls it off.
+        let waiting = UUID()
+        var calledOff: [UUID] = []
+        store.begin(
+            title: "Uninstalling Zoom", detail: "Queued · next in line", id: waiting, queued: true,
+            onCancel: { calledOff.append(waiting) })
+        check("a queued row reads as queued", store.tasks.first?.state == .queued)
+        check("a queued row cannot be dismissed", {
+            store.dismiss(id: waiting)
+            return store.tasks.contains { $0.id == waiting }
+        }())
+        check("a queued row offers cancellation", store.canCancel(id: waiting))
+        check("progress belongs to running work only", {
+            store.update(id: waiting, detail: "Halfway", progress: 0.5)
+            return store.tasks.first?.progress == nil && store.tasks.first?.detail != "Halfway"
+        }())
+        check("the line can be renumbered in place", {
+            store.markQueued(id: waiting, detail: "Queued · #2 in line")
+            return store.tasks.first?.detail == "Queued · #2 in line"
+        }())
+        check("cancelling hands off to the feature, not the store", {
+            store.cancel(id: waiting)
+            return calledOff == [waiting] && store.tasks.contains { $0.id == waiting }
+        }())
+        check("the feature's discard is what removes the row", {
+            store.discard(id: waiting)
+            return !store.tasks.contains { $0.id == waiting }
+        }())
+
+        let started = UUID()
+        store.begin(title: "Uninstalling Figma", id: started, queued: true, onCancel: {})
+        store.markRunning(id: started, detail: "Removing…")
+        check("a queued row can take its turn", store.tasks.first?.state == .running)
+        check("a running row still offers cancellation", store.canCancel(id: started))
+        store.fail(id: started, detail: "Stopped before it finished")
+        check("a stopped run reports how it ended", store.tasks.first?.state == .failed)
+        check("a finished row is past cancelling", !store.canCancel(id: started))
+        check("a finished row never restarts", {
+            store.markRunning(id: started, detail: "Again")
+            return store.tasks.first?.state == .failed
+        }())
+        store.dismiss(id: started)
+
         let localRunning = UUID()
         store.begin(title: "Still running here", id: localRunning)
         let remoteDone = BackgroundTaskItem(
@@ -67,6 +110,17 @@ struct BackgroundTaskTests {
         check(
             "a relaunched owner marks orphaned work failed",
             relaunched.tasks.first(where: { $0.id == localRunning })?.state == .failed)
+
+        let orphanedQueue = UUID()
+        let queuedOwner = BackgroundTaskStore(defaults: defaults)
+        queuedOwner.begin(title: "Uninstalling Slack", id: orphanedQueue, queued: true)
+        let orphanedSnapshot = try! JSONDecoder().decode(
+            [BackgroundTaskItem].self, from: try! JSONEncoder().encode(queuedOwner.tasks))
+        let afterQuit = BackgroundTaskStore(defaults: defaults)
+        afterQuit.replace(tasks: orphanedSnapshot)
+        check(
+            "a queued promise this Mac can no longer keep is retired too",
+            afterQuit.tasks.first(where: { $0.id == orphanedQueue })?.state == .failed)
 
         print(failures == 0 ? "\nBackground tasks: ALL PASSED" : "\n\(failures) FAILED")
         if failures > 0 { exit(1) }

@@ -118,7 +118,10 @@ Never break these without an explicit task to do so.
   `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
   `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
   termination status, retain stderr, and supply synthetic stdin only to a post-confirmation
-  uninstall. `Plugins/Coffee/CoffeeTypes.swift` stays Foundation-only and pure for
+  uninstall — a queued run is still one of those, and nothing else may receive it. Mole runs one
+  state-changing command at a time, so confirmed actions wait in `MoleRunQueue`: the ordering rule
+  stays a pure type in `MoleTypes.swift` while `MoleManager` owns the processes, and one
+  confirmation card still buys exactly one queue entry. `Plugins/Coffee/CoffeeTypes.swift` stays Foundation-only and pure for
   `Tools/coffee-test.swift`,
   `Plugins/CalendarSchedule/CalendarScheduleEngine.swift` stays Foundation-only and pure (clock,
   calendar and locale injected) for `Tools/calendar-schedule-test.swift`, the

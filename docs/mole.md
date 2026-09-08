@@ -11,9 +11,9 @@ missing binary rather than failing silently. Files live in `Spotter/Plugins/Mole
 
 | File | Role |
 | --- | --- |
-| `MoleTypes.swift` | Foundation-only, pure: the command catalog, screens, actions, and every output parser. |
+| `MoleTypes.swift` | Foundation-only, pure: the command catalog, screens, actions, the serial run queue, and every output parser. |
 | `MoleProcessRunner.swift` | Foundation process runner: applies preview-only environment and propagates task cancellation to Mole. |
-| `MoleManager.swift` | Locates the binary, runs Mole off-main, owns screen state, streamed run progress and the Analyze navigation trail. |
+| `MoleManager.swift` | Locates the binary, runs Mole off-main one command at a time, owns screen state, streamed run progress and the Analyze navigation trail. |
 | `MolePlugin.swift` | Registration, palette snapshots, ⌘K menus, the confirmation dialog, and the `AppCore` entry points. |
 | `MoleSettingsView.swift` | Enable switch, binary path override, per-screen shortcuts. |
 
@@ -103,6 +103,48 @@ palette cancels and interrupts a *preview* but never a run — a half-cleaned ma
 wasted read. Done and Failed rows remain until selected and dismissed with Return. See
 [background-tasks.md](background-tasks.md).
 
+## The run queue
+
+Mole itself runs one state-changing command at a time, so Spotter keeps a **serial queue** rather
+than refusing the second one: confirm an uninstall, confirm another, and the second starts when the
+first finishes. Order is the order they were confirmed.
+
+`MoleRunQueue` in `MoleTypes.swift` is the whole ordering rule — pure, `Foundation`-only and pinned
+by `Tools/mole-test.swift`. It holds the entry in flight, the line behind it, and nothing else;
+`MoleManager` owns the processes and is the only thing that starts one. Each entry carries its own
+task-row id, its action, and the preview item count **captured when the user confirmed**, so a
+Clean that starts ten minutes later still reports the total its own preview justified.
+
+**One confirmation, one uninstall.** Queueing changes nothing about consent. `AppCore.runMoleAction`
+and `AppCore.uninstallWithMole` each show one `ConfirmationCard` — highlight on Cancel — for one
+`MoleAction`, and only its confirm handler builds one queue entry. Nothing enumerates apps and
+enqueues in bulk, the queue never re-runs an entry, and confirming the same action while it is
+already running or waiting is refused as a duplicate rather than queued twice. When Mole is already
+busy the card says so, so a queued run is never mistaken for one that didn't take. Only the
+post-confirmation uninstall is handed Mole's required `y` line on stdin, queued or not; every other
+run still keeps stdin closed.
+
+Rows distinguish the two states: the running entry shows Mole's streamed progress, and everything
+behind it reads **Queued · next in line** / **Queued · #n in line**, renumbering as the line moves.
+
+**Cancelling.** Selecting a live row and pressing ⌘K offers exactly one action:
+
+- a **queued** row offers *Cancel* — it leaves the line, its row disappears, and the run in flight is
+  untouched;
+- the **running** row offers *Stop*, styled destructive: Spotter interrupts the Mole process, the row
+  ends as Failed with "Stopped before it finished — some files may already have been removed", and
+  the next entry starts. Stopping is deliberately ⌘K-only. ↵ on a live row does nothing, so no
+  reflexive keystroke can halt a deletion midway, and closing the palette still never cancels a run.
+
+Cancelling a launcher hand-off during its inventory read simply drops the row — nothing was queued.
+
+**A failure does not drain the queue.** Every waiting entry carries its own confirmation for its own
+app, so one app refusing to uninstall says nothing about the next, and silently discarding
+instructions the user already gave would be the bigger surprise. The failed entry keeps its Failed
+row with Mole's real message until dismissed — nothing is swallowed — and the line continues. Use
+Cancel on the remaining rows to stop the rest. The screen re-reads only once the queue drains, so a
+back-to-back run isn't interrupted by a preview.
+
 Beyond the per-row actions, every screen's ⌘K menu carries Refresh (⌘R), All Mole Commands, and Mole
 Settings…; app rows add Move to Trash / Delete Permanently / Reveal in Finder / Copy Bundle ID, and
 path-backed rows add Reveal in Finder / Copy Path. All Mole Commands clears the current screen's
@@ -114,7 +156,7 @@ An app row's ⌘K menu in the launcher offers **Uninstall with Mole** (apps only
 itself, only while Mole is installed and the plugin enabled). It confirms in-palette immediately,
 then does everything as one background task: the inventory read runs first, the app is resolved
 against it **by exact path** (`MoleParser.uninstallTarget`), and only a uniquely addressable,
-non-cask match starts the uninstall run. A missing, ambiguous or Homebrew-owned copy fails the task
+non-cask match enters the run queue. A missing, ambiguous or Homebrew-owned copy fails the task
 with the reason instead of deleting anything — an unverified display name is never passed to Mole.
 The palette never leaves the launcher and never waits on the inventory; the uninstall screen remains
 available separately via the Mole Uninstall App command.

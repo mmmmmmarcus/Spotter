@@ -329,17 +329,21 @@ enum MoleResults {
                     primaryActionTitle: "Scanning…")
             ]
         }
-        let running = manager.runningAction != nil
+        let running = manager.runningAction == action
+        let queued = !running && manager.isPending(action)
         let summary = manager.lastRunSummary.joined(separator: " · ")
+        let title =
+            running
+            ? "Running \(action.title)…" : queued ? "\(action.title) is queued" : action.title
         return [
             PluginPaletteItem(
                 id: "run",
-                title: running ? "Running \(action.title)…" : action.title,
+                title: title,
                 subtitle: summary.isEmpty
                     ? "Runs the command for real — Spotter asks first." : summary,
-                icon: .symbol(running ? "hourglass" : "play.circle.fill"),
+                icon: .symbol(running ? "hourglass" : queued ? "clock" : "play.circle.fill"),
                 subtitleLineLimit: 2,
-                primaryActionTitle: running ? "Running…" : "Run")
+                primaryActionTitle: running ? "Running…" : queued ? "Queued…" : "Run")
         ]
     }
 
@@ -425,7 +429,7 @@ enum MoleResults {
                 })
         }
 
-        if let action = pendingAction(for: manager.screen), !manager.isRunning,
+        if let action = pendingAction(for: manager.screen), !manager.isPending(action),
             !manager.isLoadingPreview
         {
             items.append(
@@ -572,21 +576,25 @@ extension AppCore {
     /// Launcher app rows confirm immediately, then resolve the exact copy and uninstall as one
     /// background task — the palette never leaves the launcher and nothing waits on the inventory.
     func uninstallWithMole(_ app: AppEntry) {
-        guard canUninstallWithMole(app), !mole.isRunning else { return }
+        guard canUninstallWithMole(app) else { return }
         let appPath = app.url.path
         let name = app.name
         confirmInPalette(
             PaletteConfirmation(
                 title: "Uninstall “\(name)”?",
-                message:
-                    "\(name) and its support files will be moved to the Trash. Mole verifies the exact installed copy first and runs in the background.",
+                message: "\(name) and its support files will be moved to the Trash. "
+                    + "Mole verifies the exact installed copy first and runs in the background."
+                    + moleQueueNote(),
                 actionTitle: "Uninstall"
             ) { [weak self] in
-                guard let self, !self.mole.isRunning else { return }
-                let taskID = self.backgroundTasks.begin(
+                guard let self, self.plugins.isEnabled(.mole) else { return }
+                // The row's id is minted here so its Cancel can name the very task it belongs to.
+                let taskID = UUID()
+                self.backgroundTasks.begin(
                     title: "Uninstalling \(name)",
                     detail: "Checking the installed copy with Mole…",
-                    systemImage: "trash")
+                    systemImage: "trash", id: taskID,
+                    onCancel: { [weak self] in self?.cancelMoleTask(taskID) })
                 self.palette.prepare(mode: .launcher)
                 self.showPalette(mode: .launcher)
                 Task { [weak self] in
@@ -595,6 +603,9 @@ extension AppCore {
                     case .failure(let error):
                         self.backgroundTasks.fail(id: taskID, detail: error.message)
                     case .success(let apps):
+                        // Cancelled while the inventory was being read: nothing was ever queued.
+                        guard self.backgroundTasks.tasks.contains(where: { $0.id == taskID })
+                        else { return }
                         switch MoleParser.uninstallTarget(in: apps, appPath: appPath) {
                         case .missing:
                             self.backgroundTasks.fail(
@@ -604,14 +615,9 @@ extension AppCore {
                         case .blocked(let issue):
                             self.backgroundTasks.fail(id: taskID, detail: issue)
                         case .found(let target):
-                            if !self.mole.run(
+                            self.startOrQueueMole(
                                 .uninstall(name: target.uninstallName, permanent: false),
                                 taskID: taskID)
-                            {
-                                self.backgroundTasks.fail(
-                                    id: taskID,
-                                    detail: "Mole is already running another task.")
-                            }
                         }
                     }
                 }
@@ -621,26 +627,67 @@ extension AppCore {
     /// The one funnel every state-changing Mole *screen* run passes through, so no palette-screen
     /// path skips the confirmation; the launcher hand-off above carries its own confirmation.
     func runMoleAction(_ action: MoleAction) {
-        guard plugins.isEnabled(.mole), !mole.isRunning else { return }
+        guard plugins.isEnabled(.mole), !mole.isPending(action) else { return }
         confirmInPalette(
             PaletteConfirmation(
                 title: "\(action.title)?",
-                message: action.confirmation,
+                message: action.confirmation + moleQueueNote(),
                 actionTitle: action.title,
                 isDestructive: action.isPermanent
             ) { [weak self] in
-                guard let self, !self.mole.isRunning else { return }
-                let taskID = self.backgroundTasks.begin(
+                guard let self, self.plugins.isEnabled(.mole) else { return }
+                let taskID = UUID()
+                self.backgroundTasks.begin(
                     title: action.backgroundTaskTitle,
                     detail: "Starting \(action.title.lowercased())…",
-                    systemImage: action.systemImage)
-                if !self.mole.run(action, taskID: taskID) {
-                    self.backgroundTasks.fail(id: taskID, detail: "Mole couldn't start this task.")
-                }
+                    systemImage: action.systemImage, id: taskID,
+                    onCancel: { [weak self] in self?.cancelMoleTask(taskID) })
+                self.startOrQueueMole(action, taskID: taskID)
                 self.mole.stop()
                 self.palette.prepare(mode: .launcher)
                 self.showPalette(mode: .launcher)
             })
+    }
+
+    /// Hands one already-confirmed action to Mole's serial queue and tells its row where it landed.
+    private func startOrQueueMole(_ action: MoleAction, taskID: UUID) {
+        switch mole.enqueue(action, taskID: taskID) {
+        case .none:
+            backgroundTasks.fail(
+                id: taskID,
+                detail: "Mole isn't installed. Get it at mole.fit, or set its path in Settings.")
+        case .started:
+            break  // `onRunStarted` already put the row into its running state.
+        case .queued(let position):
+            backgroundTasks.markQueued(
+                id: taskID, detail: MoleRunQueue.queuedDetail(position: position))
+        case .duplicate:
+            backgroundTasks.fail(id: taskID, detail: "Mole is already doing exactly this.")
+        }
+    }
+
+    /// Called off from a background-task row. A waiting run leaves without disturbing the one in
+    /// flight; stopping the running one interrupts Mole and lets the next in line begin.
+    func cancelMoleTask(_ taskID: UUID) {
+        switch mole.cancel(taskID: taskID) {
+        case .removedQueued:
+            backgroundTasks.discard(id: taskID)
+        case .stoppedRunning:
+            backgroundTasks.update(id: taskID, detail: "Stopping…", progress: nil)
+        case .notFound:
+            // Either already stopping, or confirmed but not yet queued because the inventory read
+            // is still resolving the copy. Only the latter has no work to end, so only it drops.
+            if !mole.queue.contains(taskID: taskID) { backgroundTasks.discard(id: taskID) }
+        }
+    }
+
+    /// Says out loud that a confirmed run will wait its turn, so nobody reads a queued uninstall
+    /// as one that didn't take.
+    private func moleQueueNote() -> String {
+        guard mole.isRunning else { return "" }
+        let waiting = mole.queue.waitingCount
+        let ahead = waiting == 0 ? "one run" : "\(waiting + 1) runs"
+        return " Mole is busy, so this starts after the \(ahead) already in line."
     }
 
     func performMoleRow(itemID: String) {

@@ -230,7 +230,7 @@ struct RootPaletteView: View {
     private var actionsContent: PopoverMenuContent? {
         switch vm.mode {
         case .launcher:
-            if selectedBackgroundTask != nil { return nil }
+            if let task = selectedBackgroundTask { return backgroundTaskMenu(task) }
             if selectedLauncherFallback != nil { return nil }
             if let inline = selectedInlineResult {
                 switch inline {
@@ -287,6 +287,23 @@ struct RootPaletteView: View {
             guard let item = selectedPluginItem else { return nil }
             return plugins.paletteActions(pluginID: id, itemID: item.id)
         }
+    }
+
+    /// A live task row's only action is calling the work off, and only when its feature offers one.
+    /// Waiting work is merely dropped; work already in flight is stopped, which can leave it partly
+    /// done — so that one is worded and styled as the destructive act it is, and never sits on ↵.
+    private func backgroundTaskMenu(_ task: BackgroundTaskItem) -> PopoverMenuContent? {
+        guard backgroundTasks.canCancel(id: task.id) else { return nil }
+        let stopping = task.state == .running
+        return PopoverMenuContent(
+            header: task.title,
+            items: [
+                PopoverMenuItem(
+                    title: stopping ? "Stop" : "Cancel",
+                    systemImage: stopping ? "stop.circle" : "xmark.circle",
+                    isDestructive: stopping
+                ) { backgroundTasks.cancel(id: task.id) }
+            ])
     }
 
     /// The bottom-left menu: About/Settings everywhere, the session list in chat mode.
@@ -373,22 +390,31 @@ struct RootPaletteView: View {
         let pillLabel = actionPillLabel(
             selectedTask: selectedTask, selectedApp: selectedApp, selectedPlugin: selectedPlugin,
             selectedFallback: selectedFallback, inlineActionTitle: inlineActionTitle)
-        let showActionGroup = selectedTask.map { $0.isDismissible || backgroundTasks.canOpen(id: $0.id) }
+        // A task row earns a ↵ pill only when Return has somewhere to go; live work that can merely
+        // be called off shows the Actions button alone, so ↵ never stops anything by reflex.
+        let taskPrimary = selectedTask.map { $0.isDismissible || backgroundTasks.canOpen(id: $0.id) }
+        let showPrimaryAction = taskPrimary ?? true
+        let showActionGroup = selectedTask.map {
+            (taskPrimary ?? false) || backgroundTasks.canCancel(id: $0.id)
+        }
             ?? (((count > 0 || vm.mode == .aiChat)
                 && !(inlineSelected && inlineActionTitle == nil))
                 || (vm.mode == .updates && updatePrimaryActionTitle != nil))
-        let showActionsButton = vm.mode != .updates && selectedTask == nil
-            && selectedFallback == nil
+        let showActionsButton = vm.mode != .updates
+            && (selectedTask.map { backgroundTasks.canCancel(id: $0.id) } ?? (selectedFallback == nil))
 
         let layout = paletteLayout(
             apps: apps, tasks: tasks, clips: clips, hist: hist, emojiSections: emojiSections,
             inline: inline, fallbacks: fallbacks, plugin: plugin, dashboard: dashboard,
             selection: sel,
             sections: browse?.sections, usage: browse?.usage ?? [:], pillLabel: pillLabel,
-            showActionGroup: showActionGroup, showActionsButton: showActionsButton
+            showPrimaryAction: showPrimaryAction, showActionGroup: showActionGroup,
+            showActionsButton: showActionsButton
         )
-        let statefulLayout = paletteWithStateHandlers(
-            layout, clips: clips, clipFollow: clipFollow)
+        // Calling off is a task row's only menu item, so work that ends under the open menu would
+        // leave an empty overlay holding the input freeze. Close it instead.
+        let statefulLayout = paletteWithStateHandlers(layout, clips: clips, clipFollow: clipFollow)
+            .onChange(of: selectedTaskState) { closeEmptiedActionsMenu() }
         return paletteWithKeyHandlers(statefulLayout)
     }
 
@@ -399,7 +425,7 @@ struct RootPaletteView: View {
         fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
         selection: Int, sections: [LauncherSectionSlice]?, usage: [String: String],
-        pillLabel: String, showActionGroup: Bool,
+        pillLabel: String, showPrimaryAction: Bool, showActionGroup: Bool,
         showActionsButton: Bool
     ) -> some View {
         // The `header` (and its single search field) is always attached in the same position via safeAreaInset so its focus survives the compact↔expanded swap — only the results below it toggle. Collapsed shows the bar alone; expanded floats header + action bar over the list with edge-dissolve (see docs/ui.md).
@@ -419,8 +445,8 @@ struct RootPaletteView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isCollapsed {
                 bottomBar(
-                    pillLabel: pillLabel, showActionGroup: showActionGroup,
-                    showActionsButton: showActionsButton)
+                    pillLabel: pillLabel, showPrimaryAction: showPrimaryAction,
+                    showActionGroup: showActionGroup, showActionsButton: showActionsButton)
             }
         }
         // Menus are in-window overlays anchored to a bottom corner, so they stay clipped inside the panel — never a system popover spilling outside the window.
@@ -755,7 +781,11 @@ struct RootPaletteView: View {
             guard !isCollapsed else { return .handled }
             // Chat has no selectable rows but a fixed menu; every other mode needs a selection.
             guard resultCount > 0 || vm.mode == .aiChat else { return .handled }
-            if selectedBackgroundTask != nil { return .handled }
+            // A task row's only menu is calling the work off, so it opens only when it can be.
+            if let task = selectedBackgroundTask {
+                if backgroundTasks.canCancel(id: task.id) { toggleActions() }
+                return .handled
+            }
             // An informational inline card can be selected without exposing an empty actions panel.
             if inlineCount > 0, selection == launcherTaskCount,
                 inlineResult?.result.isActionable != true
@@ -1059,14 +1089,17 @@ struct RootPaletteView: View {
     }
 
     private func bottomBar(
-        pillLabel: String, showActionGroup: Bool, showActionsButton: Bool
+        pillLabel: String, showPrimaryAction: Bool, showActionGroup: Bool,
+        showActionsButton: Bool
     ) -> some View {
         // No bar — just floating glass controls over the list; the edge dissolve ghosts rows passing beneath, so the buttons read clearly without a hard-edged strip.
         HStack(spacing: 0) {
             appMenuButton
             Spacer()
             if showActionGroup {
-                actionGroup(pillLabel: pillLabel, showActionsButton: showActionsButton)
+                actionGroup(
+                    pillLabel: pillLabel, showPrimaryAction: showPrimaryAction,
+                    showActionsButton: showActionsButton)
             }
         }
         .padding(.horizontal, Theme.Spacing.md)
@@ -1081,16 +1114,22 @@ struct RootPaletteView: View {
     }
 
     /// The footer control group: primary action and the Actions toggle sharing one glass capsule.
-    private func actionGroup(pillLabel: String, showActionsButton: Bool) -> some View {
+    private func actionGroup(
+        pillLabel: String, showPrimaryAction: Bool, showActionsButton: Bool
+    ) -> some View {
         HStack(spacing: 2) {
             // One primary button everywhere, ↵ included: chat sends on ↵ like every other mode
-            // activates on it, and Tab is the surface cycle the header glyph already advertises.
-            BarButton(action: activateSelection) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    Text(pillLabel)
-                        .font(Theme.Typography.bar)
-                        .foregroundStyle(.primary)
-                    KeyCapChip(text: "↵", style: .outline)
+            // activates on it, and Tab is the surface cycle the header glyph already advertises. A
+            // live background-task row has no primary action at all — its only control is Actions,
+            // so a reflexive ↵ cannot stop a run.
+            if showPrimaryAction {
+                BarButton(action: activateSelection) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Text(pillLabel)
+                            .font(Theme.Typography.bar)
+                            .foregroundStyle(.primary)
+                        KeyCapChip(text: "↵", style: .outline)
+                    }
                 }
             }
             if showActionsButton {
@@ -1176,6 +1215,13 @@ struct RootPaletteView: View {
         withAnimation(Self.menuAnimation) {
             openMenu = openMenu == .clipboardFilter ? nil : .clipboardFilter
         }
+    }
+
+    private var selectedTaskState: BackgroundTaskItem.State? { selectedBackgroundTask?.state }
+
+    private func closeEmptiedActionsMenu() {
+        guard openMenu == .actions, actionsContent == nil else { return }
+        closeMenus()
     }
 
     private func closeMenus() {
