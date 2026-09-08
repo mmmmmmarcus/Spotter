@@ -21,7 +21,8 @@ struct AIChatView: View {
                 )
             } else if historySessions.isEmpty {
                 EmptyResults(
-                    text: "Ask anything — ↵ sends here, and ⌃⌥⌘C sends to ChatGPT on the web.")
+                    text: "Ask anything — ↵ sends here, and Actions (⌘K) sends to ChatGPT on the web."
+                )
             } else {
                 history
             }
@@ -63,7 +64,8 @@ struct AIChatView: View {
                         AIChatRow(message: message)
                     }
                     if chat.phase == .waiting {
-                        AIChatStatusRow(symbol: "ellipsis", text: "Thinking…", pulses: true)
+                        AIChatStatusRow(
+                            symbol: "ellipsis", text: AIChatEngine.waitingStatus, pulses: true)
                     }
                     if case .failed(let reason) = chat.phase {
                         AIChatStatusRow(

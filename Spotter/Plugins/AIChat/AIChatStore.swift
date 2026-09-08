@@ -116,7 +116,8 @@ final class AIChatStore: ObservableObject {
         let sessionID = currentID
         guard requests.begin(sessionID: sessionID) else { return false }
         append(AIChatMessage(role: .user, text: trimmed), to: sessionID)
-        let sessionTitle = sessions.first { $0.id == sessionID }?.title ?? "AI Chat"
+        // Named after the turn just appended, so the row carries the question rather than a label.
+        let sessionTitle = title(of: sessionID)
         backgroundTaskID = onRequestStarted?(sessionID, sessionTitle)
         let window = AIChatEngine.transcriptWindow(messages)
         let sessionPrompt = current.systemPrompt
@@ -206,10 +207,14 @@ final class AIChatStore: ObservableObject {
         task = nil
         guard let backgroundTaskID else { return }
         self.backgroundTaskID = nil
-        let sessionTitle = sessions.first { $0.id == sessionID }?.title ?? "AI Chat"
+        // The row is titled with the conversation, so its status says only what happened.
         onRequestFinished?(
             backgroundTaskID, sessionID, failure == nil,
-            failure ?? "Reply ready in \(sessionTitle).")
+            failure ?? AIChatEngine.replyReadyStatus)
+    }
+
+    private func title(of sessionID: UUID) -> String {
+        sessions.first { $0.id == sessionID }?.title ?? AIChatEngine.untitledSessionTitle
     }
 
     private func replaceEmptySession(with session: AIChatSession) {

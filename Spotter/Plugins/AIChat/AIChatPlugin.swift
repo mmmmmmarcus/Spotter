@@ -73,6 +73,15 @@ enum AIChatActionsMenu {
                     core.aiChat.stop()
                 })
         }
+        // The web handoff is an action on the draft, so it lives here rather than in the footer.
+        // Sampled when the menu opens, which is exactly when typing is frozen, so it can't go stale.
+        let draft = core.palette.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !draft.isEmpty {
+            items.append(
+                PopoverMenuItem(title: "Send to ChatGPT", systemImage: "globe") {
+                    if core.sendAIChatPromptToChatGPT(draft) { core.palette.query = "" }
+                })
+        }
         if let reply = core.aiChat.lastAssistantReply {
             items.append(
                 PopoverMenuItem(title: "Copy Last Reply", systemImage: "doc.on.doc") {
@@ -135,7 +144,7 @@ extension AppCore {
         showPalette(mode: .aiChat)
     }
 
-    /// Return on a running "Asking Spotter AI" row: back into the conversation that is waiting.
+    /// Return on a running AI row: back into the conversation that is waiting.
     func openAIChat(sessionID: UUID) {
         aiChat.switchTo(sessionID)
         palette.prepare(mode: .aiChat)

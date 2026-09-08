@@ -43,7 +43,11 @@ The current one-shot work integrated with this surface is:
 - every state-changing Mole action: Clean, Optimize, Purge and Uninstall;
 - every Image Modification operation, including multi-image batches and Vision work;
 - the one in-flight Spotter AI reply, which is also the only task with an activation today: Return
-  switches to that conversation and opens the chat. The row exists to carry a reply the user walked
+  switches to that conversation and opens the chat. The row is **titled with the conversation**
+  (`AIChatSession.title`: a selected-text action's override, otherwise the first user turn) and
+  subtitled with the request's status — `Thinking…` while in flight, `Reply ready.` on success,
+  OpenRouter's own message on failure — so several finished AI rows are told apart by the questions
+  that made them. The row exists to carry a reply the user walked
   away from, so a reply that lands while the palette is showing that very session is **discarded
   rather than completed** — they have already read it, and there is nothing to come back to.
 

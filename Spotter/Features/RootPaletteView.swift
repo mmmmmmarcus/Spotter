@@ -580,11 +580,6 @@ struct RootPaletteView: View {
         }
         // Shift-Tab reaches us as a token for the same reason ⌘. does: AppKit gives the chord to the field editor before `onKeyPress` can see it.
         .onChange(of: vm.backTabToken) { handleTab(shift: true) }
-        // Hyper-C: hand the typed draft to ChatGPT on the web, from the launcher or the chat composer.
-        .onChange(of: vm.chatGPTChordToken) {
-            guard vm.mode == .aiChat || vm.mode == .launcher else { return }
-            sendChatGPTMessage()
-        }
         .onAppear { searchFocused = vm.mode != .updates }
         // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
         .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
@@ -1088,34 +1083,14 @@ struct RootPaletteView: View {
     /// The footer control group: primary action and the Actions toggle sharing one glass capsule.
     private func actionGroup(pillLabel: String, showActionsButton: Bool) -> some View {
         HStack(spacing: 2) {
-            if vm.mode == .aiChat {
-                BarButton(action: sendChatMessage) {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        Text(pillLabel)
-                            .font(Theme.Typography.bar)
-                            .foregroundStyle(.primary)
-                        KeyCapChip(text: "Tab", style: .outline)
-                    }
-                }
-                BarButton(action: sendChatGPTMessage) {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        Text("ChatGPT")
-                            .font(Theme.Typography.bar)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                        HStack(spacing: Theme.Spacing.xxs) {
-                            KeyCapChip(text: "⇧", style: .outline)
-                            KeyCapChip(text: "Tab", style: .outline)
-                        }
-                    }
-                }
-            } else {
-                BarButton(action: activateSelection) {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        Text(pillLabel)
-                            .font(Theme.Typography.bar)
-                            .foregroundStyle(.primary)
-                        KeyCapChip(text: "↵", style: .outline)
-                    }
+            // One primary button everywhere, ↵ included: chat sends on ↵ like every other mode
+            // activates on it, and Tab is the surface cycle the header glyph already advertises.
+            BarButton(action: activateSelection) {
+                HStack(spacing: Theme.Spacing.sm) {
+                    Text(pillLabel)
+                        .font(Theme.Typography.bar)
+                        .foregroundStyle(.primary)
+                    KeyCapChip(text: "↵", style: .outline)
                 }
             }
             if showActionsButton {
@@ -1146,7 +1121,7 @@ struct RootPaletteView: View {
         case .clipboard, .emoji:
             return vm.pasteTarget?.pasteTitle ?? "Paste"
         case .aiChat:
-            return core.aiChat.isWaiting ? "Thinking…" : "Send"
+            return core.aiChat.isWaiting ? AIChatEngine.waitingStatus : "Send"
         case .updates:
             return updatePrimaryActionTitle ?? "Check Again"
         case .calculatorHistory:
@@ -1373,13 +1348,6 @@ struct RootPaletteView: View {
         let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !core.aiChat.isWaiting else { return }
         if core.aiChat.send(text) { vm.query = "" }
-    }
-
-    /// Hyper-C hands the draft to a new ChatGPT web query and lets the browser own the session.
-    private func sendChatGPTMessage() {
-        let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        if core.sendAIChatPromptToChatGPT(text) { vm.query = "" }
     }
 
     /// Back out to a fresh root search — `prepare` is the same reset used when the palette is shown (clears query/selection, bumps focusToken to refocus the field).

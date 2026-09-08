@@ -428,8 +428,8 @@ Mole uses the same trailing accessory slot to mark Homebrew-owned or duplicate-n
 reveal-only; the two-line subtitle explains why destructive actions are unavailable.
 AI Chat is the asynchronous selected-text surface for definition and grammar actions: they render
 the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
-shared composer for follow-ups. Its footer exposes the two draft destinations side by side: Tab for
-Spotter's OpenRouter chat and Shift-Tab for ChatGPT on the web. Selection Tools uses the shared
+shared composer for follow-ups. Its footer carries the same single primary button every other
+surface has — `Send ↵` — and the second destination, Send to ChatGPT, is a row in the ⌘K menu. Selection Tools uses the shared
 plugin list for browser-search failures and for its original → one-row-per-target translation rows,
 which are the one place a palette row carries no title line limit.
 

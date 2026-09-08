@@ -61,6 +61,9 @@ struct AIChatTests {
         // Session titles derive from the first user turn, like Notes titles.
         check("empty session titles as New Session", AIChatEngine.sessionTitle(for: []) == "New Session")
         check(
+            "the untitled fallback is that same one string",
+            AIChatEngine.untitledSessionTitle == AIChatEngine.sessionTitle(for: []))
+        check(
             "title is the first user turn",
             AIChatEngine.sessionTitle(for: [
                 message(.user, "what is Swift?"), message(.assistant, "a language"),
@@ -76,6 +79,27 @@ struct AIChatTests {
         let longTitle = AIChatEngine.sessionTitle(
             for: [message(.user, String(repeating: "word ", count: 30))], limit: 20)
         check("long titles are capped with an ellipsis", longTitle.hasSuffix("…") && longTitle.count <= 22)
+
+        // A session's own title is what names its background-task row: an override wins, otherwise
+        // the first user turn, and only a conversation with no user turn falls back to untitled.
+        check(
+            "a session titles itself from its first user turn",
+            AIChatSession(messages: [message(.user, "why is the sky blue?")]).title
+                == "why is the sky blue?")
+        check(
+            "an override wins over the derived title",
+            AIChatSession(
+                messages: [message(.user, "sky")], titleOverride: "Definition"
+            ).title == "Definition")
+        check(
+            "a conversation with no user turn falls back to the untitled name",
+            AIChatSession().title == AIChatEngine.untitledSessionTitle)
+
+        // The background-task row's subtitle uses this vocabulary and nothing else.
+        check(
+            "the request statuses are distinct and non-empty",
+            !AIChatEngine.waitingStatus.isEmpty && !AIChatEngine.replyReadyStatus.isEmpty
+                && AIChatEngine.waitingStatus != AIChatEngine.replyReadyStatus)
 
         check("system prompt is non-empty", !AIChatEngine.systemPrompt.isEmpty)
         check(

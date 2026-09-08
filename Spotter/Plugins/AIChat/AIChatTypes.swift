@@ -100,6 +100,15 @@ enum AIChatEngine {
         blocks — but do not decorate a one-line answer with headings.
         """
 
+    /// What a conversation is called before a user turn has named it.
+    static let untitledSessionTitle = "New Session"
+
+    /// The one status vocabulary for a request in flight and for the reply that lands. The
+    /// transcript status row, the footer pill and the launcher's background-task row all read these,
+    /// so a row can never describe a state the store doesn't have.
+    static let waitingStatus = "Thinking…"
+    static let replyReadyStatus = "Reply ready."
+
     /// A session's menu title: its first user turn, whitespace collapsed and capped — the same
     /// derive-don't-ask rule Notes uses for titles.
     static func sessionTitle(for messages: [AIChatMessage], limit: Int = 40) -> String {
@@ -108,7 +117,7 @@ enum AIChatEngine {
                 .split(whereSeparator: \.isWhitespace)
                 .joined(separator: " "),
             !first.isEmpty
-        else { return "New Session" }
+        else { return untitledSessionTitle }
         guard first.count > limit else { return first }
         return String(first.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
     }

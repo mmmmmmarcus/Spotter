@@ -13,7 +13,7 @@ struct AIChatSettingsView: View {
                 SettingsCallout(
                     title: "Spotter AI needs an OpenRouter API key.",
                     message:
-                        "The key is entered once in General → AI. ChatGPT web remains available with Shift-Tab.",
+                        "The key is entered once in General → AI. Actions (⌘K) can still send a draft to ChatGPT on the web.",
                     systemImage: "key",
                     tint: .orange
                 ) {

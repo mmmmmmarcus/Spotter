@@ -40,8 +40,9 @@ point at the wrong row.
 
 With a typed launcher query, Tab enters a fresh AI Chat session carrying the draft into the
 composer *unsent*; ⌘↵ from the launcher both enters and asks, and in the composer ↵ (or ⌘↵) sends.
-Hyper-C (⌃⌥⌘C) sends a typed draft from either Apps or AI Chat to `https://chatgpt.com/?q=…` in the
-default browser; Shift-Tab is always the plain backward cycle. With a typed launcher draft ⌘↵ is
+The ChatGPT web handoff (`https://chatgpt.com/?q=…` in the default browser) has no chord of its own:
+in chat it is a ⌘K Actions row, from the launcher it is the `Send to ChatGPT` query row. Shift-Tab is
+always the plain backward cycle. With a typed launcher draft ⌘↵ is
 the ask-AI chord, so Reveal in Finder keeps ⌘↵ only on an empty query (and stays in the Actions
 menu). Only the launcher's query follows into chat — a clipboard or emoji filter string is dropped
 rather than sent as a message nobody typed.

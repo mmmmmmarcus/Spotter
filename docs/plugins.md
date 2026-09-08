@@ -259,8 +259,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **AI Chat** (`Spotter/Plugins/AIChat/`) — an always-available system feature shown under
   Settings → System. It reuses registry infrastructure for Settings routing, commands, permissions
   and shortcuts, but cannot be disabled and does not export an enable state. It remains inert without
-  the shared OpenRouter key for Spotter-hosted replies. Tab sends a typed query through OpenRouter;
-  Shift-Tab opens the same query at `https://chatgpt.com/?q=…` in the default browser. Selected-text
+  the shared OpenRouter key for Spotter-hosted replies. ↵ sends the composer draft through
+  OpenRouter; the ⌘K Actions row Send to ChatGPT opens the same draft at `https://chatgpt.com/?q=…`
+  in the default browser. Selected-text
   definition and grammar checks start follow-up-ready conversations. The launcher's final query
   destination rows reuse both paths without adding registry commands.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns

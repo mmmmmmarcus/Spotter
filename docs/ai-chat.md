@@ -1,20 +1,21 @@
 # AI Chat
 
 A conversation inside the palette, at launcher size. The shared header search field is the composer,
-the body renders the running transcript, and two destinations are a chord away: **↵** (or ⌘↵) sends
-through Spotter's OpenRouter-backed chat while **Hyper-C** (⌃⌥⌘C, shift-tolerant for a Hyper Key
-that carries ⇧) sends the draft to ChatGPT on the web. Tab never sends — both Tab directions are
-purely the surface cycle.
+the body renders the running transcript, and **↵** (or ⌘↵) sends through Spotter's OpenRouter-backed
+chat. That is the only send binding, and the footer says so: one primary button, `Send ↵`, exactly
+like every other surface. Tab never sends — both Tab directions are purely the surface cycle, which
+the header's mode glyph already advertises ("Switch surface (⇥)").
+
+The web handoff is **Send to ChatGPT** in the ⌘K Actions menu, on the draft in the composer. It has
+no key binding of its own (owner decision, Sep 2026): the Hyper-C chord — and with it
+`PaletteViewModel.chatGPTChordToken` and the `PalettePanel.sendEvent` interception that carried it —
+is gone, from the launcher as well as from chat. Nothing was persisted for that chord (it was
+hardcoded, never a recorded shortcut), so no binding, recorder row or `KeyboardShortcuts_*` key is
+orphaned by the removal, and the launcher's `Send to ChatGPT` row still reaches the same handoff.
 
 From the launcher, **⌘↵** with a typed query starts a fresh AI Chat session and sends immediately,
 while **Tab** enters chat carrying the draft into the composer unsent;
-without a key, the text stays in the composer beside the add-a-key notice. **Hyper-C** with a typed
-query instead opens `https://chatgpt.com/?q=…` in the default browser and dismisses Spotter — from
-the launcher and from inside AI Chat alike. The chord rides a stolen-chord token
-(`PaletteViewModel.chatGPTChordToken`): a full modifier chord never reaches SwiftUI's `onKeyPress`,
-so `PalettePanel.sendEvent` intercepts it the way ⌘. and Shift-Tab are. Shift-Tab itself is now
-purely the backward surface cycle — it no longer doubles as the web handoff, whose chord it kept
-losing to the field editor. With no draft, Tab keeps
+without a key, the text stays in the composer beside the add-a-key notice. With no draft, Tab keeps
 the Apps → AI Chat → Clipboard → Emoji surface cycle and Shift-Tab walks it backward. Only the
 launcher's query follows into chat; arriving from Clipboard or Emoji, the filter string is dropped
 rather than sent. An already-empty current session is reused so cycling
@@ -29,7 +30,7 @@ Every non-empty launcher query also exposes those same two destinations in a fin
 after any normal results. The AI Chat row names the selected chat model — `Ask Gemini 2.0 Flash…`,
 from `OpenRouterModelCatalog.modelName(for:in:)` — and falls back to `Send to AI Chat` with no API
 key, since the key is the gate and an unkeyed row can't promise a model. Activating AI Chat follows
-the fresh-session Tab path; activating ChatGPT follows the Hyper-C web handoff.
+the fresh-session Tab path; activating ChatGPT follows the same web handoff the Actions menu runs.
 
 AI Chat is an always-available system feature shown in Settings → System, but remains inert
 without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
@@ -41,7 +42,7 @@ Settings, command, permission and shortcut plumbing without being presented as a
 
 | File | Role |
 | --- | --- |
-| `AIChatTypes.swift` | Foundation-only, pure: portable message/session models, system prompt, transcript windowing and ChatGPT web URL. |
+| `AIChatTypes.swift` | Foundation-only, pure: portable message/session models, derived session title, the request status vocabulary, system prompt, transcript windowing and ChatGPT web URL. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
 | `AIChatSelectionPrompts.swift` | Foundation-only follow-up-aware prompt construction. |
 | `AIChatMarkdown.swift` | Foundation-only, pure: splits a reply into Markdown blocks. |
@@ -96,19 +97,27 @@ whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw M
 
 - **↵ or ⌘↵ sends to Spotter AI** and clears the field after the request is accepted; the reply
   appends when it lands. While a reply is in flight the footer pill reads "Thinking…" and a pulsing
-  status row sits under the transcript.
-- **Hyper-C sends to ChatGPT on the web** by opening an encoded `q` query in the default browser.
-  Spotter dismisses without appending the prompt to its own transcript; ChatGPT owns the new web
-  session, account and request.
+  status row sits under the transcript. Those words come from `AIChatEngine.waitingStatus`, the one
+  status vocabulary the pill, the transcript row and the background-task row all read.
+- **Send to ChatGPT** (⌘K, shown only when the composer holds a draft) opens an encoded `q` query in
+  the default browser. Spotter dismisses without appending the prompt to its own transcript; ChatGPT
+  owns the new web session, account and request. Like every other row in that menu it is reachable by
+  Actions type-ahead, and the draft is sampled when the menu opens — which is exactly when palette
+  input freezes, so the search field keeps first responder and the sampled text cannot go stale.
 - The transcript keeps the newest content pinned to the bottom, user turns render as right-aligned
   bubbles (`chatBubble` radius, `controlSurface` fill), assistant turns as unadorned leading result
   text without an icon, and everything is text-selectable.
-- **⌘K**: Stop Waiting (while in flight), Copy Last Reply, Copy Conversation, New Session, Delete
-  Session, a Web Search on/off toggle, and AI Chat Settings… Delete Session uses the shared
+- **⌘K**: Stop Waiting (while in flight), Send to ChatGPT (with a draft), Copy Last Reply, Copy
+  Conversation, New Session, Delete Session, a Web Search on/off toggle, and AI Chat Settings… Delete Session uses the shared
   in-palette confirmation card with Cancel selected first.
 - **Esc** backs out to the launcher (the standard ladder); the conversation survives, and re-entering
-  chat resumes it. An in-flight request appears there as an indeterminate background task; success or
-  failure remains dismissible while Stop Waiting discards the row. ↑/↓ do nothing — the transcript
+  chat resumes it. An in-flight request appears there as an indeterminate background task **titled
+  with the conversation** — `AIChatSession.title`, so an override (a selected-text action) wins and
+  everything else derives from the first user turn — and subtitled with its status: `Thinking…` while
+  in flight, `Reply ready.` on success, OpenRouter's own message on failure. Several finished AI rows
+  are therefore told apart by the questions that made them. A send always appends the user turn
+  before the row is titled, so the untitled fallback (`New Session`) is unreachable in practice;
+  success or failure remains dismissible while Stop Waiting discards the row. ↑/↓ do nothing — the transcript
   has no row selection.
 - `AIChatMode` is a core `PaletteMode` (like Emoji) rather than a `PluginPaletteList` screen: a
   conversation flow is not a filter-a-list interaction, and the emoji grid is the precedent for a
@@ -169,7 +178,7 @@ why it ships off. Synced as `openRouterChatWebSearch`.
 
 Spotter conversations are included in trusted v3 backups and automatic sync, including the selected
 conversation. Without sync they remain session-only; with sync, quitting and relaunching restores the
-latest shared snapshot. Messages go only to OpenRouter under the user's own key. A
-Hyper-C handoff does not call a network API from Spotter; it opens the encoded prompt in the default
+latest shared snapshot. Messages go only to OpenRouter under the user's own key. The ChatGPT
+handoff does not call a network API from Spotter; it opens the encoded prompt in the default
 browser, where the URL may be retained by normal browser history and ChatGPT processes it under the
 browser's signed-in account.
