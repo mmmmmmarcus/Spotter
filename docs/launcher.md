@@ -201,7 +201,10 @@ Every non-empty launcher query appends four explicit `Try With` rows after its n
 Spotter's AI Chat, send to ChatGPT on the web, run in Terminal, and search files in Finder. The AI
 Chat row names the model it will ask — `Ask Gemini 2.0 Flash…` — resolved from
 `OpenRouterStore.chatModel` through `OpenRouterModelCatalog.modelName(for:in:)`, which prefers the
-live catalog's own label and otherwise prettifies the id's tail. Without an API key there is no
+live catalog's own label and otherwise prettifies the id's tail. The **version stays in the name**
+(owner decision, Sep 2026): OpenRouter's own labels carry it, so stripping it only on the derived
+path would name one model two ways depending on whether Settings had ever been opened, and stripping
+it on both would turn `openai/gpt-5.1` into `Ask GPT…`. Without an API key there is no
 request to promise, so the row reads `Send to AI Chat`. If there are no normal or inline results,
 this group replaces the empty state. These are transient rows backed by the current query; they
 never enter the app index, ranking, favorites, visibility settings or command registry.
