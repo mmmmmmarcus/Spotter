@@ -38,6 +38,8 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         anchor = nil
         // Size + place the panel to the current collapsed state before ordering front, so a compact summon never flashes at full size.
         positionPanel(panel, collapsed: core.paletteIsCollapsed)
+        // Before the layout flush below, so anything that goes quiet off-screen (the widget strip's clock) is already ticking when that first frame is measured.
+        core.paletteVisibilityDidChange(to: true)
         // Flush the hosting view's first-mount layout while still off-screen, so the one-time safe-area settle of the `safeAreaInset` header doesn't nudge the search placeholder on the first visible frame.
         panel.contentView?.layoutSubtreeIfNeeded()
         // The `.nonactivatingPanel` takes key focus without activating the app, so summoning the palette never raises the app's Settings/onboarding windows behind it.
@@ -52,6 +54,8 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
 
     func hide(restoreFocus: Bool) {
         panel?.orderOut(nil)
+        // Ordering out leaves the hosting view mounted, so nothing inside it learns the palette is gone unless it is told; every dismissal reaches here, including the click-away that never calls `AppCore.hidePalette`.
+        core.paletteVisibilityDidChange(to: false)
         // Drop the session anchor so the next summon re-resolves for the screen the user is on then.
         anchor = nil
         // Drop the multi-MB clipboard preview bitmaps now the window is gone, so idle RAM returns near baseline (row thumbnails stay cached).

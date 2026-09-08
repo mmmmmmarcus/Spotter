@@ -187,6 +187,15 @@ enum DashboardWidgetsEngine {
         return sourceIdentifier == selectedSourceIdentifier
     }
 
+    /// The start of the minute after `date` — the strip's own tick. Nothing outside the clock's
+    /// hands moves faster than a minute (the date corners turn over daily, the event card's line
+    /// is a wall-clock time), and landing on the minute rather than a minute after whenever the
+    /// launcher happened to open keeps the spoken time from reading a minute behind the face.
+    static func nextMinute(after date: Date) -> Date {
+        let seconds = date.timeIntervalSinceReferenceDate
+        return Date(timeIntervalSinceReferenceDate: (seconds / 60).rounded(.down) * 60 + 60)
+    }
+
     /// Hands sweep continuously — the hour hand advances with the minutes, the minute hand with the seconds — so the face never shows the top-of-hour snap of a components-only clock.
     /// The second itself carries its fraction, so a caller redrawing faster than 1 Hz gets a gliding second hand rather than a tick.
     static func clockHandAngles(

@@ -336,6 +336,24 @@ go, the place the user chose does not.
 Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
 identifiers for removed widgets are ignored. The permission overview exposes Calendar and
 Automation as global permissions, because the calendar card depends on the first and both the Music
-and File Info cards on the second. Calendar refreshes and Music polling occur only while the
-dashboard is visible: neither has anything to report to a closed palette. Permission views re-check authorization while visible
+and File Info cards on the second. Calendar refreshes, Music polling and the device-battery scan
+occur only while the dashboard is visible: none has anything to report to a closed palette.
+Permission views re-check authorization while visible
 so returning from System Settings updates them without a relaunch.
+
+**Visible means on screen, not mounted.** Hiding the palette orders its panel out rather than
+tearing the hosting view down, so SwiftUI's `onAppear`/`onDisappear` report only the strip's place
+in the view tree and say nothing about whether anyone can see it. `AppCore.isPaletteVisible` — the
+observable half of `isPaletteShowing`, written solely by `PaletteWindowController`, the one choke
+point every summon and every dismissal passes through, including the click-away that never reaches
+`hidePalette` — is the signal the strip actually runs on. It gates the three readers *and* both
+timelines: `DashboardStripSchedule` emits one entry and then nothing off screen, and the clock face's
+`TimelineView(.animation(paused:))` stops sweeping. Without that gate the face redrew, and relaid out
+the whole hosting view, once per display frame forever behind a closed launcher — 41% of a core at
+idle, enough to starve the main thread and swallow global hotkeys.
+
+The strip's own tick is the top of each minute, not each second: the seconds belong to the clock
+face's own timeline, and nothing else on the strip moves faster than a day (the date corners) or a
+wall-clock minute (the event line). The face is drawn as two canvases for the same reason — the tick
+ring and its four numerals are still, so resolving that type once instead of four `Text` resolutions
+per frame is over half the cost of the sweep.

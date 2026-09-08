@@ -111,6 +111,35 @@ struct DashboardWidgetsTests {
             !DashboardWidgetsEngine.clockFollowsCity(
                 cityTimeZoneIdentifier: "Europe/Berlin", clockTimeZoneIdentifier: nil),
             "a clock on System Default is not following a city")
+        // 1_000_000_020 is a whole minute past the reference epoch; 1_000_000_000 is 40s short of it.
+        let midMinute = Date(timeIntervalSinceReferenceDate: 1_000_000_000)
+        check(
+            DashboardWidgetsEngine.nextMinute(after: midMinute)
+                == Date(timeIntervalSinceReferenceDate: 1_000_000_020),
+            "the strip's tick lands on the next whole minute, not a minute later")
+        check(
+            DashboardWidgetsEngine.nextMinute(after: midMinute) > midMinute,
+            "a tick is always in the future, so the schedule can never stall on one entry")
+        check(
+            DashboardWidgetsEngine.nextMinute(
+                after: Date(timeIntervalSinceReferenceDate: 1_000_000_000.75))
+                == Date(timeIntervalSinceReferenceDate: 1_000_000_020),
+            "a fractional second is dropped rather than carried into the next tick")
+        check(
+            DashboardWidgetsEngine.nextMinute(after: midMinute)
+                == DashboardWidgetsEngine.nextMinute(
+                    after: Date(timeIntervalSinceReferenceDate: 1_000_000_019)),
+            "two moments inside one minute tick at the same instant")
+        check(
+            DashboardWidgetsEngine.nextMinute(
+                after: Date(timeIntervalSinceReferenceDate: 1_000_000_020))
+                == Date(timeIntervalSinceReferenceDate: 1_000_000_080),
+            "a moment already on the minute advances a whole minute rather than repeating itself")
+        check(
+            DashboardWidgetsEngine.nextMinute(
+                after: Date(timeIntervalSinceReferenceDate: -30))
+                == Date(timeIntervalSinceReferenceDate: 0),
+            "a date before the reference epoch still rounds forward, never back")
         check(
             DashboardWidgetsEngine.locationSummary(
                 cityLabel: nil, cityTimeZoneIdentifier: nil, clockTimeZoneIdentifier: nil,

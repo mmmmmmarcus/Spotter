@@ -36,19 +36,29 @@ struct DashboardWidgetsView: View {
     var body: some View {
         let visible = store.orderedWidgets.filter(isVisible)
         if !visible.isEmpty {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            TimelineView(DashboardStripSchedule(isRunning: core.isPaletteVisible)) { context in
                 strip(visible: visible, now: context.date)
             }
-            .onAppear {
-                store.start()
-                battery.start()
-                music.start()
-            }
-            .onDisappear {
-                store.stop()
-                battery.stop()
-                music.stop()
-            }
+            .onAppear { setReading(core.isPaletteVisible) }
+            .onDisappear { setReading(false) }
+            // `onAppear`/`onDisappear` only report the strip's place in the view tree, and hiding
+            // the palette orders the panel out rather than tearing that tree down — so palette
+            // visibility is the only signal that says whether these readings have a reader. Without
+            // it the strip polls Music, EventKit and IOKit forever behind a closed launcher.
+            .onChange(of: core.isPaletteVisible) { _, visible in setReading(visible) }
+        }
+    }
+
+    /// The strip's readers, all three of which cost a subprocess, an Apple Event or a registry scan.
+    private func setReading(_ isReading: Bool) {
+        if isReading {
+            store.start()
+            battery.start()
+            music.start()
+        } else {
+            store.stop()
+            battery.stop()
+            music.stop()
         }
     }
 
@@ -137,7 +147,7 @@ struct DashboardWidgetsView: View {
     private func card(_ kind: DashboardWidgetKind, now: Date) -> some View {
         switch kind {
         case .clock: clockCard(now: now)
-        case .music: musicCard(now: now)
+        case .music: musicCard()
         case .deviceBattery: batteryCard()
         case .nextEvent: eventCard(now: now)
         case .fileInfo: DashboardFileInfoCard(snapshot: fileInfo.snapshot)
@@ -205,7 +215,7 @@ struct DashboardWidgetsView: View {
     /// The artwork *is* the card — it fills the square edge to edge with the text and transport
     /// laid over a scrim, the way a player's now-playing tile reads. Without artwork the same layout
     /// runs over the ordinary card surface, so the strip keeps its rhythm either way.
-    private func musicCard(now: Date) -> some View {
+    private func musicCard() -> some View {
         let snapshot = music.snapshot
         return ZStack {
             musicArtwork
@@ -428,7 +438,8 @@ struct DashboardWidgetsView: View {
         ZStack {
             AnalogClockFace(
                 timeZone: store.clockTimeZone,
-                conditionSymbol: showsWeather ? condition?.symbolName : nil)
+                conditionSymbol: showsWeather ? condition?.symbolName : nil,
+                isTicking: core.isPaletteVisible)
                 .padding(Self.clockFaceInset)
             ClockComplicationRing(
                 topLeft: showsWeather ? temperatureText : nil,
@@ -728,10 +739,33 @@ private struct ClockComplicationRing: View {
     }
 }
 
+/// The strip's tick: the top of each minute while the palette is on screen, and one entry and then
+/// silence while it is off. A minute is as fast as anything outside the clock's hands moves here,
+/// and stopping entirely off screen is the point — the panel is ordered out rather than torn down,
+/// so an ungated schedule keeps relaying out the whole strip behind a closed launcher.
+private struct DashboardStripSchedule: TimelineSchedule {
+    let isRunning: Bool
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        let keepsTicking = isRunning
+        var next: Date? = startDate
+        return AnyIterator {
+            defer {
+                next = keepsTicking ? next.map(DashboardWidgetsEngine.nextMinute(after:)) : nil
+            }
+            return next
+        }
+    }
+}
+
 /// A Clock-app-style face drawn in the palette's alpha ramp: ramp ticks, numerals and hands over the card fill, with an orange second hand — no opaque dial.
 private struct AnalogClockFace: View {
     let timeZone: TimeZone
     var conditionSymbol: String?
+    /// False while the palette is off screen. Hiding orders the panel out rather than tearing the
+    /// hosting view down, so an unpaused schedule sweeps the second hand — and relayouts the whole
+    /// hosting view once per display frame — forever behind a closed launcher.
+    var isTicking: Bool
 
     /// Where the weather glyph sits, as a fraction of the dial's radius straight down from the hub —
     /// clear of the hands' hub and short of the six, the slot a watch face keeps for it.
@@ -742,11 +776,15 @@ private struct AnalogClockFace: View {
         GeometryReader { geometry in
             let radius = min(geometry.size.width, geometry.size.height) / 2
             ZStack {
-                // Its own timeline, at the display's refresh rate: the strip's one-second tick would
-                // step the second hand instead of sweeping it, and raising that cadence would redraw
-                // every other card too.
-                TimelineView(.animation) { context in
-                    face(
+                // Drawn once and left alone: the tick ring and its four numerals never move, and
+                // resolving that type inside the animated canvas cost four `Text` resolutions every
+                // frame — over half the cost of the sweep.
+                Canvas { context, size in dial(&context, size: size) }
+                // Its own timeline, at the display's refresh rate: the strip's tick would step the
+                // second hand instead of sweeping it, and raising that cadence would redraw every
+                // other card too.
+                TimelineView(.animation(minimumInterval: nil, paused: !isTicking)) { context in
+                    hands(
                         angles: DashboardWidgetsEngine.clockHandAngles(
                             for: context.date, timeZone: timeZone))
                 }
@@ -764,28 +802,35 @@ private struct AnalogClockFace: View {
         }
     }
 
-    private func face(angles: ClockHandAngles) -> some View {
+    /// The still half of the face: the tick ring and the quarter numerals.
+    private func dial(_ context: inout GraphicsContext, size: CGSize) {
+        let radius = min(size.width, size.height) / 2
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+
+        for tick in 0..<60 {
+            let isHour = tick.isMultiple(of: 5)
+            context.stroke(
+                radial(
+                    center: center, angle: .degrees(Double(tick) * 6),
+                    from: radius * (isHour ? 0.87 : 0.93), to: radius * 0.99),
+                with: .color(isHour ? .primary : Theme.Colors.textTertiary),
+                style: StrokeStyle(lineWidth: isHour ? 2 : 1, lineCap: .round))
+        }
+
+        // Only the quarters are numbered; the tick ring already says where the rest are, and a
+        // full set of twelve crowds the glyph slot above the six.
+        for hour in stride(from: 3, through: 12, by: 3) {
+            context.draw(
+                context.resolve(Text("\(hour)").font(.caption2.weight(.semibold))),
+                at: point(center: center, angle: .degrees(Double(hour) * 30), radius: radius * 0.70))
+        }
+    }
+
+    /// The moving half: three strokes and the hub, and nothing that has to be resolved per frame.
+    private func hands(angles: ClockHandAngles) -> some View {
         Canvas { context, size in
             let radius = min(size.width, size.height) / 2
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
-
-            for tick in 0..<60 {
-                let isHour = tick.isMultiple(of: 5)
-                context.stroke(
-                    radial(
-                        center: center, angle: .degrees(Double(tick) * 6),
-                        from: radius * (isHour ? 0.87 : 0.93), to: radius * 0.99),
-                    with: .color(isHour ? .primary : Theme.Colors.textTertiary),
-                    style: StrokeStyle(lineWidth: isHour ? 2 : 1, lineCap: .round))
-            }
-
-            // Only the quarters are numbered; the tick ring already says where the rest are, and a
-            // full set of twelve crowds the glyph slot above the six.
-            for hour in stride(from: 3, through: 12, by: 3) {
-                context.draw(
-                    context.resolve(Text("\(hour)").font(.caption2.weight(.semibold))),
-                    at: point(center: center, angle: .degrees(Double(hour) * 30), radius: radius * 0.70))
-            }
 
             context.stroke(
                 radial(center: center, angle: .degrees(angles.hour), from: -radius * 0.12, to: radius * 0.50),

@@ -479,15 +479,10 @@ final class AppCore: ObservableObject {
             dashboardDeviceBattery.refresh()
             refreshDashboardFileInfo()
         }
-        // Live only while the palette shows: the section's CPU/memory readings poll `ps`, and a hidden palette must not keep sampling.
-        if settings.visibleLauncherSections.contains(.activeApps) {
-            runningApps.startUsageSampling()
-        }
     }
 
     func hidePalette(restoreFocus: Bool = true) {
         if let id = palette.mode.pluginID { plugins.deactivatePaletteScreen(id) }
-        runningApps.stopUsageSampling()
         windowController.hide(restoreFocus: restoreFocus)
     }
 
@@ -627,6 +622,25 @@ final class AppCore: ObservableObject {
     var previousApplication: NSRunningApplication? { windowController.previousApp }
     /// Whether the palette panel is on screen — window commands need it to pick their target app.
     var isPaletteShowing: Bool { windowController.isVisible }
+
+    /// The observable half of the above, for views that must go quiet when the palette leaves the
+    /// screen. Hiding orders the panel out rather than tearing the hosting view down, so SwiftUI's
+    /// own `onDisappear` never fires and a timeline or poll inside the tree would otherwise run
+    /// forever behind a closed launcher.
+    @Published private(set) var isPaletteVisible = false
+
+    /// `PaletteWindowController` is the only writer: it is the one choke point every summon and
+    /// every dismissal passes through, including the click-away that never reaches `hidePalette`.
+    func paletteVisibilityDidChange(to visible: Bool) {
+        guard isPaletteVisible != visible else { return }
+        isPaletteVisible = visible
+        // The section's CPU/memory readings poll `ps`; a hidden palette must not keep sampling.
+        if visible, settings.visibleLauncherSections.contains(.activeApps) {
+            runningApps.startUsageSampling()
+        } else if !visible {
+            runningApps.stopUsageSampling()
+        }
+    }
 
     /// The first-run wizard: palette shortcut, Accessibility, Raycast import. Also re-runnable from Settings.
     func showOnboarding() {
