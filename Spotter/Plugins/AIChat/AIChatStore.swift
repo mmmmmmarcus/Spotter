@@ -7,10 +7,7 @@ final class AIChatStore: ObservableObject {
     @Published private(set) var sessions: [AIChatSession]
     @Published private(set) var currentID: UUID
     @Published private(set) var requests = AIChatRequestLedger()
-    @Published private(set) var definitionPrompt: String
-    @Published private(set) var grammarPrompt: String
     private let openRouter: OpenRouterStore
-    private let defaults: UserDefaults
     private var task: Task<Void, Never>?
     private var backgroundTaskID: UUID?
     /// The session ID rides along so the launcher row can offer a way back into that conversation,
@@ -18,20 +15,12 @@ final class AIChatStore: ObservableObject {
     var onRequestStarted: ((UUID, String) -> UUID)?
     var onRequestFinished: ((UUID, UUID, Bool, String) -> Void)?
     var onRequestCancelled: ((UUID) -> Void)?
-    // Keep the existing keys so prompt customizations survive the ownership move from Selection Tools.
-    private static let definitionPromptKey = "selection-tools.definition-prompt"
-    private static let grammarPromptKey = "selection-tools.grammar-prompt"
 
-    init(openRouter: OpenRouterStore, defaults: UserDefaults = .standard) {
+    init(openRouter: OpenRouterStore) {
         self.openRouter = openRouter
-        self.defaults = defaults
         let first = AIChatSession()
         sessions = [first]
         currentID = first.id
-        definitionPrompt = defaults.string(forKey: Self.definitionPromptKey)
-            ?? AIChatSelectionPrompts.defaultDefinition
-        grammarPrompt = defaults.string(forKey: Self.grammarPromptKey)
-            ?? AIChatSelectionPrompts.defaultGrammar
     }
 
     /// Mirrors the OpenRouter gate: no key, no chat (the key is the consent act).
@@ -147,45 +136,22 @@ final class AIChatStore: ObservableObject {
         return true
     }
 
-    /// Starts a dedicated conversation for a selected-text AI action. Its first answer uses the
-    /// action's fast model; follow-ups use the normal chat model while retaining the action prompt.
-    func startSelectionConversation(action: AIChatSelectionAction, text: String) {
+    /// Starts a dedicated conversation for an AI command. The rendered prompt — instructions with
+    /// the selection substituted in — is the first user turn, so a follow-up question continues from
+    /// what was actually asked. That first answer uses the command's own model; later messages use
+    /// the chat model like any other conversation.
+    func startCommandConversation(command: AICommand, selection: String) {
         stop()
-        let prompt: String
-        let model: String
-        switch action {
-        case .define:
-            prompt = definitionPrompt
-            model = openRouter.definitionModel
-        case .grammar:
-            prompt = grammarPrompt
-            model = openRouter.grammarModel
-        }
-        replaceEmptySession(
-            with: AIChatSession(titleOverride: action.sessionTitle, systemPrompt: prompt))
-        _ = send(text, model: model, webSearch: false)
+        replaceEmptySession(with: AIChatSession(titleOverride: command.sessionTitle))
+        _ = send(
+            command.rendered(selection: selection),
+            model: command.resolvedModel(chatModel: openRouter.chatModel), webSearch: false)
     }
 
-    func showSelectionFailure(action: AIChatSelectionAction, message: String) {
+    func showCommandFailure(command: AICommand, message: String) {
         stop()
-        replaceEmptySession(with: AIChatSession(titleOverride: action.sessionTitle))
+        replaceEmptySession(with: AIChatSession(titleOverride: command.sessionTitle))
         requests.setFailure(message, for: currentID)
-    }
-
-    func setDefinitionPrompt(_ prompt: String) {
-        guard prompt != definitionPrompt else { return }
-        definitionPrompt = prompt
-        persist(
-            prompt, key: Self.definitionPromptKey,
-            defaultPrompt: AIChatSelectionPrompts.defaultDefinition)
-    }
-
-    func setGrammarPrompt(_ prompt: String) {
-        guard prompt != grammarPrompt else { return }
-        grammarPrompt = prompt
-        persist(
-            prompt, key: Self.grammarPromptKey,
-            defaultPrompt: AIChatSelectionPrompts.defaultGrammar)
     }
 
     /// Stops the in-flight request; the sent turn stays so the user can see what went unanswered.
@@ -223,13 +189,5 @@ final class AIChatStore: ObservableObject {
         for id in removedIDs { requests.remove(sessionID: id) }
         sessions.append(session)
         currentID = session.id
-    }
-
-    private func persist(_ prompt: String, key: String, defaultPrompt: String) {
-        if prompt == defaultPrompt {
-            defaults.removeObject(forKey: key)
-        } else {
-            defaults.set(prompt, forKey: key)
-        }
     }
 }

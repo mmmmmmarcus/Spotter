@@ -154,6 +154,8 @@ enum HotKeyAction: Hashable, Sendable {
     case app(bundleID: String)
     case settingsPane(bundleID: String)
     case customCommand(id: UUID)
+    /// A user-created or built-in AI command (`Plugins/AIChat/AICommand.swift`).
+    case aiCommand(id: UUID)
     /// Spotter's own built-in commands (`CommandRegistry`), which belong to no plugin.
     case builtInCommand(CommandID)
     case quicklink(id: UUID)
@@ -168,6 +170,8 @@ enum HotKeyAction: Hashable, Sendable {
         case .settingsPane(let bundleID): "KeyboardShortcuts_paneHotkey." + bundleID
         case .customCommand(let id):
             "KeyboardShortcuts_customCommandHotkey." + id.uuidString.lowercased()
+        // The two shipped AI commands resolve to the keys they had as Selection Tools actions, so an existing Define or Grammar binding needs no migration.
+        case .aiCommand(let id): AICommand.shortcutDefaultsKey(forID: id)
         case .builtInCommand(let id): "KeyboardShortcuts_builtInCommandHotkey." + id.slug
         case .quicklink(let id):
             "KeyboardShortcuts_quicklinkHotkey." + id.uuidString.lowercased()

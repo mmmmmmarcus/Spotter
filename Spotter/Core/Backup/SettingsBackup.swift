@@ -6,6 +6,9 @@ struct SettingsBackup: Codable, Sendable {
     var settings: SettingsData?
     var hotkeys: HotkeyBackup?
     var customCommands: [CustomCommand]?
+    /// The AI commands, built-ins included: names, prompts and per-command model choices. User
+    /// content, so it rides the trusted snapshot the way quicklinks and custom commands do.
+    var aiCommands: [AICommand]?
     var favoriteApps: [String]?
     var hiddenLauncherItems: [String]?
     /// Decode-only: a file written while launcher categories could be hidden wholesale. Every
@@ -66,6 +69,9 @@ struct SettingsBackup: Codable, Sendable {
         var lockInputToEnglish: Bool?
         // The key is the OpenRouter gate (owner decision): importing or syncing a file that carries one activates the AI path on this Mac.
         var openRouterAPIKey: String?
+        /// The two built-in AI commands' models, from before each command carried its own. Still
+        /// written, so an older build reading this file keeps them; only read when the file carries
+        /// no `aiCommands`.
         var openRouterDefinitionModel: String?
         var openRouterGrammarModel: String?
         var openRouterChatModel: String?
@@ -91,6 +97,9 @@ struct SettingsBackup: Codable, Sendable {
         var builtInCommands: [String: HotKeyBinding]?
         /// Per-quicklink bindings, keyed by quicklink UUID like `customCommands`.
         var quicklinks: [String: HotKeyBinding]?
+        /// Per-AI-command bindings, keyed by UUID. The two built-ins have fixed UUIDs, so they
+        /// round-trip here; they are also mirrored into `pluginActions` for older builds.
+        var aiCommands: [String: HotKeyBinding]?
         /// Every bound plugin shortcut, keyed `<plugin-id>.<action-id>` — new plugins sync automatically.
         var pluginActions: [String: HotKeyBinding]?
     }
@@ -132,6 +141,8 @@ struct SettingsBackup: Codable, Sendable {
             var previewDuration: Double?
         }
         struct SelectionTools: Codable, Sendable {
+            /// The two built-in AI commands' prompts, from before commands were records. Still
+            /// written for older builds; only read when the file carries no `aiCommands`.
             var definitionPrompt: String?
             var grammarPrompt: String?
         }
@@ -242,8 +253,8 @@ extension SettingsBackup {
             remembersPalettePosition: s.remembersPalettePosition,
             lockInputToEnglish: s.lockInputToEnglish,
             openRouterAPIKey: core.openRouter.apiKey,
-            openRouterDefinitionModel: core.openRouter.definitionModel,
-            openRouterGrammarModel: core.openRouter.grammarModel,
+            openRouterDefinitionModel: core.aiCommands.command(.define)?.model,
+            openRouterGrammarModel: core.aiCommands.command(.grammar)?.model,
             openRouterChatModel: core.openRouter.chatModel,
             openRouterChatWebSearch: core.openRouter.chatWebSearch,
             googleTranslationAPIKey: core.translate.apiKey,
@@ -290,9 +301,21 @@ extension SettingsBackup {
             uniqueKeysWithValues: hk.boundQuicklinkIDs.compactMap { id in
                 hk.binding(for: .quicklink(id: id)).map { (id.uuidString.lowercased(), $0) }
             })
+        hotkeys.aiCommands = Dictionary(
+            uniqueKeysWithValues: core.aiCommands.commands.compactMap { command in
+                hk.binding(for: .aiCommand(id: command.id))
+                    .map { (command.id.uuidString.lowercased(), $0) }
+            })
+        // Mirror the two built-ins under the plugin-action keys they had before AI Commands, so a
+        // build that predates this file still reads a Define or Grammar binding out of it.
+        for kind in AIBuiltInCommand.allCases {
+            guard let binding = hk.binding(for: .aiCommand(id: kind.id)) else { continue }
+            hotkeys.pluginActions?[kind.legacyBackupKey] = binding
+        }
         backup.hotkeys = hotkeys
 
         backup.customCommands = core.customCommands.commands
+        backup.aiCommands = core.aiCommands.commands
         backup.favoriteApps = core.favorites.keys
         backup.hiddenLauncherItems = core.visibility.hiddenItemKeys.sorted()
         backup.launcherAliases = core.aliases.aliases
@@ -361,8 +384,8 @@ extension SettingsBackup {
             hidesSpotterWindows: core.screenshot.hidesSpotterWindows,
             previewDuration: core.screenshot.previewDuration)
         prefs.selectionTools = PluginPrefs.SelectionTools(
-            definitionPrompt: core.aiChat.definitionPrompt,
-            grammarPrompt: core.aiChat.grammarPrompt)
+            definitionPrompt: core.aiCommands.command(.define)?.prompt,
+            grammarPrompt: core.aiCommands.command(.grammar)?.prompt)
         prefs.caffeinate = PluginPrefs.Caffeinate(
             keepsDisplayAwake: d.object(forKey: "coffee.keeps-display-awake") == nil
                 || d.bool(forKey: "coffee.keeps-display-awake"),
@@ -393,6 +416,22 @@ extension SettingsBackup {
         }
         if let customCommands {
             summary.customCommands = core.replaceCustomCommands(customCommands)
+        }
+        // Before `hotkeys` for the same reason as custom commands: a per-command binding only
+        // applies to a command that already exists.
+        if let aiCommands {
+            core.replaceAICommands(aiCommands)
+            summary.settingsFields += 1
+        } else if let selection = pluginPrefs?.selectionTools {
+            // A file written before AI Commands: its prompts belong to the two built-in records.
+            if let prompt = selection.definitionPrompt {
+                core.aiCommands.setPrompt(prompt, for: AIBuiltInCommand.define.id)
+                summary.settingsFields += 1
+            }
+            if let prompt = selection.grammarPrompt {
+                core.aiCommands.setPrompt(prompt, for: AIBuiltInCommand.grammar.id)
+                summary.settingsFields += 1
+            }
         }
         // Before `hotkeys`, like custom commands above: a per-quicklink binding only applies to a quicklink that already exists.
         if let quicklinks {
@@ -520,16 +559,6 @@ extension SettingsBackup {
         if let hides = prefs.screenshot?.hidesSpotterWindows {
             core.screenshot.hidesSpotterWindows = hides
             count += 1
-        }
-        if let selection = prefs.selectionTools {
-            if let prompt = selection.definitionPrompt {
-                core.aiChat.setDefinitionPrompt(prompt)
-                count += 1
-            }
-            if let prompt = selection.grammarPrompt {
-                core.aiChat.setGrammarPrompt(prompt)
-                count += 1
-            }
         }
         if let c = prefs.caffeinate {
             // Through the manager, not raw defaults: options are cached `@Published` state, and a
@@ -668,13 +697,17 @@ extension SettingsBackup {
             core.openRouter.setAPIKey("")
             count += 1
         }
-        if let model = s.openRouterDefinitionModel {
-            core.openRouter.setDefinitionModel(model)
-            count += 1
-        }
-        if let model = s.openRouterGrammarModel {
-            core.openRouter.setGrammarModel(model)
-            count += 1
+        // Only for a file written before each command carried its own model; a file that carries
+        // `aiCommands` already said everything about them.
+        if aiCommands == nil {
+            if let model = s.openRouterDefinitionModel {
+                core.aiCommands.setModel(model, for: AIBuiltInCommand.define.id)
+                count += 1
+            }
+            if let model = s.openRouterGrammarModel {
+                core.aiCommands.setModel(model, for: AIBuiltInCommand.grammar.id)
+                count += 1
+            }
         }
         if let model = s.openRouterChatModel {
             core.openRouter.setChatModel(model)
@@ -750,6 +783,11 @@ extension SettingsBackup {
             for id in Set(hk.boundQuicklinkIDs).union(remoteQuicklinkIDs) {
                 hk.setBinding(nil, for: .quicklink(id: id))
             }
+            let remoteAICommandIDs = Set(
+                (hotkeys.aiCommands?.keys.map { $0 } ?? []).compactMap(UUID.init(uuidString:)))
+            for id in Set(core.aiCommands.commands.map(\.id)).union(remoteAICommandIDs) {
+                hk.setBinding(nil, for: .aiCommand(id: id))
+            }
         }
         if let s = hotkeys.togglePalette { apply(s, .togglePalette) }
         if let s = hotkeys.togglePaletteBackup { apply(s, .togglePaletteBackup) }
@@ -764,10 +802,6 @@ extension SettingsBackup {
                 if key.pluginID == .translate {
                     // Translation has lived under both owners; newest spelling first.
                     legacyIDs = ["selection-tools.\(key.actionID)", "ai-chat.\(key.actionID)"]
-                } else if key.pluginID == .aiChat,
-                    ["define", "grammar"].contains(key.actionID)
-                {
-                    legacyIDs = ["selection-tools.\(key.actionID)"]
                 } else if key.pluginID == .commands, key.actionID.hasPrefix("system.") {
                     legacyIDs = [
                         "system-commands." + String(key.actionID.dropFirst("system.".count))
@@ -808,6 +842,23 @@ extension SettingsBackup {
                 core.quicklinks.quicklinks.contains(where: { $0.id == id })
             else { continue }
             apply(s, .quicklink(id: id))
+        }
+        // Likewise applied before this call, built-ins included.
+        for rawID in (hotkeys.aiCommands?.keys.sorted() ?? []) {
+            guard let s = hotkeys.aiCommands?[rawID], let id = UUID(uuidString: rawID),
+                core.aiCommands.command(id: id) != nil
+            else { continue }
+            apply(s, .aiCommand(id: id))
+        }
+        // A file written before AI Commands carried the two built-ins as plugin actions — under
+        // AI Chat's ids, or Selection Tools' older ones.
+        if hotkeys.aiCommands == nil, let pluginActions = hotkeys.pluginActions {
+            for kind in AIBuiltInCommand.allCases {
+                guard
+                    let s = pluginActions[kind.legacyBackupKey] ?? pluginActions[kind.olderBackupKey]
+                else { continue }
+                apply(s, .aiCommand(id: kind.id))
+            }
         }
         return count
     }

@@ -262,8 +262,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
   and shortcuts, but cannot be disabled and does not export an enable state. It remains inert without
   the shared OpenRouter key for Spotter-hosted replies. ↵ sends the composer draft through
   OpenRouter; the ⌘K Actions row Send to ChatGPT opens the same draft at `https://chatgpt.com/?q=…`
-  in the default browser. Selected-text
-  definition and grammar checks start follow-up-ready conversations. The launcher's final query
+  in the default browser. It also owns **AI commands** — a prompt with `{selection}` in it, its own
+  shortcut and its own model — which appear as dynamic launcher entries; Define Selected Text and
+  Check Selected Text Grammar are the two Spotter ships, and each starts a follow-up-ready
+  conversation. The launcher's final query
   destination rows reuse both paths without adding registry commands.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
   the launcher dashboard and is configured on one System page. It adds five square cards above the

@@ -34,9 +34,11 @@ the fresh-session Tab path; activating ChatGPT follows the same web handoff the 
 
 AI Chat is an always-available system feature shown in Settings → System, but remains inert
 without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
-or syncing a key is the consent act). AI Chat also owns Define and Check Grammar for selected text;
-Google-powered translation lives in the [Translate](translate.md) plugin. Its implementation lives in `Spotter/Plugins/AIChat/` so it can reuse the registry's
-Settings, command, permission and shortcut plumbing without being presented as an optional plugin.
+or syncing a key is the consent act). AI Chat also owns **AI commands**, the prompts that run on
+selected text; Define Selected Text and Check Selected Text Grammar are the two Spotter ships.
+Google-powered translation lives in the [Translate](translate.md) plugin. Its implementation lives in
+`Spotter/Plugins/AIChat/` so it can reuse the registry's Settings, command, permission and shortcut
+plumbing without being presented as an optional plugin.
 
 ## Files
 
@@ -44,25 +46,31 @@ Settings, command, permission and shortcut plumbing without being presented as a
 | --- | --- |
 | `AIChatTypes.swift` | Foundation-only, pure: portable message/session models, derived session title, the request status vocabulary, system prompt, transcript windowing and ChatGPT web URL. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
-| `AIChatSelectionPrompts.swift` | Foundation-only follow-up-aware prompt construction. |
+| `AIChatSelectionPrompts.swift` | Foundation-only: the prompts the two shipped AI commands start with. |
+| `AICommand.swift` | Foundation-only, pure: the AI command record, built-in identity, `{selection}` substitution and list repair. |
+| `AICommandStore.swift` | Foundation + Combine: the saved commands, their validation and the upgrade from the old prompt/model keys. |
 | `AIChatMarkdown.swift` | Foundation-only, pure: splits a reply into Markdown blocks. |
 | `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
 | `AIChatView.swift` | The transcript body, in the palette's own list chrome. |
 | `AIChatMarkdownView.swift` | Renders those blocks; inline spans go through SwiftUI's own parser. |
-| `AIChatSettingsView.swift` | Models, prompts, shortcuts and web-search setting for chat, definition and grammar. |
+| `AIChatSettingsView.swift` | The chat model and web search, plus the AI command list and its editor. |
 
 `Core/OpenRouterModelCatalog.swift` is Foundation-only and pure too: it turns the `/models` payload
 into the brand → model menus.
 
 `Tools/ai-chat-test.swift` compiles `AIChatTypes.swift`, `AIChatMarkdown.swift`,
-`AIChatSelectionPrompts.swift` and `Core/OpenRouterModelCatalog.swift` standalone, so all four stay
-free of AppKit and SwiftUI. The network lives in `OpenRouterStore`, never in any pure source.
+`AIChatSelectionPrompts.swift`, `AICommand.swift`, `AICommandStore.swift` and
+`Core/OpenRouterModelCatalog.swift` standalone, so all six stay free of AppKit and SwiftUI. The
+network lives in `OpenRouterStore`, never in any pure source.
 
 ## Choosing a model
 
-Chat, definition and grammar each pick from a two-level menu — brand, then model — rather than a
+The chat model and every AI command pick from a two-level menu — brand, then model — rather than a
 typed identifier: OpenRouter publishes hundreds of models across dozens of vendors, which is a list
-to browse, not a string to remember. Opening Settings → System → AI Chat reloads the catalog from
+to browse, not a string to remember. A command's menu also carries **Default**, which is the command
+following the chat model instead of pinning one of its own; the two shipped commands pin
+`anthropic/claude-haiku-4.5`, the fast class their first answer has always used.
+Opening Settings → System → AI Chat reloads the catalog from
 `https://openrouter.ai/api/v1/models` so the menu is what the provider offers right now; a Reload
 button forces it, and the result is cached for 15 minutes and never persisted, so no stale list
 outlives the app.
@@ -72,7 +80,11 @@ outlives the app.
 alphabetically and each brand's models newest first. The stored value is still the plain model id,
 so existing settings, backups and sync are unchanged. A stored model the live catalog doesn't carry
 — an older pick, or one OpenRouter has withdrawn — stays selected and stays selectable in a
-**Current** section at the top of the menu, so nothing is silently rewritten.
+**Current** section at the top of the menu, so nothing is silently rewritten. A command pinned to a
+model the user's key can no longer reach therefore keeps that choice: the row still names it, the
+request still asks for it, and if OpenRouter refuses, the reply is a status row carrying OpenRouter's
+own message. Only an empty pin resolves to the chat model — Spotter never silently answers as some
+other model. Switching that command back to **Default** is one menu away.
 
 The list is fetched only once a key exists: the key remains the gate, an absent key clears the
 catalog, and the request itself is unauthenticated and carries nothing about this Mac or its
@@ -124,26 +136,47 @@ whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw M
   mode with its own body view while the plugin carries enable state, the launcher command and the
   shortcut.
 
-## Selected-text conversations
+## AI commands
 
-AI Chat registers Define Selected Text and Check Selected Text Grammar. The actions retain their old
-`KeyboardShortcuts_plugin.selection-tools.*` defaults keys and launcher command IDs, so existing
-shortcut bindings and launcher visibility survive their ownership move. New backup exports identify
-them under AI Chat; imports also accept the former Selection Tools IDs. Translate Selected Text is
-owned by the Translate plugin and uses Google Cloud Translation; see [`translate.md`](translate.md).
+An **AI command** is a name, a prompt, a shortcut and a model choice. The prompt is a template:
+`{selection}` — the same single-brace shape a quicklink's `{argument}` uses — is where the selected
+text lands. Running one captures the selection through the `AppCore`-owned `SelectedTextCapture`,
+renders the prompt, opens a new titled chat session and sends immediately. The rendered prompt *is*
+the first user turn, so a follow-up question simply continues the conversation that was actually
+sent; that first reply uses the command's own model, later messages use the chat model like any
+other conversation, and web search stays off for it.
 
-Both global shortcuts and launcher commands use the `AppCore`-owned `SelectedTextCapture`. A
-successful capture creates a new titled chat session, renders the selected text as its first user
-bubble and sends it immediately. Definition remains English + Simplified Chinese; grammar returns
-corrected text followed by concise explanations. The first reply uses the action-specific
-model, while later composer messages use the chat model and retain the action's system prompt. This
-keeps the existing quick first answer and makes follow-up questions part of the same context.
+Substitution (`AICommandEngine.render`, pure) settles the three edge cases explicitly:
 
-The two action models and prompts are configured in Settings → System → AI Chat. Prompt persistence keeps
-the former `selection-tools.*-prompt` keys and backup fields so customizations migrate without a data
-rewrite. The new defaults explicitly distinguish the first selected-text turn from later follow-ups.
-Capture and missing-key failures render as chat status rows instead of opening the former Selection
-Tools result list.
+- **Several placeholders** — every occurrence is replaced.
+- **No placeholder** — the selection is appended after a blank line. This is exactly what the
+  pre-AI-Commands prompts did (instructions as a system prompt, selection as the turn), so a
+  customization written before this existed keeps working untouched.
+- **A selection containing `{selection}`** — the template is split on the token once and the parts
+  joined with the selection, so inserted text is never rescanned.
+
+Spotter ships two commands, **Define Selected Text** and **Check Selected Text Grammar**. They are
+ordinary records — same launcher entry, same shortcut recorder, same run path as one the user writes
+— with a fixed identity: their ids, launcher entry ids (`command:selection-tools:define` /
+`:grammar`) and shortcut keys (`KeyboardShortcuts_plugin.selection-tools.*`) are the ones they have
+always had, which is why an existing binding, favorite, alias, learned rank or hidden-row choice
+survives untouched. Their prompt, model and shortcut are editable and **Reset** restores Spotter's;
+their name is not editable and they cannot be deleted, because those ids are what every existing
+reference resolves through and a deleted one could not be recovered. A user who wants one gone hides
+its launcher row and leaves it unbound.
+
+User commands are added in Settings → System → AI Chat and are dynamic launcher entries, the shape
+Commands uses for custom shell commands and Quicklinks for links. Each gets a shortcut recorder
+because `AppEntry.hotKeyAction` resolves its entry id to `.aiCommand(id:)`; bindings live under
+`KeyboardShortcuts_aiCommandHotkey.<uuid>`, are indexed in `boundAICommandIDs` so a deleted
+command's shortcut is dropped, and deleting a command also clears its favorite, alias and learned
+rank. Names are unique case-insensitively and can't shadow a built-in's.
+
+The key remains the whole gate: with no OpenRouter key, every AI command — shipped or user-written —
+reports that instead of capturing anything, and no request can be made. A user-authored prompt is
+never a way around it.
+
+Capture and missing-key failures render as chat status rows rather than a separate result list.
 
 ## Requests
 
@@ -151,7 +184,7 @@ Tools result list.
 (`AIChatEngine.transcriptWindow`, newest kept, the latest message always surviving), prefixes the
 system prompt, and calls the multi-turn `OpenRouterStore.chat(messages:model:)` with the dedicated
 `chatModel` (default `anthropic/claude-sonnet-5` — chat carries multi-turn reasoning, so it defaults
-a class up from the quick selection actions; synced as `openRouterChatModel`). Requests carry a
+a class up from the fast model the shipped AI commands pin; synced as `openRouterChatModel`). Requests carry a
 `max_tokens` cap: OpenRouter reserves credits for the whole completion window up front, so an
 uncapped request 402s on a small balance even when the reply would cost cents. The key is re-checked
 on both sides of the await, replies are non-streaming in this version, and a failure renders as a
@@ -176,9 +209,11 @@ why it ships off. Synced as `openRouterChatWebSearch`.
 
 ## Privacy
 
-Spotter conversations are included in trusted v3 backups and automatic sync, including the selected
-conversation. Without sync they remain session-only; with sync, quitting and relaunching restores the
-latest shared snapshot. Messages go only to OpenRouter under the user's own key. The ChatGPT
-handoff does not call a network API from Spotter; it opens the encoded prompt in the default
+AI commands — names, prompts and model choices — are user content and ride the trusted v3 backup and
+sync snapshot, as does each command's shortcut. Spotter conversations are included in trusted v3
+backups and automatic sync, including the selected conversation. Without sync they remain
+session-only; with sync, quitting and relaunching restores the latest shared snapshot. Messages go
+only to OpenRouter under the user's own key. The ChatGPT handoff does not call a network API from
+Spotter; it opens the encoded prompt in the default
 browser, where the URL may be retained by normal browser history and ChatGPT processes it under the
 browser's signed-in account.

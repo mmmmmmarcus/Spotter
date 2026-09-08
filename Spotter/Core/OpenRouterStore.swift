@@ -23,19 +23,17 @@ enum OpenRouterError: LocalizedError, Equatable {
     }
 }
 
-/// API key, per-action model choices and the one chat-completion call for LLM-backed features.
+/// API key, the chat model and the one chat-completion call for LLM-backed features. Each AI command
+/// carries its own model choice (`Plugins/AIChat/AICommand.swift`) and falls back to this one.
 /// The key is the gate (owner decision, Aug 2026): no key means no request can be made and the
 /// AI features stay inert; entering — or syncing — a key is the consent act. Requests run
 /// on a private cacheless session, re-checked for a key on both sides of every `await`. The key and
-/// models mirror into `SettingsBackup` so they sync between Macs.
+/// the chat model mirror into `SettingsBackup` so they sync between Macs.
 @MainActor
 final class OpenRouterStore: ObservableObject {
     static let provider = "OpenRouter"
     static let providerURL = URL(string: "https://openrouter.ai")!
-    /// Fast, strong instruction-following and multilingual quality — the right class for short interactive selections.
-    static let defaultDefinitionModel = "anthropic/claude-haiku-4.5"
-    static let defaultGrammarModel = "anthropic/claude-haiku-4.5"
-    /// Chat carries multi-turn reasoning, so it defaults a class up from the quick selection actions.
+    /// Chat carries multi-turn reasoning, so it defaults a class up from the quick AI commands.
     static let defaultChatModel = "anthropic/claude-sonnet-5"
     private nonisolated static let chatEndpoint = URL(
         string: "https://openrouter.ai/api/v1/chat/completions")!
@@ -59,8 +57,6 @@ final class OpenRouterStore: ObservableObject {
     }
 
     @Published private(set) var apiKey: String
-    @Published private(set) var definitionModel: String
-    @Published private(set) var grammarModel: String
     @Published private(set) var chatModel: String
     /// Lets chat requests search the web through OpenRouter's Exa-backed plugin. Off by default —
     /// each search adds a small per-request cost on the same key.
@@ -72,9 +68,6 @@ final class OpenRouterStore: ObservableObject {
     @Published private(set) var catalogState: CatalogState = .idle
 
     private static let keyKey = "openrouter.api-key"
-    private static let legacyModelKey = "openrouter.model"
-    private static let definitionModelKey = "openrouter.definition-model"
-    private static let grammarModelKey = "openrouter.grammar-model"
     private static let chatModelKey = "openrouter.chat-model"
     private static let chatWebSearchKey = "openrouter.chat-web-search"
     private let defaults = UserDefaults.standard
@@ -83,13 +76,6 @@ final class OpenRouterStore: ObservableObject {
 
     init() {
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
-        // One release carried a single shared model key; seed every selection-action model from it once.
-        let legacy = defaults.string(forKey: Self.legacyModelKey)
-        definitionModel =
-            defaults.string(forKey: Self.definitionModelKey) ?? legacy
-            ?? Self.defaultDefinitionModel
-        grammarModel =
-            defaults.string(forKey: Self.grammarModelKey) ?? legacy ?? Self.defaultGrammarModel
         chatModel = defaults.string(forKey: Self.chatModelKey) ?? Self.defaultChatModel
         chatWebSearch = defaults.bool(forKey: Self.chatWebSearchKey)
     }
@@ -113,20 +99,6 @@ final class OpenRouterStore: ObservableObject {
             catalog = []
             catalogState = .idle
         }
-    }
-
-    func setDefinitionModel(_ newModel: String) {
-        let resolved = Self.resolve(newModel, default: Self.defaultDefinitionModel)
-        guard resolved != definitionModel else { return }
-        definitionModel = resolved
-        defaults.set(resolved, forKey: Self.definitionModelKey)
-    }
-
-    func setGrammarModel(_ newModel: String) {
-        let resolved = Self.resolve(newModel, default: Self.defaultGrammarModel)
-        guard resolved != grammarModel else { return }
-        grammarModel = resolved
-        defaults.set(resolved, forKey: Self.grammarModelKey)
     }
 
     func setChatWebSearch(_ enabled: Bool) {

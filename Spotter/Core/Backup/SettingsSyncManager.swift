@@ -144,6 +144,7 @@ final class SettingsSyncManager: ObservableObject {
             core.settings.objectWillChange.eraseToAnyPublisher(),
             core.hotKeys.objectWillChange.eraseToAnyPublisher(),
             core.customCommands.objectWillChange.eraseToAnyPublisher(),
+            core.aiCommands.objectWillChange.eraseToAnyPublisher(),
             core.favorites.objectWillChange.eraseToAnyPublisher(),
             core.visibility.objectWillChange.eraseToAnyPublisher(),
             core.quicklinks.objectWillChange.eraseToAnyPublisher(),

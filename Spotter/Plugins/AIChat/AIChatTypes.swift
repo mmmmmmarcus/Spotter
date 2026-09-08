@@ -24,6 +24,8 @@ struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
     var messages: [AIChatMessage]
     let startedAt: Date
     let titleOverride: String?
+    /// Only ever set by a conversation started before AI commands rendered their prompt into the
+    /// first user turn; still applied so a synced session from then keeps answering in character.
     let systemPrompt: String?
 
     init(

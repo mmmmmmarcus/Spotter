@@ -8,6 +8,7 @@ final class HotKeyManager: ObservableObject {
     var onRunCustomCommand: ((UUID) -> Void)?
     var onRunBuiltInCommand: ((CommandID) -> Void)?
     var onRunQuicklink: ((UUID) -> Void)?
+    var onRunAICommand: ((UUID) -> Void)?
 
     /// The recorder currently capturing keystrokes, or `nil`; keeping this as plain app state makes recorders glitch-free, and any active recorder pauses both engines so the shortcut being typed can't fire the binding it's replacing.
     @Published var recordingAction: HotKeyAction? {
@@ -27,6 +28,7 @@ final class HotKeyManager: ObservableObject {
     private let boundPaneKey = "boundPaneBundleIDs"
     private let boundCustomCommandKey = "boundCustomCommandIDs"
     private let boundQuicklinkKey = "boundQuicklinkIDs"
+    private let boundAICommandKey = "boundAICommandIDs"
 
     private var pluginActions: [PluginActionKey] = []
 
@@ -34,7 +36,8 @@ final class HotKeyManager: ObservableObject {
         pluginActions: [PluginActionKey],
         defaultPluginShortcuts: [(PluginActionKey, KeyShortcut)] = [],
         customCommandIDs: Set<UUID>,
-        quicklinkIDs: Set<UUID>
+        quicklinkIDs: Set<UUID>,
+        aiCommandIDs: Set<UUID>
     ) {
         self.pluginActions = pluginActions
         seedDefaultPluginShortcuts(defaultPluginShortcuts)
@@ -59,6 +62,14 @@ final class HotKeyManager: ObservableObject {
         let liveLinks = Set(boundQuicklinkIDs).intersection(quicklinkIDs)
         persistBoundQuicklinkIDs(liveLinks)
         for id in liveLinks { register(.quicklink(id: id)) }
+        let staleCommands = Set(boundAICommandIDs).subtracting(aiCommandIDs)
+        for id in staleCommands {
+            UserDefaults.standard.removeObject(forKey: HotKeyAction.aiCommand(id: id).defaultsKey)
+        }
+        persistBoundAICommandIDs(Set(boundAICommandIDs).intersection(aiCommandIDs))
+        // Every live command, not just the indexed ones: the two shipped commands' bindings predate
+        // this index and live under their historical keys. `register` no-ops without a saved shortcut.
+        for id in aiCommandIDs { register(.aiCommand(id: id)) }
 
         doubleTapMonitor.onDoubleTap = { [weak self] modifier in
             guard let self, let action = doubleTaps[modifier] else { return }
@@ -162,6 +173,10 @@ final class HotKeyManager: ObservableObject {
             var set = Set(boundQuicklinkIDs)
             if binding == nil { set.remove(id) } else { set.insert(id) }
             persistBoundQuicklinkIDs(set)
+        case .aiCommand(let id):
+            var set = Set(boundAICommandIDs)
+            if binding == nil { set.remove(id) } else { set.insert(id) }
+            persistBoundAICommandIDs(set)
         case .togglePalette, .togglePaletteBackup, .plugin, .builtInCommand:
             break
         }
@@ -193,6 +208,10 @@ final class HotKeyManager: ObservableObject {
         actions += boundCustomCommandIDs.map { .customCommand(id: $0) }
         actions += CommandID.allCases.map { .builtInCommand($0) }
         actions += boundQuicklinkIDs.map { .quicklink(id: $0) }
+        // The shipped AI commands are always candidates: their bindings predate the index, so being
+        // absent from it means nothing.
+        actions += Set(boundAICommandIDs).union(AIBuiltInCommand.allCases.map(\.id))
+            .map { .aiCommand(id: $0) }
         return actions
     }
 
@@ -229,6 +248,8 @@ final class HotKeyManager: ObservableObject {
             return id.name
         case .quicklink(let id):
             return AppCore.shared.quicklinks.quicklinks.first { $0.id == id }?.name ?? "Quicklink"
+        case .aiCommand(let id):
+            return AppCore.shared.aiCommands.command(id: id)?.name ?? "AI Command"
         }
     }
 
@@ -248,6 +269,7 @@ final class HotKeyManager: ObservableObject {
         case .customCommand(let id): onRunCustomCommand?(id)
         case .builtInCommand(let id): onRunBuiltInCommand?(id)
         case .quicklink(let id): onRunQuicklink?(id)
+        case .aiCommand(let id): onRunAICommand?(id)
         }
     }
 
@@ -265,5 +287,17 @@ final class HotKeyManager: ObservableObject {
     private func persistBoundQuicklinkIDs(_ ids: Set<UUID>) {
         UserDefaults.standard.set(
             ids.map { $0.uuidString.lowercased() }.sorted(), forKey: boundQuicklinkKey)
+    }
+
+    /// AI command UUIDs with a binding, indexed like the quicklink set so a deleted command's
+    /// shortcut can be dropped at the next launch.
+    var boundAICommandIDs: [UUID] {
+        (UserDefaults.standard.stringArray(forKey: boundAICommandKey) ?? [])
+            .compactMap(UUID.init(uuidString:))
+    }
+
+    private func persistBoundAICommandIDs(_ ids: Set<UUID>) {
+        UserDefaults.standard.set(
+            ids.map { $0.uuidString.lowercased() }.sorted(), forKey: boundAICommandKey)
     }
 }

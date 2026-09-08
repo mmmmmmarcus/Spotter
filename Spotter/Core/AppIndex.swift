@@ -76,6 +76,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
                 return .customCommand(id: commandID)
             }
             if let quicklinkID = Quicklink.id(fromEntryID: id) { return .quicklink(id: quicklinkID) }
+            if let aiCommandID = AICommand.id(fromEntryID: id) { return .aiCommand(id: aiCommandID) }
             return CommandID(rawValue: id).map { .builtInCommand($0) }
         }
     }

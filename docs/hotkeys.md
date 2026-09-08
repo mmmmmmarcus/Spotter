@@ -65,6 +65,7 @@ when `AppEntry.hotKeyAction` resolves, and each command kind resolves through it
 | A plugin's command | `.plugin(PluginActionKey)` | `plugin.<plugin-id>.<action-id>` |
 | A custom command | `.customCommand(id:)` | `customCommandHotkey.<uuid>` |
 | A quicklink | `.quicklink(id:)` | `quicklinkHotkey.<uuid>` |
+| An AI command | `.aiCommand(id:)` | `aiCommandHotkey.<uuid>`, or the shipped command's own key |
 | Spotter's own built-ins | `.builtInCommand(CommandID)` | `builtInCommandHotkey.<slug>` |
 
 `CommandID` owns the identity and metadata of the built-ins and lives in its own `Core/CommandID.swift`
@@ -75,9 +76,14 @@ whatever the user had set. Unlike the per-item kinds, the built-in set is fixed 
 launch, so it needs no bound-ID index — every case is simply registered, and `register` no-ops
 without a saved shortcut.
 
-The two per-item kinds are indexed because they can disappear: on launch a binding whose custom
-command or quicklink no longer exists is deleted rather than re-registered, and deleting either from
-the UI drops its binding, favorite, alias and learned ranking in the same step.
+The three per-item kinds are indexed because they can disappear: on launch a binding whose custom
+command, quicklink or AI command no longer exists is deleted rather than re-registered, and deleting
+one from the UI drops its binding, favorite, alias and learned ranking in the same step. AI commands
+are the one kind where the key is not derived from the UUID alone: the two Spotter ships resolve to
+`KeyboardShortcuts_plugin.selection-tools.define` / `.grammar`, the keys they held as Selection Tools
+actions, so an existing Define or Grammar binding survives becoming an AI command with no migration
+at all. Every live command is registered at launch rather than only the indexed ones, since those two
+bindings predate the index.
 
 Disabling a plugin makes registry dispatch a no-op while preserving the Carbon registration and saved
 binding. Re-enabling resumes the action without creating plugin-specific branches in `HotKeyManager`.

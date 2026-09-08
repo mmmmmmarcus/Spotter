@@ -25,6 +25,7 @@
 		09C2DF48D078FE99A0B504D4 /* ClipboardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 046C81A9351D9CF343F8FCFB /* ClipboardStore.swift */; };
 		0AC2999B2C9745BB543AC53D /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F924F6B10442AE67F8405D7 /* SettingsComponents.swift */; };
 		0AD63C7BDA2187F30A003DC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 183A61AFFD4D20BA651DBEDF /* Assets.xcassets */; };
+		0B27E86B7C1A3AEA41B56519 /* AICommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF4C093AEE85B4955299C15 /* AICommand.swift */; };
 		0C0140615CF003D101DEA93D /* ChangeCaseSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B5534165D6477C68E4E8B63 /* ChangeCaseSettingsView.swift */; };
 		0DC38A0C78E46ED66EF43C5A /* SearchScopes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EDE23FAB52E117850F81D38 /* SearchScopes.swift */; };
 		1031E53A55028C122EABBF77 /* WorldClockEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D580827F82667E578C1D827 /* WorldClockEngine.swift */; };
@@ -195,6 +196,7 @@
 		BDAA91D3A56013BB740673D9 /* LauncherRankingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C8847FDCCE5B6C25A809634 /* LauncherRankingStore.swift */; };
 		BDB203A1BC4C82AF5ABC70D5 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F8A2108102B779C6DFC13E /* AboutView.swift */; };
 		C0E4814FCFE97C56760ECBFC /* WorldClockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = E125CBC3DB4E52844834C201 /* WorldClockPlugin.swift */; };
+		C1F4AD01CCCB36E470BE4141 /* AICommandStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78692AB1BA58C6D099613BB5 /* AICommandStore.swift */; };
 		C3756B0A8741BD54CEBF9022 /* CalcEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DA8CAC7504DE8951D8B3BC /* CalcEngine.swift */; };
 		C3C2ADCB8EBD0ED5B3FF0309 /* VisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC7A287D22028FC616E9A44 /* VisualEffectView.swift */; };
 		C4FFA77151F8758F40C54E5F /* AppIdentityMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8099CA0EA9AD1C088844170 /* AppIdentityMigration.swift */; };
@@ -366,6 +368,7 @@
 		73ED38485DC151936D8A35C0 /* MolePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MolePlugin.swift; sourceTree = "<group>"; };
 		7441AEA90EAD88A1E78D22C0 /* ShellCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellCommandRunner.swift; sourceTree = "<group>"; };
 		780D62C6FB36E7A95A75B91C /* TranslateTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateTypes.swift; sourceTree = "<group>"; };
+		78692AB1BA58C6D099613BB5 /* AICommandStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommandStore.swift; sourceTree = "<group>"; };
 		7971131E57C987389453EA18 /* AIChatTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatTypes.swift; sourceTree = "<group>"; };
 		79F10C04B872D9BA59F6CD9C /* AIChatMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatMarkdownView.swift; sourceTree = "<group>"; };
 		7B017FD6AEF925DB962DFB5C /* EmojiIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiIndex.swift; sourceTree = "<group>"; };
@@ -462,6 +465,7 @@
 		D86BA65B8DEE192723E55849 /* ScrollIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollIntent.swift; sourceTree = "<group>"; };
 		D8FBDA865BD673459C9FCA1C /* TextReplacementManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementManager.swift; sourceTree = "<group>"; };
 		DBB3757FA662D508E113F837 /* VisibilityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisibilityStore.swift; sourceTree = "<group>"; };
+		DCF4C093AEE85B4955299C15 /* AICommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommand.swift; sourceTree = "<group>"; };
 		E0D8017FF4F6F4F2F3C541DD /* DashboardMusicStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardMusicStore.swift; sourceTree = "<group>"; };
 		E125CBC3DB4E52844834C201 /* WorldClockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockPlugin.swift; sourceTree = "<group>"; };
 		E196A0B64D45C449593C4989 /* SystemCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCommand.swift; sourceTree = "<group>"; };
@@ -1050,6 +1054,8 @@
 				5ABABC8E43B7EDF8CB7AD55B /* AIChatStore.swift */,
 				7971131E57C987389453EA18 /* AIChatTypes.swift */,
 				29606EC2B43A6002BAF7DDD4 /* AIChatView.swift */,
+				DCF4C093AEE85B4955299C15 /* AICommand.swift */,
+				78692AB1BA58C6D099613BB5 /* AICommandStore.swift */,
 			);
 			path = AIChat;
 			sourceTree = "<group>";
@@ -1146,6 +1152,8 @@
 				36D643D25D0618895CA8984C /* AIChatStore.swift in Sources */,
 				4D1F78D76EC512982B3906AD /* AIChatTypes.swift in Sources */,
 				DF45E8877471306D67C3B657 /* AIChatView.swift in Sources */,
+				0B27E86B7C1A3AEA41B56519 /* AICommand.swift in Sources */,
+				C1F4AD01CCCB36E470BE4141 /* AICommandStore.swift in Sources */,
 				BDB203A1BC4C82AF5ABC70D5 /* AboutView.swift in Sources */,
 				6F9E58E071B6AD52A8C809BB /* AliasEditorCard.swift in Sources */,
 				564E98722F6FD55F197A5C03 /* AliasStore.swift in Sources */,

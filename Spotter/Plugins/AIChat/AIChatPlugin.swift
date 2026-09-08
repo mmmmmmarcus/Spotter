@@ -3,25 +3,12 @@ import SwiftUI
 
 extension PluginActionKey {
     static let openAIChat = standard(pluginID: .aiChat, actionID: "open", title: "AI Chat")
-    // Preserve the original defaults keys so existing Selection Tools bindings survive the move.
-    static let defineSelectedText = PluginActionKey(
-        pluginID: .aiChat, actionID: "define", title: "Define Selected Text",
-        defaultsKey: "KeyboardShortcuts_plugin.selection-tools.define")
-    static let checkSelectedTextGrammar = PluginActionKey(
-        pluginID: .aiChat, actionID: "grammar", title: "Check Selected Text Grammar",
-        defaultsKey: "KeyboardShortcuts_plugin.selection-tools.grammar")
 }
 
 @MainActor
 enum AIChatPlugin {
     static func registration(core: AppCore) -> PluginRegistration {
         let open: () -> Void = { [weak core] in core?.openAIChat() }
-        let runAction: (AIChatSelectionAction) -> Void = { [weak core] action in
-            core?.runAIChatSelectionAction(action)
-        }
-        let runCommand: (AIChatSelectionAction) -> Void = { [weak core] action in
-            core?.runAIChatSelectionActionFromLauncher(action)
-        }
         return PluginRegistration(
             metadata: PluginMetadata(
                 id: .aiChat,
@@ -36,27 +23,23 @@ enum AIChatPlugin {
             exportsEnabledState: false,
             permissions: [.accessibility],
             shortcutActions: [
-                PluginActionRegistration(key: .openAIChat, perform: open),
-                PluginActionRegistration(key: .defineSelectedText) { runAction(.define) },
-                PluginActionRegistration(key: .checkSelectedTextGrammar) { runAction(.grammar) },
+                PluginActionRegistration(key: .openAIChat, perform: open)
             ],
             launcherCommands: [
                 PluginCommandRegistration(
                     id: "command:ai-chat", name: "AI Chat", systemImage: "sparkles",
-                    actionKey: .openAIChat, perform: open),
-                PluginCommandRegistration(
-                    id: "command:selection-tools:define",
-                    name: "Define Selected Text",
-                    systemImage: "character.book.closed",
-                    actionKey: .defineSelectedText
-                ) { runCommand(.define) },
-                PluginCommandRegistration(
-                    id: "command:selection-tools:grammar",
-                    name: "Check Selected Text Grammar",
-                    systemImage: "text.badge.checkmark",
-                    actionKey: .checkSelectedTextGrammar
-                ) { runCommand(.grammar) },
+                    actionKey: .openAIChat, perform: open)
             ],
+            // Every AI command, shipped or user-authored, is a launcher entry that resolves its own
+            // recorder through `AppEntry.hotKeyAction` — the shape custom commands and quicklinks use.
+            dynamicLauncherCommands: { [weak core] in
+                (core?.aiCommands.commands ?? []).map { command in
+                    PluginCommandRegistration(
+                        id: command.entryID, name: command.name,
+                        systemImage: command.systemImage
+                    ) { [weak core] in core?.runAICommandFromLauncher(id: command.id) }
+                }
+            },
             readEnabled: { true },
             settingsView: { AnyView(AIChatSettingsView()) })
     }
@@ -191,57 +174,59 @@ extension AppCore {
             })
     }
 
-    func runAIChatSelectionAction(_ action: AIChatSelectionAction) {
+    /// The one funnel for an AI command's global shortcut. The key is the gate: with none, the
+    /// command reports that instead of capturing anything.
+    func runAICommand(id: UUID) {
+        guard let command = aiCommands.command(id: id) else { return }
         guard openRouter.isReady else {
-            showAIChatSelectionFailure(
-                action: action,
-                message: "Add an OpenRouter API key in Settings → General → AI to use this action.")
+            showAICommandFailure(command, message: Self.aiCommandKeyMessage)
             return
         }
         Task { @MainActor [weak self] in
             guard let self else { return }
-            presentAIChatSelection(action, capture: await selectedTextCapture.capture())
+            presentAICommand(command, capture: await selectedTextCapture.capture())
         }
     }
 
-    func runAIChatSelectionActionFromLauncher(_ action: AIChatSelectionAction) {
+    /// The launcher row's path: the palette dismisses first so the capture reads the app the user
+    /// came from, not Spotter.
+    func runAICommandFromLauncher(id: UUID) {
+        guard let command = aiCommands.command(id: id) else { return }
         guard openRouter.isReady else {
-            showAIChatSelectionFailure(
-                action: action,
-                message: "Add an OpenRouter API key in Settings → General → AI to use this action.")
+            showAICommandFailure(command, message: Self.aiCommandKeyMessage)
             return
         }
         guard palette.mode == .launcher else {
-            runAIChatSelectionAction(action)
+            runAICommand(id: id)
             return
         }
         hidePalette()
         Task { @MainActor [weak self] in
             guard let self else { return }
-            presentAIChatSelection(
-                action, capture: await selectedTextCapture.captureAfterRestoringFocus())
+            presentAICommand(
+                command, capture: await selectedTextCapture.captureAfterRestoringFocus())
         }
     }
 
-    private func presentAIChatSelection(
-        _ action: AIChatSelectionAction,
+    private static let aiCommandKeyMessage =
+        "Add an OpenRouter API key in Settings → General → AI to use this command."
+
+    private func presentAICommand(
+        _ command: AICommand,
         capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     ) {
         switch capture {
         case .failure(let error):
-            aiChat.showSelectionFailure(action: action, message: error.message)
+            aiChat.showCommandFailure(command: command, message: error.message)
         case .success(let snapshot):
-            aiChat.startSelectionConversation(
-                action: action, text: snapshot.text)
+            aiChat.startCommandConversation(command: command, selection: snapshot.text)
         }
         palette.prepare(mode: .aiChat)
         showPalette(mode: .aiChat)
     }
 
-    private func showAIChatSelectionFailure(
-        action: AIChatSelectionAction, message: String
-    ) {
-        aiChat.showSelectionFailure(action: action, message: message)
+    private func showAICommandFailure(_ command: AICommand, message: String) {
+        aiChat.showCommandFailure(command: command, message: message)
         palette.prepare(mode: .aiChat)
         showPalette(mode: .aiChat)
     }

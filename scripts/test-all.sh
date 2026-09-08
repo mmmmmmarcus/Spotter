@@ -210,6 +210,8 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AIChatMarkdown.swift \
                 Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
+                Spotter/Plugins/AIChat/AICommand.swift \
+                Spotter/Plugins/AIChat/AICommandStore.swift \
                 Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
                 -o "$output" && "$output"
             ;;

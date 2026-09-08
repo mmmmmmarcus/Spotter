@@ -109,8 +109,11 @@ Never break these without an explicit task to do so.
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift`,
-  `Plugins/AIChat/AIChatSelectionPrompts.swift` and `Core/OpenRouterModelCatalog.swift` stay
-  Foundation-only and pure for `Tools/ai-chat-test.swift`,
+  `Plugins/AIChat/AIChatSelectionPrompts.swift`, `Plugins/AIChat/AICommand.swift` and
+  `Core/OpenRouterModelCatalog.swift` stay Foundation-only and pure while
+  `Plugins/AIChat/AICommandStore.swift` stays Foundation + Combine, all for
+  `Tools/ai-chat-test.swift` — the AI command record, its `{selection}` substitution, its validation
+  and the list repair that keeps the two shipped commands present live there,
   `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
   `Plugins/DashboardWidgets/DashboardWeatherEngine.swift`,
   `Plugins/DashboardWidgets/DashboardMusicEngine.swift`,
@@ -226,8 +229,10 @@ Never break these without an explicit task to do so.
   widen those exclusions without an explicit owner decision.
   **Deliberate exceptions (owner decisions, Aug 2026):**
   `Core/OpenRouterStore.swift` has no separate consent toggle — the API key is the gate. No key
-  means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing
-  a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
+  means no request can be made (AI Chat and every AI command, shipped or user-written, stay
+  unavailable); entering the key, or syncing
+  a settings file that carries one, is the consent act. A user-authored AI command prompt is content,
+  never a second way onto the network: it cannot run without the key either. Do not reintroduce a toggle for it, and do
   not copy this shape for new networked features without an explicit owner decision.
   `Plugins/Translate/TranslateManager.swift` is on that same shape: it has no Cloud Translation
   consent toggle and the Google API key is the only gate. No key,
@@ -275,7 +280,11 @@ Never break these without an explicit task to do so.
   list). `DashboardWidgetsEngine.widgetOrder(from:)` repairs whatever was saved, so a new widget kind
   needs no migration and a kind that leaves drops out of a saved order the same way. A card with
   nothing to report says so in its resting state; a feature whose visibility would be a consent act
-  belongs in a plugin of its own, which is why Uptime became one. Commands
+  belongs in a plugin of its own, which is why Uptime became one. AI Chat owns **AI commands**
+  (`Plugins/AIChat/AICommand.swift`): Define and Check Grammar are the two Spotter ships and are the
+  same record as one the user writes, keeping their historical launcher entry ids and
+  `KeyboardShortcuts_plugin.selection-tools.*` binding keys — their prompt, model and shortcut are
+  editable and resettable, their name and identity are not, and they cannot be deleted. Commands
   owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
   data and bindings while hiding entries and making their hotkeys no-op.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a

@@ -216,6 +216,7 @@ final class AppCore: ObservableObject {
     let notes: NoteStore
     let noteSync: NoteSyncManager
     let aiChat: AIChatStore
+    let aiCommands = AICommandStore()
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()
@@ -287,6 +288,9 @@ final class AppCore: ObservableObject {
         appIndex.setPluginCommands(plugins.launcherCommands)
         customCommands.onChange = { [weak self] _ in
             self?.plugins.reloadDynamicCommands(for: .commands)
+        }
+        aiCommands.onChange = { [weak self] _ in
+            self?.plugins.reloadDynamicCommands(for: .aiChat)
         }
         quicklinks.onChange = { [weak self] in
             QuicklinkManager.invalidateOpenerCache()
@@ -396,11 +400,13 @@ final class AppCore: ObservableObject {
         hotKeys.onRunCustomCommand = { [weak self] id in self?.runCustomCommand(id: id) }
         hotKeys.onRunBuiltInCommand = { [weak self] id in self?.runCommand(id) }
         hotKeys.onRunQuicklink = { [weak self] id in self?.runQuicklink(id: id) }
+        hotKeys.onRunAICommand = { [weak self] id in self?.runAICommand(id: id) }
         hotKeys.start(
             pluginActions: plugins.shortcutActions,
             defaultPluginShortcuts: plugins.defaultShortcutActions,
             customCommandIDs: Set(customCommands.commands.map(\.id)),
-            quicklinkIDs: Set(quicklinks.quicklinks.map(\.id)))
+            quicklinkIDs: Set(quicklinks.quicklinks.map(\.id)),
+            aiCommandIDs: Set(aiCommands.commands.map(\.id)))
         // Deliberately keeps running while `hotKeys.recordingAction` pauses Carbon: the recorder relies on the tap's rewritten flags to capture Hyper shortcuts.
         hyperKeyTap.start(settings: settings)
 
@@ -531,6 +537,7 @@ final class AppCore: ObservableObject {
                 .environmentObject(self.visibility)
                 .environmentObject(self.aliases)
                 .environmentObject(self.customCommands)
+                .environmentObject(self.aiCommands)
                 .environmentObject(self.plugins)
                 .environmentObject(self.settingsSync)
         }
@@ -687,6 +694,48 @@ final class AppCore: ObservableObject {
         let removedEntryIDs = Set(removed.compactMap { previous[$0]?.entryID })
         removeCustomCommandReferences(ids: removed, entryIDs: removedEntryIDs)
         return count
+    }
+
+    // MARK: - AI commands
+
+    @discardableResult
+    func addAICommand(_ draft: AICommand) throws -> AICommand {
+        try aiCommands.add(draft)
+    }
+
+    func updateAICommand(_ draft: AICommand) throws {
+        try aiCommands.update(draft)
+    }
+
+    func deleteAICommand(id: UUID) {
+        guard let command = aiCommands.command(id: id), !command.isBuiltIn else { return }
+        removeAICommandReferences(ids: [id], entryIDs: [command.entryID])
+        aiCommands.remove(id: id)
+    }
+
+    @discardableResult
+    func replaceAICommands(_ commands: [AICommand]) -> Int {
+        let previous = Dictionary(uniqueKeysWithValues: aiCommands.commands.map { ($0.id, $0) })
+        let count = aiCommands.replace(with: commands)
+        let liveIDs = Set(aiCommands.commands.map(\.id))
+        let removed = Set(previous.keys).subtracting(liveIDs)
+        let removedEntryIDs = Set(removed.compactMap { previous[$0]?.entryID })
+        removeAICommandReferences(ids: removed, entryIDs: removedEntryIDs)
+        return count
+    }
+
+    private func removeAICommandReferences(ids: Set<UUID>, entryIDs: Set<String>) {
+        for id in ids {
+            let action = HotKeyAction.aiCommand(id: id)
+            if hotKeys.recordingAction == action { hotKeys.recordingAction = nil }
+            hotKeys.setShortcut(nil, for: action)
+        }
+        favorites.remove(keys: entryIDs)
+        visibility.removeItemKeys(entryIDs)
+        aliases.removeKeys(entryIDs)
+        for entryID in entryIDs {
+            launcherRanking.reset(itemKey: entryID)
+        }
     }
 
     /// The one funnel for both palette activation and the command's global hotkey, so the confirmation gate can't be bypassed by either.
