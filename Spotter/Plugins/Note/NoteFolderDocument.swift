@@ -286,6 +286,25 @@ struct NoteFolderPlan: Equatable, Sendable {
     }
 }
 
+/// Which reconcile this is. The two are deliberately not the same policy, and the caller — not
+/// anything read from inside this file — decides which one applies.
+///
+/// `adoption` is the first pass after the user picks a folder, and it runs exactly once per Mac.
+/// That pass is the upgrade: someone arriving with Notes already on two Macs can hold one Note
+/// diverged under a single id, with `updatedAt` stamps that were never comparable across machines
+/// to begin with. Picking a winner there loses a version of the user's writing invisibly and
+/// unrecoverably, so both are kept instead — the same fork-to-a-fresh-id treatment two divergent
+/// files get.
+///
+/// `steady` is every pass after that, and it merges by `NoteSyncMerge` alone. A conflict there is a
+/// different animal: both sides are live, recent and observable, and forking on every ordinary edit
+/// collision would bury the user in duplicates. Same-looking situation, opposite right answer — do
+/// not unify the two paths.
+enum NoteFolderPass: Equatable, Sendable {
+    case adoption
+    case steady
+}
+
 enum NoteFolderReconciler {
     private struct Adopted {
         var name: String
@@ -296,10 +315,13 @@ enum NoteFolderReconciler {
 
     /// The whole policy in one pure function: what the store should hold, and what the folder should
     /// look like. Conflicts are resolved by `NoteSyncMerge` — the same newest-edit-wins,
-    /// deletion-wins-a-tie rule the CloudKit pipeline used, so there is only ever one merge policy.
+    /// deletion-wins-a-tie rule the CloudKit pipeline used, so there is only ever one merge
+    /// policy — except on the adoption pass, which keeps both sides instead. `pass` has no default:
+    /// neither value is the safe one to forget, since `.steady` can merge an upgrade away and
+    /// `.adoption` would duplicate on every ordinary collision.
     static func plan(
-        local: NoteSyncSnapshot, scan: NoteFolderScan, newID: () -> UUID = UUID.init,
-        now: () -> Date = Date.init
+        local: NoteSyncSnapshot, scan: NoteFolderScan, pass: NoteFolderPass,
+        newID: () -> UUID = UUID.init, now: () -> Date = Date.init
     ) -> NoteFolderPlan {
         var deferred: [String] = []
         var reserved: Set<String> = []
@@ -371,7 +393,16 @@ enum NoteFolderReconciler {
 
         let remote = NoteSyncSnapshot(
             notes: parsed.values.map(\.note), tombstones: ledgerTombstones)
-        let merged = NoteSyncMerge.merging(local, with: remote)
+        var merged = NoteSyncMerge.merging(local, with: remote)
+        if pass == .adoption {
+            let forks = adoptionForks(local: local, parsed: &parsed, merged: merged, newID: newID)
+            if !forks.isEmpty {
+                forked.append(contentsOf: forks.map(\.id))
+                // Fresh identifiers, so this second merge only ever inserts and sorts.
+                merged = NoteSyncMerge.merging(
+                    merged, with: NoteSyncSnapshot(notes: forks, tombstones: []))
+            }
+        }
         let mergedIDs = Set(merged.notes.map(\.id))
 
         for (id, entry) in parsed where !mergedIDs.contains(id) {
@@ -404,6 +435,48 @@ enum NoteFolderReconciler {
             snapshot: merged, placements: placements, removals: removals,
             ledger: writesLedger ? merged.tombstones : nil,
             deferred: deferred, adopted: adopted, forked: forked)
+    }
+
+    /// One id, two different texts, one on this Mac and one in the folder — and this is the pass
+    /// that runs once, on timestamps that may never have been comparable. The merge already named a
+    /// winner; this hands the loser a fresh identifier so neither text is merged away. Only text is
+    /// grounds for a fork: a tint that loses is visible and one click to restore, whereas writing
+    /// that loses is gone without a trace.
+    private static func adoptionForks(
+        local: NoteSyncSnapshot, parsed: inout [UUID: Adopted], merged: NoteSyncSnapshot,
+        newID: () -> UUID
+    ) -> [SpotterNote] {
+        var forks: [SpotterNote] = []
+        // Sorted, so the same folder hands out the same fresh identifiers in the same order.
+        for (id, entry) in parsed.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            // No `merged` note means a tombstone won, and an explicit deletion is a decision rather
+            // than a divergence — reviving its text under a new id would undo it.
+            guard let mine = local.notesByID[id], let winner = merged.notesByID[id],
+                mine.content != entry.note.content
+            else { continue }
+            let fileWon = winner.content == entry.note.content
+            let loser = fileWon ? mine : entry.note
+            guard !loser.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                continue
+            }
+            // Already kept somewhere else, so a copy would be noise, not insurance. This is also
+            // what makes a retried adoption pass — one whose file work failed last time — stop
+            // forking the same text again.
+            guard !merged.notes.contains(where: { $0.id != id && $0.content == loser.content })
+            else { continue }
+            let fork = SpotterNote(
+                id: newID(), content: loser.content, createdAt: loser.createdAt,
+                updatedAt: loser.updatedAt, contentUpdatedAt: loser.contentUpdatedAt,
+                tint: loser.tint)
+            forks.append(fork)
+            guard !fileWon else { continue }
+            // The file lost, so it becomes the fork's file and the winning Note is written out
+            // fresh; the same handover the two-divergent-files path performs.
+            parsed[fork.id] = Adopted(
+                name: entry.name, note: fork, extras: entry.extras, raw: entry.raw)
+            parsed[id] = nil
+        }
+        return forks
     }
 
     /// An external editor changes a file's body without touching its `updated` header, which leaves

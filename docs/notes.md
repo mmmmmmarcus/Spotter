@@ -248,6 +248,11 @@ codebase, previously used by CloudKit. The newer `updatedAt` wins; a deletion wi
 two Notes tied to the instant fall back to content, then tint, then `createdAt`, then id, so both
 Macs converge on the same survivor without talking to each other.
 
+**Except on the first pass after a folder is adopted, which keeps both sides instead.** The
+reconciler takes a `NoteFolderPass` — `.adoption` or `.steady` — and it has no default, because
+neither value is the safe one to forget. *Why the first pass is different* below is the reasoning;
+read it before touching either path.
+
 One case the folder adds: an external editor changes a file's body without touching its `updated`
 header, which would leave the merge a tie broken by comparing strings — and losing that tie would
 rewrite the user's edit away. When a file's body differs from the Note Spotter holds *and* their
@@ -257,6 +262,47 @@ Two files claiming one id (a copy made in Finder, or a rename interrupted on ano
 a version. Identical bodies collapse to one file; **different** bodies are both kept, the loser
 adopted under a fresh identifier. A stale duplicate is the deliberate price of never dropping a piece
 of the user's writing.
+
+### Why the first pass is different
+
+One Note diverged under one id — this Mac's copy and the folder's — is the same-looking situation
+whenever it is found, and it has opposite right answers depending on *when*. The asymmetry is
+deliberate, and a reader who finds only the rules will read it as a bug, so here is the reasoning.
+
+**The first pass is the upgrade.** It runs exactly once per Mac, at the moment Notes that have never
+been reconciled meet a folder for the first time. Someone arriving with Notes already on two Macs —
+from the retired CloudKit pipeline, from the older JSON file, or simply from two independent
+installs — can hold one Note diverged under a single id, carrying `updatedAt` stamps that were never
+comparable across machines to begin with. Picking a winner there discards a version of the user's
+writing *invisibly* (nothing says a merge happened) and *unrecoverably* (the losing text was never
+in that folder, so there is no file in the Trash to find). One duplicate is a far smaller cost than
+that, so the loser is kept under a fresh identifier — the same fork the reconciler already performs
+for two divergent *files* — and both end up with a file.
+
+**Steady state is not that.** By then both sides are live, recent and observable: the user is
+editing on one Mac while the other syncs within seconds, and the losing text is on screen somewhere.
+Forking every ordinary edit collision would bury a working folder in near-identical Notes. So every
+pass after the first merges by `NoteSyncMerge` alone, exactly as described above.
+
+Three things bound the first pass so it cannot manufacture noise. Only **text** is grounds for a
+fork — a tint that loses is visible and one click to restore. A loser whose text is blank is not
+kept, since there is nothing to lose. And a text already held by some other Note in the merged
+result is not copied again, which is also what stops a *retried* adoption (one whose file work
+failed last time) from forking the same divergence twice.
+
+An **explicit deletion still wins**: if a tombstone beats both sides, the Note stays deleted rather
+than being forked back to life. And an empty folder has no divergence at all, so both passes plan
+exactly the same thing — the harness compares the two plans whole.
+
+**Detecting "first".** `NoteFolderAdoption` (in `NoteFolderIO.swift`, the Foundation-not-pure tier)
+owns one device-local `UserDefaults` flag, `note.folder-sync.adoption-pending`. `connect(to:)` sets
+it — *every* choice is an adoption, including re-picking a folder this Mac has seen before — and
+`runSyncPass` clears it only past `io.apply`, so a pass that threw, or a quit or crash between
+picking the folder and the first pass that finished, still gets the adoption treatment on the next
+attempt. Disconnecting clears it. Nothing here consults whether the user ever had CloudKit on: that
+is unknowable on a fresh install and irrelevant to the risk, which is only ever "two copies, one id,
+timestamps you cannot trust". The flag is per-Mac and never travels in a snapshot, like the folder
+path itself.
 
 ### Pipeline
 
@@ -456,9 +502,23 @@ human's own YAML header, a malformed identifier, an empty file, an unknown tint,
 dates, foreign header lines, the naming and collision rules, an undownloaded placeholder, a missing
 file, a ledger deletion, a beaten tombstone, an unreadable ledger, a retitle, identical and divergent
 duplicate ids, and an outside edit — with an assertion that every removal the reconciler can emit is
-one of the two safe kinds. And against a real temporary directory through `NoteFolderIO`: writing a
+one of the two safe kinds.
+
+The two passes are pinned against the same fixture, which is the point: one local Note and one file
+sharing an id but not their text produce **two** Notes under `.adoption` and **one** under
+`.steady`, with the loser forked either way round (the folder newer, or this Mac newer, in which
+case the winning file stays put and the fork gets a file of its own). The first pass is also checked
+for what it must *not* do: no duplicate when the two texts are identical, no file work in that case,
+the same plan as a steady pass over an empty folder (compared whole), and no Note forked back to
+life when a tombstone beats both sides.
+
+And against a real temporary directory through `NoteFolderIO`: writing a
 Note out and reading it back unchanged, a second pass finding nothing to do, a retitle leaving
 exactly one file, a hand-dropped file becoming a Note, a deletion removing its file and writing the
 ledger, a second Mac applying that deletion without resurrecting the Note, and an unreachable folder
-failing loudly. It never opens the floating window, contacts CloudKit, or reads real application data
+failing loudly. The adoption flag's whole lifecycle runs there too, over a real `UserDefaults` suite:
+unset reads as steady, `begin()` makes it an adoption, a second reader over the same suite (a
+relaunch) still sees the adoption, a pass whose `io.apply` throws because the folder vanished leaves
+it pending, and the retry — which must not fork the same divergence a second time — clears it for
+good. It never opens the floating window, contacts CloudKit, or reads real application data
 or a real iCloud Drive folder.

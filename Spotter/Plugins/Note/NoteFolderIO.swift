@@ -203,3 +203,31 @@ actor NoteFolderIO {
         if let removeError { throw removeError }
     }
 }
+
+/// Remembers that a folder has been adopted but not yet reconciled — a decision `NoteFolderPass`
+/// defines and this only stores, on the same Foundation-not-pure tier as the IO beside it so the
+/// harness can drive its whole lifecycle. It is per-Mac and deliberately outlives a relaunch: the
+/// window between picking a folder and the first pass that finishes is exactly when a quit, a
+/// crash or an unavailable folder would otherwise turn the upgrade into an ordinary merge.
+struct NoteFolderAdoption {
+    static let key = "note.folder-sync.adoption-pending"
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+    }
+
+    var pass: NoteFolderPass { defaults.bool(forKey: Self.key) ? .adoption : .steady }
+
+    /// Every choice is an adoption, including re-picking a folder this Mac has seen before.
+    func begin() {
+        defaults.set(true, forKey: Self.key)
+    }
+
+    /// Only ever called past every write of a pass that finished. A failed or partial pass must
+    /// leave the flag set, so the next one still keeps both sides of a divergence.
+    func finish() {
+        defaults.removeObject(forKey: Self.key)
+    }
+}

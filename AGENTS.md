@@ -344,7 +344,15 @@ Never break these without an explicit task to do so.
   deterministically (oldest note keeps the bare name) so two Macs never fight over one. Conflicts
   reuse `NoteSyncMerge` — the one merge policy in the codebase — and the body round-trips
   byte-for-byte. Reads, writes, moves and deletions all go through `NSFileCoordinator`, writes are
-  atomic, and a removed file goes to the Trash. See [`docs/notes.md`](docs/notes.md).
+  atomic, and a removed file goes to the Trash. **The first reconcile after a folder is adopted is
+  deliberately not that merge**, and the asymmetry is an owner decision (Sep 2026): that pass keeps
+  *both* texts when one id diverges, forking the loser to a fresh id, because it runs once per Mac
+  over timestamps that were never comparable across machines and a silent winner there is an
+  invisible, unrecoverable loss. Every pass after it merges normally, since a duplicate on each
+  ordinary edit collision would be noise. `NoteFolderReconciler.plan` takes that as an undefaulted
+  `NoteFolderPass`; the once-per-Mac flag is `NoteFolderAdoption`, set when a folder is chosen and
+  cleared only by a reconcile that finished. Do not unify the two paths.
+  See [`docs/notes.md`](docs/notes.md).
 - **Snippets' expansion never records arbitrary typing or uses the clipboard.** The plugin keeps its
   historical `text-replacement` identity (IDs, keys, file names); its matcher retains only a suffix
   that can still become a configured trigger (built from keyworded snippets only — palette-only

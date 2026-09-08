@@ -660,7 +660,8 @@ struct NoteTests {
 
         // A folder that has never seen this note gets it written, not the note dropped.
         let emptyFolderPlan = NoteFolderReconciler.plan(
-            local: localOnly, scan: NoteFolderScan(files: []), newID: nextID, now: { folderClock })
+            local: localOnly, scan: NoteFolderScan(files: []), pass: .steady, newID: nextID,
+            now: { folderClock })
         check("an empty folder keeps every local note", 1, emptyFolderPlan.snapshot.notes.count)
         check("an empty folder is written, not read as deletions", 0, emptyFolderPlan.removals.count)
         check(
@@ -674,14 +675,15 @@ struct NoteTests {
             local: NoteSyncSnapshot(
                 notes: [SpotterNote(id: nextID(), content: "  ", createdAt: fixedDate)],
                 tombstones: []),
-            scan: NoteFolderScan(files: []), newID: nextID, now: { folderClock })
+            scan: NoteFolderScan(files: []), pass: .steady, newID: nextID, now: { folderClock })
         check("a blank note writes no file", false, blankPlan.hasFileWork)
         check("a blank note is still a note", 1, blankPlan.snapshot.notes.count)
 
         // A file that exists but has not downloaded is present, not gone.
         let placeholderScan = NoteFolderScan(files: [NoteFolderFile(name: "Alpha.md", contents: nil)])
         let placeholderPlan = NoteFolderReconciler.plan(
-            local: localOnly, scan: placeholderScan, newID: nextID, now: { folderClock })
+            local: localOnly, scan: placeholderScan, pass: .steady, newID: nextID,
+            now: { folderClock })
         check("an undownloaded file is deferred", ["Alpha.md"], placeholderPlan.deferred)
         check("an undownloaded file is never removed", 0, placeholderPlan.removals.count)
         check("an undownloaded file keeps its local note", 1, placeholderPlan.snapshot.notes.count)
@@ -696,7 +698,7 @@ struct NoteTests {
         let deletionPlan = NoteFolderReconciler.plan(
             local: localOnly,
             scan: NoteFolderScan(files: [liveFile], ledger: .readable([deletion])),
-            newID: nextID, now: { folderClock })
+            pass: .steady, newID: nextID, now: { folderClock })
         check("a ledger deletion removes the note", 0, deletionPlan.snapshot.notes.count)
         check("a ledger deletion removes its file", 1, deletionPlan.removals.count)
         check(
@@ -711,7 +713,7 @@ struct NoteTests {
         let revivePlan = NoteFolderReconciler.plan(
             local: NoteSyncSnapshot(notes: [revived], tombstones: []),
             scan: NoteFolderScan(files: [], ledger: .readable([deletion])),
-            newID: nextID, now: { folderClock })
+            pass: .steady, newID: nextID, now: { folderClock })
         check("a newer edit outlives an older deletion", 1, revivePlan.snapshot.notes.count)
         check("the ledger drops a beaten tombstone", [], revivePlan.ledger)
 
@@ -719,7 +721,7 @@ struct NoteTests {
         let blindPlan = NoteFolderReconciler.plan(
             local: localOnly,
             scan: NoteFolderScan(files: [liveFile], ledger: .unavailable),
-            newID: nextID, now: { folderClock })
+            pass: .steady, newID: nextID, now: { folderClock })
         check("an unreadable ledger is left alone", nil, blindPlan.ledger)
         check("an unreadable ledger deletes nothing", 0, blindPlan.removals.count)
         check("an unreadable ledger keeps every note", 1, blindPlan.snapshot.notes.count)
@@ -730,7 +732,8 @@ struct NoteTests {
             updatedAt: fixedDate.addingTimeInterval(90))
         let retitlePlan = NoteFolderReconciler.plan(
             local: NoteSyncSnapshot(notes: [retitled], tombstones: []),
-            scan: NoteFolderScan(files: [liveFile]), newID: nextID, now: { folderClock })
+            scan: NoteFolderScan(files: [liveFile]), pass: .steady, newID: nextID,
+            now: { folderClock })
         check("a retitle moves the file", true, retitlePlan.placements.first?.needsMove == true)
         check("a retitle keeps the same file", "Alpha.md", retitlePlan.placements.first?.currentName)
         check(
@@ -743,7 +746,7 @@ struct NoteTests {
             name: "Alpha copy.md", contents: NoteFolderDocument.serialize(noteA))
         let duplicatePlan = NoteFolderReconciler.plan(
             local: localOnly, scan: NoteFolderScan(files: [liveFile, identicalTwin]),
-            newID: nextID, now: { folderClock })
+            pass: .steady, newID: nextID, now: { folderClock })
         check("an identical duplicate collapses to one note", 1, duplicatePlan.snapshot.notes.count)
         check("exactly one of the two files is removed", 1, duplicatePlan.removals.count)
         check(
@@ -762,10 +765,100 @@ struct NoteTests {
                     updatedAt: fixedDate.addingTimeInterval(1))))
         let forkPlan = NoteFolderReconciler.plan(
             local: localOnly, scan: NoteFolderScan(files: [liveFile, divergentTwin]),
-            newID: nextID, now: { folderClock })
+            pass: .steady, newID: nextID, now: { folderClock })
         check("a divergent duplicate id keeps both texts", 2, forkPlan.snapshot.notes.count)
         check("a divergent duplicate removes nothing", 0, forkPlan.removals.count)
         check("a divergent duplicate is reported as a fork", 1, forkPlan.forked.count)
+
+        // The first pass after a folder is adopted keeps both sides; every pass after it merges.
+        let writtenHere = "# Alpha\nwritten here"
+        let writtenThere = "# Alpha\nwritten on the other Mac"
+        let divergedLocally = NoteSyncSnapshot(
+            notes: [
+                SpotterNote(
+                    id: noteA.id, content: writtenHere, createdAt: fixedDate,
+                    updatedAt: fixedDate.addingTimeInterval(200))
+            ], tombstones: [])
+        let divergedFile = NoteFolderFile(
+            name: "Alpha.md",
+            contents: NoteFolderDocument.serialize(
+                SpotterNote(
+                    id: noteA.id, content: writtenThere, createdAt: fixedDate,
+                    updatedAt: fixedDate.addingTimeInterval(100))))
+        let adoptionPlan = NoteFolderReconciler.plan(
+            local: divergedLocally, scan: NoteFolderScan(files: [divergedFile]), pass: .adoption,
+            newID: nextID, now: { folderClock })
+        check(
+            "the first pass keeps both sides of a divergence", 2, adoptionPlan.snapshot.notes.count)
+        check("the first pass reports the loser as a fork", 1, adoptionPlan.forked.count)
+        check(
+            "the first pass keeps this Mac's text", true,
+            adoptionPlan.snapshot.notes.contains { $0.content == writtenHere })
+        check(
+            "the first pass keeps the folder's text", true,
+            adoptionPlan.snapshot.notes.contains { $0.content == writtenThere })
+        check("the first pass removes nothing", 0, adoptionPlan.removals.count)
+        check("both sides of a divergence get a file", 2, adoptionPlan.placements.count)
+        check("removals stay provably safe on the first pass", true, removalsAreSafe(adoptionPlan))
+
+        let steadyPlan = NoteFolderReconciler.plan(
+            local: divergedLocally, scan: NoteFolderScan(files: [divergedFile]), pass: .steady,
+            newID: nextID, now: { folderClock })
+        check("a steady pass still merges to one note", 1, steadyPlan.snapshot.notes.count)
+        check(
+            "a steady pass lets the newer edit win", writtenHere,
+            steadyPlan.snapshot.notes.first?.content)
+        check("a steady pass forks nothing", 0, steadyPlan.forked.count)
+
+        // The other direction: the folder is newer, so the copy on this Mac is the one forked.
+        let folderIsNewer = NoteFolderFile(
+            name: "Alpha.md",
+            contents: NoteFolderDocument.serialize(
+                SpotterNote(
+                    id: noteA.id, content: writtenThere, createdAt: fixedDate,
+                    updatedAt: fixedDate.addingTimeInterval(400))))
+        let losingLocalPlan = NoteFolderReconciler.plan(
+            local: divergedLocally, scan: NoteFolderScan(files: [folderIsNewer]), pass: .adoption,
+            newID: nextID, now: { folderClock })
+        check(
+            "a local copy that loses the first pass is kept too", 2,
+            losingLocalPlan.snapshot.notes.count)
+        check(
+            "the winning file stays where it is", "Alpha.md",
+            losingLocalPlan.placements.first { $0.id == noteA.id }?.currentName)
+        check(
+            "the forked text gets a file of its own", 1,
+            losingLocalPlan.placements.filter { $0.currentName == nil }.count)
+
+        // Nothing differs, so the first pass must not manufacture a duplicate.
+        let identicalAdoptionPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: NoteFolderScan(files: [liveFile]), pass: .adoption,
+            newID: nextID, now: { folderClock })
+        check(
+            "the first pass keeps one note when nothing differs", 1,
+            identicalAdoptionPlan.snapshot.notes.count)
+        check(
+            "the first pass forks nothing when nothing differs", 0,
+            identicalAdoptionPlan.forked.count)
+        check(
+            "the first pass writes nothing when nothing differs", false,
+            identicalAdoptionPlan.hasFileWork)
+
+        // An empty folder has no divergence to keep, so both passes must plan the same thing.
+        let emptyAdoptionPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: NoteFolderScan(files: []), pass: .adoption, newID: nextID,
+            now: { folderClock })
+        check("an empty folder plans the same either way", emptyFolderPlan, emptyAdoptionPlan)
+
+        // An explicit deletion is a decision, not a divergence: the first pass must not undo it.
+        let lateDeletion = NoteTombstone(id: noteA.id, deletedAt: fixedDate.addingTimeInterval(500))
+        let deletedDivergencePlan = NoteFolderReconciler.plan(
+            local: localOnly,
+            scan: NoteFolderScan(files: [divergedFile], ledger: .readable([lateDeletion])),
+            pass: .adoption, newID: nextID, now: { folderClock })
+        check(
+            "a won deletion survives the first pass", 0, deletedDivergencePlan.snapshot.notes.count)
+        check("a won deletion is never forked back to life", 0, deletedDivergencePlan.forked.count)
 
         // An external editor changes the body without touching the header.
         let externallyEdited = NoteFolderFile(
@@ -777,7 +870,7 @@ struct NoteTests {
             modifiedAt: fixedDate.addingTimeInterval(500))
         let externalPlan = NoteFolderReconciler.plan(
             local: localOnly, scan: NoteFolderScan(files: [externallyEdited]),
-            newID: nextID, now: { folderClock })
+            pass: .steady, newID: nextID, now: { folderClock })
         check(
             "an outside edit is not overwritten", "# Alpha\nedited in BBEdit",
             externalPlan.snapshot.notes.first?.content)
@@ -790,7 +883,7 @@ struct NoteTests {
             NoteFolderFile(name: "readme.txt", contents: "not a note"),
         ])
         let strayPlan = NoteFolderReconciler.plan(
-            local: localOnly, scan: strayScan, newID: nextID, now: { folderClock })
+            local: localOnly, scan: strayScan, pass: .steady, newID: nextID, now: { folderClock })
         check("a stray Markdown file is adopted", 2, strayPlan.snapshot.notes.count)
         check("a blank stray file is left alone", true, strayPlan.deferred.contains("empty.md"))
         check("nothing stray is ever removed", 0, strayPlan.removals.count)
@@ -805,16 +898,16 @@ struct NoteTests {
             contentUpdatedAt: fixedDate, tint: .blue)
         var diskLocal = NoteSyncSnapshot(notes: [liveNote], tombstones: [])
         var diskPlan = NoteFolderReconciler.plan(
-            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
-            now: { folderClock })
+            local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
         try! await io.apply(diskPlan, in: folder)
         check(
             "the note reaches the folder under its title", true,
             FileManager.default.fileExists(atPath: folder.appendingPathComponent("Title.md").path))
 
         let reread = NoteFolderReconciler.plan(
-            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
-            now: { folderClock })
+            local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
         check("a written folder needs no further work", false, reread.hasFileWork)
         check("a written folder changes no note", diskLocal.notes, reread.snapshot.notes)
         check(
@@ -831,8 +924,8 @@ struct NoteTests {
             contentUpdatedAt: fixedDate.addingTimeInterval(120), tint: .blue)
         diskLocal = NoteSyncSnapshot(notes: [renamedNote], tombstones: [])
         diskPlan = NoteFolderReconciler.plan(
-            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
-            now: { folderClock })
+            local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
         try! await io.apply(diskPlan, in: folder)
         let afterRename = try! FileManager.default.contentsOfDirectory(atPath: folder.path)
             .filter { $0.hasSuffix(".md") }.sorted()
@@ -842,8 +935,8 @@ struct NoteTests {
         try! "# Dropped in\nby hand".write(
             to: folder.appendingPathComponent("dropped.md"), atomically: true, encoding: .utf8)
         diskPlan = NoteFolderReconciler.plan(
-            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
-            now: { folderClock })
+            local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
         try! await io.apply(diskPlan, in: folder)
         check("a dropped file becomes a note", 2, diskPlan.snapshot.notes.count)
         diskLocal = diskPlan.snapshot
@@ -852,8 +945,8 @@ struct NoteTests {
             FileManager.default.fileExists(
                 atPath: folder.appendingPathComponent("Dropped in.md").path))
         let adoptedRoundTrip = NoteFolderReconciler.plan(
-            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
-            now: { folderClock })
+            local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
         check("an adopted file settles immediately", false, adoptedRoundTrip.hasFileWork)
         check(
             "an adopted file keeps its text", "# Dropped in\nby hand",
@@ -867,8 +960,8 @@ struct NoteTests {
                 NoteTombstone(id: deletedNote.id, deletedAt: folderClock.addingTimeInterval(300))
             ])
         diskPlan = NoteFolderReconciler.plan(
-            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
-            now: { folderClock })
+            local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
         try! await io.apply(diskPlan, in: folder)
         check(
             "a deleted note's file goes away", false,
@@ -882,11 +975,78 @@ struct NoteTests {
         // A second Mac reading that folder learns the deletion and does not resurrect the note.
         let otherMac = NoteSyncSnapshot(notes: [deletedNote, renamedNote], tombstones: [])
         let otherPlan = NoteFolderReconciler.plan(
-            local: otherMac, scan: try! await io.scan(folder: folder), newID: nextID,
-            now: { folderClock })
+            local: otherMac, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
         check("another Mac applies the deletion", 1, otherPlan.snapshot.notes.count)
         check(
             "another Mac keeps the surviving note", renamedNote.id, otherPlan.snapshot.notes.first?.id)
+
+        // ── The adoption flag, against real defaults and a real folder ──────────────────────────
+        let adoptionSuite = "spotter.note.adoption.\(UUID().uuidString)"
+        let adoptionDefaults = UserDefaults(suiteName: adoptionSuite)!
+        defer { adoptionDefaults.removePersistentDomain(forName: adoptionSuite) }
+        let adoption = NoteFolderAdoption(defaults: adoptionDefaults)
+        check(
+            "a folder nobody just chose reconciles normally", NoteFolderPass.steady, adoption.pass)
+        adoption.begin()
+        check("choosing a folder starts an adoption", NoteFolderPass.adoption, adoption.pass)
+        // A relaunch is nothing more than a second reader over the same persisted defaults.
+        check(
+            "the adoption survives a relaunch", NoteFolderPass.adoption,
+            NoteFolderAdoption(defaults: UserDefaults(suiteName: adoptionSuite)!).pass)
+
+        let adoptedFolder = directory.appendingPathComponent("adopted", isDirectory: true)
+        try! FileManager.default.createDirectory(
+            at: adoptedFolder, withIntermediateDirectories: true)
+        let sharedID = nextID()
+        let sharedFile = NoteFolderDocument.serialize(
+            SpotterNote(
+                id: sharedID, content: "# Shared\nfrom the other Mac", createdAt: fixedDate,
+                updatedAt: fixedDate.addingTimeInterval(50)))
+        try! sharedFile.write(
+            to: adoptedFolder.appendingPathComponent("Shared.md"), atomically: true,
+            encoding: .utf8)
+        let adoptingLocal = NoteSyncSnapshot(
+            notes: [
+                SpotterNote(
+                    id: sharedID, content: "# Shared\nfrom this Mac", createdAt: fixedDate,
+                    updatedAt: fixedDate.addingTimeInterval(80))
+            ], tombstones: [])
+        let firstPass = NoteFolderReconciler.plan(
+            local: adoptingLocal, scan: try! await io.scan(folder: adoptedFolder),
+            pass: adoption.pass, newID: nextID, now: { folderClock })
+        check("an adopted folder's divergence is kept whole", 2, firstPass.snapshot.notes.count)
+
+        // The folder vanishes between the plan and the write, which is the manager's failure path:
+        // it clears the flag only past `io.apply`, so the pass stays an adoption.
+        try! FileManager.default.removeItem(at: adoptedFolder)
+        var applyFailed = false
+        do { try await io.apply(firstPass, in: adoptedFolder) } catch { applyFailed = true }
+        if !applyFailed { adoption.finish() }
+        check("a pass that cannot write fails", true, applyFailed)
+        check("a failed pass leaves the adoption pending", NoteFolderPass.adoption, adoption.pass)
+
+        try! FileManager.default.createDirectory(
+            at: adoptedFolder, withIntermediateDirectories: true)
+        try! sharedFile.write(
+            to: adoptedFolder.appendingPathComponent("Shared.md"), atomically: true,
+            encoding: .utf8)
+        let retriedPass = NoteFolderReconciler.plan(
+            local: firstPass.snapshot, scan: try! await io.scan(folder: adoptedFolder),
+            pass: adoption.pass, newID: nextID, now: { folderClock })
+        try! await io.apply(retriedPass, in: adoptedFolder)
+        adoption.finish()
+        check(
+            "a retried adoption does not fork the same text twice", 2,
+            retriedPass.snapshot.notes.count)
+        check(
+            "both texts reach the folder", 2,
+            try! FileManager.default.contentsOfDirectory(atPath: adoptedFolder.path)
+                .filter { $0.hasSuffix(".md") }.count)
+        check("a completed pass clears the flag", NoteFolderPass.steady, adoption.pass)
+        check(
+            "the cleared flag survives a relaunch too", NoteFolderPass.steady,
+            NoteFolderAdoption(defaults: UserDefaults(suiteName: adoptionSuite)!).pass)
 
         // The whole folder disappearing is an error, never a set of deletions.
         try! FileManager.default.removeItem(at: folder)

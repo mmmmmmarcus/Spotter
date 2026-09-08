@@ -35,6 +35,7 @@ final class NoteFolderSyncManager: ObservableObject {
     private let store: NoteStore
     private let defaults: UserDefaults
     private let legacyKeys: LegacyKeys
+    private let adoption: NoteFolderAdoption
     private let io = NoteFolderIO()
     private let legacyIO = CoordinatedFileIO()
     private var watcher: CoordinatedFileWatcher?
@@ -52,6 +53,7 @@ final class NoteFolderSyncManager: ObservableObject {
         self.store = store
         self.defaults = defaults
         legacyKeys = LegacyKeys(bundleID: bundleID)
+        adoption = NoteFolderAdoption(defaults: defaults)
         folderURL = defaults.string(forKey: Key.folderPath).map(URL.init(fileURLWithPath:))
     }
 
@@ -97,6 +99,7 @@ final class NoteFolderSyncManager: ObservableObject {
         let folder = url.standardizedFileURL
         folderURL = folder
         defaults.set(folder.path, forKey: Key.folderPath)
+        adoption.begin()
         errorMessage = nil
         lastSyncedAt = nil
         stopWatching()
@@ -116,6 +119,7 @@ final class NoteFolderSyncManager: ObservableObject {
         errorMessage = nil
         pendingDownloads = 0
         defaults.removeObject(forKey: Key.folderPath)
+        adoption.finish()
     }
 
     func syncNow() async {
@@ -146,7 +150,7 @@ final class NoteFolderSyncManager: ObservableObject {
         do {
             let local = store.syncSnapshot
             let scan = try await io.scan(folder: folder)
-            let plan = NoteFolderReconciler.plan(local: local, scan: scan)
+            let plan = NoteFolderReconciler.plan(local: local, scan: scan, pass: adoption.pass)
             if plan.snapshot != local {
                 isApplyingRemote = true
                 // Re-merges against whatever the store holds now, so a keystroke that landed during
@@ -160,6 +164,8 @@ final class NoteFolderSyncManager: ObservableObject {
                     "note-folder-sync",
                     "Adopted \(plan.adopted.count) file(s) and forked \(plan.forked.count) duplicate(s).")
             }
+            // Only here, past every write: a pass that threw leaves the adoption pending.
+            adoption.finish()
             pendingDownloads = plan.deferred.count
             errorMessage = nil
             lastSyncedAt = Date()
