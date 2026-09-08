@@ -171,6 +171,12 @@ swiftc -swift-version 6 \
     Spotter/Plugins/SelectionTools/SelectionToolsResults.swift \
     Tools/selection-tools-test.swift \
     -o /tmp/selection-tools-test && /tmp/selection-tools-test
+swiftc -swift-version 6 \
+    Spotter/Plugins/Infrastructure/PluginTypes.swift \
+    Spotter/Plugins/Translate/TranslateTypes.swift \
+    Spotter/Plugins/Translate/TranslateResults.swift \
+    Tools/translate-test.swift \
+    -o /tmp/translate-test && /tmp/translate-test
 swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageIO -framework Vision \
     Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
     Spotter/Plugins/ImageModification/ImageModificationEngine.swift Tools/image-modification-test.swift \
@@ -264,8 +270,9 @@ fallbacks, calendar-account/all-day filtering, time-zone resolution and analog-c
 without touching EventKit or the user's files.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
-real Foundation-only transformer. Selection Tools tests URLComponents encoding without opening a
-browser; AI Chat tests transcript windowing, its ChatGPT web-query URL, and the selected-text
+real Foundation-only transformer. Search tests URLComponents encoding without opening a browser, and
+Translate pins its result ordering, its blocked-without-a-key page and the memo that keeps the same
+text from being billed twice — without making a Google request; AI Chat tests transcript windowing, its ChatGPT web-query URL, and the selected-text
 target-language and prompt logic without sending text over the network or opening a browser.
 Image Modification creates and resizes real temporary pixels through
 Core Image/ImageIO, then deletes its fixture directory.

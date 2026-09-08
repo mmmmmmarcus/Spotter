@@ -2,19 +2,17 @@ import SwiftUI
 
 struct SelectionToolsSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
-    @ObservedObject private var selectionTools = AppCore.shared.selectionTools
-    @State private var apiKeyDraft = AppCore.shared.selectionTools.apiKey
 
     var body: some View {
         SettingsPane(
-            title: "Selection Tools",
-            subtitle: "Search selected text or translate it into the languages you choose."
+            title: "Search",
+            subtitle: "Search the text you have selected, in your default browser."
         ) {
             SettingsCard(header: "Plugin") {
                 SettingsRow(
-                    title: "Selection Tools",
+                    title: "Search",
                     subtitle: "Capture selected text without keeping a clipboard copy.",
-                    systemImage: "selection.pin.in.out", tint: .teal
+                    systemImage: "magnifyingglass", tint: .teal
                 ) {
                     Toggle(
                         "",
@@ -28,95 +26,6 @@ struct SelectionToolsSettingsView: View {
                 }
             }
 
-            if selectionTools.apiKey.isEmpty {
-                SettingsCallout(
-                    title: "Google Translate needs an API key.",
-                    message:
-                        "Create a Google Cloud project, enable Cloud Translation Basic, then paste its "
-                        + "API key below. Without a key Spotter sends nothing to Google, and both "
-                        + "Translate Selected Text and the Translate page stay unavailable.",
-                    systemImage: "key", tint: .orange)
-            }
-
-            SettingsCard(header: "Google Translate") {
-                SettingsRow(
-                    title: "API Key",
-                    subtitle:
-                        "Each translation sends the selected text and this key to Google Cloud "
-                        + "Translation Basic — one billable request per target language. Stored in "
-                        + "bundle-scoped preferences and included in trusted sync or backup files.",
-                    systemImage: "key", tint: .teal
-                ) {
-                    SecureField("Google Cloud API key", text: $apiKeyDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body.monospaced())
-                        .frame(width: 260)
-                        .onSubmit { selectionTools.setAPIKey(apiKeyDraft) }
-                        .onChange(of: apiKeyDraft) { selectionTools.setAPIKey(apiKeyDraft) }
-                }
-
-                SettingsDivider()
-                SettingsRow(
-                    title: "Connection",
-                    subtitle: validationStatus,
-                    systemImage: "network", tint: .secondary
-                ) {
-                    HStack(spacing: Theme.Spacing.md) {
-                        Button("Test API Key") {
-                            Task { await selectionTools.validateAPIKey() }
-                        }
-                        .disabled(
-                            selectionTools.apiKey.isEmpty || selectionTools.validation == .checking)
-                        Link("Open Guide", destination: SelectionToolsManager.providerURL)
-                    }
-                }
-
-                SettingsDivider()
-                if selectionTools.targets.isEmpty {
-                    SettingsRow(
-                        title: "No target languages",
-                        subtitle: "Add one below — without a target there is nothing to translate into.",
-                        systemImage: "exclamationmark.triangle", tint: .orange
-                    ) {
-                        EmptyView()
-                    }
-                } else {
-                    ForEach(Array(selectionTools.targets.enumerated()), id: \.element.id) {
-                        index, language in
-                        if index > 0 { SettingsDivider() }
-                        SettingsRow(
-                            title: language.name,
-                            subtitle:
-                                "Skipped when the selection is already written in \(language.name).",
-                            systemImage: "character.book.closed", tint: .teal
-                        ) {
-                            Button(role: .destructive) {
-                                selectionTools.removeTarget(language.code)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Remove \(language.name)")
-                        }
-                    }
-                }
-
-                SettingsDivider()
-                SettingsRow(
-                    title: "Add a Language",
-                    subtitle: "Every target gets its own row in the translation results.",
-                    systemImage: "plus.circle", tint: .secondary
-                ) {
-                    Menu("Add") {
-                        ForEach(selectionTools.availableTargets) { language in
-                            Button(language.name) { selectionTools.addTarget(language.code) }
-                        }
-                    }
-                    .frame(width: 120)
-                    .disabled(selectionTools.availableTargets.isEmpty)
-                }
-            }
-
             SettingsCard(header: "Shortcuts") {
                 SettingsRow(
                     title: "Search Selected Text",
@@ -125,34 +34,7 @@ struct SelectionToolsSettingsView: View {
                 ) {
                     ShortcutRecorder(action: .plugin(.searchSelectedText))
                 }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Translate Selected Text",
-                    subtitle: "Recommended: Hyper + T",
-                    systemImage: "translate", tint: .teal
-                ) {
-                    ShortcutRecorder(action: .plugin(.translateSelectedText))
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Translate Text",
-                    subtitle: "Opens the Translate page, where the search field is the text.",
-                    systemImage: "character.bubble", tint: .teal
-                ) {
-                    ShortcutRecorder(action: .plugin(.translateText))
-                }
             }
-        }
-        .onChange(of: selectionTools.apiKey) {
-            if selectionTools.apiKey != apiKeyDraft { apiKeyDraft = selectionTools.apiKey }
-        }
-    }
-
-    private var validationStatus: String {
-        switch selectionTools.validation {
-        case .unknown: "Test the key with one short translation request."
-        case .checking: "Testing Google Cloud Translation…"
-        case .valid(let message), .invalid(let message): message
         }
     }
 }

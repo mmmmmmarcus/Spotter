@@ -429,9 +429,10 @@ reveal-only; the two-line subtitle explains why destructive actions are unavaila
 AI Chat is the asynchronous selected-text surface for definition and grammar actions: they render
 the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
 shared composer for follow-ups. Its footer carries the same single primary button every other
-surface has — `Send ↵` — and the second destination, Send to ChatGPT, is a row in the ⌘K menu. Selection Tools uses the shared
-plugin list for browser-search failures and for its original → one-row-per-target translation rows,
-which are the one place a palette row carries no title line limit.
+surface has — `Send ↵` — and the second destination, Send to ChatGPT, is a row in the ⌘K menu. Search
+uses the shared plugin list for browser-search failures, and Translate uses it for its
+one-row-per-target translation rows, which are the one place a palette row carries no title line
+limit.
 
 Notes is the floating-workspace reference. It opts the shared auxiliary window into `.floating`,
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the

@@ -96,8 +96,11 @@ Never break these without an explicit task to do so.
   `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar/
   local time zone while `Plugins/WorldClock/WorldClockStore.swift` stays Foundation + Combine,
   `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
-  Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift` and
-  `Plugins/SelectionTools/SearchURLBuilder.swift` stay Foundation-only and pure,
+  Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift`,
+  `Plugins/SelectionTools/SelectionToolsResults.swift` and
+  `Plugins/SelectionTools/SearchURLBuilder.swift` stay Foundation-only and pure, as do
+  `Plugins/Translate/TranslateTypes.swift` and `Plugins/Translate/TranslateResults.swift` for
+  `Tools/translate-test.swift`,
   `Plugins/TextReplacement/TextReplacementEngine.swift` stays
   Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
   Foundation + Combine, `Plugins/Note/NoteEngine.swift` and
@@ -171,8 +174,8 @@ Never break these without an explicit task to do so.
   **cacheless** `URLSession` (`.ephemeral`, `urlCache = nil`), never `URLSession.shared` — a cacheable
   response would leave a second copy in the on-disk `URLCache` that opting out doesn't delete.
   `Plugins/CurrencyConversion/CurrencyRateStore.swift` is the reference implementation — follow it
-  rather than inventing a second shape. Selection Tools' Google Translation path follows that
-  consent shape; its consent flag and API key are included in the trusted v3 backup/sync snapshot.
+  rather than inventing a second shape. The Translate plugin's Google Translation path follows that
+  consent shape; its API key and target list are included in the trusted v3 backup/sync snapshot.
   `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the clock face's weather
   complications (one reading and one request) ship off, both the
   forecast fetch and the city search are refused without consent, and its
@@ -226,14 +229,19 @@ Never break these without an explicit task to do so.
   means no request can be made (AI Chat and its definition/grammar actions stay unavailable); entering the key, or syncing
   a settings file that carries one, is the consent act. Do not reintroduce a toggle for it, and do
   not copy this shape for new networked features without an explicit owner decision.
-  `Plugins/SelectionTools/SelectionToolsManager.swift` was moved onto that same shape: its separate
-  Cloud Translation consent toggle was removed and the Google API key is now the only gate. No key,
+  `Plugins/Translate/TranslateManager.swift` is on that same shape: it has no Cloud Translation
+  consent toggle and the Google API key is the only gate. No key,
   no request, and neither Translate Selected Text nor the Translate page can run. The Settings key
   row still names the provider, what is sent and the per-target billing, and the key and the
   target-language list ride the trusted v3 snapshot. The source language is detected **on device**
   with `NLLanguageRecognizer` before anything is sent, so a target the text is already written in
   costs no request at all — keep that detection local and never add a network round trip to discover
-  the language or the language list. The Settings
+  the language or the language list. **The Translate page translates as you type, so its economy is
+  load-bearing:** requests fire only after `TranslateTiming.typingPause` of silence (one constant,
+  retune there and nowhere else), `TranslationMemo` refuses to bill the same text into the same
+  targets twice, and a run whose text has been superseded is cancelled. Do not move the trigger to a
+  keystroke, remove the memo, or let a second surface call `translate(_:)` without those guards. The
+  Settings
   model menu's catalog read (`/models`) stays behind the same gate — no key, no fetch, and clearing
   the key drops the list — and stays unauthenticated and free of anything about this Mac.
   `Core/UpdateStore.swift` follows the consent shape: the daily update check ships off behind a
@@ -360,7 +368,8 @@ Never break these without an explicit task to do so.
   [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md) ·
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/uptime.md`](docs/uptime.md) ·
   [`docs/calendar.md`](docs/calendar.md) ·
-  [`docs/selection-tools.md`](docs/selection-tools.md) ·
+  [`docs/selection-tools.md`](docs/selection-tools.md) (Search) ·
+  [`docs/translate.md`](docs/translate.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
   [`docs/mole.md`](docs/mole.md) ·
   [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·

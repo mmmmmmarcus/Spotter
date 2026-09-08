@@ -372,7 +372,11 @@ final class PluginRegistry: ObservableObject {
         }
     }
 
-    private func enabledKey(for id: PluginID) -> String {
+    /// Not private: a plugin split out of another one has to read the old owner's state once to
+    /// inherit a deliberate "off" instead of silently switching itself back on.
+    nonisolated static func enabledKey(for id: PluginID) -> String {
         "plugin.\(id.rawValue).enabled"
     }
+
+    private func enabledKey(for id: PluginID) -> String { Self.enabledKey(for: id) }
 }

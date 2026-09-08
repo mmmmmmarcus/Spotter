@@ -211,6 +211,7 @@ final class AppCore: ObservableObject {
     let openRouter = OpenRouterStore()
     let selectedTextCapture = SelectedTextCapture()
     let selectionTools: SelectionToolsManager
+    let translate = TranslateManager()
     let imageModification = ImageModificationManager()
     let notes: NoteStore
     let noteSync: NoteSyncManager

@@ -88,10 +88,12 @@ relaunch; an existing Spotter conflict prevents the seed rather than stealing an
 Carbon registration failures are mirrored to Diagnostics with the action's stable defaults key and
 OSStatus. The saved shortcut remains visible so user intent is not discarded, but the failure is no
 longer silent when another process or the system refuses the global combination.
-Selection Tools registers Search Selected Text, Translate Selected Text and Translate Text as
-separate actions under the `plugin.selection-tools.*` namespace. They intentionally ship unbound;
-users record Hyper + S/T in Settings → Shortcuts, using the same recorder, conflict detection and
-Carbon registration as every other plugin action.
+Search registers Search Selected Text, and Translate registers Translate and Translate Selected Text.
+All three persist under the `plugin.selection-tools.*` defaults namespace: Translate was split out of
+Selection Tools in Sep 2026 and its two actions kept their original keys explicitly, so an existing
+Hyper + T stays bound to the action it was recorded for. They intentionally ship unbound; users
+record Hyper + S/T in Settings → Shortcuts, using the same recorder, conflict detection and Carbon
+registration as every other plugin action.
 
 ## Recorder
 

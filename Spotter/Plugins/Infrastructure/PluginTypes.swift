@@ -16,7 +16,9 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let worldClock = PluginID(rawValue: "world-clock")
     static let killProcess = PluginID(rawValue: "kill-process")
     static let changeCase = PluginID(rawValue: "change-case")
+    /// Display-named "Search"; the raw value predates the split that gave translation its own plugin.
     static let selectionTools = PluginID(rawValue: "selection-tools")
+    static let translate = PluginID(rawValue: "translate")
     static let imageModification = PluginID(rawValue: "image-modification")
     static let note = PluginID(rawValue: "note")
     static let quicklinks = PluginID(rawValue: "quicklinks")

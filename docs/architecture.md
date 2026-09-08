@@ -5,8 +5,8 @@ How Spotter is wired together. See the per-subsystem docs for internals:
 [clipboard](clipboard.md), [plugins](plugins.md), [custom commands](custom-commands.md),
 [hotkeys](hotkeys.md), [background tasks](background-tasks.md), [ui](ui.md),
 [settings-sync](settings-sync.md), [signing](signing.md),
-plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools,
-image-modification, notes, text-replacement, quicklinks, window-management,
+plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools
+(Search), translate, image-modification, notes, text-replacement, quicklinks, window-management,
 commands (including built-in system commands), mole, coffee, screenshot).
 
 ## Single-owner core
@@ -16,7 +16,7 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `
 `AppSettings`, `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`, `CurrencyRateStore`, `EmojiIndex`, `FrequentEmojiStore`,
 `RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`, `ChangeCaseStore`,
-`OpenRouterStore`, `SelectionToolsManager`, `ImageModificationManager`, `TextReplacementStore`,
+`OpenRouterStore`, `SelectionToolsManager`, `TranslateManager`, `ImageModificationManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `NoteSyncManager`, `QuicklinkStore`, `QuicklinkManager`,
 `WindowMover`,
 `MoleManager`, `CoffeeManager`, `ScreenshotManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,
@@ -88,8 +88,8 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
-  Selection Tools uses this route for browser-search failures and for its Google translation result,
-  one row per configured target language. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
+  Search uses this route for browser-search failures; Translate uses it for both its typed-text page
+  and its selected-text result, one row per configured target language. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
 - **Launcher dashboard** — the registered system feature that owns `launcherDashboard` contributes one
   non-selectable view above the empty-query launcher sections. `RootPaletteView` keeps the dashboard
   inside the palette's existing scroll view and selection model; the plugin owns only its local data

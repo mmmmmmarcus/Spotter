@@ -35,7 +35,7 @@ the fresh-session Tab path; activating ChatGPT follows the same web handoff the 
 AI Chat is an always-available system feature shown in Settings → System, but remains inert
 without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
 or syncing a key is the consent act). AI Chat also owns Define and Check Grammar for selected text;
-Google-powered translation lives in Selection Tools. Its implementation lives in `Spotter/Plugins/AIChat/` so it can reuse the registry's
+Google-powered translation lives in the [Translate](translate.md) plugin. Its implementation lives in `Spotter/Plugins/AIChat/` so it can reuse the registry's
 Settings, command, permission and shortcut plumbing without being presented as an optional plugin.
 
 ## Files
@@ -130,7 +130,7 @@ AI Chat registers Define Selected Text and Check Selected Text Grammar. The acti
 `KeyboardShortcuts_plugin.selection-tools.*` defaults keys and launcher command IDs, so existing
 shortcut bindings and launcher visibility survive their ownership move. New backup exports identify
 them under AI Chat; imports also accept the former Selection Tools IDs. Translate Selected Text is
-owned by Selection Tools and uses Google Cloud Translation; see [`selection-tools.md`](selection-tools.md).
+owned by the Translate plugin and uses Google Cloud Translation; see [`translate.md`](translate.md).
 
 Both global shortcuts and launcher commands use the `AppCore`-owned `SelectedTextCapture`. A
 successful capture creates a new titled chat session, renders the selected text as its first user

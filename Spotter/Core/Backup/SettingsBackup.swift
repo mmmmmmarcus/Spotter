@@ -246,8 +246,8 @@ extension SettingsBackup {
             openRouterGrammarModel: core.openRouter.grammarModel,
             openRouterChatModel: core.openRouter.chatModel,
             openRouterChatWebSearch: core.openRouter.chatWebSearch,
-            googleTranslationAPIKey: core.selectionTools.apiKey,
-            googleTranslationTargets: core.selectionTools.targetCodes,
+            googleTranslationAPIKey: core.translate.apiKey,
+            googleTranslationTargets: core.translate.targetCodes,
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
             dashboardWidgets: SettingsData.DashboardWidgets(
                 widgetOrder: dashboard.widgetOrder.map(\DashboardWidgetKind.rawValue),
@@ -685,14 +685,14 @@ extension SettingsBackup {
             count += 1
         }
         if let key = s.googleTranslationAPIKey {
-            core.selectionTools.setAPIKey(key)
+            core.translate.setAPIKey(key)
             count += 1
         } else if mode == .replace && version >= 3 {
-            core.selectionTools.setAPIKey("")
+            core.translate.setAPIKey("")
             count += 1
         }
         if let targets = s.googleTranslationTargets {
-            core.selectionTools.setTargets(targets)
+            core.translate.setTargets(targets)
             count += 1
         }
         if let enabled = s.updateAutoCheckEnabled {
@@ -760,21 +760,24 @@ extension SettingsBackup {
             // Resolve through the registry so a binding only lands on an action this build actually has.
             for key in core.plugins.shortcutActions {
                 let currentID = "\(key.pluginID.rawValue).\(key.actionID)"
-                let legacyID: String?
-                if key.pluginID == .selectionTools, key.actionID == "translate" {
-                    legacyID = "ai-chat.translate"
+                let legacyIDs: [String]
+                if key.pluginID == .translate {
+                    // Translation has lived under both owners; newest spelling first.
+                    legacyIDs = ["selection-tools.\(key.actionID)", "ai-chat.\(key.actionID)"]
                 } else if key.pluginID == .aiChat,
                     ["define", "grammar"].contains(key.actionID)
                 {
-                    legacyID = "selection-tools.\(key.actionID)"
+                    legacyIDs = ["selection-tools.\(key.actionID)"]
                 } else if key.pluginID == .commands, key.actionID.hasPrefix("system.") {
-                    legacyID =
-                        "system-commands."
-                        + String(key.actionID.dropFirst("system.".count))
+                    legacyIDs = [
+                        "system-commands." + String(key.actionID.dropFirst("system.".count))
+                    ]
                 } else {
-                    legacyID = nil
+                    legacyIDs = []
                 }
-                if let s = pluginActions[currentID] ?? legacyID.flatMap({ pluginActions[$0] }) {
+                if let s = pluginActions[currentID]
+                    ?? legacyIDs.lazy.compactMap({ pluginActions[$0] }).first
+                {
                     apply(s, .plugin(key))
                 }
             }

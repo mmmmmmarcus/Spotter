@@ -34,6 +34,7 @@ Spotter/Plugins/
 ├── KillProcess/
 ├── ChangeCase/
 ├── SelectionTools/
+├── Translate/
 ├── ImageModification/
 ├── WindowManagement/
 ├── Mole/
@@ -313,8 +314,14 @@ shell-command feature; do not use shell commands as an internal plugin API.
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
-- **Selection Tools** (`Spotter/Plugins/SelectionTools/`) — enabled by default; captures selected
-  text and opens a Google Search in the default browser. Its former AI actions now belong to AI Chat.
+- **Search** (`Spotter/Plugins/SelectionTools/`, display-renamed from Selection Tools; the id stays
+  `selection-tools` so persisted state survives) — enabled by default; captures selected text and
+  opens a Google Search in the default browser. Its former AI actions belong to AI Chat and its
+  translation belongs to Translate.
+- **Translate** (`Spotter/Plugins/Translate/`) — enabled by default but inert without a Google Cloud
+  Translation API key, which is its only gate. A palette page translates what you type once typing
+  pauses, and Translate Selected Text translates the frontmost app's selection; both list one row per
+  configured target language.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — enabled by default; local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins, then every operation reports
@@ -346,7 +353,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   The overlay architecture is adapted from Capso under BSL 1.1; no Capso service or idle process is
   loaded.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Uptime](uptime.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
-[Selection Tools](selection-tools.md), [Image Modification](image-modification.md),
+[Search](selection-tools.md), [Translate](translate.md), [Image Modification](image-modification.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
 [Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md),

@@ -23,6 +23,7 @@ TESTS=(
     kill-process
     change-case
     selection-tools
+    translate
     image-modification
     note
     text-replacement
@@ -149,6 +150,12 @@ run_harness() {
                 Spotter/Plugins/SelectionTools/SearchURLBuilder.swift \
                 Spotter/Plugins/SelectionTools/SelectionToolsResults.swift \
                 Tools/selection-tools-test.swift -o "$output" && "$output"
+            ;;
+        translate)
+            swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
+                Spotter/Plugins/Translate/TranslateTypes.swift \
+                Spotter/Plugins/Translate/TranslateResults.swift \
+                Tools/translate-test.swift -o "$output" && "$output"
             ;;
         image-modification)
             swiftc -swift-version 6 -framework AppKit -framework CoreImage \
