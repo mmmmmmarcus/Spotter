@@ -40,6 +40,46 @@ enum NoteEditorMetrics {
     }
 }
 
+/// The one fixed cell every list marker occupies. A todo, a bullet and an ordered number have three
+/// different natural widths, so a note mixing them starts its text at three different x positions;
+/// kerning each marker out to this cell gives the note one content edge. All of it is presentation:
+/// kerning and paragraph style are attributes, so the source stays exactly the Markdown typed.
+@MainActor
+private enum NoteListMarker {
+    /// Breathing room between the widest decoration and the text after it.
+    private static let minimumGap: CGFloat = 4
+
+    static var bodyFont: NSFont { .preferredFont(forTextStyle: .body) }
+
+    static var monospacedFont: NSFont {
+        .monospacedSystemFont(ofSize: bodyFont.pointSize, weight: .regular)
+    }
+
+    /// The square the todo box and the bullet disc are both laid out in — one metric, so neither
+    /// decoration can drift in size or position away from the other.
+    static var decorationSide: CGFloat { (bodyFont.ascender - bodyFont.descender).rounded() }
+
+    /// Wide enough for a one-digit ordered marker in the monospaced font it keeps, and never
+    /// narrower than a decoration and its gap. A wider marker anywhere in the note raises it for
+    /// every list line, so item ten does not cost the note its content edge.
+    static var baseSlot: CGFloat {
+        max(decorationSide + minimumGap, width(of: "1. ", in: monospacedFont))
+    }
+
+    static var indentUnit: CGFloat { width(of: NoteEngine.listIndentUnit, in: bodyFont) }
+
+    /// A nesting level is the same step whether it was written as spaces or as a legacy tab.
+    static func indentationWidth(_ indentation: String) -> CGFloat {
+        let spaces = indentation.filter { $0 == " " }.count
+        let tabs = indentation.count - spaces
+        return CGFloat(spaces) * width(of: " ", in: bodyFont) + CGFloat(tabs) * indentUnit
+    }
+
+    static func width(of text: String, in font: NSFont) -> CGFloat {
+        (text as NSString).size(withAttributes: [.font: font]).width
+    }
+}
+
 struct NoteMarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let tint: NoteTint?
@@ -86,6 +126,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         }
         textView.indentHandler = { [weak coordinator = context.coordinator] direction in
             coordinator?.applyIndent(direction) ?? false
+        }
+        textView.deleteHandler = { [weak coordinator = context.coordinator] in
+            coordinator?.deleteListMarker() ?? false
         }
         textView.navigationHandler = { [weak coordinator = context.coordinator] direction in
             coordinator?.navigate(direction)
@@ -379,6 +422,23 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             return true
         }
 
+        /// Delete with the caret just past a list marker takes the whole marker, so a todo never
+        /// erodes through `- [ ]`, `- [` and out the other side as plain text. False everywhere
+        /// else, so the key deletes exactly as it always has.
+        func deleteListMarker() -> Bool {
+            // Mid-composition the delete belongs to the input method, which is still writing the
+            // marked run this would rewrite the storage under.
+            guard let textView, !textView.hasMarkedText(),
+                let marker = NoteEngine.listMarkerDeletion(
+                    in: textView.string, selection: textView.selectedRange()),
+                textView.shouldChangeText(in: marker, replacementString: "")
+            else { return false }
+            textView.textStorage?.replaceCharacters(in: marker, with: "")
+            textView.didChangeText()
+            textView.setSelectedRange(NSRange(location: marker.location, length: 0))
+            return true
+        }
+
         func apply(_ command: NoteMarkdownCommand) {
             guard let textView else { return }
             let result = NoteEngine.applying(
@@ -498,9 +558,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                     .underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
                 self.concealSyntax(around: range, in: match.range, storage: storage)
             }
-            applyOrderedMarkers(in: textView.string, storage: storage)
-            applyBullets(in: textView.string, storage: storage, layout: layout)
-            applyCheckboxes(in: textView.string, storage: storage, layout: layout)
+            let slot = applyOrderedMarkers(in: textView.string, storage: storage)
+            applyBullets(in: textView.string, storage: storage, layout: layout, slot: slot)
+            applyCheckboxes(in: textView.string, storage: storage, layout: layout, slot: slot)
             apply(Self.completedTask, to: textView.string) { match in
                 guard match.numberOfRanges > 1 else { return }
                 storage.addAttribute(
@@ -530,79 +590,104 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 self.concealSyntax(around: match.range(at: 2), in: match.range, storage: storage)
             }
             apply(Self.listLine, to: textView.string) { match in
-                guard match.numberOfRanges > 2 else { return }
-                let indentation = source.substring(with: match.range(at: 1))
-                let markerRange = match.range(at: 2)
-                let marker = source.substring(with: markerRange)
-                let font = storage.attribute(
-                    .font, at: match.range.location, effectiveRange: nil) as? NSFont ?? bodyFont
-                // An ordered marker was just monospaced, so it is measured in its own font rather
-                // than in whatever the line starts with.
-                let markerFont = storage.attribute(
-                    .font, at: markerRange.location, effectiveRange: nil) as? NSFont ?? font
+                guard match.numberOfRanges > 1 else { return }
                 let style = NSMutableParagraphStyle()
                 style.firstLineHeadIndent = 0
-                style.headIndent = Self.listContinuationIndent(
-                    indentation: indentation, indentationFont: font,
-                    marker: marker, markerFont: markerFont)
+                // Every marker was kerned out to the same cell, so a wrapped line hangs at the one
+                // content edge whichever kind of list it belongs to.
+                style.headIndent =
+                    NoteListMarker.indentationWidth(source.substring(with: match.range(at: 1)))
+                    + slot
                 // A raw tab in list indentation renders one indent unit wide, not the default
                 // 28-point stop — nesting should read as a step, not a gulf.
                 style.tabStops = []
-                style.defaultTabInterval = (NoteEngine.listIndentUnit as NSString).size(
-                    withAttributes: [.font: bodyFont]).width
+                style.defaultTabInterval = NoteListMarker.indentUnit
                 storage.addAttribute(.paragraphStyle, value: style, range: match.range)
             }
         }
 
-        private static func listContinuationIndent(
-            indentation: String, indentationFont: NSFont, marker: String, markerFont: NSFont
-        ) -> CGFloat {
-            let indentationWidth = (indentation as NSString).size(
-                withAttributes: [.font: indentationFont]).width
-            if marker.range(
-                of: #"^[-*+] \[[ xX]\] "#, options: .regularExpression) != nil
-            {
-                let bodyFont = NSFont.preferredFont(forTextStyle: .body)
-                return indentationWidth + (bodyFont.ascender - bodyFont.descender).rounded()
+        /// Kerns a marker's last character so the whole marker advances exactly one cell. Kerning is
+        /// an attribute, not a character: `textView.string` keeps what the user typed.
+        private func fit(_ marker: NSRange, to slot: CGFloat, in storage: NSTextStorage) {
+            guard marker.length > 0 else { return }
+            let last = NSRange(location: NSMaxRange(marker) - 1, length: 1)
+            let existing = storage.attribute(.kern, at: last.location, effectiveRange: nil)
+            let kern = (existing as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0
+            storage.addAttribute(
+                .kern, value: kern + slot - width(of: marker, in: storage), range: last)
+        }
+
+        /// Gives one character an exact advance, so the square drawn over it is the same square on
+        /// every kind of list line.
+        private func stretch(_ character: NSRange, to advance: CGFloat, in storage: NSTextStorage) {
+            let font =
+                storage.attribute(.font, at: character.location, effectiveRange: nil) as? NSFont
+                ?? NoteListMarker.bodyFont
+            let glyph = (storage.string as NSString).substring(with: character)
+            storage.addAttribute(
+                .kern, value: advance - NoteListMarker.width(of: glyph, in: font), range: character)
+        }
+
+        /// A range's rendered advance: every run measured in its own font, plus the kerning already
+        /// on it — the collapsed syntax either side of a todo's state character included.
+        private func width(of range: NSRange, in storage: NSTextStorage) -> CGFloat {
+            let source = storage.string as NSString
+            var total: CGFloat = 0
+            storage.enumerateAttributes(in: range, options: []) { attributes, run, _ in
+                let font = attributes[.font] as? NSFont ?? NoteListMarker.bodyFont
+                let kern = (attributes[.kern] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0
+                total +=
+                    NoteListMarker.width(of: source.substring(with: run), in: font)
+                    + kern * CGFloat(run.length)
             }
-            return indentationWidth + (marker as NSString).size(
-                withAttributes: [.font: markerFont]).width
+            return total
         }
 
         /// `1.` `9.` `10.` only line up under one another in a font whose digits are all one width,
         /// and the marker is the only part of the line that has to line up — the prose after it
-        /// stays in the body font. Runs before `listLine`, which measures the hanging indent from
-        /// whatever font the marker ended up in.
-        private func applyOrderedMarkers(in text: String, storage: NSTextStorage) {
-            let bodyFont = NSFont.preferredFont(forTextStyle: .body)
-            let monospaced = NSFont.monospacedSystemFont(
-                ofSize: bodyFont.pointSize, weight: .regular)
+        /// stays in the body font. Runs first of the list passes and returns the cell every marker
+        /// is fitted to, since an ordered marker is the only one whose natural width can outgrow it.
+        private func applyOrderedMarkers(in text: String, storage: NSTextStorage) -> CGFloat {
+            let source = text as NSString
+            let monospaced = NoteListMarker.monospacedFont
+            var slot = NoteListMarker.baseSlot
+            var markers: [NSRange] = []
             apply(Self.orderedMarker, to: text) { match in
                 guard match.numberOfRanges > 2 else { return }
-                storage.addAttribute(.font, value: monospaced, range: match.range(at: 2))
+                let marker = match.range(at: 2)
+                storage.addAttribute(.font, value: monospaced, range: marker)
+                markers.append(marker)
+                slot = max(
+                    slot, NoteListMarker.width(of: source.substring(with: marker), in: monospaced))
             }
+            for marker in markers { fit(marker, to: slot, in: storage) }
+            return slot
         }
 
         /// The list dash is drawn as a real bullet rather than swapped for the font's `bullet`
-        /// glyph, which comes out the size of a period. Clearing the dash keeps its width, so the
-        /// hanging indent and everything measured from the marker stay where they were.
+        /// glyph, which comes out the size of a period. The dash is cleared rather than removed and
+        /// its cell widened to the shared decoration square, so the disc lands exactly where a todo
+        /// box would; the space after it carries the rest of the marker cell.
         private func applyBullets(
-            in text: String, storage: NSTextStorage, layout: NoteLayoutManager
+            in text: String, storage: NSTextStorage, layout: NoteLayoutManager, slot: CGFloat
         ) {
             apply(Self.bulletMarker, to: text) { match in
                 guard match.numberOfRanges > 2 else { return }
-                let marker = match.range(at: 2)
-                storage.addAttribute(.foregroundColor, value: NSColor.clear, range: marker)
-                layout.bullets.append(marker)
+                let dash = match.range(at: 2)
+                storage.addAttribute(.foregroundColor, value: NSColor.clear, range: dash)
+                self.stretch(dash, to: NoteListMarker.decorationSide, in: storage)
+                self.fit(
+                    NSRange(
+                        location: dash.location, length: NSMaxRange(match.range) - dash.location),
+                    to: slot, in: storage)
+                layout.bullets.append(dash)
             }
         }
 
         /// The Markdown task marker collapses into a checkbox that stays visible because it is a control.
         private func applyCheckboxes(
-            in text: String, storage: NSTextStorage, layout: NoteLayoutManager
+            in text: String, storage: NSTextStorage, layout: NoteLayoutManager, slot: CGFloat
         ) {
-            let bodyFont = NSFont.preferredFont(forTextStyle: .body)
-            let box = (bodyFont.ascender - bodyFont.descender).rounded()
             apply(Self.taskMarker, to: text) { match in
                 guard match.numberOfRanges > 3 else { return }
                 let opening = match.range(at: 1)
@@ -613,9 +698,12 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 self.hide(opening, in: storage)
                 self.hide(closing, in: storage)
                 storage.addAttribute(.foregroundColor, value: NSColor.clear, range: state)
-                storage.addAttribute(
-                    .kern, value: box - (" " as NSString).size(withAttributes: [.font: bodyFont]).width,
-                    range: state)
+                self.stretch(state, to: NoteListMarker.decorationSide, in: storage)
+                self.fit(
+                    NSRange(
+                        location: opening.location,
+                        length: NSMaxRange(match.range) - opening.location),
+                    to: slot, in: storage)
                 layout.checkboxes.append(NoteLayoutManager.Checkbox(range: state, isDone: isDone))
                 self.taskMarkers.append((range: match.range, state: state, isDone: isDone))
             }
@@ -838,6 +926,9 @@ private final class NoteLayoutManager: NSLayoutManager {
     private static let checkboxMargin: CGFloat = 1.5
     private static let checkboxStroke: CGFloat = 1.5
     private static let minimumBulletDiameter: CGFloat = 5
+    /// A disc filling the whole decoration square reads as a blob beside body text, so the bullet
+    /// is inscribed in the square the todo box occupies rather than drawn to its edges.
+    private static let bulletFraction: CGFloat = 0.38
 
     /// These ranges come from a whole-document pass that deliberately stands down while an input
     /// method holds a composition, so between passes the text moves under ranges already collected —
@@ -911,8 +1002,9 @@ private final class NoteLayoutManager: NSLayoutManager {
         }
     }
 
-    /// A disc centred on the slot the cleared dash still occupies. Drawn rather than substituted so
-    /// it can be sized for reading — the font's own bullet glyph is barely larger than a period.
+    /// A disc centred in the same square the todo box fills, on the cell the cleared dash was
+    /// kerned out to. Drawn rather than substituted so it can be sized for reading — the font's own
+    /// bullet glyph is barely larger than a period.
     private func drawBullets(
         forGlyphRange glyphsToShow: NSRange, at origin: NSPoint, in container: NSTextContainer
     ) {
@@ -920,19 +1012,32 @@ private final class NoteLayoutManager: NSLayoutManager {
         let visible = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
         NSColor.labelColor.setFill()
         for bullet in bullets where NSIntersectionRange(bullet, visible).length > 0 {
-            let glyphs = glyphRange(forCharacterRange: bullet, actualCharacterRange: nil)
-            guard glyphs.length > 0 else { continue }
-            let slot = boundingRect(forGlyphRange: glyphs, in: container)
-            let font =
-                textStorage?.attribute(.font, at: bullet.location, effectiveRange: nil) as? NSFont
-                ?? NSFont.preferredFont(forTextStyle: .body)
-            let diameter = max(Self.minimumBulletDiameter, (font.pointSize * 0.42).rounded())
+            guard let box = decorationBox(for: bullet, at: origin, in: container) else { continue }
+            let diameter = max(
+                Self.minimumBulletDiameter, (box.width * Self.bulletFraction).rounded())
             let disc = NSRect(
-                x: (origin.x + slot.midX - diameter / 2).rounded(),
-                y: (origin.y + slot.midY - diameter / 2).rounded(),
+                x: (box.midX - diameter / 2).rounded(),
+                y: (box.midY - diameter / 2).rounded(),
                 width: diameter, height: diameter)
             NSBezierPath(ovalIn: disc).fill()
         }
+    }
+
+    /// The square a marker's decoration is drawn in: its own character cell, inset so the edges are
+    /// not flush against the text container. Both marks come from here, so a bullet and a todo box
+    /// on neighbouring lines are the same size in the same place.
+    private func decorationBox(
+        for marker: NSRange, at origin: NSPoint, in container: NSTextContainer
+    ) -> NSRect? {
+        let glyphs = glyphRange(forCharacterRange: marker, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return nil }
+        let slot = boundingRect(forGlyphRange: glyphs, in: container)
+        let side = (min(slot.height, slot.width) - Self.checkboxMargin * 2).rounded()
+        guard side > 4 else { return nil }
+        return NSRect(
+            x: (origin.x + slot.minX + Self.checkboxMargin).rounded(),
+            y: (origin.y + slot.midY - side / 2).rounded(),
+            width: side, height: side)
     }
 
     /// A rounded square in the space the marker's state character was kerned out to, filled with a
@@ -944,17 +1049,9 @@ private final class NoteLayoutManager: NSLayoutManager {
         let visible = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
         for checkbox in checkboxes
         where NSIntersectionRange(checkbox.range, visible).length > 0 {
-            let glyphs = glyphRange(forCharacterRange: checkbox.range, actualCharacterRange: nil)
-            guard glyphs.length > 0 else { continue }
-            let slot = boundingRect(forGlyphRange: glyphs, in: container)
-            let side = (min(slot.height, slot.width) - Self.checkboxMargin * 2).rounded()
-            guard side > 4 else { continue }
-            // Inset from the slot's leading edge as well: a list item's first line has no indent, so
-            // the slot starts flush against the text container and a flush box loses its left edge.
-            let box = NSRect(
-                x: (origin.x + slot.minX + Self.checkboxMargin).rounded(),
-                y: (origin.y + slot.midY - side / 2).rounded(),
-                width: side, height: side)
+            guard let box = decorationBox(for: checkbox.range, at: origin, in: container)
+            else { continue }
+            let side = box.width
             let stroke = Self.checkboxStroke
             let outline = NSBezierPath(
                 roundedRect: checkbox.isDone ? box : box.insetBy(dx: stroke / 2, dy: stroke / 2),
@@ -1003,6 +1100,13 @@ private final class NoteTextView: NSTextView {
     var checkboxClickHandler: ((Int) -> Bool)?
     /// Returns whether the line took the indent, so a plain tab can still be typed elsewhere.
     var indentHandler: ((NoteIndentDirection) -> Bool)?
+    /// Returns whether a whole list marker was removed, so Delete falls through everywhere else.
+    var deleteHandler: (() -> Bool)?
+
+    override func deleteBackward(_ sender: Any?) {
+        if deleteHandler?() == true { return }
+        super.deleteBackward(sender)
+    }
 
     override func insertTab(_ sender: Any?) {
         if indentHandler?(.indent) == true { return }

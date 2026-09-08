@@ -55,7 +55,17 @@ Tab nests the caret's list line and Shift-Tab un-nests it, wherever the caret si
 selection moves every list line it touches together); on prose the keys fall through to a plain tab.
 A nesting level is two spaces in the source (`NoteEngine.listIndentUnit`, harness-covered), and list
 lines render a raw legacy tab at that same width instead of the 28-point default stop, so nesting
-reads as a step rather than a gulf. Restyling after an edit is synchronous, not debounced — a
+reads as a step rather than a gulf. Delete with the caret immediately after a list marker removes
+the whole prefix — indentation and marker together — in one press, so a todo never degrades through
+`- [ ]`, `- [` and out the other side as plain text; `NoteEngine.listMarkerDeletion` decides it and
+`NoteTextView.deleteBackward` is the hook, beside `insertTab`/`insertBacktab`. The indentation goes
+with the marker rather than one level at a time because Shift-Tab is already the outdent key: an
+outdenting Delete would duplicate it and cost a press per level before the item could stop being
+one, and two levels of leftover indentation is four leading spaces, which Markdown reads as an
+indented code block rather than the ordinary paragraph the press is meant to leave. Every other
+caret is untouched — mid-text, at the line's start, inside the marker or holding a selection, Delete
+does exactly what it always did — and a composition stands the rule down like every other write.
+Restyling after an edit is synchronous, not debounced — a
 deferred pass left a frame where a new line's dash was plain text and the discs below the edit drew
 from stale ranges, a visible list blink on Return and delete; only caret-only moves keep the
 debounce. Typing-driven height changes resize immediately from the anchored top edge, so the text
@@ -215,9 +225,25 @@ markers always collapse to no width, including while the formatted content is se
 the workspace behaves like a visual editor while the stored string remains Markdown. A leading `- `
 is rendered as a bullet: the dash is cleared and `NoteLayoutManager` draws a disc in the slot it
 leaves behind, sized to be read — the font's own `bullet` glyph, which the editor used to substitute,
-comes out barely larger than a period. Wrapped list lines use a hanging indent measured from their actual rendered
-marker — bullet, number or checkbox — so every continuation aligns with the first line's content
-rather than a fixed spacing token.
+comes out barely larger than a period.
+
+**Every list marker occupies one fixed cell** (`NoteListMarker`), so a note mixing todos, bullets and
+numbers has a single content edge instead of three. A todo, a bullet and an ordered marker have three
+different natural widths — measured at the 13-point body size: 18.75, 9.64 and 24.11 points — and the
+cell is the widest common marker, `1. ` in the monospaced font an ordered marker keeps (24.11), never
+narrower than a decoration and its gap. The marker's last character is kerned out to fill the rest of
+the cell, so all three now start their text at 24.11 points; nesting steps by one indent unit (7.16
+points for the two-space level, and a legacy tab is measured as the same step), giving 24.11 / 31.27 /
+38.43 rather than the five different offsets the same document produced before. An ordered marker is
+the only one that can outgrow the cell, so a `10. ` anywhere in the note raises the cell for every
+list line in it — item ten costs the note a reflow, not its content edge. The dash and the todo's
+state character are each kerned to exactly one `decorationSide` square, and `NoteLayoutManager`
+derives both the disc and the box from that one `decorationBox`, so the two decorations are the same
+size in the same place; the disc is inscribed in that square rather than filling it, because a disc
+the diameter of a todo box reads as a blob beside 13-point text. Wrapped list lines hang at that same
+cell, so a continuation aligns with the first line's content whatever kind of list it belongs to.
+None of this reaches the source: kerning and paragraph style are attributes, so `textView.string` is
+still exactly the Markdown the user typed.
 
 Headings carry a real hierarchy that the line box follows: `#` is largeTitle (a 32-point line), `##`
 title1 (26), `###` title3 (20, only just above the body's 16), and deeper levels take weight instead
@@ -335,6 +361,8 @@ swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/No
 
 The harness uses an injected temporary archive and defaults suite, checks archive-v2 tombstones,
 H1/H2/H3/Text block-format replacement, empty-Note cleanup, transparency persistence,
-deterministic Note/deletion merges and the former sync
+deterministic Note/deletion merges, the whole-marker Delete rule (every marker kind, indented and
+not, an empty item, a caret elsewhere on the line, at the line's start, inside the marker, holding a
+selection and inside a fence) and the former sync
 document's decode bridge; it never opens the floating window, contacts CloudKit or reads real
 application data.

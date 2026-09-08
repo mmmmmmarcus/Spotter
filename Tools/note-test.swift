@@ -485,6 +485,40 @@ struct NoteTests {
             true, NoteEngine.applyingListIndent(
                 .indent, to: "just prose\n", selection: NSRange(location: 3, length: 0)) == nil)
 
+        func deletion(_ text: String, _ caret: Int, _ length: Int = 0) -> NSRange? {
+            NoteEngine.listMarkerDeletion(
+                in: text, selection: NSRange(location: caret, length: length))
+        }
+        check("delete takes a whole todo marker", NSRange(location: 0, length: 6), deletion("- [ ] task", 6))
+        check("delete takes a whole bullet marker", NSRange(location: 0, length: 2), deletion("- item", 2))
+        check("delete takes a starred bullet marker", NSRange(location: 0, length: 2), deletion("* item", 2))
+        check("delete takes a whole ordered marker", NSRange(location: 0, length: 3), deletion("1. item", 3))
+        check("delete takes a two-digit ordered marker", NSRange(location: 0, length: 4), deletion("10. item", 4))
+        check(
+            "delete takes an indented todo's indentation with it",
+            NSRange(location: 0, length: 8), deletion("  - [ ] task", 8))
+        check(
+            "delete takes a twice-nested bullet's indentation with it",
+            NSRange(location: 0, length: 6), deletion("    - item", 6))
+        check(
+            "delete takes a legacy tab indent with it",
+            NSRange(location: 0, length: 4), deletion("\t1. item", 4))
+        check("delete empties an empty item", NSRange(location: 0, length: 2), deletion("- ", 2))
+        check("delete empties an empty todo", NSRange(location: 0, length: 6), deletion("- [ ] ", 6))
+        check(
+            "delete finds the marker on a later line",
+            NSRange(location: 6, length: 2), deletion("intro\n- item", 8))
+        check("a caret in the item's text deletes normally", nil, deletion("- item", 4))
+        check("a caret at the line's start deletes normally", nil, deletion("- item", 0))
+        check("a caret opening a later line deletes normally", nil, deletion("intro\n- item", 6))
+        check("a caret inside the todo marker deletes normally", nil, deletion("- [ ] task", 4))
+        check("a selection deletes normally", nil, deletion("- [ ] task", 6, 4))
+        check("prose deletes normally", nil, deletion("plain text", 5))
+        check(
+            "a marker inside a fence is literal text", nil,
+            deletion("```\n- item\n```", 6))
+        check("a caret past the end deletes normally", nil, deletion("- item", 99))
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

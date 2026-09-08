@@ -532,6 +532,37 @@ enum NoteEngine {
         return String(line.dropFirst(min(spaces, listIndentUnit.count)))
     }
 
+    /// The range one press of Delete removes when the caret sits immediately after a list marker:
+    /// the whole prefix, indentation and marker together, so a todo never degrades through
+    /// `- [ ]`, `- [` on its way out. Nil everywhere else — a caret in the line's own text, at the
+    /// line's start or holding a selection deletes exactly as it always has.
+    ///
+    /// The indentation goes with the marker rather than one nesting level at a time: Shift-Tab is
+    /// already the outdent key, so an outdenting Delete would duplicate it and cost a press per
+    /// level before the item could stop being one. Two levels of indentation is also four leading
+    /// spaces, which Markdown reads as an indented code block — not the ordinary paragraph this is
+    /// meant to leave behind.
+    static func listMarkerDeletion(in text: String, selection: NSRange) -> NSRange? {
+        guard selection.length == 0, selection.location > 0 else { return nil }
+        let source = text as NSString
+        guard selection.location <= source.length else { return nil }
+        let line = source.lineRange(for: NSRange(location: selection.location, length: 0))
+        // Inside a fence the marker is literal text: nothing is drawn for it, so nothing special
+        // is deleted for it either.
+        let shadowed = blockSpans(in: text).contains {
+            $0.kind == .codeBlock && NSLocationInRange(line.location, $0.range)
+        }
+        let lineText = source.substring(with: line)
+        guard !shadowed,
+            let prefix = lineText.range(of: listPrefixPattern, options: .regularExpression)
+        else { return nil }
+        let length = (String(lineText[prefix]) as NSString).length
+        guard selection.location == line.location + length else { return nil }
+        return NSRange(location: line.location, length: length)
+    }
+
+    private static let listPrefixPattern = #"^[ \t]*([-*+] \[[ xX]\] |[-*+] |\d+\. )"#
+
     static func applyingBlockFormat(
         _ format: NoteBlockFormat, to text: String, selection: NSRange
     ) -> NoteEditResult {
