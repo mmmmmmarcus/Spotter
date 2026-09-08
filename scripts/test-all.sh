@@ -167,6 +167,8 @@ run_harness() {
         note)
             swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift \
                 Spotter/Plugins/Note/NoteStore.swift Spotter/Plugins/Note/NoteSyncDocument.swift \
+                Spotter/Plugins/Note/NoteFolderDocument.swift \
+                Spotter/Plugins/Note/NoteFolderIO.swift \
                 Tools/note-test.swift -o "$output" && "$output"
             ;;
         text-replacement)

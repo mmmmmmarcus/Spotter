@@ -60,7 +60,9 @@ final class CoordinatedFileWatcher: NSObject, NSFilePresenter, @unchecked Sendab
     private var directorySource: DispatchSourceFileSystemObject?
     private var isRegistered = false
 
-    init(url: URL, onChange: @escaping @MainActor @Sendable () -> Void) {
+    /// A folder presenter watches the folder itself rather than its parent, and hears about its
+    /// children through `presentedSubitemDidChange`.
+    init(url: URL, isDirectory: Bool = false, onChange: @escaping @MainActor @Sendable () -> Void) {
         presentedItemURL = url
         self.onChange = onChange
         let queue = OperationQueue()
@@ -70,7 +72,7 @@ final class CoordinatedFileWatcher: NSObject, NSFilePresenter, @unchecked Sendab
         super.init()
         NSFileCoordinator.addFilePresenter(self)
         isRegistered = true
-        startDirectoryWatcher(for: url.deletingLastPathComponent())
+        startDirectoryWatcher(for: isDirectory ? url : url.deletingLastPathComponent())
     }
 
     func stop() {
@@ -87,6 +89,10 @@ final class CoordinatedFileWatcher: NSObject, NSFilePresenter, @unchecked Sendab
     }
 
     func presentedItemDidMove(to newURL: URL) {
+        notify()
+    }
+
+    func presentedSubitemDidChange(at url: URL) {
         notify()
     }
 

@@ -3,8 +3,7 @@ import SwiftUI
 struct NoteSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: NoteStore
-    @ObservedObject var sync: NoteSyncManager
-    @State private var askingConsent = false
+    @ObservedObject var sync: NoteFolderSyncManager
     @State private var syncing = false
 
     var body: some View {
@@ -98,38 +97,33 @@ struct NoteSettingsView: View {
 
             SettingsCard(header: "Sync") {
                 SettingsRow(
-                    title: "iCloud Sync",
-                    subtitle: cloudStatus,
-                    systemImage: sync.errorMessage == nil ? "icloud" : "exclamationmark.icloud",
+                    title: "Notes Folder",
+                    subtitle: folderSubtitle,
+                    systemImage: sync.errorMessage == nil ? "folder" : "exclamationmark.triangle",
                     tint: sync.errorMessage == nil ? .blue : .orange
                 ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { sync.cloudKitAvailable && sync.isEnabled },
-                            set: { wantsOn in
-                                if wantsOn {
-                                    askingConsent = true
-                                } else {
-                                    sync.setEnabled(false)
-                                }
-                            }))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
+                    HStack(spacing: Theme.Spacing.md) {
+                        if sync.isEnabled {
+                            Button("Stop Syncing") { sync.disconnect() }
+                                .controlSize(.small)
+                        }
+                        Button(sync.isEnabled ? "Change…" : "Choose…") {
+                            BackupActions.chooseNotesFolder()
+                        }
                         .controlSize(.small)
-                        .disabled(!sync.cloudKitAvailable)
+                    }
                 }
-                if sync.isEnabled && sync.cloudKitAvailable {
+                if sync.isEnabled {
                     SettingsDivider()
                     SettingsRow(
                         title: "Sync Now",
-                        subtitle: "Fetch and send pending Note changes immediately.",
+                        subtitle: "Read the folder and write out any pending changes immediately.",
                         systemImage: "arrow.triangle.2.circlepath", tint: .teal
                     ) {
                         Button(syncing ? "Syncing…" : "Sync Now") {
                             syncing = true
                             Task {
-                                _ = await sync.syncNow()
+                                await sync.syncNow()
                                 syncing = false
                             }
                         }
@@ -140,65 +134,23 @@ struct NoteSettingsView: View {
             }
 
             SettingsCallout(
-                title: "Private iCloud database",
+                title: "One Markdown file per note",
                 message:
-                    "Each Note syncs independently through Apple CloudKit. Automatic Settings Sync "
-                    + "still excludes Note content, and turning iCloud Sync off keeps every local Note.",
-                systemImage: "lock.icloud",
+                    "Each Note is written as a Markdown file named after its title, with a small "
+                    + "front-matter header carrying its identifier, dates and color. Put the folder "
+                    + "in iCloud Drive and your Macs share it. Deleting a note is recorded "
+                    + "explicitly, so a file that hasn’t downloaded yet is never mistaken for one "
+                    + "you deleted, and disconnecting leaves every note and every file in place.",
+                systemImage: "doc.text",
                 tint: .blue)
         }
-        .sheet(isPresented: $askingConsent) {
-            NoteCloudConsentSheet(
-                onCancel: { askingConsent = false },
-                onAccept: {
-                    askingConsent = false
-                    sync.setEnabled(true)
-                })
-        }
     }
 
-    private var cloudStatus: String {
-        guard sync.cloudKitAvailable else {
-            return "Unavailable in this build. Install a signed release to use CloudKit."
+    private var folderSubtitle: String {
+        guard let url = sync.folderURL else {
+            return "Choose a folder — in iCloud Drive to share Notes between Macs. "
+                + sync.statusText
         }
-        return sync.statusText
-    }
-}
-
-private struct NoteCloudConsentSheet: View {
-    let onCancel: () -> Void
-    let onAccept: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            HStack(spacing: Theme.Spacing.lg) {
-                Image(systemName: "icloud")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(.blue)
-                Text("Turn on Notes iCloud Sync?")
-                    .font(.headline)
-            }
-
-            Text(
-                "Spotter sends each Note’s Markdown content, stable identifier, edit dates, and "
-                    + "deletions to your private Apple CloudKit database. Changes are queued shortly "
-                    + "after editing and synchronized at launch and when iCloud reports updates. "
-                    + "Your Macs must use the same iCloud account. Turning sync off stops CloudKit "
-                    + "access and deletes Spotter’s local CloudKit state, while keeping local Notes."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: Theme.Spacing.lg) {
-                Spacer()
-                Button("Not Now", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                Button("Enable", action: onAccept)
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(Theme.Spacing.xxl)
-        .frame(width: 440)
+        return url.path(percentEncoded: false) + " · " + sync.statusText
     }
 }

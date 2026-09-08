@@ -226,7 +226,10 @@ final class NoteStore: ObservableObject {
             tombstones: tombstones.values.sorted { $0.deletedAt > $1.deletedAt })
     }
 
-    func applyCloudSnapshot(_ remote: NoteSyncSnapshot) {
+    /// Merges a snapshot that arrived from outside this process — the Notes folder, or the dormant
+    /// CloudKit engine. It merges rather than replaces, so a Note the remote has never heard of
+    /// survives and only an explicit tombstone can remove one.
+    func applyRemoteSnapshot(_ remote: NoteSyncSnapshot) {
         let merged = NoteSyncMerge.merging(syncSnapshot, with: remote)
         let oldSelection = selectedID
         notes = merged.notes

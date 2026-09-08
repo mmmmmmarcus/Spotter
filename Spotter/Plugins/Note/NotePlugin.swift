@@ -29,16 +29,16 @@ enum NotePlugin {
                     actionKey: .newNote, perform: create),
             ],
             onEnable: { [weak core] in
-                core?.noteSync.start()
+                core?.noteFolderSync.start()
             },
             onDisable: { [weak core] in
                 guard let core else { return }
                 core.closePluginWindow(id: "notes")
-                core.noteSync.stop()
+                core.noteFolderSync.stop()
                 Task { await core.notes.flush() }
             },
             settingsView: {
-                AnyView(NoteSettingsView(store: core.notes, sync: core.noteSync))
+                AnyView(NoteSettingsView(store: core.notes, sync: core.noteFolderSync))
             })
     }
 }

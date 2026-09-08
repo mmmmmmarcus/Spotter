@@ -214,6 +214,9 @@ final class AppCore: ObservableObject {
     let translate = TranslateManager()
     let imageModification = ImageModificationManager()
     let notes: NoteStore
+    let noteFolderSync: NoteFolderSyncManager
+    /// Deliberately unstarted: the CloudKit engine is kept whole but has no entry point since Notes
+    /// moved to a folder of Markdown files. See `NoteSyncManager`.
     let noteSync: NoteSyncManager
     let aiChat: AIChatStore
     let aiCommands = AICommandStore()
@@ -245,6 +248,7 @@ final class AppCore: ObservableObject {
         selectionTools = SelectionToolsManager()
         let notes = NoteStore()
         self.notes = notes
+        noteFolderSync = NoteFolderSyncManager(store: notes)
         noteSync = NoteSyncManager(store: notes)
         aiChat = AIChatStore(openRouter: openRouter)
         quicklinkManager = QuicklinkManager(store: quicklinks)

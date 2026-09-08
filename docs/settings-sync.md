@@ -4,8 +4,9 @@ Settings → Backup can attach Spotter to one user-selected JSON file. Creating 
 non-Note state; choosing an existing file validates and applies it before the path is persisted.
 Manual backup and automatic sync share the human-readable `SettingsBackup` format, but manual
 exports/imports include Notes for disaster recovery while automatic Settings Sync always omits and
-ignores Note content. Notes has separate, consented CloudKit replication under Settings → Plugins →
-Notes; its consent flag and window-transparency preference belong to trusted Settings state.
+ignores Note content. Notes has its own replication — a user-chosen folder of Markdown files, under
+Settings → Plugins → Notes — whose path is device-local and never travels here; only the Notes
+window-transparency and auto-sizing preferences belong to trusted Settings state.
 
 The path can be anywhere. When it is inside iCloud Drive, macOS transports it to the user's other
 Macs; Settings Sync itself uses no network service or CloudKit records. Synchronization can be paused
@@ -31,17 +32,21 @@ Format v3 covers the complete automatic Settings Sync state:
 
 Manual backups additionally contain Notes and the selected note. Automatic Settings Sync does not
 observe `NoteStore`, so typing never rewrites the larger Settings file and an incoming Settings
-snapshot can never replace Notes. See [Notes](notes.md) for its independent CloudKit pipeline.
+snapshot can never replace Notes. See [Notes](notes.md) for its independent folder pipeline.
+
+A file written before Notes moved to a folder carries a `note.iCloudSyncEnabled` flag for the retired
+CloudKit pipeline. It is now neither written nor read: the field is gone from the format, so the key
+is ignored on decode and trusting such a file can never start CloudKit.
 
 Clipboard image bytes are embedded in the JSON and rebuilt under each Mac's own bundle-scoped cache;
 absolute cache paths never cross devices. Because v3 files can contain credentials and private
 content, the Backup pane and trust dialogs tell the user to keep them in a private location.
 
 Alongside Note content, the other state deliberately excluded from automatic Settings Sync is
-device-bound: the palette's concrete screen coordinates, macOS privacy grants, both synchronization
-paths, Notes' CloudKit engine tokens/system fields, and the uptime card's daily key/click tallies. The
-Notes CloudKit consent flag, Notes window transparency and the “remember position” preference do
-sync. Runtime executors, provider response caches, temporary files
+device-bound: the palette's concrete screen coordinates, macOS privacy grants, all three
+synchronization paths (this file, the Notes folder and the retired CloudKit engine's local state),
+and the uptime card's daily key/click tallies. Notes window transparency, Notes auto window sizing
+and the “remember position” preference do sync. Runtime executors, provider response caches, temporary files
 and system-derived data are not backup state.
 
 Older v1/v2 files remain importable. Missing fields are preserved during a manual import, while an

@@ -251,10 +251,10 @@ struct NoteTests {
         let newerDate = fixedDate.addingTimeInterval(60)
         let remoteEdit = SpotterNote(
             id: synced.id, content: "# Remote", createdAt: fixedDate, updatedAt: newerDate)
-        reopened.applyCloudSnapshot(NoteSyncSnapshot(notes: [remoteEdit], tombstones: []))
+        reopened.applyRemoteSnapshot(NoteSyncSnapshot(notes: [remoteEdit], tombstones: []))
         check("newer remote edit wins", "# Remote", reopened.selectedNote?.content)
         let tiedDeletion = NoteTombstone(id: synced.id, deletedAt: newerDate)
-        reopened.applyCloudSnapshot(NoteSyncSnapshot(notes: [], tombstones: [tiedDeletion]))
+        reopened.applyRemoteSnapshot(NoteSyncSnapshot(notes: [], tombstones: [tiedDeletion]))
         check("deletion wins an exact timestamp tie", nil, reopened.selectedNote)
 
         let olderEdit = SpotterNote(
@@ -519,6 +519,380 @@ struct NoteTests {
             deletion("```\n- item\n```", 6))
         check("a caret past the end deletes normally", nil, deletion("- item", 99))
 
+        // ── Notes folder sync: format, naming and reconciliation ────────────────────────────────
+        // Every removal the reconciler can emit must be one of these two provably safe cases.
+        func removalsAreSafe(_ plan: NoteFolderPlan) -> Bool {
+            plan.removals.values.allSatisfy {
+                switch $0 {
+                case .deleted, .redundantDuplicate: true
+                }
+            }
+        }
+
+        let folderClock = fixedDate.addingTimeInterval(1_000)
+        var forkCounter = 0
+        let formatID = UUID(uuidString: "00000000-0000-0000-0000-0000000000FF")!
+        func nextID() -> UUID {
+            forkCounter += 1
+            return UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", forkCounter))!
+        }
+
+        // Round-trip fidelity: the body is the user's Markdown and must come back byte-for-byte.
+        let hostileBody = """
+            # Title
+
+            ---
+            not: front matter
+            ---
+
+            ```
+            ---
+            ```
+            trailing spaces   \u{000D}
+            emoji 👋 and a tab\tinside
+
+            """
+        let roundTripNote = SpotterNote(
+            id: formatID, content: hostileBody, createdAt: fixedDate,
+            updatedAt: fixedDate.addingTimeInterval(5),
+            contentUpdatedAt: fixedDate.addingTimeInterval(5), tint: .mint)
+        let roundTripFile = NoteFolderDocument.serialize(roundTripNote)
+        switch NoteFolderDocument.parse(roundTripFile, newID: nextID, now: { folderClock }) {
+        case .note(let parsed, let extras):
+            check("a note round-trips its body byte-for-byte", hostileBody, parsed.content)
+            check("a note round-trips its id", roundTripNote.id, parsed.id)
+            check("a note round-trips its tint", NoteTint.mint, parsed.tint)
+            check("a note round-trips created", roundTripNote.createdAt, parsed.createdAt)
+            check("a note round-trips updated", roundTripNote.updatedAt, parsed.updatedAt)
+            check(
+                "a note round-trips content-updated", roundTripNote.contentUpdatedAt,
+                parsed.contentUpdatedAt)
+            check("a Spotter header leaves no extras", [], extras)
+            check(
+                "serialising a parsed note reproduces the file", roundTripFile,
+                NoteFolderDocument.serialize(parsed))
+        default:
+            failures += 1
+            print("FAIL  a serialized note parses back as a note")
+        }
+
+        // Hostile inputs: nothing here may drop a byte the user wrote.
+        func parsedContent(_ text: String) -> String? {
+            switch NoteFolderDocument.parse(text, newID: nextID, now: { folderClock }) {
+            case .note(let note, _): note.content
+            case .adopted(let note): note.content
+            case .ignored: nil
+            }
+        }
+        let plainMarkdown = "# Shopping\n- milk\n"
+        check("a hand-written file becomes a note", plainMarkdown, parsedContent(plainMarkdown))
+        let humanFrontMatter = "---\ntitle: Mine\ntags: [a]\n---\nBody\n"
+        check(
+            "front matter without a spotter id is body, not a header", humanFrontMatter,
+            parsedContent(humanFrontMatter))
+        let unclosed = "---\nspotter-id: \(formatID.uuidString)\nstill open\n"
+        check("an unclosed fence keeps the whole file", unclosed, parsedContent(unclosed))
+        let badID = "---\nspotter-id: not-a-uuid\n---\nBody\n"
+        check("a malformed id keeps the whole file", badID, parsedContent(badID))
+        check("an empty file is not a note", nil, parsedContent(""))
+        check("a whitespace-only file is not a note", nil, parsedContent("  \n\t\n"))
+        let unknownTint = "---\nspotter-id: \(formatID.uuidString)\ntint: chartreuse\n---\nBody"
+        check("an unknown tint keeps the note", "Body", parsedContent(unknownTint))
+        switch NoteFolderDocument.parse(unknownTint, newID: nextID, now: { folderClock }) {
+        case .note(let note, _): check("an unknown tint reads as untinted", nil, note.tint)
+        default:
+            failures += 1
+            print("FAIL  an unknown tint still parses as a note")
+        }
+        let missingDates = "---\nspotter-id: \(formatID.uuidString)\n---\nBody"
+        switch NoteFolderDocument.parse(missingDates, newID: nextID, now: { folderClock }) {
+        case .note(let note, _):
+            check("a header with no dates reads as just-appeared", folderClock, note.updatedAt)
+        default:
+            failures += 1
+            print("FAIL  a header with no dates still parses as a note")
+        }
+        let withExtras = "---\nspotter-id: \(formatID.uuidString)\nauthor: me\n---\nBody"
+        switch NoteFolderDocument.parse(withExtras, newID: nextID, now: { folderClock }) {
+        case .note(let note, let extras):
+            check("a foreign header line is kept", ["author: me"], extras)
+            check(
+                "a foreign header line survives a rewrite", true,
+                NoteFolderDocument.serialize(note, extras: extras).contains("author: me"))
+            check(
+                "a foreign line can never close the block", false,
+                NoteFolderDocument.serialize(note, extras: ["---", "spotter-id: x"])
+                    .contains("spotter-id: x"))
+        default:
+            failures += 1
+            print("FAIL  a foreign header line still parses as a note")
+        }
+
+        // Naming.
+        check(
+            "a name is derived from the title", "Meeting Notes",
+            NoteFileName.sanitizedBase(for: "Meeting Notes"))
+        check(
+            "path separators never reach a name", "Q3 plan 2026",
+            NoteFileName.sanitizedBase(for: "Q3/plan: 2026"))
+        check("a blank title falls back", "Untitled Note", NoteFileName.sanitizedBase(for: "   "))
+        check(
+            "a long title is truncated", 60,
+            NoteFileName.sanitizedBase(for: String(repeating: "a", count: 200)).count)
+        let twins = [
+            SpotterNote(id: nextID(), content: "# Same", createdAt: fixedDate),
+            SpotterNote(id: nextID(), content: "# Same", createdAt: fixedDate.addingTimeInterval(1)),
+        ]
+        let twinNames = NoteFileName.names(for: twins)
+        check("the oldest note keeps the bare name", "Same.md", twinNames[twins[0].id])
+        check("a colliding note takes a suffix", "Same 2.md", twinNames[twins[1].id])
+        check(
+            "collision resolution is deterministic", twinNames,
+            NoteFileName.names(for: twins.reversed()))
+        check(
+            "a reserved name is stepped over", "Same 2.md",
+            NoteFileName.names(for: [twins[0]], reserved: ["same.md"])[twins[0].id])
+
+        // Reconciliation.
+        let noteA = SpotterNote(
+            id: nextID(), content: "# Alpha\nbody", createdAt: fixedDate, updatedAt: fixedDate)
+        let localOnly = NoteSyncSnapshot(notes: [noteA], tombstones: [])
+
+        // A folder that has never seen this note gets it written, not the note dropped.
+        let emptyFolderPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: NoteFolderScan(files: []), newID: nextID, now: { folderClock })
+        check("an empty folder keeps every local note", 1, emptyFolderPlan.snapshot.notes.count)
+        check("an empty folder is written, not read as deletions", 0, emptyFolderPlan.removals.count)
+        check(
+            "a note with no file yet is written", true,
+            emptyFolderPlan.placements.first?.needsWrite == true)
+        check(
+            "a new file gets the title's name", "Alpha.md",
+            emptyFolderPlan.placements.first?.desiredName)
+
+        let blankPlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(
+                notes: [SpotterNote(id: nextID(), content: "  ", createdAt: fixedDate)],
+                tombstones: []),
+            scan: NoteFolderScan(files: []), newID: nextID, now: { folderClock })
+        check("a blank note writes no file", false, blankPlan.hasFileWork)
+        check("a blank note is still a note", 1, blankPlan.snapshot.notes.count)
+
+        // A file that exists but has not downloaded is present, not gone.
+        let placeholderScan = NoteFolderScan(files: [NoteFolderFile(name: "Alpha.md", contents: nil)])
+        let placeholderPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: placeholderScan, newID: nextID, now: { folderClock })
+        check("an undownloaded file is deferred", ["Alpha.md"], placeholderPlan.deferred)
+        check("an undownloaded file is never removed", 0, placeholderPlan.removals.count)
+        check("an undownloaded file keeps its local note", 1, placeholderPlan.snapshot.notes.count)
+        check(
+            "an undownloaded file's name is not stolen", "Alpha 2.md",
+            placeholderPlan.placements.first?.desiredName)
+
+        // A missing file is not a deletion; only the ledger is.
+        let liveFile = NoteFolderFile(
+            name: "Alpha.md", contents: NoteFolderDocument.serialize(noteA))
+        let deletion = NoteTombstone(id: noteA.id, deletedAt: fixedDate.addingTimeInterval(30))
+        let deletionPlan = NoteFolderReconciler.plan(
+            local: localOnly,
+            scan: NoteFolderScan(files: [liveFile], ledger: .readable([deletion])),
+            newID: nextID, now: { folderClock })
+        check("a ledger deletion removes the note", 0, deletionPlan.snapshot.notes.count)
+        check("a ledger deletion removes its file", 1, deletionPlan.removals.count)
+        check(
+            "a removal is always an explicit deletion", NoteFolderRemoval.deleted(noteA.id),
+            deletionPlan.removals["Alpha.md"])
+        check("removals stay provably safe", true, removalsAreSafe(deletionPlan))
+
+        // A newer edit outlives an older deletion, and the ledger follows.
+        let revived = SpotterNote(
+            id: noteA.id, content: "# Alpha again", createdAt: fixedDate,
+            updatedAt: fixedDate.addingTimeInterval(60))
+        let revivePlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [revived], tombstones: []),
+            scan: NoteFolderScan(files: [], ledger: .readable([deletion])),
+            newID: nextID, now: { folderClock })
+        check("a newer edit outlives an older deletion", 1, revivePlan.snapshot.notes.count)
+        check("the ledger drops a beaten tombstone", [], revivePlan.ledger)
+
+        // An unreadable ledger is never rewritten and never deletes anything.
+        let blindPlan = NoteFolderReconciler.plan(
+            local: localOnly,
+            scan: NoteFolderScan(files: [liveFile], ledger: .unavailable),
+            newID: nextID, now: { folderClock })
+        check("an unreadable ledger is left alone", nil, blindPlan.ledger)
+        check("an unreadable ledger deletes nothing", 0, blindPlan.removals.count)
+        check("an unreadable ledger keeps every note", 1, blindPlan.snapshot.notes.count)
+
+        // A retitle is a move, never a delete plus a create.
+        let retitled = SpotterNote(
+            id: noteA.id, content: "# Beta\nbody", createdAt: fixedDate,
+            updatedAt: fixedDate.addingTimeInterval(90))
+        let retitlePlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [retitled], tombstones: []),
+            scan: NoteFolderScan(files: [liveFile]), newID: nextID, now: { folderClock })
+        check("a retitle moves the file", true, retitlePlan.placements.first?.needsMove == true)
+        check("a retitle keeps the same file", "Alpha.md", retitlePlan.placements.first?.currentName)
+        check(
+            "a retitle renames to the new title", "Beta.md",
+            retitlePlan.placements.first?.desiredName)
+        check("a retitle removes nothing", 0, retitlePlan.removals.count)
+
+        // Two files under one id.
+        let identicalTwin = NoteFolderFile(
+            name: "Alpha copy.md", contents: NoteFolderDocument.serialize(noteA))
+        let duplicatePlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: NoteFolderScan(files: [liveFile, identicalTwin]),
+            newID: nextID, now: { folderClock })
+        check("an identical duplicate collapses to one note", 1, duplicatePlan.snapshot.notes.count)
+        check("exactly one of the two files is removed", 1, duplicatePlan.removals.count)
+        check(
+            "the removed copy is the redundant one",
+            [NoteFolderRemoval.redundantDuplicate(noteA.id)], Array(duplicatePlan.removals.values))
+        check(
+            "the survivor still takes the canonical name", "Alpha.md",
+            duplicatePlan.placements.first?.desiredName)
+        check("removals stay provably safe for duplicates", true, removalsAreSafe(duplicatePlan))
+
+        let divergentTwin = NoteFolderFile(
+            name: "Alpha copy.md",
+            contents: NoteFolderDocument.serialize(
+                SpotterNote(
+                    id: noteA.id, content: "# Alpha\ndifferent", createdAt: fixedDate,
+                    updatedAt: fixedDate.addingTimeInterval(1))))
+        let forkPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: NoteFolderScan(files: [liveFile, divergentTwin]),
+            newID: nextID, now: { folderClock })
+        check("a divergent duplicate id keeps both texts", 2, forkPlan.snapshot.notes.count)
+        check("a divergent duplicate removes nothing", 0, forkPlan.removals.count)
+        check("a divergent duplicate is reported as a fork", 1, forkPlan.forked.count)
+
+        // An external editor changes the body without touching the header.
+        let externallyEdited = NoteFolderFile(
+            name: "Alpha.md",
+            contents: NoteFolderDocument.serialize(
+                SpotterNote(
+                    id: noteA.id, content: "# Alpha\nedited in BBEdit", createdAt: fixedDate,
+                    updatedAt: fixedDate)),
+            modifiedAt: fixedDate.addingTimeInterval(500))
+        let externalPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: NoteFolderScan(files: [externallyEdited]),
+            newID: nextID, now: { folderClock })
+        check(
+            "an outside edit is not overwritten", "# Alpha\nedited in BBEdit",
+            externalPlan.snapshot.notes.first?.content)
+
+        // A hand-written file joins the folder as a note without disturbing anything else.
+        let strayScan = NoteFolderScan(files: [
+            liveFile,
+            NoteFolderFile(name: "scratch.md", contents: "just some thoughts"),
+            NoteFolderFile(name: "empty.md", contents: "\n\n"),
+            NoteFolderFile(name: "readme.txt", contents: "not a note"),
+        ])
+        let strayPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: strayScan, newID: nextID, now: { folderClock })
+        check("a stray Markdown file is adopted", 2, strayPlan.snapshot.notes.count)
+        check("a blank stray file is left alone", true, strayPlan.deferred.contains("empty.md"))
+        check("nothing stray is ever removed", 0, strayPlan.removals.count)
+
+        // ── Notes folder sync: a real temporary directory ───────────────────────────────────────
+        let folder = directory.appendingPathComponent("notes-folder", isDirectory: true)
+        try! FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let io = NoteFolderIO(trashesRemovedFiles: false)
+
+        let liveNote = SpotterNote(
+            id: nextID(), content: hostileBody, createdAt: fixedDate, updatedAt: fixedDate,
+            contentUpdatedAt: fixedDate, tint: .blue)
+        var diskLocal = NoteSyncSnapshot(notes: [liveNote], tombstones: [])
+        var diskPlan = NoteFolderReconciler.plan(
+            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
+            now: { folderClock })
+        try! await io.apply(diskPlan, in: folder)
+        check(
+            "the note reaches the folder under its title", true,
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent("Title.md").path))
+
+        let reread = NoteFolderReconciler.plan(
+            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
+            now: { folderClock })
+        check("a written folder needs no further work", false, reread.hasFileWork)
+        check("a written folder changes no note", diskLocal.notes, reread.snapshot.notes)
+        check(
+            "the body survives the real write and read", hostileBody,
+            reread.snapshot.notes.first?.content)
+        check(
+            "the tint survives the real write and read", NoteTint.blue,
+            reread.snapshot.notes.first?.tint)
+
+        // A retitle on disk moves the file rather than creating a second one.
+        let renamedNote = SpotterNote(
+            id: liveNote.id, content: "# Renamed\nbody", createdAt: fixedDate,
+            updatedAt: fixedDate.addingTimeInterval(120),
+            contentUpdatedAt: fixedDate.addingTimeInterval(120), tint: .blue)
+        diskLocal = NoteSyncSnapshot(notes: [renamedNote], tombstones: [])
+        diskPlan = NoteFolderReconciler.plan(
+            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
+            now: { folderClock })
+        try! await io.apply(diskPlan, in: folder)
+        let afterRename = try! FileManager.default.contentsOfDirectory(atPath: folder.path)
+            .filter { $0.hasSuffix(".md") }.sorted()
+        check("a retitle leaves exactly one file", ["Renamed.md"], afterRename)
+
+        // A file dropped into the folder by hand becomes a note on the next pass.
+        try! "# Dropped in\nby hand".write(
+            to: folder.appendingPathComponent("dropped.md"), atomically: true, encoding: .utf8)
+        diskPlan = NoteFolderReconciler.plan(
+            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
+            now: { folderClock })
+        try! await io.apply(diskPlan, in: folder)
+        check("a dropped file becomes a note", 2, diskPlan.snapshot.notes.count)
+        diskLocal = diskPlan.snapshot
+        check(
+            "an adopted file is renamed to its title", true,
+            FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent("Dropped in.md").path))
+        let adoptedRoundTrip = NoteFolderReconciler.plan(
+            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
+            now: { folderClock })
+        check("an adopted file settles immediately", false, adoptedRoundTrip.hasFileWork)
+        check(
+            "an adopted file keeps its text", "# Dropped in\nby hand",
+            adoptedRoundTrip.snapshot.notes.first { $0.content.hasPrefix("# Dropped in") }?.content)
+
+        // Deleting a note removes its file and records the deletion in the ledger.
+        let deletedNote = diskLocal.notes.first { $0.content.hasPrefix("# Dropped in") }!
+        diskLocal = NoteSyncSnapshot(
+            notes: diskLocal.notes.filter { $0.id != deletedNote.id },
+            tombstones: [
+                NoteTombstone(id: deletedNote.id, deletedAt: folderClock.addingTimeInterval(300))
+            ])
+        diskPlan = NoteFolderReconciler.plan(
+            local: diskLocal, scan: try! await io.scan(folder: folder), newID: nextID,
+            now: { folderClock })
+        try! await io.apply(diskPlan, in: folder)
+        check(
+            "a deleted note's file goes away", false,
+            FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent("Dropped in.md").path))
+        check(
+            "the deletion is recorded in the ledger", true,
+            FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent(NoteFolderFormat.ledgerFileName).path))
+
+        // A second Mac reading that folder learns the deletion and does not resurrect the note.
+        let otherMac = NoteSyncSnapshot(notes: [deletedNote, renamedNote], tombstones: [])
+        let otherPlan = NoteFolderReconciler.plan(
+            local: otherMac, scan: try! await io.scan(folder: folder), newID: nextID,
+            now: { folderClock })
+        check("another Mac applies the deletion", 1, otherPlan.snapshot.notes.count)
+        check(
+            "another Mac keeps the surviving note", renamedNote.id, otherPlan.snapshot.notes.first?.id)
+
+        // The whole folder disappearing is an error, never a set of deletions.
+        try! FileManager.default.removeItem(at: folder)
+        var scanFailed = false
+        do { _ = try await io.scan(folder: folder) } catch { scanFailed = true }
+        check("an unreachable folder fails loudly", true, scanFailed)
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

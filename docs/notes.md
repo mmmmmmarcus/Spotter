@@ -4,7 +4,8 @@ Notes is a native, local note-taking workspace modeled on the core experience de
 “Frictionless integrations” section of Raycast Notes: quick floating access, Markdown formatting,
 todos and multiple notes. It deliberately does not implement Raycast AI, snippets, quicklinks, cloud
 services, export/share targets, a separate preview mode or deleted-note recovery. Optional cross-Mac
-sync replicates each Note and deletion through the user's private Apple CloudKit database.
+sync writes each Note as one Markdown file into a folder the user chooses — normally inside iCloud
+Drive, which is what carries the folder between Macs.
 
 ## Entry points
 
@@ -134,7 +135,7 @@ twenty-line ceiling auto sizing grows to.
 A tint is a user modification: it bumps `updatedAt`, so it syncs and wins conflicts like any edit.
 It deliberately does not bump `contentUpdatedAt`, which is what the newest-first list order is sorted
 by — recoloring a Note leaves it exactly where it sits, in this session and after a relaunch. Both
-fields are additive and optional, so pre-tint archives and CloudKit records decode with no tint and
+fields are additive and optional, so pre-tint archives and files decode with no tint and
 an order that falls back to their edit time; the archive stays v2 and needs no migration.
 
 The archive is versioned JSON at:
@@ -149,63 +150,143 @@ Content changes are
 debounced for 250 ms, snapshotted as `Sendable` values and written atomically by a serial actor, so
 typing never performs filesystem IO on the main actor and newer saves cannot be overtaken by older
 ones. Creation and deletion schedule immediate snapshots. Manual Spotter backups include Notes for
-recovery, but automatic Settings Sync deliberately excludes them.
+recovery, but automatic Settings Sync deliberately excludes them — the Notes folder owns that job.
+`applyRemoteSnapshot` is the one way an outside snapshot reaches the store, and it merges rather than
+replaces, so only an explicit tombstone can remove a Note.
 
-## Independent sync
+## Folder sync
 
-`NoteSyncManager` is owned by `AppCore` and holds the explicit iCloud consent flag. Fresh installs
-ship off. The Settings sheet names Apple CloudKit, the synchronized fields and cadence before the
-toggle can turn on; every explicit fetch/send re-checks consent before and after its `await`.
-Disabling cancels the engine and deletes its bundle-scoped local state while preserving both local
-Notes and the user's private CloudKit records.
+Notes replicate through **one folder the user picks**, holding one Markdown file per Note.
+`NoteFolderSyncManager` owns it; `AppCore` owns the manager and the Notes plugin starts and stops it.
+**Choosing the folder is the consent act** — the same shape Settings Sync uses for its file — so
+there is no separate toggle and no consent dialog. Nothing is written anywhere until the user names
+a place for it, Spotter opens no network connection of its own, and the folder's path is device-local
+state that never travels in a settings snapshot. Disconnecting leaves every local Note and every file
+in the folder exactly as they are.
 
-`NoteCloudSyncEngine` is an actor-backed `CKSyncEngineDelegate` targeting the private database in
-`iCloud.com.spotter.app`. It uses one custom `SpotterNotes` record zone and one encrypted
-`SpotterNote` record per UUID. A live Note carries Markdown, creation time, user edit time, content edit time and tint; a
-deletion keeps only its UUID and deletion time. The engine persists its opaque state serialization
-and last-known record system fields under the bundle-specific Application Support `Notes` directory.
-Edits debounce for 300 ms, then only changed records are sent. CloudKit's subscription-driven fetches
-hot-apply remote records, and Settings exposes an immediate fetch/send action.
+CloudKit is gone from the product but not from the repo: see *Retired CloudKit pipeline* below.
 
-Retryable CloudKit failures keep pending changes alive. A failure during engine startup discards the
-incomplete engine and recreates it after 5, 15, 30, 60 and then 120 seconds; **Sync Now** cancels that
-wait and retries immediately. Temporary network, service-unavailable and rate-limit results therefore
-do not turn off consent or strand the manager behind a never-started engine. Sync Now also waits for
-an in-progress engine start before fetching and sending. A sync is only called complete when no zone
-or record changes remain pending, and Settings translates CloudKit's numeric errors into actionable
-messages.
+### File format
 
-Conflicts compare the user edit/deletion timestamp rather than upload arrival time. The newer item
-wins; a deletion wins an exact timestamp tie, and simultaneous Note edits use a deterministic content and
-tint tiebreak so two devices converge — without the tint step, two devices holding the same text at
-the same instant under different colors would never settle. Server-record conflicts retain the newest CKRecord system fields
-before retrying a winning local edit. Account sign-out/switch disables sync without deleting local
-Notes so content is never silently uploaded to a different iCloud account.
+```markdown
+---
+spotter-id: 3F2B1C48-8A2A-4A2E-9E4B-2E9B1D0A77C1
+created: 2026-09-08T09:14:02.517Z
+updated: 2026-09-08T11:02:44.108Z
+content-updated: 2026-09-08T11:02:44.108Z
+tint: blue
+---
+# Groceries
 
-The former user-selected Notes JSON pipeline has one bounded decode-only migration. If that trusted
-file was active, the first upgraded start fully decodes and applies it to local `NoteStore`, clears
-the obsolete bundle-scoped path/toggle, and never deletes the user's file. It does not grant CloudKit
-consent; the user must explicitly enable the new service. Automatic Settings Sync continues to omit
-Note content, while its trusted snapshot may carry the CloudKit consent flag.
+- [ ] milk
+- [ ] coffee
+```
 
-Developer ID stable and beta builds share the CloudKit container but use provisioning profiles tied
-to their separate App IDs. The ordinary self-signed Debug build deliberately has no CloudKit
-entitlement, while `scripts/install-cloud-dev.sh` produces an Apple Development-signed dev build
-against the container's Development environment. Development and Production keep separate engine
-state archives so testing cannot reuse an incompatible sync token. Settings verifies the container,
-CloudKit service, environment and push entitlements together; an incapable build shows the switch off
-and disabled even if persisted consent should resume in a later signed build. CloudKit diagnostics
-record the environment, each explicit sync stage with its pending zone/record counts, failed
-record-save CloudKit codes, and bounded domain/code/underlying-error chains — including the
-reflected Swift error, since the `NSError` bridge flattens CloudKit's own payload away — without
-logging Note content or CloudKit records. A CloudKit partial failure reports the per-item reason
-rather than its own empty summary, and an unmapped failure keeps its numeric CloudKit code.
+The header is delimited by `---` fences and the body below the closing fence is the user's Markdown,
+**appended and returned verbatim** — a write→read cycle is byte-for-byte, which the harness pins with
+a body containing its own `---` block, a fenced code block, a stray carriage return, a tab and an
+emoji. `tint` is omitted when a Note is untinted. Timestamps are ISO 8601 with milliseconds; the
+truncation makes a file's copy marginally older than the live one, which biases every tie toward the
+Mac holding the Note rather than toward the file — the direction that keeps content.
 
-The engine retains its `CKContainer` for its whole lifetime. `CKDatabase` holds no strong
-reference back, so a container that only lived for the duration of `start()` left every later
-fetch and send failing. A pending record save whose local Note no longer exists is dropped from
-engine state rather than retried forever, since a change that can never be satisfied keeps the
-engine from ever reporting a settled sync.
+A block is Spotter's front matter **only if it carries a parseable `spotter-id`**. Everything else —
+no fence, an unclosed fence, a human's own YAML, a malformed identifier — means the whole file is the
+body, and it becomes a Note rather than an error. That rule is what makes a hand-written `.md` file
+join the folder without losing a byte, and what stops Spotter from stripping a header it did not
+write. Unrecognized header lines beside a real `spotter-id` are carried back out on the next
+rewrite, minus anything that could close the block. A missing or unparseable date reads as
+*just appeared* (the current clock) rather than as ancient, because winning a merge is the branch
+that keeps content. An empty or whitespace-only file with no front matter is not a Note at all: it is
+left alone, neither adopted nor removed. A blank Note likewise gets no file until it has something in
+it.
+
+### Naming, retitles and collisions
+
+The file is named after the Note's title, which is what makes the folder worth having in Finder;
+identity lives in the front matter, never in the name. Path separators, control characters and the
+Windows-hostile set become spaces, runs of whitespace collapse, leading and trailing spaces and dots
+go, a leading `~` is stripped (that prefix belongs to an interrupted rename) and the base is capped
+at 60 characters. A blank title falls back to `Untitled Note`.
+
+A **retitle** is therefore a rename, not a delete plus a create: the reconciler emits a move for the
+file already carrying that id. The move is performed in two coordinated steps — the file first goes
+to `~<uuid>.md`, then to its new name — so two Notes swapping titles cannot clobber one another, and
+a crash between the halves leaves a well-formed Note file the next scan simply renames.
+
+**Collisions** resolve deterministically: among Notes competing for one base name the oldest
+(`createdAt`, then id) keeps it and the rest take ` 2`, ` 3`. Two Macs resolving the same set
+independently therefore choose the same names and never fight. Names already occupied by files
+Spotter cannot read are reserved, so a write can never land on top of a file whose contents are
+unknown.
+
+### Downloaded, missing, deleted
+
+These are three different things and the reconciler keeps them apart:
+
+- **Not downloaded.** An iCloud placeholder — `URLUbiquitousItemDownloadingStatusKey` other than
+  `.current`, or a `.Name.md.icloud` alias — is *present with unknown contents*. It is never parsed,
+  never written over, never removed, and its name stays reserved. A download is requested and the
+  manager looks again every ten seconds while anything is still pending, since a placeholder becoming
+  real produces no coordinated change to observe. An unreadable or non-UTF-8 file is treated
+  identically. Unknown always means present.
+- **Missing.** A Note with no file is a file to write, never a Note to drop. Spotter writes it back.
+- **Deleted.** Deletion needs an explicit signal, and that signal is the tombstone ledger, a hidden
+  `.spotter-notes.json` in the folder carrying the same `NoteTombstone` records the local archive
+  keeps. A tombstone that wins its merge is the only thing that removes a live Note's file. If the
+  ledger itself cannot be read, it is **not rewritten** — overwriting it would erase another Mac's
+  deletions — and no deletion is applied that pass. Tombstones are never pruned.
+
+Only two removals exist, and both provably keep the content: a file whose id has a winning tombstone,
+and a duplicate whose body and tint are byte-identical to the copy that stays. Removed files go to
+the **Trash**, not into thin air. The whole folder being unreachable is an error that leaves both the
+Notes and the files untouched; it is never read as a folder full of deletions.
+
+### Conflicts
+
+Two Macs editing one Note resolve through `NoteSyncMerge`, unchanged — the single merge policy in the
+codebase, previously used by CloudKit. The newer `updatedAt` wins; a deletion wins an exact tie; and
+two Notes tied to the instant fall back to content, then tint, then `createdAt`, then id, so both
+Macs converge on the same survivor without talking to each other.
+
+One case the folder adds: an external editor changes a file's body without touching its `updated`
+header, which would leave the merge a tie broken by comparing strings — and losing that tie would
+rewrite the user's edit away. When a file's body differs from the Note Spotter holds *and* their
+timestamps are equal, the file's own modification date settles it in favour of the newer bytes.
+
+Two files claiming one id (a copy made in Finder, or a rename interrupted on another Mac) never lose
+a version. Identical bodies collapse to one file; **different** bodies are both kept, the loser
+adopted under a fresh identifier. A stale duplicate is the deliberate price of never dropping a piece
+of the user's writing.
+
+### Pipeline
+
+`NoteFolderIO` is an actor and does every read, write, move and delete through `NSFileCoordinator`;
+writes are atomic, so a half-written file can never be read as a truncated Note. The folder is
+watched the way `SettingsSyncManager` watches its file: an `NSFilePresenter` on the folder (which
+also receives `presentedSubitemDidChange`) plus a dispatch source on the directory, catching
+uncoordinated editors and atomic replacement. Local edits debounce for 400 ms.
+
+Spotter's own writes do cause a notification, and the guard against a feedback loop is that
+reconciliation is a fixpoint: a pass over a folder Spotter just wrote produces no file work and no
+change to the store, so nothing further is scheduled. A pass that lands while another is running sets
+a flag and runs once more afterwards rather than interleaving.
+
+The former user-selected Notes JSON pipeline keeps its one bounded decode-only migration, now owned
+by this manager. If that trusted file was active, the first upgraded start decodes it and **merges**
+it into the local store — it can add Notes, never delete them — then clears the obsolete path and
+toggle without ever touching the user's file.
+
+## Retired CloudKit pipeline
+
+`NoteSyncManager` and `NoteCloudSyncEngine` remain in the repository, whole and compiling, but the
+product cannot reach them (owner decision, Sep 2026). Settings has no switch and no consent sheet,
+`AppCore` constructs the manager and never calls `start()`, and a trusted v3 backup carrying the old
+`iCloudSyncEnabled: true` no longer does anything: the field is neither written nor read, so the key
+is ignored on decode and cannot start CloudKit. Reconnecting the feature means restoring an entry
+point — a Settings switch and a `start()` call — not rewriting the engine. The CloudKit
+entitlement/provisioning arrangement (Developer ID profiles for `iCloud.com.spotter.app`, the
+self-signed Debug build's lack of an entitlement, `scripts/install-cloud-dev.sh`) is release plumbing
+and is left alone.
 
 ## Editor
 
@@ -355,7 +436,8 @@ Run the pure harness independently:
 
 ```sh
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
-    Spotter/Plugins/Note/NoteSyncDocument.swift \
+    Spotter/Plugins/Note/NoteSyncDocument.swift Spotter/Plugins/Note/NoteFolderDocument.swift \
+    Spotter/Plugins/Note/NoteFolderIO.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 ```
 
@@ -366,3 +448,17 @@ not, an empty item, a caret elsewhere on the line, at the line's start, inside t
 selection and inside a fence) and the former sync
 document's decode bridge; it never opens the floating window, contacts CloudKit or reads real
 application data.
+deterministic Note/deletion merges and the former sync document's decode bridge.
+
+Folder sync is covered twice over. Purely, through `NoteFolderDocument`/`NoteFolderReconciler`:
+byte-for-byte round trips of a hostile body, a file with no front matter, an unclosed fence, a
+human's own YAML header, a malformed identifier, an empty file, an unknown tint, a header with no
+dates, foreign header lines, the naming and collision rules, an undownloaded placeholder, a missing
+file, a ledger deletion, a beaten tombstone, an unreadable ledger, a retitle, identical and divergent
+duplicate ids, and an outside edit — with an assertion that every removal the reconciler can emit is
+one of the two safe kinds. And against a real temporary directory through `NoteFolderIO`: writing a
+Note out and reading it back unchanged, a second pass finding nothing to do, a retitle leaving
+exactly one file, a hand-dropped file becoming a Note, a deletion removing its file and writing the
+ledger, a second Mac applying that deletion without resurrecting the Note, and an unreachable folder
+failing loudly. It never opens the floating window, contacts CloudKit, or reads real application data
+or a real iCloud Drive folder.

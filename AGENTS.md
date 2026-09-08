@@ -103,9 +103,13 @@ Never break these without an explicit task to do so.
   `Tools/translate-test.swift`,
   `Plugins/TextReplacement/TextReplacementEngine.swift` stays
   Foundation-only and pure while `Plugins/TextReplacement/TextReplacementStore.swift` stays
-  Foundation + Combine, `Plugins/Note/NoteEngine.swift` and
-  `Plugins/Note/NoteSyncDocument.swift` stay Foundation-only and pure while
-  `Plugins/Note/NoteStore.swift` stays Foundation + Combine for `Tools/note-test.swift`,
+  Foundation + Combine, `Plugins/Note/NoteEngine.swift`,
+  `Plugins/Note/NoteSyncDocument.swift` and `Plugins/Note/NoteFolderDocument.swift` stay
+  Foundation-only and pure while `Plugins/Note/NoteStore.swift` stays Foundation + Combine and
+  `Plugins/Note/NoteFolderIO.swift` stays Foundation with no app source, all for
+  `Tools/note-test.swift` — the Notes folder's front-matter format, naming scheme, collision rule and
+  whole reconciliation live in `NoteFolderDocument.swift` so the harness can exercise them, including
+  the hostile files, against real temporary directories,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift`,
@@ -255,14 +259,15 @@ Never break these without an explicit task to do so.
   click after the new bundle passes designated-requirement signature verification. See
   [`docs/updates.md`](docs/updates.md). `Core/UpdateFeed.swift` stays Foundation-only and pure for
   `Tools/update-test.swift`.
-  Notes follows the same safe-default rule for its private CloudKit database: sync ships off,
-  `NoteSyncManager` owns consent and re-checks it around every explicit fetch/send, disabling deletes
-  only the local CloudKit state, and each Note/deletion is an independent record. Developer ID
-  releases must embed the channel's provisioning profile for `iCloud.com.spotter.app`; the ordinary
-  self-signed Debug build deliberately has no CloudKit entitlement. The opt-in
-  `scripts/install-cloud-dev.sh` path is the one exception: it uses an Apple Development identity,
-  matching development profile and `Spotter.Development.entitlements` to exercise the Development
-  CloudKit environment without changing normal Debug signing.
+  Notes sync through a **user-chosen folder of Markdown files**, one file per Note, and choosing that
+  folder *is* the consent act — the Settings Sync precedent, so there is no dialog and no toggle to
+  invent. Nothing leaves the Mac that the user did not point at a location: Spotter opens no network
+  connection of its own for Notes. Notes' **CloudKit** pipeline (`NoteSyncManager`,
+  `NoteCloudSyncEngine`) is retired but kept whole and compiling (owner decision, Sep 2026): it has
+  no Settings switch, `AppCore` constructs it and never calls `start()`, and its consent flag no
+  longer rides the backup — a v3 file carrying `iCloudSyncEnabled: true` is ignored on decode and can
+  never start it. Restoring it means restoring an entry point, not rewriting the engine, so leave
+  both files and the CloudKit entitlement/provisioning arrangement alone.
 - **Plugins are native compile-time modules.** Every built-in plugin owns one
   `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
   JavaScript execution, reflection-based discovery or a second plugin registry. See
@@ -324,10 +329,22 @@ Never break these without an explicit task to do so.
   hot-apply only fully decoded snapshots, suppress its own write notifications, and mirror all
   covered user-owned settings and content, including credentials and network consent. Notes are the
   deliberate exception: manual backups still include them, but automatic Settings Sync must exclude
-  Note content because `NoteSyncManager` owns per-Note CloudKit replication. Its consent flag is
-  trusted Settings state; CloudKit engine tokens and record system fields stay bundle-scoped and
-  device-local. Concrete palette coordinates and system privacy grants also stay device-local. See
-  [`docs/settings-sync.md`](docs/settings-sync.md).
+  Note content because `NoteFolderSyncManager` owns per-Note replication through the user's Notes
+  folder. That folder's path is device-local and never travels in a snapshot, as neither
+  synchronization path does. Concrete palette coordinates and system privacy grants also stay
+  device-local. See [`docs/settings-sync.md`](docs/settings-sync.md).
+- **A missing Note file is never a deletion.** The Notes folder is reconciled by the pure
+  `NoteFolderReconciler`, and only two things may remove a file: a tombstone that won its merge, and
+  a duplicate whose body and tint are identical to the copy that stays. An absent file, an iCloud
+  placeholder, an unreadable or non-UTF-8 file and an unreadable ledger are all "present, unknown" —
+  left untouched, never overwritten, never counted as gone, and their names stay reserved so a write
+  cannot land on top of one. Deletions travel only in the hidden `.spotter-notes.json` tombstone
+  ledger, which is never rewritten while it cannot be read. Identity lives in the front matter, so a
+  retitle is a coordinated two-step move rather than a delete plus a create; collisions resolve
+  deterministically (oldest note keeps the bare name) so two Macs never fight over one. Conflicts
+  reuse `NoteSyncMerge` — the one merge policy in the codebase — and the body round-trips
+  byte-for-byte. Reads, writes, moves and deletions all go through `NSFileCoordinator`, writes are
+  atomic, and a removed file goes to the Trash. See [`docs/notes.md`](docs/notes.md).
 - **Snippets' expansion never records arbitrary typing or uses the clipboard.** The plugin keeps its
   historical `text-replacement` identity (IDs, keys, file names); its matcher retains only a suffix
   that can still become a configured trigger (built from keyworded snippets only — palette-only

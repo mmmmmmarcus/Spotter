@@ -164,7 +164,9 @@ struct SettingsBackup: Codable, Sendable {
             var enabled: Bool?
         }
         struct Note: Codable, Sendable {
-            var iCloudSyncEnabled: Bool?
+            // A file written before Notes moved to a folder carries `iCloudSyncEnabled`. It is
+            // neither written nor read now: an old snapshot can never start the dormant CloudKit
+            // engine, and the Notes folder is a device-local path that does not travel.
             var windowTransparency: Double?
             var autoWindowSizing: Bool?
         }
@@ -396,7 +398,6 @@ extension SettingsBackup {
         prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
         prefs.uptime = PluginPrefs.Uptime(enabled: core.uptime.isEnabled)
         prefs.note = PluginPrefs.Note(
-            iCloudSyncEnabled: core.noteSync.isEnabled,
             windowTransparency: core.notes.windowTransparency,
             autoWindowSizing: core.notes.autoWindowSizing)
         return prefs
@@ -466,10 +467,6 @@ extension SettingsBackup {
         if case .include = noteTransfer, let notes {
             core.notes.replace(notes: notes.notes, selectedID: notes.selectedID)
             summary.contentCollections += 1
-        }
-        if let enabled = pluginPrefs?.note?.iCloudSyncEnabled {
-            core.noteSync.setEnabled(enabled)
-            summary.settingsFields += 1
         }
         if let clipboardHistory {
             await core.clipboardStore.replace(with: clipboardHistory)

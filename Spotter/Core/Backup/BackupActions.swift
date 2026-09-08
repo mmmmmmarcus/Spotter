@@ -78,6 +78,22 @@ enum BackupActions {
         AppCore.shared.settingsSync.create(at: url)
     }
 
+    /// Choosing the folder is the consent act, exactly as choosing a file is for Settings Sync:
+    /// nothing is written anywhere until the user names the place it should be written.
+    static func chooseNotesFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        panel.message =
+            "Choose a folder for your Notes. Put it in iCloud Drive to share them between Macs."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        AppCore.shared.noteFolderSync.connect(to: url)
+    }
+
     // MARK: - Raycast (the pane owns the passphrase field + inline status)
 
     static func importRaycast(file: URL, passphrase: String, options: RaycastImportOptions = .all)

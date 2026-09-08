@@ -32,19 +32,17 @@ enum NoteCloudCapability {
     }
 }
 
+/// Dormant since Notes moved to a user-chosen folder of Markdown files (owner decision, Sep 2026).
+/// The engine is kept whole and compiling, but nothing constructs a live one: `AppCore` never calls
+/// `start()`, Settings has no switch, and a restored backup can no longer set its consent flag.
+/// Reconnecting it means restoring an entry point, not rewriting this.
 @MainActor
 final class NoteSyncManager: ObservableObject {
     private struct Keys {
         let enabled: String
-        let legacyFilePath: String
-        let legacyEnabled: String
-        let migrated: String
 
         init(bundleID: String) {
             enabled = bundleID + ".note-cloud-sync.enabled"
-            legacyFilePath = bundleID + ".note-sync.file-path"
-            legacyEnabled = bundleID + ".note-sync.enabled"
-            migrated = bundleID + ".note-cloud-sync.legacy-json-migrated-v1"
         }
     }
 
@@ -57,12 +55,10 @@ final class NoteSyncManager: ObservableObject {
     private let defaults: UserDefaults
     private let keys: Keys
     private let stateURL: URL
-    private let legacyIO = CoordinatedFileIO()
     private var cloud: NoteCloudSyncEngine?
     private var startTask: Task<Void, Never>?
     private var pushTask: Task<Void, Never>?
     private var retryTask: Task<Void, Never>?
-    private var migrationTask: Task<Void, Never>?
     private var isRunning = false
     private var retryAttempt = 0
 
@@ -98,20 +94,13 @@ final class NoteSyncManager: ObservableObject {
         store.onSyncSnapshotChanged = { [weak self] snapshot in
             self?.schedulePush(snapshot)
         }
-        migrationTask?.cancel()
-        migrationTask = Task { [weak self] in
-            guard let self else { return }
-            await self.migrateLegacyJSONIfNeeded()
-            guard !Task.isCancelled, self.isRunning, self.isEnabled else { return }
-            self.startCloud()
-        }
+        guard isEnabled else { return }
+        startCloud()
     }
 
     func stop() {
         isRunning = false
         store.onSyncSnapshotChanged = nil
-        migrationTask?.cancel()
-        migrationTask = nil
         stopCloud(deleteState: false)
     }
 
@@ -258,7 +247,7 @@ final class NoteSyncManager: ObservableObject {
         guard isRunning, isEnabled else { return }
         switch event {
         case .received(let snapshot):
-            store.applyCloudSnapshot(snapshot)
+            store.applyRemoteSnapshot(snapshot)
         case .didSync:
             errorMessage = nil
             let isFirstSync = lastSyncedAt == nil
@@ -275,32 +264,5 @@ final class NoteSyncManager: ObservableObject {
             setEnabled(false)
             errorMessage = "iCloud account changed. Turn sync on again for the current account."
         }
-    }
-
-    private func migrateLegacyJSONIfNeeded() async {
-        guard !defaults.bool(forKey: keys.migrated) else { return }
-        guard defaults.bool(forKey: keys.legacyEnabled),
-            let path = defaults.string(forKey: keys.legacyFilePath)
-        else {
-            finishLegacyMigration()
-            return
-        }
-        do {
-            let data = try await legacyIO.read(from: URL(fileURLWithPath: path))
-            let document = try await NoteSyncDocument.decodedOffMain(data)
-            guard isRunning else { return }
-            store.replace(notes: document.notes, selectedID: document.selectedID)
-            finishLegacyMigration()
-        } catch {
-            guard isRunning else { return }
-            errorMessage = "Couldn’t import the former Notes sync file: " + error.localizedDescription
-            AppLog.error("note-cloud-sync", errorMessage ?? error.localizedDescription)
-        }
-    }
-
-    private func finishLegacyMigration() {
-        defaults.set(true, forKey: keys.migrated)
-        defaults.removeObject(forKey: keys.legacyFilePath)
-        defaults.removeObject(forKey: keys.legacyEnabled)
     }
 }
