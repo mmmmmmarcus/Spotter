@@ -17,11 +17,17 @@ builds with the **Xcode 26** toolchain.
   `/Applications/Spotter.app`. Do not maintain or launch a separate `Spotter Dev.app`;
   `project.yml` already builds Debug as `Spotter.app` / `com.spotter.app1`, so keep the same product
   name and bundle identifier across dev and stable.
-- **Replace and relaunch after every successful build.** Build into a staging/DerivedData location
-  first. Only after the new app has built and passed its required checks, quit the running Spotter,
-  delete the exact old `/Applications/Spotter.app`, copy the new app into `/Applications`, and launch
-  the newly installed copy automatically. Never delete the working installed copy before a new build
-  succeeds, and never target anything broader than the exact Spotter app bundle.
+- **Replace and relaunch after every successful build — through `scripts/install-dev.sh`.** Build
+  into a staging/DerivedData location first; only after the new app has built and passed its required
+  checks, hand that bundle to the script, which quits Spotter, waits for it to actually exit, stages
+  the replacement beside `/Applications/Spotter.app` and swaps the two atomically before relaunching.
+  **Never remove the installed bundle to install over it.** `tccd` invalidates a bundle's grants when
+  it sees that bundle deleted, so a remove-then-copy install silently costs Accessibility, Screen
+  Recording and Full Disk Access on every build — which strands the Hyper Key's event tap and every
+  global hotkey with it, looking like a dozen unrelated bugs. `UpdateStore` swaps atomically for this
+  exact reason; dev installs get no exemption. Waiting for a real quit is part of the contract too:
+  a killed process can lose preferences it has just written. Never delete the working installed copy
+  before a new build succeeds, and never target anything broader than the exact Spotter app bundle.
 - **Release is the only exception.** When the user explicitly requests a Release build, follow the
   documented release/signing/DMG workflow and preserve its requested channel, product name, bundle
   identifier, output location, and launch behavior.
