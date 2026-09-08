@@ -232,9 +232,11 @@ These are three different things and the reconciler keeps them apart:
 - **Missing.** A Note with no file is a file to write, never a Note to drop. Spotter writes it back.
 - **Deleted.** Deletion needs an explicit signal, and that signal is the tombstone ledger, a hidden
   `.spotter-notes.json` in the folder carrying the same `NoteTombstone` records the local archive
-  keeps. A tombstone that wins its merge is the only thing that removes a live Note's file. If the
+  keeps. A tombstone is the only thing that removes a live Note's file. If the
   ledger itself cannot be read, it is **not rewritten** — overwriting it would erase another Mac's
-  deletions — and no deletion is applied that pass. Tombstones are never pruned.
+  deletions — and no deletion is applied that pass. Tombstones are never pruned, and the ledger is
+  **append-only**: since a deletion is absorbing (below), the merged tombstone set can only ever
+  grow, so no pass can quietly unlearn what another Mac deleted.
 
 Only two removals exist, and both provably keep the content: a file whose id has a winning tombstone,
 and a duplicate whose body and tint are byte-identical to the copy that stays. Removed files go to
@@ -243,10 +245,20 @@ Notes and the files untouched; it is never read as a folder full of deletions.
 
 ### Conflicts
 
-Two Macs editing one Note resolve through `NoteSyncMerge`, unchanged — the single merge policy in the
-codebase, previously used by CloudKit. The newer `updatedAt` wins; a deletion wins an exact tie; and
+Two Macs editing one Note resolve through `NoteSyncMerge` — the single merge policy in the
+codebase, previously used by CloudKit. The newer `updatedAt` wins, and
 two Notes tied to the instant fall back to content, then tint, then `createdAt`, then id, so both
 Macs converge on the same survivor without talking to each other.
+
+**A deletion is absorbing.** Once an id carries a tombstone it never becomes a Note again, whatever
+the two timestamps say — a tombstone is not ranked against an edit, it simply wins. Deletion is the
+one act here with no ambiguous reading, while `updatedAt` is a stamp from a clock the other Mac
+never agreed with. Ranking the two by time (which is what shipped through 1.5.30) meant a copy that
+merely *synced* late outranked the deletion that had already beaten it, and — worse — the beaten
+tombstone was then dropped from the merged snapshot and rewritten out of the ledger, so the Note
+could never be deleted again. The user's bytes are not the price: a file removed under a tombstone
+goes to the Trash, and restoring a manual backup clears tombstones for the Notes it carries, so an
+intentional recovery still works.
 
 **Except on the first pass after a folder is adopted, which keeps both sides instead.** The
 reconciler takes a `NoteFolderPass` — `.adoption` or `.steady` — and it has no default, because
@@ -258,10 +270,24 @@ header, which would leave the merge a tie broken by comparing strings — and lo
 rewrite the user's edit away. When a file's body differs from the Note Spotter holds *and* their
 timestamps are equal, the file's own modification date settles it in favour of the newer bytes.
 
-Two files claiming one id (a copy made in Finder, or a rename interrupted on another Mac) never lose
-a version. Identical bodies collapse to one file; **different** bodies are both kept, the loser
-adopted under a fresh identifier. A stale duplicate is the deliberate price of never dropping a piece
-of the user's writing.
+Two files claiming one id never lose a version, and in steady state they never *gain* one either.
+Identical bodies collapse to one file — provably safe, since the survivor is byte-identical.
+**Different** bodies are three different situations, and the reconciler decides between them after
+the merge rather than while reading the files:
+
+- **A tombstone won.** Both files go, under that one explicit deletion. The loser is *not* handed a
+  fresh identifier — that was the 1.5.29/1.5.30 resurrection bug: a fresh id has no tombstone, so
+  deleting a Note while a second file for it was in flight put the deleted text straight back under
+  an id nothing could ever delete again.
+- **Steady state.** The pair is a filesystem race, not two versions of anything. iCloud delivers a
+  retitle as a create and a delete that arrive in either order, and the two-step move publishes its
+  `~<uuid>.md` half on the way through, so *every* retitle can be observed as two files under one
+  id. Forking there manufactured a Note per title state. The newer file is the Note; the other is
+  left exactly where it is — never parsed into a Note, never written over, never removed, its name
+  reserved — the same "present, unknown" treatment a placeholder gets. Replication finishes clearing
+  it, and if it turns out to be a copy the user made on purpose, their file is still sitting there.
+- **The adoption pass.** Still forks, for the reason below: it runs once, over timestamps that were
+  never comparable, and a silent winner there is unrecoverable.
 
 ### Why the first pass is different
 
@@ -276,13 +302,15 @@ installs — can hold one Note diverged under a single id, carrying `updatedAt` 
 comparable across machines to begin with. Picking a winner there discards a version of the user's
 writing *invisibly* (nothing says a merge happened) and *unrecoverably* (the losing text was never
 in that folder, so there is no file in the Trash to find). One duplicate is a far smaller cost than
-that, so the loser is kept under a fresh identifier — the same fork the reconciler already performs
-for two divergent *files* — and both end up with a file.
+that, so the loser is kept under a fresh identifier — the same fork the reconciler performs on that
+one pass for two divergent *files* — and both end up with a file.
 
 **Steady state is not that.** By then both sides are live, recent and observable: the user is
 editing on one Mac while the other syncs within seconds, and the losing text is on screen somewhere.
 Forking every ordinary edit collision would bury a working folder in near-identical Notes. So every
-pass after the first merges by `NoteSyncMerge` alone, exactly as described above.
+pass after the first merges by `NoteSyncMerge` alone and forks nothing at all, exactly as described
+above — a fresh identifier is minted in steady state only for a file that carries no `spotter-id`,
+which is a file a human dropped in, not a Note Spotter is keeping track of.
 
 Three things bound the first pass so it cannot manufacture noise. Only **text** is grounds for a
 fork — a tint that loses is visible and one click to restore. A loser whose text is blank is not
@@ -290,8 +318,8 @@ kept, since there is nothing to lose. And a text already held by some other Note
 result is not copied again, which is also what stops a *retried* adoption (one whose file work
 failed last time) from forking the same divergence twice.
 
-An **explicit deletion still wins**: if a tombstone beats both sides, the Note stays deleted rather
-than being forked back to life. And an empty folder has no divergence at all, so both passes plan
+An **explicit deletion still wins**, on either pass: a tombstoned id is never forked back to life,
+because a fresh identifier carries no tombstone and would launder the deletion permanently. And an empty folder has no divergence at all, so both passes plan
 exactly the same thing — the harness compares the two plans whole.
 
 **Detecting "first".** `NoteFolderAdoption` (in `NoteFolderIO.swift`, the Foundation-not-pure tier)
@@ -500,9 +528,16 @@ Folder sync is covered twice over. Purely, through `NoteFolderDocument`/`NoteFol
 byte-for-byte round trips of a hostile body, a file with no front matter, an unclosed fence, a
 human's own YAML header, a malformed identifier, an empty file, an unknown tint, a header with no
 dates, foreign header lines, the naming and collision rules, an undownloaded placeholder, a missing
-file, a ledger deletion, a beaten tombstone, an unreadable ledger, a retitle, identical and divergent
-duplicate ids, and an outside edit — with an assertion that every removal the reconciler can emit is
-one of the two safe kinds.
+file, a ledger deletion, a tombstone an edit tried to beat, an unreadable ledger, a retitle,
+identical and divergent duplicate ids, and an outside edit — with an assertion that every removal the
+reconciler can emit is one of the two safe kinds.
+
+The 1.5.29/1.5.30 resurrection has its own block, pinned from both ends: a deletion that beats a
+contested pair takes both files and forks neither, on the steady *and* the adoption pass; a
+tombstoned Note whose file reappears from the other Mac is removed again rather than revived; a
+retitle observed mid-move — in the `~<uuid>.md` shape and the both-names shape — stays one Note and
+asks for no file work; an edit made after the deletion elsewhere does not outlive it and does not
+erase its tombstone; and an ordinary two-Mac edit collision still merges to one Note.
 
 The two passes are pinned against the same fixture, which is the point: one local Note and one file
 sharing an id but not their text produce **two** Notes under `.adoption` and **one** under
@@ -515,7 +550,10 @@ life when a tombstone beats both sides.
 And against a real temporary directory through `NoteFolderIO`: writing a
 Note out and reading it back unchanged, a second pass finding nothing to do, a retitle leaving
 exactly one file, a hand-dropped file becoming a Note, a deletion removing its file and writing the
-ledger, a second Mac applying that deletion without resurrecting the Note, and an unreachable folder
+ledger, a second Mac applying that deletion without resurrecting the Note, an in-flight retitle
+making no second Note and leaving the file it did not choose alone, deleting that contested Note
+taking both its files and staying deleted across the next pass, an offline Mac returning with its
+own edited copy applying the deletion instead of undoing it, and an unreachable folder
 failing loudly. The adoption flag's whole lifecycle runs there too, over a real `UserDefaults` suite:
 unset reads as steady, `begin()` makes it an adoption, a second reader over the same suite (a
 relaunch) still sees the adoption, a pass whose `io.apply` throws because the folder vanished leaves

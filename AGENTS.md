@@ -349,7 +349,15 @@ Never break these without an explicit task to do so.
   retitle is a coordinated two-step move rather than a delete plus a create; collisions resolve
   deterministically (oldest note keeps the bare name) so two Macs never fight over one. Conflicts
   reuse `NoteSyncMerge` — the one merge policy in the codebase — and the body round-trips
-  byte-for-byte. Reads, writes, moves and deletions all go through `NSFileCoordinator`, writes are
+  byte-for-byte. **A deletion is absorbing and a fork can never launder one.** A tombstoned id is
+  never a Note again whatever the timestamps say, so the tombstone set only grows and the ledger is
+  append-only; and a fresh identifier — the one thing that carries no tombstone — is never minted
+  for content whose id has been deleted. In steady state two files under one id are a filesystem
+  race (a retitle's create and delete arriving in either order, or the two-step move's
+  `~<uuid>.md` half), so the newer is the Note and the other is left untouched and reserved; only
+  the `.adoption` pass forks. Ranking a deletion against an edit by time, and forking a
+  duplicated id in steady state, is how 1.5.29/1.5.30 resurrected deleted Notes and grew a Note per
+  title state — do not restore either. Reads, writes, moves and deletions all go through `NSFileCoordinator`, writes are
   atomic, and a removed file goes to the Trash. **The first reconcile after a folder is adopted is
   deliberately not that merge**, and the asymmetry is an owner decision (Sep 2026): that pass keeps
   *both* texts when one id diverges, forking the loser to a fresh id, because it runs once per Mac

@@ -293,13 +293,13 @@ struct NoteFolderPlan: Equatable, Sendable {
 /// That pass is the upgrade: someone arriving with Notes already on two Macs can hold one Note
 /// diverged under a single id, with `updatedAt` stamps that were never comparable across machines
 /// to begin with. Picking a winner there loses a version of the user's writing invisibly and
-/// unrecoverably, so both are kept instead — the same fork-to-a-fresh-id treatment two divergent
-/// files get.
+/// unrecoverably, so both are kept instead — and two divergent *files* under one id are forked the
+/// same way, for the same reason.
 ///
-/// `steady` is every pass after that, and it merges by `NoteSyncMerge` alone. A conflict there is a
-/// different animal: both sides are live, recent and observable, and forking on every ordinary edit
-/// collision would bury the user in duplicates. Same-looking situation, opposite right answer — do
-/// not unify the two paths.
+/// `steady` is every pass after that, and it merges by `NoteSyncMerge` alone and forks nothing. A
+/// conflict there is a different animal: both sides are live, recent and observable, and forking on
+/// every ordinary edit collision would bury the user in duplicates. Same-looking situation,
+/// opposite right answer — do not unify the two paths.
 enum NoteFolderPass: Equatable, Sendable {
     case adoption
     case steady
@@ -314,8 +314,8 @@ enum NoteFolderReconciler {
     }
 
     /// The whole policy in one pure function: what the store should hold, and what the folder should
-    /// look like. Conflicts are resolved by `NoteSyncMerge` — the same newest-edit-wins,
-    /// deletion-wins-a-tie rule the CloudKit pipeline used, so there is only ever one merge
+    /// look like. Conflicts are resolved by `NoteSyncMerge` — the same newest-edit-wins rule the
+    /// CloudKit pipeline used, over an absorbing deletion, so there is only ever one merge
     /// policy — except on the adoption pass, which keeps both sides instead. `pass` has no default:
     /// neither value is the safe one to forget, since `.steady` can merge an upgrade away and
     /// `.adoption` would duplicate on every ordinary collision.
@@ -329,6 +329,9 @@ enum NoteFolderReconciler {
         var removals: [String: NoteFolderRemoval] = [:]
         var adopted: [UUID] = []
         var forked: [UUID] = []
+        // Held aside rather than resolved in the loop: what to do with a second file under one id
+        // depends on the merge, which cannot be computed until every file has been read.
+        var contested: [(id: UUID, loser: Adopted)] = []
 
         for file in scan.files.sorted(by: { $0.name < $1.name }) {
             guard NoteFolderFormat.isNoteFileName(file.name) else {
@@ -364,15 +367,7 @@ enum NoteFolderReconciler {
                     // Byte-identical to the file that stays, so removing it cannot lose anything.
                     removals[loser.name] = .redundantDuplicate(note.id)
                 } else {
-                    // Two different texts under one id: keep both. A stale duplicate is the price
-                    // of never dropping a version of the user's writing.
-                    let fork = SpotterNote(
-                        id: newID(), content: loser.note.content, createdAt: loser.note.createdAt,
-                        updatedAt: loser.note.updatedAt,
-                        contentUpdatedAt: loser.note.contentUpdatedAt, tint: loser.note.tint)
-                    forked.append(fork.id)
-                    parsed[fork.id] = Adopted(
-                        name: loser.name, note: fork, extras: loser.extras, raw: loser.raw)
+                    contested.append((note.id, loser))
                 }
             }
         }
@@ -394,6 +389,16 @@ enum NoteFolderReconciler {
         let remote = NoteSyncSnapshot(
             notes: parsed.values.map(\.note), tombstones: ledgerTombstones)
         var merged = NoteSyncMerge.merging(local, with: remote)
+        if !contested.isEmpty {
+            let forks = contestedForks(
+                contested, pass: pass, parsed: &parsed, merged: merged, removals: &removals,
+                reserved: &reserved, newID: newID)
+            if !forks.isEmpty {
+                forked.append(contentsOf: forks.map(\.id))
+                merged = NoteSyncMerge.merging(
+                    merged, with: NoteSyncSnapshot(notes: forks, tombstones: []))
+            }
+        }
         if pass == .adoption {
             let forks = adoptionForks(local: local, parsed: &parsed, merged: merged, newID: newID)
             if !forks.isEmpty {
@@ -435,6 +440,51 @@ enum NoteFolderReconciler {
             snapshot: merged, placements: placements, removals: removals,
             ledger: writesLedger ? merged.tombstones : nil,
             deferred: deferred, adopted: adopted, forked: forked)
+    }
+
+    /// Two files carrying one id, with different texts. Three answers, and which one applies is
+    /// decided here rather than in the scan loop because it turns on the merge.
+    ///
+    /// A **tombstone that won** takes both files: an explicit deletion is a decision about the
+    /// Note, not about one of its copies, so the loser is removed under that same deletion instead
+    /// of being handed a fresh identifier. That fresh identifier was the whole bug — a new id has
+    /// no tombstone, so the deleted text came straight back and could never be deleted again.
+    ///
+    /// In **steady state** the pair is a filesystem race, not two versions of anything: iCloud
+    /// delivers a retitle as a create and a delete that arrive in either order, and the two-step
+    /// move publishes a `~<uuid>.md` half on its way through. Forking there manufactured a Note per
+    /// title state. The newer file is the Note; the other is left exactly where it is — never
+    /// parsed into a Note, never written over, never removed, its name reserved — the same
+    /// "present, unknown" treatment a placeholder gets, so replication can finish clearing it and
+    /// nothing is lost if it turns out to be a copy the user made on purpose.
+    ///
+    /// The **adoption** pass still forks, for the reason `NoteFolderPass` gives: it runs once, over
+    /// timestamps that were never comparable, and a silent winner there is unrecoverable.
+    private static func contestedForks(
+        _ contested: [(id: UUID, loser: Adopted)], pass: NoteFolderPass,
+        parsed: inout [UUID: Adopted], merged: NoteSyncSnapshot,
+        removals: inout [String: NoteFolderRemoval], reserved: inout Set<String>,
+        newID: () -> UUID
+    ) -> [SpotterNote] {
+        var forks: [SpotterNote] = []
+        for (id, loser) in contested {
+            guard merged.notesByID[id] != nil else {
+                removals[loser.name] = .deleted(id)
+                continue
+            }
+            guard pass == .adoption else {
+                reserved.insert(loser.name)
+                continue
+            }
+            let fork = SpotterNote(
+                id: newID(), content: loser.note.content, createdAt: loser.note.createdAt,
+                updatedAt: loser.note.updatedAt, contentUpdatedAt: loser.note.contentUpdatedAt,
+                tint: loser.note.tint)
+            forks.append(fork)
+            parsed[fork.id] = Adopted(
+                name: loser.name, note: fork, extras: loser.extras, raw: loser.raw)
+        }
+        return forks
     }
 
     /// One id, two different texts, one on this Mac and one in the folder — and this is the pass

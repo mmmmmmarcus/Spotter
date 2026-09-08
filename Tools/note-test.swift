@@ -264,6 +264,24 @@ struct NoteTests {
             with: NoteSyncSnapshot(notes: [olderEdit], tombstones: []))
         check("older edit cannot resurrect a deletion", 0, merged.notes.count)
 
+        // A deletion is absorbing: the other Mac's clock is not a vote on whether it happened, and
+        // a tombstone that lost was dropped from the snapshot, so the note could never die again.
+        let laterEdit = SpotterNote(
+            id: synced.id, content: "# Later", createdAt: fixedDate,
+            updatedAt: newerDate.addingTimeInterval(600))
+        let afterDeletion = NoteSyncMerge.merging(
+            NoteSyncSnapshot(notes: [], tombstones: [tiedDeletion]),
+            with: NoteSyncSnapshot(notes: [laterEdit], tombstones: []))
+        check("a later edit cannot resurrect a deletion either", 0, afterDeletion.notes.count)
+        check("the tombstone survives the edit that beat it", 1, afterDeletion.tombstones.count)
+        check(
+            "an absorbing deletion is order-independent", afterDeletion,
+            NoteSyncMerge.merging(
+                NoteSyncSnapshot(notes: [laterEdit], tombstones: []),
+                with: NoteSyncSnapshot(notes: [], tombstones: [tiedDeletion])))
+        reopened.applyRemoteSnapshot(NoteSyncSnapshot(notes: [laterEdit], tombstones: []))
+        check("the store refuses to resurrect a deleted note", nil, reopened.selectedNote)
+
         let futureDocument = Data(
             "{\"version\":2,\"notes\":[],\"selectedID\":null}".utf8)
         let rejectsFutureDocument: Bool
@@ -706,7 +724,8 @@ struct NoteTests {
             deletionPlan.removals["Alpha.md"])
         check("removals stay provably safe", true, removalsAreSafe(deletionPlan))
 
-        // A newer edit outlives an older deletion, and the ledger follows.
+        // The other Mac was offline, kept editing, and comes back with its own copy. The deletion
+        // still stands: it is the one unambiguous signal here, and the file is already in the Trash.
         let revived = SpotterNote(
             id: noteA.id, content: "# Alpha again", createdAt: fixedDate,
             updatedAt: fixedDate.addingTimeInterval(60))
@@ -714,8 +733,23 @@ struct NoteTests {
             local: NoteSyncSnapshot(notes: [revived], tombstones: []),
             scan: NoteFolderScan(files: [], ledger: .readable([deletion])),
             pass: .steady, newID: nextID, now: { folderClock })
-        check("a newer edit outlives an older deletion", 1, revivePlan.snapshot.notes.count)
-        check("the ledger drops a beaten tombstone", [], revivePlan.ledger)
+        check("an edit after the deletion does not outlive it", 0, revivePlan.snapshot.notes.count)
+        check("the ledger keeps a tombstone an edit tried to beat", 1, revivePlan.snapshot.tombstones.count)
+        check("a deletion nothing changed rewrites no ledger", nil, revivePlan.ledger)
+        check("a returning Mac writes no file for a deleted note", 0, revivePlan.placements.count)
+
+        // Same thing with the file still there: it is removed, not written back.
+        let revivedFile = NoteFolderFile(
+            name: "Alpha.md", contents: NoteFolderDocument.serialize(revived))
+        let reviveWithFilePlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [revived], tombstones: []),
+            scan: NoteFolderScan(files: [revivedFile], ledger: .readable([deletion])),
+            pass: .steady, newID: nextID, now: { folderClock })
+        check("a resurrected file is removed", 1, reviveWithFilePlan.removals.count)
+        check(
+            "and removed as the explicit deletion it is", NoteFolderRemoval.deleted(noteA.id),
+            reviveWithFilePlan.removals["Alpha.md"])
+        check("removals stay provably safe for a late edit", true, removalsAreSafe(reviveWithFilePlan))
 
         // An unreadable ledger is never rewritten and never deletes anything.
         let blindPlan = NoteFolderReconciler.plan(
@@ -763,12 +797,113 @@ struct NoteTests {
                 SpotterNote(
                     id: noteA.id, content: "# Alpha\ndifferent", createdAt: fixedDate,
                     updatedAt: fixedDate.addingTimeInterval(1))))
+        // In steady state a second file under one id is a filesystem race — iCloud delivering a
+        // retitle's create and delete in either order — not a second version. The newer file is the
+        // note; the other is left where it is, so replication can finish clearing it.
         let forkPlan = NoteFolderReconciler.plan(
             local: localOnly, scan: NoteFolderScan(files: [liveFile, divergentTwin]),
             pass: .steady, newID: nextID, now: { folderClock })
-        check("a divergent duplicate id keeps both texts", 2, forkPlan.snapshot.notes.count)
+        check("a divergent duplicate id stays one note", 1, forkPlan.snapshot.notes.count)
         check("a divergent duplicate removes nothing", 0, forkPlan.removals.count)
-        check("a divergent duplicate is reported as a fork", 1, forkPlan.forked.count)
+        check("a divergent duplicate forks nothing in steady state", 0, forkPlan.forked.count)
+        check("the newer of the two files is the note", "# Alpha\ndifferent", forkPlan.snapshot.notes.first?.content)
+        check("the losing file's name is not stolen", "Alpha 2.md", forkPlan.placements.first?.desiredName)
+
+        // The adoption pass still keeps both, for the reason `NoteFolderPass` gives.
+        let forkAdoptionPlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: NoteFolderScan(files: [liveFile, divergentTwin]),
+            pass: .adoption, newID: nextID, now: { folderClock })
+        check("the first pass keeps both texts", 2, forkAdoptionPlan.snapshot.notes.count)
+        check("the first pass reports the fork", 1, forkAdoptionPlan.forked.count)
+        check("the first pass removes nothing", 0, forkAdoptionPlan.removals.count)
+
+        // ── The 1.5.29 resurrection: a fork must never launder a tombstone ───────────────────────
+        // Deleting a note while the folder still holds two files under its id used to mint a fresh
+        // id for the losing text. A fresh id has no tombstone, so the note came straight back and
+        // could never be deleted again.
+        let racedDeletion = NoteTombstone(id: noteA.id, deletedAt: fixedDate.addingTimeInterval(300))
+        let launderPlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [], tombstones: [racedDeletion]),
+            scan: NoteFolderScan(
+                files: [liveFile, divergentTwin], ledger: .readable([racedDeletion])),
+            pass: .steady, newID: nextID, now: { folderClock })
+        check("a deletion beats a contested pair", 0, launderPlan.snapshot.notes.count)
+        check("neither file is forked back to life", 0, launderPlan.forked.count)
+        check("both files of the deleted id are removed", 2, launderPlan.removals.count)
+        check("removals stay provably safe when a pair is deleted", true, removalsAreSafe(launderPlan))
+        check("nothing is written back", 0, launderPlan.placements.count)
+
+        // The same on the once-per-Mac pass, which forks freely but never past a tombstone.
+        let launderAdoptionPlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [], tombstones: [racedDeletion]),
+            scan: NoteFolderScan(
+                files: [liveFile, divergentTwin], ledger: .readable([racedDeletion])),
+            pass: .adoption, newID: nextID, now: { folderClock })
+        check("the first pass cannot launder a tombstone either", 0, launderAdoptionPlan.snapshot.notes.count)
+        check("and forks nothing past it", 0, launderAdoptionPlan.forked.count)
+
+        // A tombstoned note whose file reappears from the other Mac stays deleted.
+        let reappeared = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [], tombstones: [racedDeletion]),
+            scan: NoteFolderScan(files: [liveFile]), pass: .steady, newID: nextID,
+            now: { folderClock })
+        check("a reappearing file does not revive its note", 0, reappeared.snapshot.notes.count)
+        check("a reappearing file is removed again", 1, reappeared.removals.count)
+        check(
+            "the deletion is published to the ledger", [racedDeletion], reappeared.ledger)
+
+        // A retitle observed mid-move: the two-step move's `~<uuid>.md` half and the new name reach
+        // the other Mac together. One note, no fork, and the stray half is left alone.
+        let retitledNote = SpotterNote(
+            id: noteA.id, content: "# Alpha renamed\nbody", createdAt: fixedDate,
+            updatedAt: fixedDate.addingTimeInterval(120))
+        let midMoveScan = NoteFolderScan(files: [
+            NoteFolderFile(
+                name: NoteFolderFormat.temporaryName(for: noteA.id),
+                contents: NoteFolderDocument.serialize(noteA)),
+            NoteFolderFile(
+                name: "Alpha renamed.md", contents: NoteFolderDocument.serialize(retitledNote)),
+        ])
+        let midMovePlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: midMoveScan, pass: .steady, newID: nextID, now: { folderClock })
+        check("a retitle seen mid-move stays one note", 1, midMovePlan.snapshot.notes.count)
+        check("a retitle seen mid-move forks nothing", 0, midMovePlan.forked.count)
+        check("a retitle seen mid-move removes nothing", 0, midMovePlan.removals.count)
+        check("a retitle seen mid-move settles on the new title", "Alpha renamed", midMovePlan.snapshot.notes.first?.title)
+        check("a retitle seen mid-move asks for no file work", false, midMovePlan.hasFileWork)
+
+        // And the plain shape of the same race: both names present, one id, no marker.
+        let midRetitleScan = NoteFolderScan(files: [
+            liveFile,
+            NoteFolderFile(
+                name: "Alpha renamed.md", contents: NoteFolderDocument.serialize(retitledNote)),
+        ])
+        let midRetitlePlan = NoteFolderReconciler.plan(
+            local: localOnly, scan: midRetitleScan, pass: .steady, newID: nextID,
+            now: { folderClock })
+        check("both names of one retitle stay one note", 1, midRetitlePlan.snapshot.notes.count)
+        check("both names of one retitle fork nothing", 0, midRetitlePlan.forked.count)
+        check("both names of one retitle ask for no file work", false, midRetitlePlan.hasFileWork)
+
+        // An ordinary two-Mac edit collision still merges rather than duplicating.
+        let myEdit = SpotterNote(
+            id: noteA.id, content: "# Alpha\nmine", createdAt: fixedDate,
+            updatedAt: fixedDate.addingTimeInterval(400))
+        let theirEdit = NoteFolderFile(
+            name: "Alpha.md",
+            contents: NoteFolderDocument.serialize(
+                SpotterNote(
+                    id: noteA.id, content: "# Alpha\ntheirs", createdAt: fixedDate,
+                    updatedAt: fixedDate.addingTimeInterval(500))))
+        let collisionPlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [myEdit], tombstones: []),
+            scan: NoteFolderScan(files: [theirEdit]), pass: .steady, newID: nextID,
+            now: { folderClock })
+        check("an ordinary edit collision merges", 1, collisionPlan.snapshot.notes.count)
+        check("an ordinary edit collision duplicates nothing", 0, collisionPlan.forked.count)
+        check(
+            "the newer edit wins an ordinary collision", "# Alpha\ntheirs",
+            collisionPlan.snapshot.notes.first?.content)
 
         // The first pass after a folder is adopted keeps both sides; every pass after it merges.
         let writtenHere = "# Alpha\nwritten here"
@@ -980,6 +1115,77 @@ struct NoteTests {
         check("another Mac applies the deletion", 1, otherPlan.snapshot.notes.count)
         check(
             "another Mac keeps the surviving note", renamedNote.id, otherPlan.snapshot.notes.first?.id)
+
+        // ── The 1.5.29 resurrection, over the real folder ────────────────────────────────────────
+        // A retitle in flight: iCloud has delivered the new name while the old one is still there,
+        // both carrying one id. This used to fork the older text to a fresh identifier — a note per
+        // title state — and then let a deletion be laundered through that fresh identifier.
+        let racedID = nextID()
+        let racedBefore = SpotterNote(
+            id: racedID, content: "# Disney\nplan", createdAt: fixedDate,
+            updatedAt: folderClock.addingTimeInterval(10),
+            contentUpdatedAt: folderClock.addingTimeInterval(10))
+        let racedAfter = SpotterNote(
+            id: racedID, content: "# Disney trip\nplan", createdAt: fixedDate,
+            updatedAt: folderClock.addingTimeInterval(20),
+            contentUpdatedAt: folderClock.addingTimeInterval(20))
+        try! NoteFolderDocument.serialize(racedBefore).write(
+            to: folder.appendingPathComponent("Disney.md"), atomically: true, encoding: .utf8)
+        try! NoteFolderDocument.serialize(racedAfter).write(
+            to: folder.appendingPathComponent("Disney trip.md"), atomically: true, encoding: .utf8)
+        var racedLocal = NoteSyncSnapshot(
+            notes: diskLocal.notes + [racedBefore], tombstones: diskLocal.tombstones)
+        var racedPlan = NoteFolderReconciler.plan(
+            local: racedLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
+        check(
+            "an in-flight retitle on disk makes no second note", 1,
+            racedPlan.snapshot.notes.filter { $0.title.hasPrefix("Disney") }.count)
+        check("an in-flight retitle on disk forks nothing", 0, racedPlan.forked.count)
+        try! await io.apply(racedPlan, in: folder)
+        check(
+            "and the file it did not choose is left alone", true,
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent("Disney.md").path))
+
+        // Now delete it while the folder still holds that contested pair.
+        racedLocal = NoteSyncSnapshot(
+            notes: racedPlan.snapshot.notes.filter { $0.id != racedID },
+            tombstones: racedPlan.snapshot.tombstones
+                + [NoteTombstone(id: racedID, deletedAt: folderClock.addingTimeInterval(600))])
+        racedPlan = NoteFolderReconciler.plan(
+            local: racedLocal, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
+        try! await io.apply(racedPlan, in: folder)
+        check("deleting a contested note forks nothing", 0, racedPlan.forked.count)
+        let survivingDisneyFiles = try! FileManager.default.contentsOfDirectory(atPath: folder.path)
+            .filter { $0.hasPrefix("Disney") }.sorted()
+        check("both files of the deleted note are gone", [String](), survivingDisneyFiles)
+
+        // The deletion sticks: a pass over the folder brings nothing back.
+        let settled = NoteFolderReconciler.plan(
+            local: racedPlan.snapshot, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
+        check("the deleted note does not come back", 0, settled.snapshot.notes.filter { $0.title.hasPrefix("Disney") }.count)
+        check("the deleted note needs no further file work", false, settled.hasFileWork)
+
+        // And the other Mac, offline through all of that, comes back with its own edited copy.
+        let staleMac = NoteSyncSnapshot(
+            notes: [
+                SpotterNote(
+                    id: racedID, content: "# Disney trip\nplan, edited offline",
+                    createdAt: fixedDate, updatedAt: folderClock.addingTimeInterval(900),
+                    contentUpdatedAt: folderClock.addingTimeInterval(900))
+            ], tombstones: [])
+        let staleMacPlan = NoteFolderReconciler.plan(
+            local: staleMac, scan: try! await io.scan(folder: folder), pass: .steady,
+            newID: nextID, now: { folderClock })
+        check(
+            "an offline Mac applies the deletion instead of undoing it", false,
+            staleMacPlan.snapshot.notes.contains { $0.id == racedID })
+        check(
+            "an offline Mac writes no file for it", false,
+            staleMacPlan.placements.contains { $0.id == racedID })
+        check("an offline Mac forks nothing", 0, staleMacPlan.forked.count)
 
         // ── The adoption flag, against real defaults and a real folder ──────────────────────────
         let adoptionSuite = "spotter.note.adoption.\(UUID().uuidString)"

@@ -25,13 +25,6 @@ enum NoteSyncItem: Equatable, Sendable {
         case .tombstone(let tombstone): tombstone.id
         }
     }
-
-    var modifiedAt: Date {
-        switch self {
-        case .note(let note): note.updatedAt
-        case .tombstone(let tombstone): tombstone.deletedAt
-        }
-    }
 }
 
 enum NoteSyncMerge {
@@ -75,14 +68,21 @@ enum NoteSyncMerge {
         return snapshot(from: merged)
     }
 
+    /// A deletion is **absorbing**: once an id carries a tombstone it never becomes a note again,
+    /// whatever the two timestamps say. Deletion is the one act in this system with no ambiguous
+    /// reading, while `updatedAt` is a stamp from a clock the other Mac never agreed with — so
+    /// ranking the two by time meant a copy that merely synced late outranked the deletion that had
+    /// already beaten it, and the beaten tombstone was then dropped from the snapshot entirely, so
+    /// the note could never be deleted again. The bytes are not lost: the file goes to the Trash.
     static func preferred(_ lhs: NoteSyncItem, _ rhs: NoteSyncItem) -> NoteSyncItem {
-        if lhs.modifiedAt != rhs.modifiedAt { return lhs.modifiedAt > rhs.modifiedAt ? lhs : rhs }
         switch (lhs, rhs) {
         case (.tombstone, .note): return lhs
         case (.note, .tombstone): return rhs
         case (.tombstone(let left), .tombstone(let right)):
+            if left.deletedAt != right.deletedAt { return left.deletedAt > right.deletedAt ? lhs : rhs }
             return left.id.uuidString <= right.id.uuidString ? lhs : rhs
         case (.note(let left), .note(let right)):
+            if left.updatedAt != right.updatedAt { return left.updatedAt > right.updatedAt ? lhs : rhs }
             if left.content != right.content { return left.content > right.content ? lhs : rhs }
             // Two devices can hold the same text at the same instant under different tints; without
             // a tint step here that pair never converges.
