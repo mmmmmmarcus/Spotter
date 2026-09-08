@@ -79,12 +79,22 @@ struct BackgroundTaskTests {
         }())
 
         let started = UUID()
-        store.begin(title: "Uninstalling Figma", id: started, queued: true, onCancel: {})
+        var startedCalledOff = false
+        store.begin(
+            title: "Uninstalling Figma", id: started, queued: true,
+            onCancel: { startedCalledOff = true })
         store.markRunning(id: started, detail: "Removing…")
         check("a queued row can take its turn", store.tasks.first?.state == .running)
-        check("a running row still offers cancellation", store.canCancel(id: started))
-        store.fail(id: started, detail: "Stopped before it finished")
-        check("a stopped run reports how it ended", store.tasks.first?.state == .failed)
+        check("a row keeps its call-off until its feature retires it", store.canCancel(id: started))
+        store.dropCancellation(id: started)
+        check("work past the point of no return offers nothing", !store.canCancel(id: started))
+        check("retiring the call-off leaves the row running", store.tasks.first?.state == .running)
+        check("and it can no longer be called off", {
+            store.cancel(id: started)
+            return !startedCalledOff
+        }())
+        store.fail(id: started, detail: "Mole couldn't remove Figma")
+        check("a failed run reports how it ended", store.tasks.first?.state == .failed)
         check("a finished row is past cancelling", !store.canCancel(id: started))
         check("a finished row never restarts", {
             store.markRunning(id: started, detail: "Again")

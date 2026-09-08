@@ -127,16 +127,19 @@ run still keeps stdin closed.
 Rows distinguish the two states: the running entry shows Mole's streamed progress, and everything
 behind it reads **Queued · next in line** / **Queued · #n in line**, renumbering as the line moves.
 
-**Cancelling.** Selecting a live row and pressing ⌘K offers exactly one action:
+**Cancelling, and only before the start.** A **queued** row's ⌘K offers exactly one action, *Cancel*:
+it leaves the line, its row disappears, and the run in flight is untouched. Nothing has been removed
+yet, so dropping it costs nothing.
 
-- a **queued** row offers *Cancel* — it leaves the line, its row disappears, and the run in flight is
-  untouched;
-- the **running** row offers *Stop*, styled destructive: Spotter interrupts the Mole process, the row
-  ends as Failed with "Stopped before it finished — some files may already have been removed", and
-  the next entry starts. Stopping is deliberately ⌘K-only. ↵ on a live row does nothing, so no
-  reflexive keystroke can halt a deletion midway, and closing the palette still never cancels a run.
+**Once an uninstall has started there are no take-backs.** The running row offers no action at all —
+its ⌘K menu doesn't open and the Actions button is hidden, because a stopped run leaves some files
+removed and some not, with no honest way to say which. Refusing the option is safer than offering one
+that cannot report what it left behind. `MoleRunQueue.cancel` therefore only ever removes a waiting
+entry, and nothing keeps a handle that could cancel the run task. ↵ on a live row still does nothing,
+and closing the palette still never cancels a run.
 
-Cancelling a launcher hand-off during its inventory read simply drops the row — nothing was queued.
+Cancelling a launcher hand-off during its inventory read simply drops the row — nothing was queued
+and nothing has been removed.
 
 **A failure does not drain the queue.** Every waiting entry carries its own confirmation for its own
 app, so one app refusing to uninstall says nothing about the next, and silently discarding

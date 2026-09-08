@@ -289,20 +289,17 @@ struct RootPaletteView: View {
         }
     }
 
-    /// A live task row's only action is calling the work off, and only when its feature offers one.
-    /// Waiting work is merely dropped; work already in flight is stopped, which can leave it partly
-    /// done — so that one is worded and styled as the destructive act it is, and never sits on ↵.
+    /// A live task row's only action is calling the work off, and only while its feature still
+    /// offers one — work past the point of no return keeps its call-off nowhere, so the row shows
+    /// no menu at all rather than one that opens onto nothing. It never sits on ↵ either way.
     private func backgroundTaskMenu(_ task: BackgroundTaskItem) -> PopoverMenuContent? {
         guard backgroundTasks.canCancel(id: task.id) else { return nil }
-        let stopping = task.state == .running
         return PopoverMenuContent(
             header: task.title,
             items: [
-                PopoverMenuItem(
-                    title: stopping ? "Stop" : "Cancel",
-                    systemImage: stopping ? "stop.circle" : "xmark.circle",
-                    isDestructive: stopping
-                ) { backgroundTasks.cancel(id: task.id) }
+                PopoverMenuItem(title: "Cancel", systemImage: "xmark.circle") {
+                    backgroundTasks.cancel(id: task.id)
+                }
             ])
     }
 

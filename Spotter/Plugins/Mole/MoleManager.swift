@@ -44,7 +44,6 @@ final class MoleManager: ObservableObject {
     private var analyzeTrail: [String] = []
 
     private var loadTask: Task<Void, Never>?
-    private var runTask: Task<Void, Never>?
     private var loadGeneration = 0
     private var screenVisible = false
     private var lastSuccessfulLoad: (screen: MoleScreen, date: Date)?
@@ -289,16 +288,12 @@ final class MoleManager: ObservableObject {
         return result
     }
 
-    /// The user's call-off. A waiting run just leaves the line; the one in flight is interrupted and
-    /// reports how it ended through the ordinary finish path, which is what lets the next one start.
+    /// The user's call-off, and only for a run that hasn't started: a waiting entry leaves the line
+    /// while the one in flight is left to finish, since a half-removed app is the worse outcome.
     @discardableResult
     func cancel(taskID: UUID) -> MoleQueueCancellation {
         let outcome = queue.cancel(taskID: taskID)
-        switch outcome {
-        case .stoppedRunning: runTask?.cancel()
-        case .removedQueued: publishQueuePositions()
-        case .notFound: break
-        }
+        if case .removedQueued = outcome { publishQueuePositions() }
         return outcome
     }
 
@@ -328,7 +323,8 @@ final class MoleManager: ObservableObject {
         let action = entry.action
         let taskID = entry.taskID
         let expectedItemCount = entry.expectedItemCount
-        runTask = Task { [weak self] in
+        // Deliberately unheld: nothing keeps a handle that could cancel a run once it has started.
+        Task { [weak self] in
             let result = await MoleProcessRunner.capture(
                 path: path, arguments: action.arguments,
                 standardInput: action.standardInput,
@@ -344,17 +340,11 @@ final class MoleManager: ObservableObject {
 
     private func finish(_ result: Result<Data, MoleRunError>, for entry: MoleQueuedRun) {
         let action = entry.action
-        let wasStopped = queue.runningWasStopped
-        runTask = nil
         let succeeded: Bool
         switch result {
         case .failure(let error):
             succeeded = false
-            lastRunSummary = [
-                wasStopped
-                    ? "Stopped before it finished — some files may already have been removed."
-                    : error.message
-            ]
+            lastRunSummary = [error.message]
             AppLog.error("mole", "\(action.title) failed: \(error.message)")
         case .success(let data):
             succeeded = true

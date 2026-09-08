@@ -325,6 +325,9 @@ final class AppCore: ObservableObject {
         mole.onRunStarted = { [weak self] taskID, action in
             self?.backgroundTasks.markRunning(
                 id: taskID, detail: "Starting \(action.title.lowercased())…")
+            // Once Mole starts removing things there are no take-backs: a stopped run would leave
+            // some files gone and some not, with no way to tell the user which.
+            self?.backgroundTasks.dropCancellation(id: taskID)
         }
         mole.onRunFinished = { [weak self] taskID, action, summary, succeeded in
             guard let self else { return }

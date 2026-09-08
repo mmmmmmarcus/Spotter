@@ -44,9 +44,11 @@ Return on a running row **opens the surface doing the work** — the footer read
 feature registered an activation with `begin(onOpen:)`. Activations are process-local by necessity: a
 closure cannot be synced, and a row mirrored from another Mac has no local work to open, so those rows
 stay inert. A Done or Failed row exposes only **Dismiss**, and its activation is dropped when it
-finishes. A live row with a registered cancellation gets an Actions menu (⌘K) holding that one entry
-— *Cancel* for work not yet started, *Stop* (destructive) for work in flight — and no ↵ pill at all,
-so a reflexive Return can never halt something midway. Any task keeps compact mode expanded so
+finishes. A live row with a registered cancellation gets an Actions menu (⌘K) holding that one entry,
+*Cancel*, and no ↵ pill at all, so a reflexive Return can never halt something midway. A feature
+retires that call-off with `dropCancellation` once its work passes the point where stopping would
+leave a mess; the row keeps running and simply shows no menu, rather than one that opens onto
+nothing. Any task keeps compact mode expanded so
 progress cannot be hidden in the slim search bar.
 
 ## Integrated work
@@ -68,8 +70,9 @@ The current one-shot work integrated with this surface is:
 
 Mole and image batches publish determinate progress when they have a trustworthy total. Uninstall
 and AI requests stay indeterminate rather than inventing a percentage. Feature-owned cancellation
-(such as Stop Waiting or disabling Image Modification) discards the running row; Mole's Stop instead
-lets the interrupted run report itself as Failed, since files may already be gone. User dismissal
+(such as Stop Waiting or disabling Image Modification) discards the running row; Mole offers a
+call-off only while a run is still queued, and retires it the moment the run starts, because a
+half-finished uninstall cannot say which files it already removed. User dismissal
 remains limited to Done and Failed rows. Built-in and custom Commands deliberately use the brief HUD
 instead of this persistent surface.
 

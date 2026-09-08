@@ -245,12 +245,11 @@ enum MoleEnqueueResult: Equatable, Sendable {
     case duplicate
 }
 
-/// What `MoleRunQueue.cancel` did. A queued entry leaves immediately; a running one is only marked,
-/// because the process is still exiting and `finishRunning` stays the single advancement point.
+/// What `MoleRunQueue.cancel` did. Only a waiting entry can leave: once a run has started there are
+/// no take-backs, since a half-removed app is worse than one that finishes going.
 enum MoleQueueCancellation: Equatable, Sendable {
     case notFound
     case removedQueued(MoleQueuedRun)
-    case stoppedRunning(MoleQueuedRun)
 }
 
 /// Mole's serial run order: one process at a time, in the order the user confirmed them.
@@ -258,8 +257,6 @@ enum MoleQueueCancellation: Equatable, Sendable {
 struct MoleRunQueue: Equatable, Sendable {
     private(set) var running: MoleQueuedRun?
     private(set) var waiting: [MoleQueuedRun] = []
-    /// Set when the user stopped the running entry, so its row can say so instead of blaming Mole.
-    private(set) var runningWasStopped = false
 
     var isBusy: Bool { running != nil }
     var waitingCount: Int { waiting.count }
@@ -272,7 +269,6 @@ struct MoleRunQueue: Equatable, Sendable {
         }
         guard running != nil else {
             running = entry
-            runningWasStopped = false
             return .started(entry)
         }
         waiting.append(entry)
@@ -280,24 +276,22 @@ struct MoleRunQueue: Equatable, Sendable {
     }
 
     /// Retires the running entry and hands back whichever run starts next. The one place the queue
-    /// advances, so a run that ends by finishing, failing or being stopped all behave alike.
+    /// advances, so a run that ends by finishing and one that ends by failing behave alike.
     mutating func finishRunning(taskID: UUID) -> MoleQueuedRun? {
         guard running?.taskID == taskID else { return nil }
         running = nil
-        runningWasStopped = false
         guard !waiting.isEmpty else { return nil }
         let next = waiting.removeFirst()
         running = next
         return next
     }
 
+    /// Only a waiting entry can be called off. The run in flight is deliberately unreachable here:
+    /// stopping it would leave some files removed and some not, with no way to say which.
     mutating func cancel(taskID: UUID) -> MoleQueueCancellation {
-        if let index = waiting.firstIndex(where: { $0.taskID == taskID }) {
-            return .removedQueued(waiting.remove(at: index))
-        }
-        guard let running, running.taskID == taskID, !runningWasStopped else { return .notFound }
-        runningWasStopped = true
-        return .stoppedRunning(running)
+        guard let index = waiting.firstIndex(where: { $0.taskID == taskID })
+        else { return .notFound }
+        return .removedQueued(waiting.remove(at: index))
     }
 
     /// Drops everything still waiting without touching the run in flight — half-uninstalling an app

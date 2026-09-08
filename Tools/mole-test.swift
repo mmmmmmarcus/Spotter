@@ -115,17 +115,15 @@ struct MoleTests {
         check("the line closes up behind it", cancelQueue.position(ofWaiting: figma.taskID) == 1)
         check("an unknown id cancels nothing", cancelQueue.cancel(taskID: UUID()) == .notFound)
 
-        // Cancelling the running run only marks it; the process is still exiting.
+        // The run in flight has no take-backs: cancelling it is simply not on offer.
         check(
-            "stopping the running run reports which run was stopped",
-            cancelQueue.cancel(taskID: slack.taskID) == .stoppedRunning(slack))
-        check("a stopped run is still the running run until it exits", cancelQueue.running == slack)
-        check("the stop is remembered so the row can say so", cancelQueue.runningWasStopped)
-        check("stopping twice is not a second stop", cancelQueue.cancel(taskID: slack.taskID) == .notFound)
+            "the running run cannot be called off",
+            cancelQueue.cancel(taskID: slack.taskID) == .notFound)
+        check("asking leaves the running run untouched", cancelQueue.running == slack)
+        check("and leaves the line behind it untouched", cancelQueue.waitingCount == 1)
         check(
-            "the stopped run's exit starts the next one",
+            "the running run's own exit starts the next one",
             cancelQueue.finishRunning(taskID: slack.taskID) == figma)
-        check("the stop flag does not carry to the next run", !cancelQueue.runningWasStopped)
         check("nothing is left waiting", cancelQueue.waitingCount == 0)
         check(
             "the last run's exit leaves the queue idle",

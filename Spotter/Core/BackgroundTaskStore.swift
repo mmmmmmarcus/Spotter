@@ -156,6 +156,12 @@ final class BackgroundTaskStore: ObservableObject {
         return true
     }
 
+    /// Retires a row's call-off without touching the row, for work that has passed the point where
+    /// calling it off would leave a mess. The row keeps running; its Actions menu simply goes away.
+    func dropCancellation(id: UUID) {
+        cancellations[id] = nil
+    }
+
     func canCancel(id: UUID) -> Bool {
         guard let task = tasks.first(where: { $0.id == id }), task.state.isLive else { return false }
         return cancellations[id] != nil

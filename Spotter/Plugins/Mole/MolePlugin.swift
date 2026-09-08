@@ -666,17 +666,15 @@ extension AppCore {
         }
     }
 
-    /// Called off from a background-task row. A waiting run leaves without disturbing the one in
-    /// flight; stopping the running one interrupts Mole and lets the next in line begin.
+    /// Called off from a background-task row, which only work that hasn't started ever offers: a
+    /// waiting run leaves the line, and the run in flight is never reachable from here.
     func cancelMoleTask(_ taskID: UUID) {
         switch mole.cancel(taskID: taskID) {
         case .removedQueued:
             backgroundTasks.discard(id: taskID)
-        case .stoppedRunning:
-            backgroundTasks.update(id: taskID, detail: "Stopping…", progress: nil)
         case .notFound:
-            // Either already stopping, or confirmed but not yet queued because the inventory read
-            // is still resolving the copy. Only the latter has no work to end, so only it drops.
+            // Confirmed but not yet queued, because the inventory read is still resolving the copy:
+            // nothing was ever started, so the row simply drops.
             if !mole.queue.contains(taskID: taskID) { backgroundTasks.discard(id: taskID) }
         }
     }
