@@ -254,7 +254,7 @@ final class DashboardWeatherStore: ObservableObject {
         return (decoded.results ?? []).map {
             WeatherCity(
                 id: $0.id, name: $0.name, latitude: $0.latitude, longitude: $0.longitude,
-                country: $0.country, region: $0.admin1)
+                country: $0.country, region: $0.admin1, timeZoneIdentifier: $0.timezone)
         }
     }
 
@@ -308,6 +308,8 @@ final class DashboardWeatherStore: ObservableObject {
             let longitude: Double
             let country: String?
             let admin1: String?
+            /// The city's own zone, which is what lets one chosen place also set the clock.
+            let timezone: String?
         }
         let results: [Result]?
     }

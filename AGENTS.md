@@ -184,7 +184,10 @@ Never break these without an explicit task to do so.
   inference by another name. Weather deliberately has **no switch of its own** — choosing a city is
   what turns it on and removing it is what turns it off — but that is a change of control, not of
   gate: the consent dialog still runs before the first request, and `isEnabled` is still re-checked
-  at every entry point. Do not make the complications draw without it. Its consent flag, city and unit ride in the trusted v3 snapshot.
+  at every entry point. The Clock shares that city, and the sharing runs **one way only** — choosing
+  a city sets the clock's zone, but setting a zone reaches no city and sends nothing. Keep it that
+  way: the city is reachable only from behind the consent sheet, which is what stops a clock setting
+  from enabling a networked feature. Do not make the complications draw without it. Its consent flag, city and unit ride in the trusted v3 snapshot.
   `Plugins/Uptime/UptimeStore.swift` applies the same shape to a feature that is
   *not* networked, because watching input system-wide earns it: Uptime ships off, its
   dialog names exactly what is and isn't recorded, no `NSEvent` monitor is installed until consent,
@@ -255,7 +258,9 @@ Never break these without an explicit task to do so.
   stay always enabled, and never export an enable state. AI Chat uses `settingsPlacement: .system`;
   Widgets uses `.system` too, with **one page for the whole strip** (owner decision, Aug 2026,
   superseding both the per-card panes and the Arrangement pane that briefly replaced them): a
-  section per card, no pane of its own for any card. **Order is set by dragging the cards in the
+  section per card that has something to configure, no pane of its own for any card. A card with
+  nothing to set gets no section at all (Device Battery and File Info, owner decision, Sep 2026),
+  and cards that share a setting share one section — Clock and Weather share a location. **Order is set by dragging the cards in the
   palette**, which is the thing being arranged — do not reintroduce a list of names for it. Strip
   order is `DashboardWidgetPreferences.widgetOrder`, which is the strip's *only* preference:
   every card shows, with no on/off state at all (owner decision, Aug 2026 — do not reintroduce a Show

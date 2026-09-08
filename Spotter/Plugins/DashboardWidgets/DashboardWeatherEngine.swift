@@ -22,6 +22,10 @@ struct WeatherCity: Codable, Equatable, Identifiable, Sendable {
     let longitude: Double
     let country: String?
     let region: String?
+    /// The city's own zone, as the geocoder named it — what makes one location serve the clock as
+    /// well as the weather. Optional on purpose: a city saved before the two shared a location
+    /// carries none, and that must leave the clock on the setting it already had.
+    let timeZoneIdentifier: String?
 
     /// "Guangzhou, Guangdong, China" — enough to tell same-named places apart in the picker.
     var detailLabel: String {
@@ -31,9 +35,11 @@ struct WeatherCity: Codable, Equatable, Identifiable, Sendable {
     /// Shown until the user picks their own. A fixed place, not a guess at where this Mac is —
     /// deriving one from the locale or time zone would be location inference by another name.
     /// The identifier is Open-Meteo's, so searching Tokyo marks this row as already selected.
+    /// It deliberately carries no time zone: the fallback stands in for the weather half only, and
+    /// a place the user never chose must never retime the clock.
     static let `default` = WeatherCity(
         id: 1_850_147, name: "Tokyo", latitude: 35.6895, longitude: 139.69171,
-        country: "Japan", region: "Tokyo")
+        country: "Japan", region: "Tokyo", timeZoneIdentifier: nil)
 }
 
 /// One rendered weather state: an SF Symbol and the short phrase beneath it.
@@ -207,6 +213,15 @@ enum DashboardWeatherEngine {
         // Never zero: `barRange` guarantees the span, so this can't divide by zero.
         let span = temperatureRampLocation(celsius: range.high) - low
         return (-low / span, (1 - low) / span)
+    }
+
+    /// The clock time zone choosing this city sets, or nil when it names none Spotter can resolve —
+    /// an unusable or absent identifier must never overwrite a working clock setting. Reading a
+    /// city's own zone is not location inference: it is the place the user picked, not this Mac's.
+    static func clockTimeZoneIdentifier(for city: WeatherCity) -> String? {
+        guard let identifier = city.timeZoneIdentifier, TimeZone(identifier: identifier) != nil
+        else { return nil }
+        return identifier
     }
 
     static func resolvedUnit(from rawValue: String?) -> WeatherUnit {

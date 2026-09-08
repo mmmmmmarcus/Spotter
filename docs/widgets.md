@@ -2,8 +2,8 @@
 
 Widgets is the card strip above the launcher sections when the palette is on its empty query root. It
 shows an analog clock, what Apple Music is playing, connected device batteries, the next calendar
-event and the Finder selection. Every card is the same 116-point square; which cards appear is set in
-Settings → Widgets, and the order is set by dragging the cards in the palette itself. Typing a query or switching palette mode
+event and the Finder selection. Every card is the same 116-point square; every card shows, and the
+order is set by dragging the cards in the palette itself. Typing a query or switching palette mode
 hides the strip immediately.
 
 The clock is the strip's watch face: a title-free analog dial following the selected time zone, with
@@ -14,7 +14,8 @@ split across three corners (month top-right, day bottom-left, weekday bottom-rig
 is on and a reading has landed the temperature takes the fourth, top-left, with the condition glyph
 inside the dial above the six. A corner with nothing known stays empty rather than drawing a
 placeholder, so a clock with weather off is still just a clock. Weather has no card of its own: it
-*is* that corner and that glyph, which is why it is configured in the Clock pane.
+*is* that corner and that glyph, which is why the two share one **Clock & Weather** section and one
+location.
 
 The clock is also the one card that spends its whole 116-point square rather than keeping the
 uniform `md` margin the others do: the complications *are* its bezel, so that margin would only have
@@ -179,8 +180,9 @@ The card is a grid of ring gauges, title-free and filled edge to edge like the c
 level — a mouse, keyboard, trackpad, earbuds or speaker — gets one ring: a faint full track with the level swept clockwise from twelve
 over it, and the device's SF Symbol in the middle. The arc is green, red below 20%, which is the
 question a glance is asking. Exact percentages are deliberately not on the card — four small numbers
-at 44 points read worse than four arcs — and live in the Settings pane and the accessibility label
-instead.
+at 44 points read worse than four arcs — and live in the accessibility label instead. The card has no
+Settings section at all: it is text-free and has nothing to configure, so a section could only have
+restated the reading the card already gives (owner decision, Sep 2026).
 
 A device on external power breaks its ring at twelve for a bolt to sit in. The notch is punched out
 of the track and arc together rather than drawn over them, since the card's fill is translucent and
@@ -245,7 +247,41 @@ Spotter never reads Location Services. Until the user picks a city, the card use
 `WeatherCity.default` — a fixed place (Tokyo, Japan), deliberately a constant rather than something
 derived from the locale or time zone, which would be location inference by another name. The city
 search is itself gated: typing into the field before consent is refused rather than quietly
-geocoded. Only the current city's coordinates leave the machine. Requests go out on a private ephemeral `URLSession` with
+geocoded. Only the current city's coordinates leave the machine.
+
+### One location, and why sharing it doesn't weaken the gate
+
+The clock and the weather complications run on **one place** (owner request, Sep 2026): choosing a
+city sets the weather's coordinates *and* the clock's time zone, in one act, from the `timezone` the
+geocoder already returns with the result. `WeatherCity.timeZoneIdentifier` carries it, and
+`DashboardWeatherEngine.clockTimeZoneIdentifier(for:)` hands it over only after `TimeZone` accepts
+it, so an unusable or absent identifier can never blank a working clock setting. Reading the zone of
+a city the user picked is not location inference — it is their choice, not this Mac's; the fixed
+fallback city deliberately carries **no** zone, so a place nobody chose can never retime the clock.
+
+Sharing runs one way only, which is what keeps the gate where it was. **The clock's own time-zone
+picker is the offline half of the location and never touches weather**: `setClockTimeZoneIdentifier`
+writes a preference and nothing else, so a user who only wants another zone stays entirely offline
+and weather stays off. The other direction — a city — is reachable **only after consent**: the
+`Choose City…` button raises `WeatherConsentSheet`, whose Enable is the only caller of
+`weather.setEnabled(true)`, and the search field, the results and `chooseCity` render only inside
+`if weather.isEnabled`. So the dialog still runs before the first request, still names Open-Meteo,
+the 30-minute cadence and what leaves the Mac, and setting a location performs no request by itself:
+`setCity` writes the city and calls `start()`, which returns immediately without consent. Every guard
+in `DashboardWeatherStore` is unchanged — the init read, the pump, the search, and `fetchAndStore`
+re-checking `isEnabled` on both sides of the `await` — and a fresh install is still off, since the
+consent flag defaults to false.
+
+The picker stays on screen whenever the clock is *not* on the chosen city's zone
+(`DashboardWidgetsEngine.clockFollowsCity`), which is exactly the state a Mac upgrading into this
+change starts in: a city saved before the change carries no zone (the field is optional, so old JSON
+decodes with nil), so the clock keeps the zone it already had, weather keeps the coordinates it
+already had, and the Location line says so — "Berlin, Germany for the weather · clock on
+Europe/Paris" — until the next city is chosen, at which point the two become one place.
+`DashboardWidgetsEngine.locationSummary` never claims a sharing that isn't in effect. Nothing
+migrates on disk: `dashboard-widgets.clock-time-zone`, `dashboard-widgets.weather-city` and
+`dashboard-widgets.weather-enabled` keep their names and meanings, and the extra key inside the
+encoded city is ignored by an older Spotter reading a newer backup. Requests go out on a private ephemeral `URLSession` with
 `urlCache = nil`, never `URLSession.shared`, so a cacheable response cannot leave a second copy in
 the shared on-disk `URLCache` that opting out would not delete.
 
@@ -280,16 +316,22 @@ always the same selection, and clearing first would flash the card away and back
 ## Settings and lifecycle
 
 Widgets is an always-available system feature placed under Settings → System, and the whole strip is
-configured on **one page**: a section per card — the clock's time zone, the weather section, what
-Music is playing, the devices found and their levels, the calendar's access, account and all-day
-preference, and what File Info reads and never reads. There is no Show list, no pane of its own for
-any card and no arrangement list: every card shows, and order belongs to the palette.
+configured on **one page** — three sections, one for each card that has something to decide: **Clock
+& Weather** (the shared location, the time-zone picker, the city search, units and the last
+reading), **Music** (what is playing and the Automation note) and **Calendar** (a pointer to the
+Calendar plugin, which owns the real preferences). Device Battery and File Info have **no section**:
+they are text-only cards with nothing to configure, and their privacy posture is unchanged by the
+removal — the battery read still needs no gate, and File Info's gate is still macOS's own Automation
+prompt (owner decision, Sep 2026). There is no Show list, no pane of its own for any card and no
+arrangement list: every card shows, and order belongs to the palette.
 
-Weather's section is the one that reads unusually: it has no switch, because it is three
-complications on the clock rather than a card of its own. Choosing a city is what turns it on and
-removing the city is what turns it off, which leaves one control instead of two without touching the
-gate — the consent dialog still names the provider, the cadence and what leaves the Mac before
-anything is contacted.
+The Clock & Weather section is the one that reads unusually: weather has no switch, because it is
+three complications on the clock rather than a card of its own. Choosing a city is what turns it on
+and Turn Off Weather is how it goes off again, which leaves one control instead of two without
+touching the gate — the consent dialog still names the provider, the cadence and what leaves the Mac
+before anything is contacted, and the offline time-zone picker is the only location control until
+then. Turning weather off leaves the clock on the zone the city set: the reading and its cached file
+go, the place the user chose does not.
 
 Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
 identifiers for removed widgets are ignored. The permission overview exposes Calendar and

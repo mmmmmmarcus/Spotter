@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// One page for the whole strip: which cards show, then a section per card. There is deliberately no
-/// arrangement pane and no per-card pane — order is set by dragging the cards in the palette itself,
-/// which is the thing being arranged, and five panes for five cards was four more places to look.
+/// One page for the whole strip: a section per card that has something to decide. There is
+/// deliberately no arrangement pane and no per-card pane — order is set by dragging the cards in the
+/// palette itself, which is the thing being arranged. Device Battery and File Info have no section
+/// at all: they are text-only cards with nothing to configure (owner decision, Sep 2026).
 struct DashboardWidgetsSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
     @ObservedObject var weather: DashboardWeatherStore
     @ObservedObject var music: DashboardMusicStore
-    @ObservedObject var battery: DashboardDeviceBatteryStore
 
     @State private var askingWeatherConsent = false
     @State private var citySearch = ""
@@ -23,13 +23,9 @@ struct DashboardWidgetsSettingsView: View {
                 "The cards above launcher results while the search is empty. Drag a card in the "
                 + "palette to move it along the row."
         ) {
-            clockCard
-            weatherCard
-            if weather.isEnabled { weatherDetailsCard }
+            clockAndWeatherCard
             musicCard
-            batteryCard
             calendarCard
-            fileInfoCard
         }
         .sheet(isPresented: $askingWeatherConsent) {
             WeatherConsentSheet(
@@ -41,116 +37,133 @@ struct DashboardWidgetsSettingsView: View {
         }
     }
 
-    private var clockCard: some View {
-        SettingsCard(header: "Clock") {
+    /// The clock and the weather complications are one face, so they are one section on one
+    /// location. Weather still has no switch of its own: choosing a city is what turns it on, and
+    /// that button is what raises the consent dialog, so setting a location never contacts anything
+    /// by itself — the offline time-zone picker is the only location control until consent is given.
+    private var clockAndWeatherCard: some View {
+        SettingsCard(header: "Clock & Weather") {
             SettingsRow(
-                title: "Time Zone",
-                subtitle: "System Default follows changes made in macOS Settings.",
-                systemImage: "globe", tint: .orange
-            ) {
-                Picker("", selection: clockTimeZoneBinding) {
-                    Text("System Default (\(TimeZone.autoupdatingCurrent.identifier))")
-                        .tag("")
-                    ForEach(Self.timeZoneIdentifiers, id: \.self) { identifier in
-                        Text(identifier.replacingOccurrences(of: "_", with: " "))
-                            .tag(identifier)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 250)
-            }
-        }
-    }
-
-    /// Weather has no switch of its own: it is three complications on the clock face, and choosing a
-    /// city is what turns it on. That keeps one control instead of two while leaving the network
-    /// consent explicit — the dialog still names the provider, the cadence and what leaves the Mac
-    /// before anything is contacted, and removing the city is how it goes off again.
-    private var weatherCard: some View {
-        SettingsCard(header: "Weather") {
-            SettingsRow(
-                title: "City",
-                subtitle: cityStatus,
-                systemImage: "mappin.and.ellipse", tint: .cyan
+                title: "Location",
+                subtitle: locationStatus,
+                systemImage: "mappin.and.ellipse", tint: .orange
             ) {
                 if weather.isEnabled {
-                    Button("Turn Off") { weather.setEnabled(false) }
+                    Button("Turn Off Weather") { weather.setEnabled(false) }
                         .controlSize(.small)
                 } else {
                     Button("Choose City…") { askingWeatherConsent = true }
                         .controlSize(.small)
                 }
             }
+
+            // The clock keeps its own picker until a chosen city names the zone it is already set
+            // to: a city saved before the two shared a location names none, and hiding the picker
+            // then would strand a setting nothing else can reach.
+            if !clockFollowsCity {
+                SettingsDivider()
+                SettingsRow(
+                    title: "Time Zone",
+                    subtitle:
+                        "System Default follows changes made in macOS Settings. Choosing a city "
+                        + "sets this to that city's own zone.",
+                    systemImage: "globe", tint: .orange
+                ) {
+                    Picker("", selection: clockTimeZoneBinding) {
+                        Text("System Default (\(TimeZone.autoupdatingCurrent.identifier))")
+                            .tag("")
+                        ForEach(Self.timeZoneIdentifiers, id: \.self) { identifier in
+                            Text(DashboardWidgetsEngine.readableTimeZone(identifier))
+                                .tag(identifier)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 250)
+                }
+            }
+
+            if weather.isEnabled {
+                SettingsDivider()
+                SettingsRow(
+                    title: "Change City",
+                    subtitle:
+                        "The clock keeps this city's time and shows its temperature, today's range "
+                        + "and condition.",
+                    systemImage: "magnifyingglass", tint: .cyan
+                ) {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        if weather.isSearching { ProgressView().controlSize(.small) }
+                        TextField("Search a city", text: $citySearch)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 220)
+                            .onChange(of: citySearch) { _, query in weather.search(query) }
+                    }
+                }
+
+                // Results replace the list in place; picking one clears the field so it settles back.
+                ForEach(weather.searchResults) { result in
+                    SettingsDivider()
+                    SettingsRow(
+                        title: result.name,
+                        subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
+                        systemImage: "location", tint: .secondary
+                    ) {
+                        // Whole-record, not id: a city saved before it carried a zone must stay
+                        // choosable, since re-picking it is what hands the clock that zone.
+                        Button(weather.city == result ? "Selected" : "Choose") {
+                            chooseCity(result)
+                        }
+                        .controlSize(.small)
+                        .disabled(weather.city == result)
+                    }
+                }
+
+                SettingsDivider()
+                SettingsRow(
+                    title: "Units",
+                    subtitle: "Readings are downloaded in Celsius and converted on this Mac.",
+                    systemImage: "thermometer.medium", tint: .cyan
+                ) {
+                    Picker("", selection: unitBinding) {
+                        ForEach(WeatherUnit.allCases, id: \.self) { unit in
+                            Text(unit.label).tag(unit)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 220)
+                }
+
+                SettingsDivider()
+                SettingsRow(
+                    title: "Conditions",
+                    subtitle: readingStatus,
+                    systemImage: "arrow.clockwise", tint: .secondary
+                ) {
+                    Button("Update Now") {
+                        refreshing = true
+                        Task {
+                            let landed = await weather.refreshNow()
+                            refreshFailed = !landed
+                            refreshing = false
+                        }
+                    }
+                    .controlSize(.small)
+                    .disabled(refreshing)
+                }
+            }
         }
     }
 
-    private var weatherDetailsCard: some View {
-        SettingsCard(header: "Weather Details") {
-            SettingsRow(
-                title: "Change City",
-                subtitle: "The clock shows this city's temperature, today's range and condition.",
-                systemImage: "magnifyingglass", tint: .cyan
-            ) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    if weather.isSearching { ProgressView().controlSize(.small) }
-                    TextField("Search a city", text: $citySearch)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
-                        .onChange(of: citySearch) { _, query in weather.search(query) }
-                }
-            }
-
-            // Results replace the list in place; picking one clears the field so the card settles back.
-            ForEach(weather.searchResults) { result in
-                SettingsDivider()
-                SettingsRow(
-                    title: result.name,
-                    subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
-                    systemImage: "location", tint: .secondary
-                ) {
-                    Button(weather.city.id == result.id ? "Selected" : "Choose") {
-                        weather.setCity(result)
-                        citySearch = ""
-                        weather.clearSearch()
-                    }
-                    .controlSize(.small)
-                    .disabled(weather.city.id == result.id)
-                }
-            }
-
-            SettingsDivider()
-            SettingsRow(
-                title: "Units",
-                subtitle: "Readings are downloaded in Celsius and converted on this Mac.",
-                systemImage: "thermometer.medium", tint: .cyan
-            ) {
-                Picker("", selection: unitBinding) {
-                    ForEach(WeatherUnit.allCases, id: \.self) { unit in
-                        Text(unit.label).tag(unit)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 220)
-            }
-
-            SettingsDivider()
-            SettingsRow(
-                title: "Conditions",
-                subtitle: readingStatus,
-                systemImage: "arrow.clockwise", tint: .secondary
-            ) {
-                Button("Update Now") {
-                    refreshing = true
-                    Task {
-                        let landed = await weather.refreshNow()
-                        refreshFailed = !landed
-                        refreshing = false
-                    }
-                }
-                .controlSize(.small)
-                .disabled(refreshing)
-            }
+    /// One act, both halves: the city is the weather's place and its own zone is the clock's, which
+    /// is what makes this one location rather than two kept in step by hand. Both writes are local —
+    /// whether anything is fetched stays the weather store's own `isEnabled` decision.
+    private func chooseCity(_ city: WeatherCity) {
+        weather.setCity(city)
+        if let identifier = DashboardWeatherEngine.clockTimeZoneIdentifier(for: city) {
+            store.setClockTimeZoneIdentifier(identifier)
         }
+        citySearch = ""
+        weather.clearSearch()
     }
 
     private var musicCard: some View {
@@ -180,39 +193,6 @@ struct DashboardWidgetsSettingsView: View {
         }
     }
 
-    private var batteryCard: some View {
-        SettingsCard(header: "Device Battery") {
-            if battery.devices.isEmpty {
-                SettingsRow(
-                    title: "No Devices",
-                    subtitle:
-                        "Nothing connected reports a battery level, so the card stays hidden. "
-                        + "Built-in keyboards and trackpads have none, and Bluetooth devices "
-                        + "report theirs only while connected.",
-                    systemImage: "questionmark.circle", tint: .secondary
-                ) {
-                    EmptyView()
-                }
-            } else {
-                ForEach(Array(battery.devices.enumerated()), id: \.element.id) { index, device in
-                    if index > 0 { SettingsDivider() }
-                    SettingsRow(
-                        title: DashboardDeviceBatteryEngine.label(for: device),
-                        subtitle: device.productName.isEmpty ? nil : device.productName,
-                        systemImage: device.kind.systemImage, tint: .yellow
-                    ) {
-                        Text(DashboardDeviceBatteryEngine.percentLabel(device.percent))
-                            .font(.body.monospacedDigit())
-                            .foregroundStyle(
-                                DashboardDeviceBatteryEngine.isLow(device.percent)
-                                    ? Color.red : .secondary)
-                    }
-                }
-            }
-        }
-        .task { battery.refresh() }
-    }
-
     /// The card's real preferences moved to the Calendar plugin, which shares the same store —
     /// this stub says where they went rather than duplicating them.
     private var calendarCard: some View {
@@ -232,53 +212,31 @@ struct DashboardWidgetsSettingsView: View {
         }
     }
 
-    private var fileInfoCard: some View {
-        SettingsCard(header: "File Info") {
-            SettingsRow(
-                title: "Only From the Finder",
-                subtitle:
-                    "Spotter asks the Finder what is selected, and only when the Finder is the app "
-                    + "you summoned the launcher from. macOS asks for Automation access the first "
-                    + "time.",
-                systemImage: "folder", tint: .teal
-            ) { EmptyView() }
-            SettingsDivider()
-            SettingsRow(
-                title: "Nothing Is Opened or Stored",
-                subtitle:
-                    "Only the name, kind and size are read. File contents are never opened, and "
-                    + "nothing about the selection is saved or sent anywhere.",
-                systemImage: "lock", tint: .teal
-            ) { EmptyView() }
-            SettingsDivider()
-            SettingsRow(
-                title: "Folders Are Counted, Not Weighed",
-                subtitle:
-                    "A folder shows how many items it holds. A package such as an app shows its "
-                    + "total size, since it is one item to you.",
-                systemImage: "shippingbox", tint: .teal
-            ) { EmptyView() }
-        }
+    /// The clock's own picker stays on screen until a chosen city is what the clock is set to.
+    private var clockFollowsCity: Bool {
+        weather.isEnabled
+            && DashboardWidgetsEngine.clockFollowsCity(
+                cityTimeZoneIdentifier: DashboardWeatherEngine.clockTimeZoneIdentifier(
+                    for: weather.city),
+                clockTimeZoneIdentifier: store.preferences.clockTimeZoneIdentifier)
     }
 
-    /// The tint each card carries on the strip, so a row matches the card it governs.
-    private func tint(_ kind: DashboardWidgetKind) -> Color {
-        switch kind {
-        case .clock: return .orange
-        case .music: return .pink
-        case .deviceBattery: return .yellow
-        case .nextEvent: return .blue
-        case .fileInfo: return .teal
-        }
-    }
-
-    private var cityStatus: String {
+    private var locationStatus: String {
+        let summary = DashboardWidgetsEngine.locationSummary(
+            cityLabel: weather.isEnabled ? cityLabel : nil,
+            cityTimeZoneIdentifier: DashboardWeatherEngine.clockTimeZoneIdentifier(
+                for: weather.city),
+            clockTimeZoneIdentifier: store.preferences.clockTimeZoneIdentifier,
+            systemTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
         guard weather.isEnabled else {
-            return "Off — no service is contacted. Choose a city to show the weather on the clock."
+            return summary + " · no service is contacted until you choose a city."
         }
-        let city = weather.city
-        let detail = city.detailLabel
-        return detail.isEmpty ? city.name : "\(city.name), \(detail)"
+        return summary
+    }
+
+    private var cityLabel: String {
+        let detail = weather.city.detailLabel
+        return detail.isEmpty ? weather.city.name : "\(weather.city.name), \(detail)"
     }
 
     private var readingStatus: String {
@@ -313,7 +271,7 @@ private struct WeatherConsentSheet: View {
                 Image(systemName: "network")
                     .font(.title2.weight(.medium))
                     .foregroundStyle(.cyan)
-                Text("Turn on the weather widget?")
+                Text("Show the weather on the clock?")
                     .font(.headline)
             }
 
@@ -321,8 +279,9 @@ private struct WeatherConsentSheet: View {
                 "Spotter asks \(DashboardWeatherStore.provider) for the current conditions of the "
                     + "city you choose, every 30 minutes while Spotter is running, and keeps the "
                     + "latest reading on your Mac. Searching sends what you type in the city field. "
-                    + "No account, no identifiers, and your Mac's location is never read. "
-                    + "Turning it off deletes the cached reading."
+                    + "No account, no identifiers, and your Mac's location is never read. The city "
+                    + "you pick also sets the clock's time zone, which nothing is contacted for. "
+                    + "Turning it off deletes the cached reading and leaves the clock where it is."
             )
             .font(.callout)
             .foregroundStyle(.secondary)

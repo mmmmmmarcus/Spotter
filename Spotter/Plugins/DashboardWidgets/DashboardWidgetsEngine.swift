@@ -130,6 +130,40 @@ enum DashboardWidgetsEngine {
         return order
     }
 
+    /// Whether the chosen city is also what the clock is set to — the state one shared location aims
+    /// at. False whenever the city names no zone (one saved before the two were shared) or the two
+    /// have drifted, and the clock's own picker stays on screen rather than stranding its setting.
+    static func clockFollowsCity(
+        cityTimeZoneIdentifier: String?, clockTimeZoneIdentifier: String?
+    ) -> Bool {
+        guard let cityTimeZoneIdentifier else { return false }
+        return cityTimeZoneIdentifier == clockTimeZoneIdentifier
+    }
+
+    /// The one place the strip runs on, as the grouped Clock & Weather section states it. A city the
+    /// clock follows is the whole answer; a city it doesn't is stated as the weather's place beside
+    /// the clock's own zone, so the line never claims a sharing that isn't in effect.
+    static func locationSummary(
+        cityLabel: String?, cityTimeZoneIdentifier: String?, clockTimeZoneIdentifier: String?,
+        systemTimeZoneIdentifier: String
+    ) -> String {
+        let clock =
+            clockTimeZoneIdentifier.map(readableTimeZone)
+            ?? "System Default (\(readableTimeZone(systemTimeZoneIdentifier)))"
+        guard let cityLabel else { return clock }
+        guard
+            clockFollowsCity(
+                cityTimeZoneIdentifier: cityTimeZoneIdentifier,
+                clockTimeZoneIdentifier: clockTimeZoneIdentifier)
+        else { return "\(cityLabel) for the weather · clock on \(clock)" }
+        return "\(cityLabel) · \(clock)"
+    }
+
+    /// Zone identifiers are written with underscores; a settings line reads them as words.
+    static func readableTimeZone(_ identifier: String) -> String {
+        identifier.replacingOccurrences(of: "_", with: " ")
+    }
+
     static func resolvedTimeZone(identifier: String?, fallback: TimeZone) -> TimeZone {
         guard let identifier, let timeZone = TimeZone(identifier: identifier) else {
             return fallback

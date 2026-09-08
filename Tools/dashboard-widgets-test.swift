@@ -84,6 +84,58 @@ struct DashboardWidgetsTests {
             Set(DashboardWidgetsEngine.reorder(order, moving: .nextEvent, to: 2)) == Set(order),
             "reordering should never add or drop a widget")
 
+        // One shared location: a chosen city carries the zone the clock keeps.
+        let berlin = city("Berlin", zone: "Europe/Berlin")
+        check(
+            DashboardWeatherEngine.clockTimeZoneIdentifier(for: berlin) == "Europe/Berlin",
+            "a chosen city should hand the clock its own zone")
+        check(
+            DashboardWeatherEngine.clockTimeZoneIdentifier(for: city("Nowhere", zone: "Mars/Olympus"))
+                == nil,
+            "an unresolvable zone should never overwrite the clock's setting")
+        check(
+            DashboardWeatherEngine.clockTimeZoneIdentifier(for: city("Old", zone: nil)) == nil,
+            "a city saved before the two shared a location names no zone")
+        check(
+            DashboardWeatherEngine.clockTimeZoneIdentifier(for: .default) == nil,
+            "the fixed fallback city is a weather stand-in and must never retime the clock")
+        check(
+            DashboardWidgetsEngine.clockFollowsCity(
+                cityTimeZoneIdentifier: "Europe/Berlin", clockTimeZoneIdentifier: "Europe/Berlin"),
+            "a clock set to the city's zone is following the city")
+        check(
+            !DashboardWidgetsEngine.clockFollowsCity(
+                cityTimeZoneIdentifier: nil, clockTimeZoneIdentifier: "Europe/Berlin"),
+            "a city with no zone leaves the clock on its own setting")
+        check(
+            !DashboardWidgetsEngine.clockFollowsCity(
+                cityTimeZoneIdentifier: "Europe/Berlin", clockTimeZoneIdentifier: nil),
+            "a clock on System Default is not following a city")
+        check(
+            DashboardWidgetsEngine.locationSummary(
+                cityLabel: nil, cityTimeZoneIdentifier: nil, clockTimeZoneIdentifier: nil,
+                systemTimeZoneIdentifier: "Europe/Paris") == "System Default (Europe/Paris)",
+            "with no city the summary is the clock's own zone")
+        check(
+            DashboardWidgetsEngine.locationSummary(
+                cityLabel: nil, cityTimeZoneIdentifier: nil,
+                clockTimeZoneIdentifier: "America/New_York",
+                systemTimeZoneIdentifier: "Europe/Paris") == "America/New York",
+            "a picked zone reads as words rather than an identifier")
+        check(
+            DashboardWidgetsEngine.locationSummary(
+                cityLabel: "Berlin, Germany", cityTimeZoneIdentifier: "Europe/Berlin",
+                clockTimeZoneIdentifier: "Europe/Berlin",
+                systemTimeZoneIdentifier: "Europe/Paris") == "Berlin, Germany · Europe/Berlin",
+            "one location serving both should read as one line")
+        check(
+            DashboardWidgetsEngine.locationSummary(
+                cityLabel: "Berlin, Germany", cityTimeZoneIdentifier: nil,
+                clockTimeZoneIdentifier: "Europe/Paris",
+                systemTimeZoneIdentifier: "Europe/Paris")
+                == "Berlin, Germany for the weather · clock on Europe/Paris",
+            "a city the clock does not follow must not claim to be the clock's location")
+
         // File Info: what the square says about a Finder selection.
         check(DashboardFileInfoSnapshot().isEmpty, "no selection should read as empty")
         // The empty card draws its mark alone, so these lines are spoken rather than drawn — the
@@ -253,6 +305,12 @@ struct DashboardWidgetsTests {
         DashboardFileInfoItem(
             path: "/tmp/\(name)", name: name, kind: "Folder", byteCount: nil,
             childCount: children)
+    }
+
+    private static func city(_ name: String, zone: String?) -> WeatherCity {
+        WeatherCity(
+            id: name.hashValue, name: name, latitude: 0, longitude: 0, country: nil, region: nil,
+            timeZoneIdentifier: zone)
     }
 
     private static func near(_ value: Double, _ expected: Double) -> Bool {

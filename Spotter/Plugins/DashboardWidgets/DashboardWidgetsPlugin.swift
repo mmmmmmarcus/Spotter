@@ -31,7 +31,7 @@ enum DashboardWidgetsPlugin {
                 AnyView(
                     DashboardWidgetsSettingsView(
                         store: core.dashboardWidgets, weather: core.dashboardWeather,
-                        music: core.dashboardMusic, battery: core.dashboardDeviceBattery))
+                        music: core.dashboardMusic))
             })
     }
 }
