@@ -17,7 +17,9 @@ struct ShortcutRecorder: View {
     var body: some View {
         content
             .padding(.horizontal, Theme.Spacing.sm)
-            .frame(width: Theme.Size.shortcutRowControl, height: 24)
+            // The pill hugs its content — a fixed width leaves a `✦ D` binding rattling around in a
+            // box several times its size.
+            .frame(height: 24)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.menu, style: .continuous)
                     .fill(Theme.Colors.cardFill)
@@ -44,6 +46,11 @@ struct ShortcutRecorder: View {
                 session.stop()
             }
             .animation(.easeOut(duration: 0.12), value: hovered)
+            // …inside a fixed-width slot it sits at the trailing edge of. The slot is what lines the
+            // column up: every recorder's right edge lands at the same x, and whatever follows one
+            // (a checkbox, a pencil) never shifts with the width of the binding beside it. Applied
+            // after the tap and hover targets, so only the pill itself is clickable.
+            .frame(width: Theme.Size.shortcutRowControl, alignment: .trailing)
     }
 
     @ViewBuilder
@@ -53,7 +60,9 @@ struct ShortcutRecorder: View {
         } else if let binding = hotKeys.binding(for: action) {
             boundLabel(binding.keycaps)
         } else {
-            Text("Record Shortcut")
+            // One word: the pill hugs its content, so the unbound state is what would otherwise
+            // set the widest resting row in a pane full of two-chip bindings.
+            Text("Hotkey")
                 .font(Theme.Typography.keyCap)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -70,21 +79,20 @@ struct ShortcutRecorder: View {
                 Text(KeyShortcut.collapsedModifierSymbols(from: session.heldModifiers).joined())
                     .foregroundStyle(.primary)
             } else {
-                // Shorter than the pill it has to fit now that the pill is a fixed width; the two
-                // ways to bind are still both named.
+                // Both ways to bind, named in the width a bound shortcut occupies.
                 Text("Type or double-tap…")
                     .foregroundStyle(.secondary)
             }
         }
         .font(Theme.Typography.keyCap)
-        // A long conflict owner ("Quarterly Planning Doc") would otherwise widen the fixed pill.
+        // A long conflict owner ("Quarterly Planning Doc") would otherwise outgrow the reserved slot.
         .lineLimit(1)
         .minimumScaleFactor(0.75)
     }
 
     private func boundLabel(_ keycaps: [String]) -> some View {
-        // `minimumScaleFactor` can't help a row of chips, so an unusually long binding shrinks its
-        // spacing rather than pushing out of the pill.
+        // `minimumScaleFactor` can't help a row of chips, so a binding too wide for the reserved
+        // slot shrinks its spacing rather than pushing the row's other controls aside.
         HStack(spacing: Theme.Spacing.xs) {
             ForEach(Array(keycaps.enumerated()), id: \.offset) { _, cap in
                 Text(cap)

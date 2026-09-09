@@ -58,7 +58,7 @@ plugins expose stable `PluginActionKey` values through `PluginRegistry`; new key
 `plugin.<plugin-id>.<action-id>` namespace while migrated actions may retain legacy defaults keys.
 
 **Settings ▸ Shortcuts is the only pane that records a shortcut.** As of 1.6.0 the two summon
-bindings live in its Global Shortcuts card rather than in General, AI Chat's Open AI Chat row and
+bindings live in its Global Shortcuts section rather than in General, AI Chat's Open AI Chat row and
 Caffeinate's and Mole's whole Shortcuts sections are gone, and every one of those actions is still
 bound from the same pane — Open AI Chat, the five Caffeinate actions and the nine Mole screens are
 launcher commands, so they were already listed under their owner's heading. The remaining duplicates
@@ -116,8 +116,45 @@ Hyper + T stays bound to the action it was recorded for. They intentionally ship
 record Hyper + S/T in Settings → Shortcuts, using the same recorder, conflict detection and Carbon
 registration as every other plugin action.
 
+## The Shortcuts pane is one table
+
+`Features/Settings/ShortcutsSettingsView.swift` is the one Settings pane that is not a
+`SettingsPane`, and the reason is laziness: its rows are every application, System Settings pane and
+command on the Mac, and a grouped `Form` is not a lazy container. It is **one `List`** instead —
+lazy, so only the visible rows are realized — with a `Section` per heading:
+
+| Section | Rows |
+| --- | --- |
+| Global Shortcuts | the two summon bindings (`.togglePalette`, `.togglePaletteBackup`) |
+| Applications | every application `AppIndex` knows |
+| System Settings | every settings pane |
+| Commands | one sub-heading per publisher: Spotter, System, Custom Commands, then each plugin |
+
+The summon shortcuts used to sit in a hugging `Form` *above* a separately bordered scrolling list, so
+the user scrolled inside a box inside the pane and the search field reached only the lower half. They
+are now that `List`'s first section, the box is gone (`.scrollContentBackground(.hidden)`, so the
+table sits directly on the pane), and **one search field filters the whole table** — summon
+shortcuts included, matched with the same `FuzzyMatch` scorer the launcher rows use, so one query
+means one thing everywhere in it. The field lives in the `VStack` **above** the `List`, not in it,
+so it never scrolls away. Headings stay foldable with their counts, and a typed query still
+overrides every fold.
+
+The summon rows carry no icon, alias or visibility box, but reserve the icon and visibility columns
+(`Theme.Size.shortcutRowIcon`, `Theme.Size.shortcutVisibilityControl`) so their names and recorders
+land at the same x as every launcher row's. Fold state stays device-local under
+`shortcuts.collapsedGroups`, and nothing about the bindings themselves moved: every one keeps its
+`KeyboardShortcuts_<name>` defaults key, and a row shows a recorder exactly when
+`AppEntry.hotKeyAction` resolves.
+
 ## Recorder
 
 The settings recorder (`Features/Settings/ShortcutRecorder.swift`) is deliberately **not** a focusable
 control: the active recorder is `HotKeyManager.recordingAction` state, and keys are captured by local
 NSEvent monitors while all Carbon registrations are paused.
+
+**The pill hugs its content; the slot around it does the aligning.** See
+[ui.md](ui.md) for the measured widths — the short version is that a fixed-width pill left a `✦ D`
+binding rattling around in a box several times its size, so the pill is now sized by what it holds
+and sits trailing-aligned inside a `Theme.Size.shortcutRowControl` slot. The slot is what keeps every
+recorder's right edge at one x and stops whatever follows one (a checkbox, a pencil) from moving with
+the width of the binding beside it.

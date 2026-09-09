@@ -72,16 +72,20 @@ enum Theme {
         static let keyCap: CGFloat = 18
         /// Settings shortcut-recorder keycap — smaller than the palette's `keyCap` chip.
         static let recorderKeyCap: CGFloat = 16
-        /// Both trailing controls of a shortcut row — the alias field and the recorder — are exactly
-        /// this wide. Fixed rather than hugging: a bound shortcut's keycaps are narrower than the
-        /// words "Record Shortcut", so a hugging pill would make every row's controls sit at a
-        /// different x depending on whether that row happened to have a shortcut. Sized to the
-        /// realistic maximum rather than the theoretical one — re-measured inside a grouped `Form`
-        /// row, ⌃⌥⌘ and a key is 110pt with its clear button, "Type or double-tap…" 113pt and
-        /// "Record Shortcut" 91pt, so 120 carries all three with slack. A rarer binding (a fourth
-        /// modifier at 132pt, or a worded key glyph like Space) closes the chip spacing instead of
-        /// pushing out of the pill.
+        /// The shortcut row's trailing *column*: the alias field is exactly this wide, and the
+        /// recorder gets a slot this wide to sit trailing-aligned inside. The recorder pill itself
+        /// hugs its content — a fixed-width pill is several times wider than the two chips of a
+        /// `✦ D` binding — so the slot, not the pill, is what keeps the alias field and the
+        /// visibility box at the same x down the whole list. Sized to the realistic maximum a pill
+        /// can reach, measured with an offscreen hosting probe: ⌃⌥⌘ and a key is 110pt with its
+        /// clear button and "Type or double-tap…" 113pt, so 120 carries both with slack. A rarer
+        /// binding (a fourth modifier at 132pt, or a worded key glyph like Space) closes the chip
+        /// spacing instead of pushing its neighbours aside.
         static let shortcutRowControl: CGFloat = 120
+        /// Artwork slot of a Settings ▸ Shortcuts row. The summon rows have no icon and reserve it empty, so every name starts at one x.
+        static let shortcutRowIcon: CGFloat = 22
+        /// The visibility checkbox's column, measured at its intrinsic 16pt. Reserved on rows without one, so the recorder column never shifts.
+        static let shortcutVisibilityControl: CGFloat = 16
         static let menuButton: CGFloat = 36
         static let clipboardListWidth: CGFloat = 290
         static let emojiCell: CGFloat = 56

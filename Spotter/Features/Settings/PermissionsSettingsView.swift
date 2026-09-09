@@ -1,11 +1,12 @@
 import Combine
 import SwiftUI
 
-/// One row per permission: the row explains who needs it and its trailing control is either the way
-/// to grant it or the word Granted. The one-second poll is what keeps a grant revoked in System
-/// Settings from still reading as granted here.
+/// One row per permission: the permission's name, and a trailing control that is either the way to
+/// grant it or the word Granted. The one-second poll is what keeps a grant revoked in System
+/// Settings from still reading as granted here. The rows name no features — a list of which
+/// features declare a permission reads the same on every install, and macOS's own pane is where the
+/// grant actually lives.
 struct PermissionsSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var dashboard = AppCore.shared.dashboardWidgets
     @State private var accessibilityTrusted = Permissions.isAccessibilityTrusted()
     @State private var screenRecordingAllowed = Permissions.isScreenRecordingAllowed()
@@ -14,7 +15,7 @@ struct PermissionsSettingsView: View {
     var body: some View {
         SettingsPane(title: "Permissions") {
             Section {
-                SettingsRow(title: "Accessibility", subtitle: accessibilitySubtitle) {
+                SettingsRow(title: "Accessibility") {
                     if accessibilityTrusted {
                         grantedBadge
                     } else {
@@ -25,16 +26,16 @@ struct PermissionsSettingsView: View {
 
                 // Automation has no queryable per-app state: macOS asks the first time Spotter drives
                 // another app, so the row can only ever offer the pane it is managed in.
-                SettingsRow(title: "App Automation", subtitle: automationSubtitle) {
+                SettingsRow(title: "App Automation") {
                     Button("Open Settings…") { Permissions.openAutomationSettings() }
                         .controlSize(.small)
                 }
 
-                SettingsRow(title: "Calendar Events", subtitle: calendarSubtitle) {
+                SettingsRow(title: "Calendar Events") {
                     calendarControl
                 }
 
-                SettingsRow(title: "Screen Recording", subtitle: screenRecordingSubtitle) {
+                SettingsRow(title: "Screen Recording") {
                     if screenRecordingAllowed {
                         grantedBadge
                     } else {
@@ -77,34 +78,6 @@ struct PermissionsSettingsView: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.xs)
         .background(Capsule().fill(color.opacity(0.14)))
-    }
-
-    private var accessibilitySubtitle: String {
-        let names = plugins.features(requiring: .accessibility).map(\.name).joined(separator: ", ")
-        return names.isEmpty
-            ? "No feature currently declares this permission."
-            : "Used by \(names) to observe configured triggers, read selected text, or type into "
-                + "the app you were using."
-    }
-
-    private var automationSubtitle: String {
-        let names = plugins.features(requiring: .automation).map(\.name).joined(separator: ", ")
-        let featureText = names.isEmpty ? "launcher actions" : "launcher actions and \(names)"
-        return "Used by \(featureText) to control another application only after you choose an action."
-    }
-
-    private var screenRecordingSubtitle: String {
-        let names = plugins.features(requiring: .screenRecording).map(\.name).joined(separator: ", ")
-        return names.isEmpty
-            ? "No feature currently declares this permission."
-            : "Used by \(names) to read only the screen region you select."
-    }
-
-    private var calendarSubtitle: String {
-        let names = plugins.features(requiring: .calendar).map(\.name).joined(separator: ", ")
-        return names.isEmpty
-            ? "No feature currently declares this permission."
-            : "Used by \(names) to show upcoming events."
     }
 
     /// Calendar is the one permission with more than two states, so its single control carries them:

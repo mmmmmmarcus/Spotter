@@ -71,7 +71,8 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 ### Size (`Theme.Size`)
 
 `panelWidth 628` · `panelHeight 475` · `headerHeight 44` · `headerContentGap 10` · `bottomBarHeight 52` · `rowIcon 24` ·
-`keyCap 18` · `recorderKeyCap 16` · `shortcutRowControl 120` · `menuButton 36` · `clipboardListWidth 290` ·
+`keyCap 18` · `recorderKeyCap 16` · `shortcutRowControl 120` · `shortcutRowIcon 22` ·
+`shortcutVisibilityControl 16` · `menuButton 36` · `clipboardListWidth 290` ·
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
 `settingsWindow 860×550` · `settingsSidebar 208` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
@@ -87,20 +88,42 @@ room for File Info without moving the window.
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
 
-`shortcutRowControl` is the width of **both** trailing controls of a Settings ▸ Shortcuts row — the
-alias field and the shortcut recorder. Fixed rather than hugging, and that is the whole point: a
-bound shortcut's keycaps are narrower than the words "Record Shortcut", so hugging pills put every
-row's controls at a different x depending on whether that row happens to have a shortcut, and a
-column of them reads as ragged. 120 is sized to the **realistic** maximum rather than the theoretical
-one: re-measured inside a grouped `Form` row, ⌃⌥⌘ plus a letter is 110pt with its clear button, the
-recording prompt "Type or double-tap…" 113pt and the unbound "Record Shortcut" prompt 91pt, so 120
-carries all three with slack while a wider pill just reads as empty. The Form leaves a row's trailing
-control about 325pt at the 652-point content width, so nothing squeezes it. A rarer binding — a
-fourth modifier (132pt), or a worded key glyph like `Space` — closes
-the `xxs` gaps between its chips instead of pushing out of the pill; the prompt and conflict text are
-`lineLimit(1)` with a scale floor for the same reason. Changing the token moves both controls
-together. Measure before retuning it: both roundings came from a standalone AppKit probe hosting the
-real views and reading their laid-out sizes, not by eye.
+`shortcutRowControl` is the trailing **column** of a Settings ▸ Shortcuts row: the alias field is
+exactly this wide, and the shortcut recorder gets a slot this wide to sit trailing-aligned inside.
+
+**The recorder pill hugs its content; the slot is what aligns the column.** The two are deliberately
+separate. A fixed-width pill leaves a `✦ D` binding rattling around in a box several times its size,
+which is what the pill looked like before; a pill that hugs but has no slot lets the width of one
+row's binding shove that row's checkbox — or the pencil beside an AI-command recorder — to a
+different x than its neighbours'. Sizing the pill to its content and reserving the column around it
+gets both: the visible box is as wide as what it holds, and every recorder's right edge, and
+everything after it, lands at one x. The slot lives inside `ShortcutRecorder` itself, applied after
+the tap and hover targets so only the pill is clickable, so every call site gets the column for free.
+
+Measured with an offscreen `NSHostingView` probe reading laid-out frames — the repo standard for a
+layout question, and how 120 was set in the first place. Full pill widths, `sm` padding included:
+
+| State | Width |
+| --- | --- |
+| `✦ D` (Hyper + a letter) | 65 |
+| `⌘ ⌘` (a double-tap) | 69 |
+| `⌥ F12` | 76 |
+| `⌘ Space` | 89 |
+| unbound "Hotkey" | 46 |
+| `⌃⌥⌘ K` | 110 |
+| recording, "Type or double-tap…" | 113 |
+| `⌃⌥⇧⌘ K` (a fourth modifier) | 132 |
+| conflict, "Used by Window Management" | 159 |
+
+The rule that follows: **no floor.** The empty prompt does not force one — at 91 it lands mid-range,
+between `⌘ Space` and `⌃⌥⌘ K` — but the pill hugs, so an unbound row would have been the widest
+resting state in a pane of two-chip bindings. It is one word, `Hotkey`, and no bound row is padded
+out to fit it. 120 stays as the slot because it still has to seat the realistic maximum without
+pushing a neighbour: it carries `⌃⌥⌘ K` and the recording prompt with slack, and the two states that
+exceed it behave exactly as they did at a fixed width — a fourth modifier closes the `xxs` gaps
+between its chips, and the prompt and conflict text are `lineLimit(1)` with a scale floor. A grouped
+`Form` leaves a row's trailing control about 325pt at the 652-point content width, so nothing
+squeezes the slot. Measure before retuning any of it; don't eyeball it.
 
 `settingsSidebar` is sized the same way, to the widest label rather than to a round number. In
 `rowTitle` (13pt system) the longest entry is **Window Management** at 131pt — wider than the
@@ -409,7 +432,8 @@ Routing: the palette lists (App Launcher, Clipboard history, Emoji, Calculator h
 sidebar use the native `.overlayScroller()`. A settings pane's `Form` owns its scroll view rather
 than sitting inside one, so `SettingsPane` uses `.containerOverlayScroller()` — the same forced
 overlay style, resolved by looking *down* into the container instead of up at an enclosing scroll
-view. Don't reintroduce native scrollers on the palette lists.
+view. The Shortcuts pane's `List` owns its scroll view the same way and uses it too. Don't
+reintroduce native scrollers on the palette lists.
 
 ---
 
@@ -426,10 +450,13 @@ shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not 
   adding either does not add a `SettingsTab` case or a view switch branch.
   `metadata.settingsPlacement` selects the group. Each registered feature owns its Settings view in
   `Spotter/Plugins/<Name>/`; shared Settings components remain here.
-- **One row per permission.** The Permissions pane renders each permission as a single row whose
-  trailing control is either the way to grant it or the word *Granted*; a one-second poll re-reads
-  the real system state, so a grant revoked in System Settings drops back to its button. Calendar is
-  the one permission with more than two states, so its single control carries all of them.
+- **One row per permission, and the row is just its name.** The Permissions pane renders each
+  permission as a single row whose trailing control is either the way to grant it or the word
+  *Granted*; a one-second poll re-reads the real system state, so a grant revoked in System Settings
+  drops back to its button. Calendar is the one permission with more than two states, so its single
+  control carries all of them. The rows name **no features** (owner decision, Sep 2026): a generated
+  "Used by X, Y…" line reads the same on every install, which is the copy rule below, and the grant
+  itself lives in macOS's own pane rather than in the sentence.
 
 **The content area is a native grouped `Form`.** Row metrics, typography, separators, group
 backgrounds, Dynamic Type and the label→control accessibility pairing all come from macOS and keep
@@ -445,6 +472,17 @@ of substrate, not of information architecture.
   container in a pane: `Section("Header") { … }` draws the group and the Form draws the separators
   between its rows. A struct that is one group (`SearchScopesSection`, `UpdatesSettingsSection`,
   `OpenRouterSettingsSection`) has a `Section` for its whole body.
+- **A pane's first group carries no header** (owner decision, Sep 2026). The pane title already names
+  what the pane opens with, and a heading directly under it reads as the same label twice; later
+  groups keep theirs, which is what makes them read as *later* groups. The rule lives in
+  `SettingsPane` and nowhere else: it decomposes its `ViewBuilder` content with `Group(sections:)`
+  and rebuilds each `Section`, leaving only the first one's header unbuilt. Panes go on writing
+  `Section("Header") { … }` exactly as before, and a pane added later inherits the rule instead of
+  having to remember it — a per-call-site version would be ~25 edits and would drift on the next
+  pane. Settings sections carry no footers, so the rebuild does not carry one; add a footer and it
+  needs adding there. A pane that opens with loose content (Translate's missing-key callout) makes
+  that its implicit first group, so the named group after it keeps its header — which is right: the
+  callout is the group the title sits over.
 - **`SettingsRow`**: a `LabeledContent` pairing the title (+ optional `statusDot`) with the row's
   control, plus — only where the copy *reports* — a caption **under** both, at full row width. It
   carries no insets of its own; the Form supplies them (measured: at the 652-point content width a
@@ -462,11 +500,18 @@ of substrate, not of information architecture.
   hero column, a wizard step) rather than lists of settings, so neither can be a `Form`; giving them
   their own card is what let the panes go native without restyling either. They are the only
   remaining `cardFill`/`cardStroke` container in this part of the app.
-- **Shortcuts is the one pane that is not a `SettingsPane`.** Its list is every app on the Mac, which
-  needs a lazy container and a scroll view of its own, and a grouped `Form` is a non-lazy scroll view;
-  so the pane keeps its own scaffold, holds the Global Shortcuts group in a hugging
-  `Form` (`.scrollDisabled(true).fixedSize(horizontal: false, vertical: true)`, measured to hug), and
-  the searchable list below stays a `cardFill`/`cardStroke` bordered list.
+- **Shortcuts is the one pane that is not a `SettingsPane`, and it is one table.** Its rows are every
+  app, settings pane and command on the Mac, which needs a lazy container, and a grouped `Form` is a
+  non-lazy scroll view. So the pane keeps its own scaffold around a single **`List`** — lazy, and it
+  takes sections — with the two summon shortcuts as its first `Section` and Applications / System
+  Settings / Commands after them. `.scrollContentBackground(.hidden)` drops the List's own
+  background, so the table sits on the pane instead of inside a `cardFill` box: the previous shape
+  put a scrolling bordered list *under* a hugging `Form`, so the user scrolled inside a box inside
+  the pane and the search reached only the lower half. **One search field filters all of it**, summon
+  rows included, and it sits in the `VStack` above the `List` rather than in it, so it never scrolls
+  away. Rows keep the pane's own grammar rather than the List's (`listRowSeparator(.hidden)`,
+  zero `listRowInsets`, clear `listRowBackground`), and the foldable headings keep their counts.
+  See [hotkeys.md](hotkeys.md).
 
 **Symbols render monochrome** (owner decision, Sep 2026). Every `Image(systemName:)` in the app
 uses `.symbolRenderingMode(.monochrome)`; `.hierarchical` is not used anywhere. A hierarchical symbol

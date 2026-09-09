@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Settings → Shortcuts: the single home for every shortcut Spotter can bind. The two app-level
-/// summon shortcuts lead, then everything the launcher can open, in one grouped list — Applications,
-/// System Settings, then Commands split by whoever publishes them. Each list row carries an alias
-/// field, a hotkey recorder and a visibility checkbox. The list never applies the visibility filter
-/// itself, so a hidden row stays re-checkable here.
+/// Settings → Shortcuts: the single home for every shortcut Spotter can bind, as **one table**. The
+/// two app-level summon shortcuts are its first section, then everything the launcher can open —
+/// Applications, System Settings, then Commands split by whoever publishes them. One search field
+/// sits above the table and filters all of it, summon shortcuts included. Each launcher row carries
+/// an alias field, a hotkey recorder and a visibility checkbox. The table never applies the
+/// visibility filter itself, so a hidden row stays re-checkable here.
 struct ShortcutsSettingsView: View {
     @EnvironmentObject private var appIndex: AppIndex
     @EnvironmentObject private var plugins: PluginRegistry
@@ -15,6 +16,8 @@ struct ShortcutsSettingsView: View {
     /// deliberately not in the settings backup, since a synced Mac inheriting someone else's folded
     /// list would be restoring a view, not a setting.
     private static let collapsedKey = "shortcuts.collapsedGroups"
+    /// Fold state is keyed by heading title, and the summon section's is its own heading.
+    private static let globalSectionID = "Global Shortcuts"
 
     init() {
         _collapsed = State(
@@ -22,44 +25,38 @@ struct ShortcutsSettingsView: View {
     }
 
     var body: some View {
-        // The one pane that is not a `SettingsPane`: its list is every app on the Mac, which needs a
-        // lazy container and a scroll view of its own, so the Form here holds only the fixed section
-        // above it. `xxl` insets everything except that Form, which brings its own matching margin.
-        VStack(alignment: .leading, spacing: Theme.Spacing.xxl) {
+        // The one pane that is not a `SettingsPane`: its table is every app on the Mac, which needs
+        // a lazy container, and a grouped `Form` is not lazy. A `List` is — and it takes sections,
+        // so the summon shortcuts can be the table's first section instead of a second surface
+        // above it.
+        VStack(alignment: .leading, spacing: 0) {
             SettingsHeader(title: "Shortcuts")
                 .padding(.horizontal, Theme.Spacing.xxl)
+                .padding(.top, Theme.Spacing.xxl)
 
-            globalShortcuts
-
+            // Above the table rather than inside it: one search covers the whole table, so it has to
+            // stay put while the table scrolls under it.
             searchField
                 .padding(.horizontal, Theme.Spacing.xxl)
+                .padding(.top, Theme.Spacing.xxl)
+                .padding(.bottom, Theme.Spacing.lg)
 
-            list
-                .padding(.horizontal, Theme.Spacing.xxl)
+            table
         }
-        .padding(.vertical, Theme.Spacing.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea(edges: .top)
     }
 
-    /// The two summon shortcuts are app-level rather than launcher rows, so they sit in a fixed
-    /// section above the searchable list instead of inside it — a row without an alias or a
-    /// visibility box would put its recorder at a different x than every list row's. The Form hugs
-    /// its two rows rather than scrolling: the list below owns this pane's scrolling.
-    private var globalShortcuts: some View {
-        Form {
-            Section("Global Shortcuts") {
-                SettingsRow(title: "App Launcher") {
-                    ShortcutRecorder(action: .togglePalette)
-                }
-                SettingsRow(title: "Backup Shortcut") {
-                    ShortcutRecorder(action: .togglePaletteBackup)
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .scrollDisabled(true)
-        .fixedSize(horizontal: false, vertical: true)
+    /// The summon shortcuts, matched with the same scorer the launcher rows use so one query means
+    /// one thing across the whole table.
+    private var globalShortcuts: [GlobalShortcut] {
+        let all = [
+            GlobalShortcut(title: "App Launcher", action: .togglePalette),
+            GlobalShortcut(title: "Backup Shortcut", action: .togglePaletteBackup),
+        ]
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return all }
+        return all.filter { FuzzyMatch.score(query: trimmed, candidate: $0.title) != nil }
     }
 
     /// Applications and System Settings are one group each; Commands is grouped by owner, so a
@@ -121,19 +118,34 @@ struct ShortcutsSettingsView: View {
         UserDefaults.standard.set(Array(collapsed).sorted(), forKey: Self.collapsedKey)
     }
 
-    private var list: some View {
-        // Plain windowed settings list; force the thin, auto-hiding overlay scroller so a system-wide "always show scroll bars" setting can't draw a wide legacy one.
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 1, pinnedViews: []) {
-                ForEach(sections) { section in
-                    let sectionCollapsed = isCollapsed(section.id)
-                    DisclosureHeader(
-                        title: section.title, count: section.entryCount,
-                        isCollapsed: sectionCollapsed, font: .headline, indent: Theme.Spacing.md,
-                        topPadding: Theme.Spacing.xl
-                    ) {
-                        toggleCollapsed(section.id)
+    /// One table for the whole pane. `List` stays lazy — only the visible rows are realized, which
+    /// is what lets every application on the Mac sit in the same container as the two summon
+    /// shortcuts — and its own background is hidden so the table reads as part of the pane rather
+    /// than as a box drawn inside it.
+    private var table: some View {
+        List {
+            if !globalShortcuts.isEmpty {
+                let sectionCollapsed = isCollapsed(Self.globalSectionID)
+                Section {
+                    if !sectionCollapsed {
+                        ForEach(globalShortcuts) { shortcut in
+                            GlobalShortcutRow(title: shortcut.title, action: shortcut.action)
+                                .plainTableRow()
+                        }
                     }
+                } header: {
+                    DisclosureHeader(
+                        title: Self.globalSectionID, count: globalShortcuts.count,
+                        isCollapsed: sectionCollapsed, font: .headline, indent: 0, topPadding: 0
+                    ) {
+                        toggleCollapsed(Self.globalSectionID)
+                    }
+                }
+            }
+
+            ForEach(sections) { section in
+                let sectionCollapsed = isCollapsed(section.id)
+                Section {
                     if !sectionCollapsed {
                         ForEach(section.groups) { group in
                             let groupID = section.id + "/" + group.id
@@ -143,35 +155,37 @@ struct ShortcutsSettingsView: View {
                                     title: title, count: group.entries.count,
                                     isCollapsed: groupCollapsed,
                                     font: Theme.Typography.sectionHeader,
-                                    indent: Theme.Spacing.xxl, topPadding: Theme.Spacing.lg
+                                    indent: Theme.Spacing.lg, topPadding: Theme.Spacing.sm
                                 ) {
                                     toggleCollapsed(groupID)
                                 }
+                                .plainTableRow()
                             }
                             if !groupCollapsed {
                                 ForEach(group.entries) { entry in
                                     ShortcutRow(entry: entry)
+                                        .plainTableRow()
                                 }
                             }
                         }
                     }
+                } header: {
+                    DisclosureHeader(
+                        title: section.title, count: section.entryCount,
+                        isCollapsed: sectionCollapsed, font: .headline, indent: 0, topPadding: 0
+                    ) {
+                        toggleCollapsed(section.id)
+                    }
                 }
             }
-            .padding(.horizontal, Theme.Spacing.sm)
-            .padding(.vertical, Theme.Spacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlayScroller()
         }
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                .fill(Theme.Colors.cardFill)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                .strokeBorder(Theme.Colors.cardStroke, lineWidth: 1)
-        )
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .environment(\.defaultMinListRowHeight, 0)
+        // Force the thin, auto-hiding overlay scroller so a system-wide "always show scroll bars" setting can't draw a wide legacy one.
+        .containerOverlayScroller()
         .overlay {
-            if sections.isEmpty {
+            if sections.isEmpty && globalShortcuts.isEmpty {
                 Text(query.isEmpty ? "Nothing here yet." : "No matches for “\(query)”.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -183,7 +197,7 @@ struct ShortcutsSettingsView: View {
         HStack(spacing: Theme.Spacing.sm) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Search apps, settings and commands…", text: $query)
+            TextField("Search shortcuts, apps, settings and commands…", text: $query)
                 .textFieldStyle(.plain)
             if !query.isEmpty {
                 Button {
@@ -265,7 +279,7 @@ private struct DisclosureHeader: View {
         .padding(.bottom, Theme.Spacing.xxs)
         .onHover { hovered = $0 }
         // The chevron turns; the rows themselves appear and disappear without animation, since a
-        // `LazyVStack` animating hundreds of application rows in and out stutters.
+        // lazy container animating hundreds of application rows in and out stutters.
         .animation(.easeOut(duration: 0.15), value: isCollapsed)
         .accessibilityLabel("\(title), \(count) items")
         .accessibilityHint(isCollapsed ? "Expand" : "Collapse")
@@ -284,6 +298,50 @@ private struct ShortcutSection: Identifiable {
     let groups: [ShortcutGroup]
     var id: String { title }
     var entryCount: Int { groups.reduce(0) { $0 + $1.entries.count } }
+}
+
+/// One of the two app-level summon shortcuts. They are not launcher entries, so they carry a title
+/// and an action and nothing else.
+private struct GlobalShortcut: Identifiable {
+    let title: String
+    let action: HotKeyAction
+    var id: String { title }
+}
+
+extension View {
+    /// Strips a `List` row back to the table's own grammar: the row draws its own insets, hover fill
+    /// and separators-by-absence, exactly as it did in the hand-rolled list this replaced.
+    fileprivate func plainTableRow() -> some View {
+        listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+    }
+}
+
+/// A summon shortcut's row. It has no icon, alias or visibility box, but reserves the icon and
+/// visibility columns so its name and its recorder land at the same x as every launcher row's.
+private struct GlobalShortcutRow: View {
+    let title: String
+    let action: HotKeyAction
+    @State private var hovered = false
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.lg) {
+            Color.clear
+                .frame(width: Theme.Size.shortcutRowIcon, height: Theme.Size.shortcutRowIcon)
+            Text(title).lineLimit(1)
+            Spacer(minLength: Theme.Spacing.xl)
+            ShortcutRecorder(action: action)
+            Color.clear.frame(width: Theme.Size.shortcutVisibilityControl, height: 1)
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
+                .fill(hovered ? Theme.Colors.rowHover : .clear)
+        )
+        .onHover { hovered = $0 }
+    }
 }
 
 /// The per-row alias field, dressed like `ShortcutRecorder` beside it. One persistent `TextField`
@@ -345,16 +403,20 @@ private struct ShortcutRow: View {
         HStack(spacing: Theme.Spacing.lg) {
             Image(nsImage: entry.icon)
                 .resizable()
-                .frame(width: 22, height: 22)
+                .frame(width: Theme.Size.shortcutRowIcon, height: Theme.Size.shortcutRowIcon)
             Text(entry.name).lineLimit(1)
             Spacer(minLength: Theme.Spacing.xl)
             AliasField(entry: entry)
             if let action = entry.hotKeyAction {
                 ShortcutRecorder(action: action)
+            } else {
+                // A row with nothing to bind still holds the recorder's column open.
+                Color.clear.frame(width: Theme.Size.shortcutRowControl, height: 1)
             }
             Toggle("", isOn: itemBinding)
                 .labelsHidden()
                 .toggleStyle(.checkbox)
+                .frame(width: Theme.Size.shortcutVisibilityControl)
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)

@@ -18,7 +18,7 @@ struct SettingsPane<Content: View>: View {
                 // `xxl` lines the title up with the leading edge of the Form's own section boxes.
                 .padding(.horizontal, Theme.Spacing.xxl)
                 .padding(.top, Theme.Spacing.xxl)
-            Form { content }
+            Form { leadingHeaderStripped }
                 .formStyle(.grouped)
                 // The Form owns the scroll view, so the probe has to look down into it rather than up.
                 .containerOverlayScroller()
@@ -26,6 +26,23 @@ struct SettingsPane<Content: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // The transparent titlebar band is taller than the rhythm we want, and the traffic lights sit over the sidebar, so nothing collides.
         .ignoresSafeArea(edges: .top)
+    }
+
+    /// The pane's opening group carries no header: the pane title already names what it opens with,
+    /// and a header directly under it reads as the same label twice. Expressed here rather than at
+    /// the panes, so a pane added later inherits the rule instead of remembering it — the sections
+    /// are decomposed and rebuilt, and only the first one's header is left unbuilt. Panes keep
+    /// writing `Section("Header") { … }` exactly as before. Settings sections carry no footers.
+    private var leadingHeaderStripped: some View {
+        Group(sections: content) { sections in
+            ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                if index == 0 {
+                    Section { section.content }
+                } else {
+                    Section { section.content } header: { section.header }
+                }
+            }
+        }
     }
 }
 
