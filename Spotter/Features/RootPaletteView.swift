@@ -846,7 +846,9 @@ struct RootPaletteView: View {
                 Button { cycleMode(forward: true) } label: {
                     Image(systemName: vm.mode.systemImage)
                         .font(Theme.Typography.headerIcon)
-                        .symbolRenderingMode(.hierarchical)
+                        // Flat, not hierarchical: the slot sits beside the caret and a symbol with
+                        // its own internal shading reads as a second weight in the search field.
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(.secondary)
                         .frame(width: Theme.Size.headerIconSlot)
                         .contentShape(Rectangle())
@@ -859,7 +861,7 @@ struct RootPaletteView: View {
                 Button(action: backOneLevel) {
                     Image(systemName: "chevron.left")
                         .font(Theme.Typography.headerIcon)
-                        .symbolRenderingMode(.hierarchical)
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(.secondary)
                         .frame(width: Theme.Size.headerIconSlot)
                         .contentShape(Rectangle())
