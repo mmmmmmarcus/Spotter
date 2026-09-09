@@ -32,9 +32,10 @@ from `OpenRouterModelCatalog.modelName(for:in:)` — and falls back to `Send to 
 key, since the key is the gate and an unkeyed row can't promise a model. Activating AI Chat follows
 the fresh-session Tab path; activating ChatGPT follows the same web handoff the Actions menu runs.
 
-AI Chat is an always-available system feature shown in Settings → System, but remains inert
-without an OpenRouter API key — the key is the gate and lives in Settings → General → AI (entering
-or syncing a key is the consent act). AI Chat also owns **AI commands**, the prompts that run on
+AI Chat is an always-available system feature, shown in the Settings sidebar as **AI Chat &
+Command**, but remains inert without an OpenRouter API key — the key is the gate and lives on that
+same pane's **AI (OpenRouter)** card, moved there from General in 1.6.0 so the gate sits with the
+feature it gates (entering or syncing a key is the consent act). AI Chat also owns **AI commands**, the prompts that run on
 selected text; Define Selected Text and Check Selected Text Grammar are the two Spotter ships.
 Google-powered translation lives in the [Translate](translate.md) plugin. Its implementation lives in
 `Spotter/Plugins/AIChat/` so it can reuse the registry's Settings, command, permission and shortcut
@@ -53,7 +54,7 @@ plumbing without being presented as an optional plugin.
 | `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
 | `AIChatView.swift` | The transcript body, in the palette's own list chrome. |
 | `AIChatMarkdownView.swift` | Renders those blocks; inline spans go through SwiftUI's own parser. |
-| `AIChatSettingsView.swift` | The chat model and web search, plus the AI command list and its editor. |
+| `AIChatSettingsView.swift` | The OpenRouter API key, the chat model and web search, plus the AI command list and its editor. |
 
 `Core/OpenRouterModelCatalog.swift` is Foundation-only and pure too: it turns the `/models` payload
 into the brand → model menus.
@@ -70,7 +71,7 @@ typed identifier: OpenRouter publishes hundreds of models across dozens of vendo
 to browse, not a string to remember. A command's menu also carries **Default**, which is the command
 following the chat model instead of pinning one of its own; the two shipped commands pin
 `anthropic/claude-haiku-4.5`, the fast class their first answer has always used.
-Opening Settings → System → AI Chat reloads the catalog from
+Opening Settings → AI Chat & Command reloads the catalog from
 `https://openrouter.ai/api/v1/models` so the menu is what the provider offers right now; a Reload
 button forces it, and the result is cached for 15 minutes and never persisted, so no stale list
 outlives the app.
@@ -165,7 +166,7 @@ their name is not editable and they cannot be deleted, because those ids are wha
 reference resolves through and a deleted one could not be recovered. A user who wants one gone hides
 its launcher row and leaves it unbound.
 
-User commands are added in Settings → System → AI Chat and are dynamic launcher entries, the shape
+User commands are added in the pane's **Commands** card and are dynamic launcher entries, the shape
 Commands uses for custom shell commands and Quicklinks for links. Each gets a shortcut recorder
 because `AppEntry.hotKeyAction` resolves its entry id to `.aiCommand(id:)`; bindings live under
 `KeyboardShortcuts_aiCommandHotkey.<uuid>`, are indexed in `boundAICommandIDs` so a deleted
@@ -201,7 +202,7 @@ composer text intact.
 
 ## Web search
 
-An optional per-chat capability, off by default: when enabled (Settings → System → AI Chat, or the ⌘K
+An optional per-chat capability, off by default: when enabled (Settings → AI Chat & Command, or the ⌘K
 toggle), requests carry OpenRouter's Exa-backed `web` plugin (`plugins: [{id: "web"}]`, 5 results),
 letting replies cite current information. It rides the same key and the same consented request to
 the same provider — no new network surface — but each search adds a small per-message cost, which is

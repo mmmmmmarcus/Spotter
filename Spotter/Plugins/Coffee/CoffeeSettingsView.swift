@@ -45,29 +45,6 @@ struct CoffeeSettingsView: View {
                         .controlSize(.small)
                 }
             }
-
-            SettingsCard(header: "Shortcuts") {
-                shortcutRow("Caffeinate", "cup.and.saucer.fill", .coffeeStart)
-                SettingsDivider()
-                shortcutRow("Decaffeinate", "moon.zzz", .coffeeStop)
-                SettingsDivider()
-                shortcutRow("Caffeinate For…", "timer", .coffeeFor)
-                SettingsDivider()
-                shortcutRow("Caffeinate While App Runs…", "app.badge.checkmark", .coffeeWhile)
-            }
-
-            SettingsCallout(
-                title: "Nothing outlives Spotter",
-                message: "Caffeination is a `caffeinate` process Spotter owns, so quitting Spotter — or a crash — always lets your Mac sleep again.",
-                systemImage: "bolt.slash")
-        }
-    }
-
-    private func shortcutRow(_ title: String, _ symbol: String, _ action: PluginActionKey)
-        -> some View
-    {
-        SettingsRow(title: title, subtitle: nil, systemImage: symbol, tint: .orange) {
-            ShortcutRecorder(action: .plugin(action))
         }
     }
 

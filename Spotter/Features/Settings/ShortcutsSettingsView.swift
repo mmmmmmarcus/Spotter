@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Settings → Shortcuts: everything the launcher can open, in one grouped list — Applications, System
-/// Settings, then Commands split by whoever publishes them. Each row carries an alias field, a hotkey
-/// recorder and a visibility checkbox. The list never applies the visibility filter itself, so a
-/// hidden row stays re-checkable here.
+/// Settings → Shortcuts: the single home for every shortcut Spotter can bind. The two app-level
+/// summon shortcuts lead, then everything the launcher can open, in one grouped list — Applications,
+/// System Settings, then Commands split by whoever publishes them. Each list row carries an alias
+/// field, a hotkey recorder and a visibility checkbox. The list never applies the visibility filter
+/// itself, so a hidden row stays re-checkable here.
 struct ShortcutsSettingsView: View {
     @EnvironmentObject private var appIndex: AppIndex
     @EnvironmentObject private var plugins: PluginRegistry
@@ -28,6 +29,8 @@ struct ShortcutsSettingsView: View {
                 subtitle: "Assign global shortcuts and aliases, and choose what appears in the launcher."
             )
 
+            globalShortcuts
+
             searchField
 
             list
@@ -35,6 +38,31 @@ struct ShortcutsSettingsView: View {
         .padding(Theme.Spacing.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea(edges: .top)
+    }
+
+    /// The two summon shortcuts are app-level rather than launcher rows, so they sit in a fixed card
+    /// above the searchable list instead of inside it — a row without an alias or a visibility box
+    /// would put its recorder at a different x than every list row's.
+    private var globalShortcuts: some View {
+        SettingsCard(header: "Global Shortcuts") {
+            SettingsRow(
+                title: "App Launcher",
+                subtitle: "Summon the fuzzy app launcher.",
+                systemImage: "magnifyingglass",
+                tint: .blue
+            ) {
+                ShortcutRecorder(action: .togglePalette)
+            }
+            SettingsDivider()
+            SettingsRow(
+                title: "Backup Shortcut",
+                subtitle: "A second shortcut that also summons the app launcher.",
+                systemImage: "magnifyingglass.circle",
+                tint: .cyan
+            ) {
+                ShortcutRecorder(action: .togglePaletteBackup)
+            }
+        }
     }
 
     /// Applications and System Settings are one group each; Commands is grouped by owner, so a

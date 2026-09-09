@@ -24,31 +24,23 @@ struct BackupSettingsView: View {
             title: "Backup",
             subtitle: "Sync or export your Spotter data, restore a backup, or import from Raycast."
         ) {
-            SettingsCard(header: "Spotter") {
+            SettingsCard(header: "Sync") {
                 SettingsRow(
-                    title: "Export Settings",
+                    title: "Export & Import",
                     subtitle:
-                        "Save settings, shortcuts, API keys, Notes, histories, and other content to JSON.",
-                    systemImage: "square.and.arrow.up",
+                        "Save settings, shortcuts, API keys, Notes, histories and other content to "
+                        + "JSON, or merge a backup file into this Mac.",
+                    systemImage: "arrow.up.arrow.down.circle",
                     tint: .blue
                 ) {
-                    Button("Export…") { BackupActions.exportSettings() }
-                        .controlSize(.small)
+                    HStack(spacing: Theme.Spacing.md) {
+                        Button("Export…") { BackupActions.exportSettings() }
+                            .controlSize(.small)
+                        Button("Import…") { BackupActions.importSettings() }
+                            .controlSize(.small)
+                    }
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Import Settings",
-                    subtitle:
-                        "Merge a Spotter backup into this Mac; only values present in the file change.",
-                    systemImage: "square.and.arrow.down",
-                    tint: .green
-                ) {
-                    Button("Import…") { BackupActions.importSettings() }
-                        .controlSize(.small)
-                }
-            }
-
-            SettingsCard(header: "Sync") {
                 SettingsRow(
                     title: "Settings File",
                     subtitle: settingsSync.fileURL.map(displayPath)
@@ -94,12 +86,6 @@ struct BackupSettingsView: View {
                     }
                 }
             }
-            SettingsCallout(
-                title: "Keep this file private",
-                message: "Automatic Settings Sync mirrors settings, API keys, clipboard images, histories, and other non-Note content. Notes uses separate, consented CloudKit sync under Plugins → Notes; its Markdown content never enters this Settings file.",
-                systemImage: "icloud.and.arrow.up",
-                tint: .blue)
-
             SettingsCard(header: "Import from Raycast") {
                 SettingsRow(
                     title: "Raycast Export",

@@ -400,11 +400,18 @@ pane use the native `.overlayScroller()`. Don't reintroduce native scrollers on 
 Settings runs in its own `NSWindow` (the SwiftUI `Settings` scene is unreliable for accessory apps) but
 shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not the palette:
 
-- The sidebar has scrollable **System** and **Plugins** groups. Core System panes have a fixed order;
-  registered system-feature and plugin rows are generated from `PluginRegistry`, so adding either
-  does not add a `SettingsTab` case or a view switch branch. `metadata.settingsPlacement` selects the
-  group. Each registered feature owns its Settings view in `Spotter/Plugins/<Name>/`; shared Settings
-  components remain here.
+- The sidebar has three scrollable groups: **System** (General, Permissions, Shortcuts, Backup, then
+  the registered system features), **Plugins**, and **Spotter** (Diagnostics, About) closing the list
+  — those last two describe the app rather than configure its behaviour, so they sit parallel to the
+  other groups rather than inside System. Core panes have a fixed order (`SettingsTab.systemTabs` /
+  `.spotterTabs`); registered system-feature and plugin rows are generated from `PluginRegistry`, so
+  adding either does not add a `SettingsTab` case or a view switch branch.
+  `metadata.settingsPlacement` selects the group. Each registered feature owns its Settings view in
+  `Spotter/Plugins/<Name>/`; shared Settings components remain here.
+- **One row per permission.** The Permissions pane renders each permission as a single row whose
+  trailing control is either the way to grant it or the word *Granted*; a one-second poll re-reads
+  the real system state, so a grant revoked in System Settings drops back to its button. Calendar is
+  the one permission with more than two states, so its single control carries all of them.
 
 - **`SettingsPane`**: bold `.title2` title + secondary subtitle header, then scrollable content, `xxl` inset all around, the same thin scrollbar.
 - **`SettingsCard`**: rounded `card 10` container, `cardFill` fill, `cardStroke` hairline border. Rows inside are split by `SettingsDivider` — an inset hairline aligned under the row title (past the icon).

@@ -131,7 +131,14 @@ where the build number is also shown.
 
 ### Settings ▸ Shortcuts
 
-Everything the launcher can open is one list there, grouped: **Applications**, **System Settings**,
+Settings ▸ Shortcuts is the single home for every shortcut Spotter can bind. A fixed **Global
+Shortcuts** card leads the pane with the two summon bindings — **App Launcher** (`togglePalette`) and
+**Backup Shortcut** (`togglePaletteBackup`), moved out of General in 1.6.0 — above the searchable
+list. They sit in a card rather than in the list because they are app-level rather than launcher
+rows: a row with no alias field and no visibility box would put its recorder at a different x than
+every list row's.
+
+Everything the launcher can open is one list below that, grouped: **Applications**, **System Settings**,
 then **Commands** split by whoever publishes them — Spotter's own built-ins first, then a heading per
 plugin in catalog order, with the Commands plugin contributing two (**System** for the fixed macOS
 actions, **Custom Commands** for the user's shell commands, since one heading over both would read as

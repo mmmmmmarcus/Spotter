@@ -57,6 +57,13 @@ quicklinks theirs in `boundQuicklinkIDs`. Built-in
 plugins expose stable `PluginActionKey` values through `PluginRegistry`; new keys use the
 `plugin.<plugin-id>.<action-id>` namespace while migrated actions may retain legacy defaults keys.
 
+**Settings ▸ Shortcuts is the only pane that records a shortcut.** As of 1.6.0 the two summon
+bindings live in its Global Shortcuts card rather than in General, AI Chat's Open AI Chat row and
+Caffeinate's and Mole's whole Shortcuts sections are gone, and every one of those actions is still
+bound from the same pane — Open AI Chat, the five Caffeinate actions and the nine Mole screens are
+launcher commands, so they were already listed under their owner's heading. Only presentation moved:
+every binding keeps its `KeyboardShortcuts_<name>` defaults key.
+
 **Every launcher row that can be bound, is.** A row in Settings ▸ Shortcuts shows a recorder exactly
 when `AppEntry.hotKeyAction` resolves, and each command kind resolves through its own case:
 

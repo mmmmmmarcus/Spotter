@@ -55,24 +55,6 @@ struct CustomCommandsSettingsView: View {
                 }
             }
 
-            SettingsCallout(
-                title: "Destructive built-in commands always confirm",
-                message:
-                    "Restart, Shut Down, Log Out, Empty Trash and Quit All Applications require "
-                    + "confirmation, with Return initially bound to Cancel.",
-                systemImage: "exclamationmark.shield"
-            )
-
-            SettingsCallout(
-                title: "Commands run with your user account.",
-                message:
-                    "Spotter uses /bin/zsh from your home folder without an interactive Terminal, "
-                    + "so your shell config is skipped. Use full executable paths, or turn on Load "
-                    + "Shell Environment for a command needing an alias, function or custom PATH.",
-                systemImage: "terminal",
-                tint: .green
-            )
-
             SettingsCard(header: "Custom Commands") {
                 if store.commands.isEmpty {
                     SettingsRow(

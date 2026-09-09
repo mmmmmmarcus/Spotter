@@ -15,7 +15,7 @@ missing binary rather than failing silently. Files live in `Spotter/Plugins/Mole
 | `MoleProcessRunner.swift` | Foundation process runner: applies preview-only environment and propagates task cancellation to Mole. |
 | `MoleManager.swift` | Locates the binary, runs Mole off-main one command at a time, owns screen state, streamed run progress and the Analyze navigation trail. |
 | `MolePlugin.swift` | Registration, palette snapshots, ⌘K menus, the confirmation dialog, and the `AppCore` entry points. |
-| `MoleSettingsView.swift` | Enable switch, binary path override, per-screen shortcuts. |
+| `MoleSettingsView.swift` | Enable switch and binary path override; the nine screens are bound in Settings → Shortcuts. |
 
 `Tools/mole-test.swift` compiles `MoleTypes.swift` directly, so it must stay free of AppKit and
 SwiftUI, and its parsers must stay pure. The harness never executes Mole.

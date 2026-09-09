@@ -1,6 +1,9 @@
 import Combine
 import SwiftUI
 
+/// One row per permission: the row explains who needs it and its trailing control is either the way
+/// to grant it or the word Granted. The one-second poll is what keeps a grant revoked in System
+/// Settings from still reading as granted here.
 struct PermissionsSettingsView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var dashboard = AppCore.shared.dashboardWidgets
@@ -13,85 +16,59 @@ struct PermissionsSettingsView: View {
             title: "Permissions",
             subtitle: "Access Spotter needs to work with other apps."
         ) {
-            SettingsCard(header: "Accessibility") {
+            SettingsCard {
                 SettingsRow(
                     title: "Accessibility",
                     subtitle: accessibilitySubtitle,
                     systemImage: "accessibility",
                     tint: .blue
                 ) {
-                    statusBadge
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: accessibilityTrusted ? "Manage in System Settings" : "Grant access",
-                    subtitle: "Opens Privacy & Security › Accessibility.",
-                    systemImage: "arrow.up.forward.app",
-                    tint: .secondary
-                ) {
-                    Button(accessibilityTrusted ? "Open…" : "Open Settings…") {
-                        Permissions.openAccessibilitySettings()
+                    if accessibilityTrusted {
+                        grantedBadge
+                    } else {
+                        Button("Grant Access…") { Permissions.openAccessibilitySettings() }
+                            .controlSize(.small)
                     }
                 }
-            }
 
-            SettingsCard(header: "Automation") {
+                SettingsDivider()
+                // Automation has no queryable per-app state: macOS asks the first time Spotter drives
+                // another app, so the row can only ever offer the pane it is managed in.
                 SettingsRow(
                     title: "App Automation",
                     subtitle: automationSubtitle,
                     systemImage: "gearshape.2",
                     tint: .purple
                 ) {
-                    Button("Open Settings…") {
-                        Permissions.openAutomationSettings()
-                    }
+                    Button("Open Settings…") { Permissions.openAutomationSettings() }
+                        .controlSize(.small)
                 }
-            }
 
-            SettingsCard(header: "Calendar") {
+                SettingsDivider()
                 SettingsRow(
                     title: "Calendar Events",
                     subtitle: calendarSubtitle,
                     systemImage: "calendar",
                     tint: .blue
                 ) {
-                    calendarStatusBadge
+                    calendarControl
                 }
-                SettingsDivider()
-                SettingsRow(
-                    title: calendarActionTitle,
-                    subtitle: calendarActionSubtitle,
-                    systemImage: "arrow.up.forward.app",
-                    tint: .secondary
-                ) {
-                    calendarAction
-                }
-            }
 
-            SettingsCard(header: "Screen Recording") {
+                SettingsDivider()
                 SettingsRow(
                     title: "Screen Recording",
                     subtitle: screenRecordingSubtitle,
                     systemImage: "rectangle.dashed.badge.record",
                     tint: .blue
                 ) {
-                    screenRecordingStatusBadge
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: screenRecordingAllowed
-                        ? "Manage in System Settings" : "Grant access",
-                    subtitle: "Required only when you explicitly capture a screenshot.",
-                    systemImage: "arrow.up.forward.app",
-                    tint: .secondary
-                ) {
-                    Button(screenRecordingAllowed ? "Open…" : "Allow…") {
-                        if screenRecordingAllowed {
-                            Permissions.openScreenRecordingSettings()
-                        } else {
+                    if screenRecordingAllowed {
+                        grantedBadge
+                    } else {
+                        Button("Allow…") {
                             _ = Permissions.requestScreenRecording()
                             screenRecordingAllowed = Permissions.isScreenRecordingAllowed()
                         }
+                        .controlSize(.small)
                     }
                 }
             }
@@ -112,21 +89,20 @@ struct PermissionsSettingsView: View {
         }
     }
 
-    private var statusBadge: some View {
+    private var grantedBadge: some View {
+        statusBadge("Granted", symbol: "checkmark.circle.fill", color: .green)
+    }
+
+    private func statusBadge(_ label: String, symbol: String, color: Color) -> some View {
         HStack(spacing: Theme.Spacing.xs + 1) {
-            Image(
-                systemName: accessibilityTrusted
-                    ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-            )
-            Text(accessibilityTrusted ? "Granted" : "Not granted")
+            Image(systemName: symbol)
+            Text(label)
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(accessibilityTrusted ? Color.green : Color.orange)
+        .foregroundStyle(color)
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.xs)
-        .background(
-            Capsule().fill((accessibilityTrusted ? Color.green : Color.orange).opacity(0.14))
-        )
+        .background(Capsule().fill(color.opacity(0.14)))
     }
 
     private var accessibilitySubtitle: String {
@@ -143,35 +119,6 @@ struct PermissionsSettingsView: View {
         return "Used by \(featureText) to control another application only after you choose an action."
     }
 
-    private var calendarStatusBadge: some View {
-        let status = calendarStatus
-        return HStack(spacing: Theme.Spacing.xs + 1) {
-            Image(systemName: status.symbol)
-            Text(status.label)
-        }
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(status.color)
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.xs)
-        .background(Capsule().fill(status.color.opacity(0.14)))
-    }
-
-    private var screenRecordingStatusBadge: some View {
-        HStack(spacing: Theme.Spacing.xs + 1) {
-            Image(
-                systemName: screenRecordingAllowed
-                    ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-            Text(screenRecordingAllowed ? "Granted" : "Not granted")
-        }
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(screenRecordingAllowed ? Color.green : Color.orange)
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.xs)
-        .background(
-            Capsule().fill((screenRecordingAllowed ? Color.green : Color.orange).opacity(0.14))
-        )
-    }
-
     private var screenRecordingSubtitle: String {
         let names = plugins.features(requiring: .screenRecording).map(\.name).joined(separator: ", ")
         return names.isEmpty
@@ -186,54 +133,27 @@ struct PermissionsSettingsView: View {
             : "Used by \(names) to show upcoming events."
     }
 
-    private var calendarStatus: (label: String, symbol: String, color: Color) {
-        switch dashboard.calendarAccess {
-        case .notDetermined:
-            return ("Not requested", "calendar.badge.exclamationmark", .orange)
-        case .denied:
-            return ("Denied", "xmark.circle.fill", .red)
-        case .restricted:
-            return ("Restricted", "lock.circle.fill", .orange)
-        case .writeOnly:
-            return ("Write only", "pencil.circle.fill", .orange)
-        case .fullAccess:
-            return ("Granted", "checkmark.circle.fill", .green)
-        }
-    }
-
-    private var calendarActionTitle: String {
-        switch dashboard.calendarAccess {
-        case .notDetermined, .writeOnly: "Grant full access"
-        case .denied, .fullAccess: "Manage in System Settings"
-        case .restricted: "Calendar access is restricted"
-        }
-    }
-
-    private var calendarActionSubtitle: String {
-        switch dashboard.calendarAccess {
-        case .notDetermined: "Shows the macOS calendar permission prompt."
-        case .writeOnly: "Upgrade the existing write-only grant to full access."
-        case .denied, .fullAccess: "Opens Privacy & Security › Calendars."
-        case .restricted: "This Mac's policy does not allow Calendar access."
-        }
-    }
-
+    /// Calendar is the one permission with more than two states, so its single control carries them:
+    /// granted reads Granted, a partial or unasked grant offers the prompt, a refusal offers the pane
+    /// and a managed Mac says the choice isn't the user's to make.
     @ViewBuilder
-    private var calendarAction: some View {
+    private var calendarControl: some View {
         switch dashboard.calendarAccess {
+        case .fullAccess:
+            grantedBadge
         case .notDetermined, .writeOnly:
             if dashboard.isRequestingCalendarAccess {
                 ProgressView()
                     .controlSize(.small)
             } else {
                 Button("Allow…") { dashboard.requestCalendarAccess() }
+                    .controlSize(.small)
             }
-        case .denied, .fullAccess:
+        case .denied:
             Button("Open Settings…") { Permissions.openCalendarSettings() }
+                .controlSize(.small)
         case .restricted:
-            Text("Unavailable")
-                .font(.caption)
-                .foregroundStyle(Theme.Colors.textSecondary)
+            statusBadge("Restricted", symbol: "lock.circle.fill", color: .orange)
         }
     }
 }

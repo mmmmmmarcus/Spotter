@@ -12,7 +12,7 @@ enum AIChatPlugin {
         return PluginRegistration(
             metadata: PluginMetadata(
                 id: .aiChat,
-                name: "AI Chat",
+                name: "AI Chat & Command",
                 summary:
                     "Chat through OpenRouter or hand a prompt to ChatGPT on the web, plus define and proofread selected text.",
                 systemImage: "sparkles",
@@ -209,7 +209,7 @@ extension AppCore {
     }
 
     private static let aiCommandKeyMessage =
-        "Add an OpenRouter API key in Settings → General → AI to use this command."
+        "Add an OpenRouter API key in Settings → AI Chat & Command to use this command."
 
     private func presentAICommand(
         _ command: AICommand,

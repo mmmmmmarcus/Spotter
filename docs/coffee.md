@@ -51,4 +51,5 @@ feature off would be a lie about what's running.
   Foundation-only and pure for `Tools/coffee-test.swift`.
 - `CoffeeManager.swift` — the single `AppCore`-owned process owner, with `isolated deinit` teardown.
 - `CoffeePlugin.swift` — registration, the three palette screens, `AppCore` entry points.
-- `CoffeeSettingsView.swift` — enable switch, assertion options, shortcut recorders.
+- `CoffeeSettingsView.swift` — enable switch and assertion options. The five actions are bound in
+  Settings → Shortcuts like every other launcher command.

@@ -5,27 +5,6 @@ struct MoleSettingsView: View {
     @ObservedObject private var mole = AppCore.shared.mole
     @State private var pathDraft = AppCore.shared.mole.binaryPathOverride
 
-    private static let shortcuts: [(String, String, String, PluginActionKey)] = [
-        ("All Commands", "Open the Mole hub listing every screen.", "circle.grid.2x2", .openMoleMenu),
-        (
-            "System Status", "Open Mole's health readout in the palette.", "waveform.path.ecg",
-            .openMoleStatus
-        ),
-        ("Clean", "Preview reclaimable caches, then clean.", "sparkles", .openMoleClean),
-        ("Optimize", "Preview system maintenance, then apply.", "wand.and.stars", .openMoleOptimize),
-        ("Purge", "Preview old build artifacts, then delete.", "hammer", .openMolePurge),
-        ("Uninstall App", "Search installed apps and remove one.", "trash", .openMoleUninstall),
-        ("Analyze Disk", "Browse folders by size.", "chart.pie", .openMoleAnalyze),
-        (
-            "Cleanup History", "Open recent Mole sessions in the palette.", "clock.arrow.circlepath",
-            .openMoleHistory
-        ),
-        (
-            "Remove Installers", "List installer files and move them to the Trash.", "shippingbox",
-            .openMoleInstaller
-        ),
-    ]
-
     var body: some View {
         SettingsPane(
             title: "Mole",
@@ -64,28 +43,6 @@ struct MoleSettingsView: View {
                         .frame(width: 240)
                         .onSubmit { mole.setBinaryPathOverride(pathDraft) }
                         .onChange(of: pathDraft) { mole.setBinaryPathOverride(pathDraft) }
-                }
-            }
-
-            SettingsCallout(
-                title: "Spotter asks before anything is deleted.",
-                message:
-                    "Clean, Optimize, Purge and Uninstall open as previews first; running one needs an "
-                    + "explicit confirmation naming what it removes. Uninstall moves apps to the Trash "
-                    + "unless you pick Delete Permanently. Homebrew casks and indistinguishable copies "
-                    + "stay reveal-only so Spotter never removes the wrong app or breaks Homebrew state. "
-                    + "Admin-only system caches are always skipped.",
-                systemImage: "hand.raised",
-                tint: .green)
-
-            SettingsCard(header: "Shortcuts") {
-                ForEach(Array(Self.shortcuts.enumerated()), id: \.offset) { index, entry in
-                    if index > 0 { SettingsDivider() }
-                    SettingsRow(
-                        title: entry.0, subtitle: entry.1, systemImage: entry.2, tint: .green
-                    ) {
-                        ShortcutRecorder(action: .plugin(entry.3))
-                    }
                 }
             }
 

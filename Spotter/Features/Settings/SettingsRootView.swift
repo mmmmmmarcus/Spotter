@@ -10,6 +10,12 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case general, permissions, shortcuts, backup, diagnostics, about
     var id: String { rawValue }
 
+    /// The System group: what Spotter itself is configured with.
+    static let systemTabs: [SettingsTab] = [.general, .permissions, .shortcuts, .backup]
+    /// Diagnostics and About are about the app rather than its behaviour, so they close the sidebar
+    /// in their own group below the plugins.
+    static let spotterTabs: [SettingsTab] = [.diagnostics, .about]
+
     var title: String {
         switch self {
         case .general: return "General"
@@ -90,7 +96,7 @@ struct SettingsRootView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
                 sidebarHeader("System")
-                ForEach(SettingsTab.allCases) { item in
+                ForEach(SettingsTab.systemTabs) { item in
                     sidebarRow(
                         title: item.title, systemImage: item.systemImage, tint: item.tint,
                         destination: .system(item))
@@ -112,6 +118,14 @@ struct SettingsRootView: View {
                         systemImage: plugin.systemImage,
                         tint: plugin.tint.color,
                         destination: .plugin(plugin.id))
+                }
+
+                sidebarHeader("Spotter")
+                    .padding(.top, Theme.Spacing.md)
+                ForEach(SettingsTab.spotterTabs) { item in
+                    sidebarRow(
+                        title: item.title, systemImage: item.systemImage, tint: item.tint,
+                        destination: .system(item))
                 }
             }
         }

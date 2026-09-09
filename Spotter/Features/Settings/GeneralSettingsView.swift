@@ -47,28 +47,8 @@ struct GeneralSettingsView: View {
     var body: some View {
         SettingsPane(
             title: "General",
-            subtitle: "Global shortcuts and startup behaviour."
+            subtitle: "Search, appearance and startup behaviour."
         ) {
-            SettingsCard(header: "Global Shortcuts") {
-                SettingsRow(
-                    title: "App Launcher",
-                    subtitle: "Summon the fuzzy app launcher.",
-                    systemImage: "magnifyingglass",
-                    tint: .blue
-                ) {
-                    ShortcutRecorder(action: .togglePalette)
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Backup Shortcut",
-                    subtitle: "A second shortcut that also summons the app launcher.",
-                    systemImage: "magnifyingglass.circle",
-                    tint: .cyan
-                ) {
-                    ShortcutRecorder(action: .togglePaletteBackup)
-                }
-            }
-
             SettingsCard(header: "Search") {
                 SettingsRow(
                     title: "Learned ranking",
@@ -356,8 +336,6 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            OpenRouterSettingsCard()
-
             UpdatesSettingsCard()
         }
         .confirmationDialog(
@@ -371,51 +349,6 @@ struct GeneralSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Spotter will relearn your preferred results as you use the launcher.")
-        }
-    }
-}
-
-/// OpenRouter credential card. The key is the gate: present means AI Chat may make requests;
-/// absent means fully on-device. Key and models sync through settings backups.
-private struct OpenRouterSettingsCard: View {
-    @ObservedObject private var store = AppCore.shared.openRouter
-    @State private var keyDraft = AppCore.shared.openRouter.apiKey
-
-    var body: some View {
-        SettingsCard(header: "AI (OpenRouter)") {
-            SettingsRow(
-                title: "API Key",
-                subtitle: keySubtitle,
-                systemImage: "key",
-                tint: .purple,
-                statusDot: store.isReady ? .green : nil
-            ) {
-                HStack(spacing: Theme.Spacing.md) {
-                    SecureField("sk-or-…", text: $keyDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
-                        .onSubmit { store.setAPIKey(keyDraft) }
-                        .onChange(of: keyDraft) { store.setAPIKey(keyDraft) }
-                    Button("Validate") {
-                        Task { await store.validate() }
-                    }
-                    .controlSize(.small)
-                    .disabled(keyDraft.isEmpty || store.validation == .checking)
-                }
-            }
-        }
-        // The key can change underneath this pane (settings sync applying a remote file).
-        .onChange(of: store.apiKey) { if store.apiKey != keyDraft { keyDraft = store.apiKey } }
-    }
-
-    private var keySubtitle: String {
-        switch store.validation {
-        case .unknown:
-            "Required for AI Chat, including selected-text definition and grammar. "
-                + "Included in settings backups and sync."
-        case .checking: "Checking key with \(OpenRouterStore.provider)…"
-        case .valid(let detail): detail
-        case .invalid(let message): message
         }
     }
 }

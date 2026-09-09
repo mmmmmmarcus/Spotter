@@ -8,20 +8,10 @@ struct AIChatSettingsView: View {
 
     var body: some View {
         SettingsPane(
-            title: "AI Chat",
+            title: "AI Chat & Command",
             subtitle: "Ask Spotter AI, send to ChatGPT on the web, or run a command on selected text."
         ) {
-            if !openRouter.isReady {
-                SettingsCallout(
-                    title: "Spotter AI needs an OpenRouter API key.",
-                    message:
-                        "The key is entered once in General → AI. Actions (⌘K) can still send a draft to ChatGPT on the web.",
-                    systemImage: "key",
-                    tint: .orange
-                ) {
-                    Button("Open General Settings…") { AppCore.shared.showSettings() }
-                }
-            }
+            OpenRouterSettingsCard()
 
             SettingsCard(header: "Chat") {
                 SettingsRow(
@@ -43,24 +33,9 @@ struct AIChatSettingsView: View {
                         .controlSize(.small)
                         .disabled(!openRouter.isReady || openRouter.catalogState == .loading)
                 }
-                SettingsDivider()
-                shortcutRow(
-                    title: "Open AI Chat", subtitle: "Summon the conversation directly.",
-                    symbol: "sparkles", action: .plugin(.openAIChat))
             }
 
-            SettingsCallout(
-                title: "An AI command is a prompt with your selection in it.",
-                message:
-                    "Write \(AICommand.placeholder) where the selected text belongs; a prompt "
-                    + "without it gets the selection appended. Each command has its own shortcut and "
-                    + "its own model, and Spotter's two built-in commands can be edited or reset but "
-                    + "not deleted.",
-                systemImage: "text.append",
-                tint: .purple
-            )
-
-            SettingsCard(header: "AI Commands") {
+            SettingsCard(header: "Commands") {
                 ForEach(Array(commands.commands.enumerated()), id: \.element.id) { index, command in
                     if index > 0 { SettingsDivider() }
                     AICommandSettingsRow(
@@ -133,14 +108,6 @@ struct AIChatSettingsView: View {
 
     private func modelSubtitle(_ subtitle: String) -> String {
         openRouter.isReady ? subtitle : subtitle + " Inactive until an API key is added."
-    }
-
-    private func shortcutRow(
-        title: String, subtitle: String, symbol: String, action: HotKeyAction
-    ) -> some View {
-        SettingsRow(title: title, subtitle: subtitle, systemImage: symbol, tint: .purple) {
-            ShortcutRecorder(action: action)
-        }
     }
 }
 
@@ -385,6 +352,51 @@ private struct AICommandEditorSheet: View {
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+}
+
+/// OpenRouter credential card. The key is the gate: present means AI Chat and every AI command may
+/// make requests; absent means fully on-device. Key and models sync through settings backups.
+private struct OpenRouterSettingsCard: View {
+    @ObservedObject private var store = AppCore.shared.openRouter
+    @State private var keyDraft = AppCore.shared.openRouter.apiKey
+
+    var body: some View {
+        SettingsCard(header: "AI (OpenRouter)") {
+            SettingsRow(
+                title: "API Key",
+                subtitle: keySubtitle,
+                systemImage: "key",
+                tint: .purple,
+                statusDot: store.isReady ? .green : nil
+            ) {
+                HStack(spacing: Theme.Spacing.md) {
+                    SecureField("sk-or-…", text: $keyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                        .onSubmit { store.setAPIKey(keyDraft) }
+                        .onChange(of: keyDraft) { store.setAPIKey(keyDraft) }
+                    Button("Validate") {
+                        Task { await store.validate() }
+                    }
+                    .controlSize(.small)
+                    .disabled(keyDraft.isEmpty || store.validation == .checking)
+                }
+            }
+        }
+        // The key can change underneath this pane (settings sync applying a remote file).
+        .onChange(of: store.apiKey) { if store.apiKey != keyDraft { keyDraft = store.apiKey } }
+    }
+
+    private var keySubtitle: String {
+        switch store.validation {
+        case .unknown:
+            "Required for AI Chat, including selected-text definition and grammar. "
+                + "Included in settings backups and sync."
+        case .checking: "Checking key with \(OpenRouterStore.provider)…"
+        case .valid(let detail): detail
+        case .invalid(let message): message
         }
     }
 }

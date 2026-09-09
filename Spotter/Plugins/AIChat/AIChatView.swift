@@ -12,7 +12,7 @@ struct AIChatView: View {
     var body: some View {
         if !chat.isReady {
             EmptyResults(
-                text: "AI Chat needs an OpenRouter API key — add one in Settings → General → AI.")
+                text: "AI Chat needs an OpenRouter API key — add one in Settings → AI Chat & Command.")
         } else if chat.messages.isEmpty && chat.phase == .idle {
             if chat.isWaiting {
                 EmptyResults(

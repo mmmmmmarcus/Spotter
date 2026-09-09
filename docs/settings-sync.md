@@ -1,6 +1,8 @@
 # Settings sync
 
-Settings → Backup can attach Spotter to one user-selected JSON file. Creating a file writes the live
+Settings → Backup groups manual export/import and automatic sync in one **Sync** card: one
+**Export & Import** row offers both directions, and the rows beneath it attach Spotter to one
+user-selected JSON file. Creating a file writes the live
 non-Note state; choosing an existing file validates and applies it before the path is persisted.
 Manual backup and automatic sync share the human-readable `SettingsBackup` format, but manual
 exports/imports include Notes for disaster recovery while automatic Settings Sync always omits and
@@ -40,7 +42,7 @@ is ignored on decode and trusting such a file can never start CloudKit.
 
 Clipboard image bytes are embedded in the JSON and rebuilt under each Mac's own bundle-scoped cache;
 absolute cache paths never cross devices. Because v3 files can contain credentials and private
-content, the Backup pane and trust dialogs tell the user to keep them in a private location.
+content, the trust dialog shown when a sync file is connected says so.
 
 Alongside Note content, the other state deliberately excluded from automatic Settings Sync is
 device-bound: the palette's concrete screen coordinates, macOS privacy grants, all three

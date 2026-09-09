@@ -32,15 +32,6 @@ struct QuicklinksSettingsView: View {
                 }
             }
 
-            SettingsCallout(
-                title: "Placeholders make one link reusable.",
-                message:
-                    "Write {argument} anywhere in a link and Spotter asks for the value before "
-                    + "opening it. Name it with {argument name=\"City\"} or offer fixed choices "
-                    + "with {argument options=\"day,week,month\"}.",
-                systemImage: "curlybraces",
-                tint: .blue)
-
             SettingsCard(header: "Saved Quicklinks") {
                 if store.sorted.isEmpty {
                     SettingsRow(
