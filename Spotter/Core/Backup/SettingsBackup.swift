@@ -3,7 +3,7 @@ import Foundation
 /// A human-readable snapshot of Spotter's settings and content. Every field is optional so a manual import remains a non-destructive merge, while automatic sync treats a v3 snapshot as authoritative.
 struct SettingsBackup: Codable, Sendable {
     var version = 3
-    var settings: SettingsData?
+    var settings: SettingsBackupData?
     var hotkeys: HotkeyBackup?
     var customCommands: [CustomCommand]?
     /// The AI commands, built-ins included: names, prompts and per-command model choices. User
@@ -16,7 +16,7 @@ struct SettingsBackup: Codable, Sendable {
     var hiddenLauncherKinds: [String]?
     /// Per-entry launcher aliases, keyed by `preferenceKey`. Data, not a capability — an alias grants nothing, so it rides an untrusted restore like favorites do.
     var launcherAliases: [String: String]?
-    var pluginPrefs: PluginPrefs?
+    var pluginPrefs: SettingsBackupPluginPrefs?
     var worldClockCities: [String]?
     var quicklinks: [Quicklink]?
     var textReplacement: TextReplacementBackup?
@@ -27,60 +27,6 @@ struct SettingsBackup: Codable, Sendable {
     var backgroundTasks: [BackgroundTaskItem]?
     var frequentEmoji: [FrequentEmoji]?
     var launcherRanking: [LauncherRankingRecord]?
-
-    /// Enum-backed settings are stored by raw value so the JSON stays legible and forward-compatible (an unknown value is ignored on import rather than failing the whole decode).
-    struct SettingsData: Codable, Sendable {
-        struct DashboardWidgets: Codable, Sendable {
-            /// The strip's arrangement. Absent in files written before it was configurable, which
-            /// simply leaves the receiving Mac on the default order.
-            var widgetOrder: [String]?
-            var calendarSourceIdentifier: String?
-            var includesAllDayEvents: Bool?
-            var clockTimeZoneIdentifier: String?
-            // Weather consent travels with the trusted file: restoring one is itself the consent
-            // act. A file carrying `false` grants nothing and is not an answer — weather has no off
-            // switch, so the receiving Mac is still asked its one question.
-            var weatherEnabled: Bool?
-            var weatherCity: Data?
-            var weatherUnit: String?
-        }
-
-        var clipboardRetentionDays: Int?
-        var clipboardDisabledApps: [String]?
-        var launchAtLogin: Bool?
-        var hyperKey: String?
-        var hyperKeyIncludesShift: Bool?
-        var hyperKeyQuickPress: String?
-        var hyperKeyReplacesGlyph: Bool?
-        var emojiSkinTone: String?
-        var showInMenuBar: Bool?
-        var showInDock: Bool?
-        var popToRootSeconds: Int?
-        var compactMode: Bool?
-        var showFavoritesInCompactMode: Bool?
-        var searchScopes: [String]?
-        var openOnCursorScreen: Bool?
-        var launcherSectionOrder: [String]?
-        var launcherHiddenSections: [String]?
-        var preferredTerminal: String?
-        var remembersPalettePosition: Bool?
-        var lockInputToEnglish: Bool?
-        // The key is the OpenRouter gate (owner decision): importing or syncing a file that carries one activates the AI path on this Mac.
-        var openRouterAPIKey: String?
-        /// The two built-in AI commands' models, from before each command carried its own. Still
-        /// written, so an older build reading this file keeps them; only read when the file carries
-        /// no `aiCommands`.
-        var openRouterDefinitionModel: String?
-        var openRouterGrammarModel: String?
-        var openRouterChatModel: String?
-        var openRouterChatWebSearch: Bool?
-        var googleTranslationAPIKey: String?
-        /// Decode-only: the separate translation consent toggle is gone, the API key is the gate.
-        var googleTranslationEnabled: Bool?
-        var googleTranslationTargets: [String]?
-        var updateAutoCheckEnabled: Bool?
-        var dashboardWidgets: DashboardWidgets?
-    }
 
     struct HotkeyBackup: Codable, Sendable {
         var togglePalette: HotKeyBinding?
@@ -100,80 +46,6 @@ struct SettingsBackup: Codable, Sendable {
         var aiCommands: [String: HotKeyBinding]?
         /// Every bound plugin shortcut, keyed `<plugin-id>.<action-id>` — new plugins sync automatically.
         var pluginActions: [String: HotKeyBinding]?
-    }
-
-    /// Per-plugin preferences that live in raw bundle-scoped `UserDefaults`. Gathered as effective values (defaults resolved), so a synced Mac lands on exactly what the source Mac shows.
-    struct PluginPrefs: Codable, Sendable {
-        struct ChangeCase: Codable, Sendable {
-            var source: String?
-            var primaryAction: String?
-            var preserveCase: Bool?
-            var preservePunctuation: Bool?
-            var exceptions: String?
-            var prefix: String?
-            var suffix: String?
-            var pinned: [String]?
-            var recent: [String]?
-            var disabled: [String]?
-        }
-        struct KillProcess: Codable, Sendable {
-            var sort: String?
-            var groupApps: Bool?
-            var searchPaths: Bool?
-            var searchPIDs: Bool?
-            var prioritizeApps: Bool?
-            var showPID: Bool?
-            var showPath: Bool?
-            var refreshSeconds: Double?
-        }
-        struct ImageModification: Codable, Sendable {
-            var output: String?
-            var format: String?
-        }
-        struct Screenshot: Codable, Sendable {
-            var roundedCorners: Bool?
-            var captureScale: String?
-            var fileFormat: String?
-            var includesWindowShadow: Bool?
-            var hidesSpotterWindows: Bool?
-            var previewDuration: Double?
-        }
-        struct SelectionTools: Codable, Sendable {
-            /// The two built-in AI commands' prompts, from before commands were records. Still
-            /// written for older builds; only read when the file carries no `aiCommands`.
-            var definitionPrompt: String?
-            var grammarPrompt: String?
-        }
-        struct Caffeinate: Codable, Sendable {
-            var keepsDisplayAwake: Bool?
-            var keepsDiskAwake: Bool?
-        }
-        struct WindowManagement: Codable, Sendable {
-            var gap: Int?
-            var cycleOnRepeat: Bool?
-        }
-        struct Mole: Codable, Sendable {
-            // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
-            var binaryPath: String?
-        }
-        struct Note: Codable, Sendable {
-            // A file written before Notes moved to a folder carries `iCloudSyncEnabled`. It is
-            // neither written nor read now: an old snapshot can never start the dormant CloudKit
-            // engine, and the Notes folder is a device-local path that does not travel.
-            var windowTransparency: Double?
-            var autoWindowSizing: Bool?
-        }
-        var changeCase: ChangeCase?
-        var killProcess: KillProcess?
-        var imageModification: ImageModification?
-        var screenshot: Screenshot?
-        var selectionTools: SelectionTools?
-        var caffeinate: Caffeinate?
-        var windowManagement: WindowManagement?
-        var mole: Mole?
-        var note: Note?
-        // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
-        var dashboardWidgets: SettingsData.DashboardWidgets?
     }
 
     struct TextReplacementBackup: Codable, Sendable {
@@ -223,7 +95,7 @@ extension SettingsBackup {
         let s = core.settings
         let dashboard = core.dashboardWidgets.preferences
         var backup = SettingsBackup()
-        backup.settings = SettingsData(
+        backup.settings = SettingsBackupData(
             clipboardRetentionDays: s.clipboardRetention.rawValue,
             clipboardDisabledApps: s.clipboardDisabledApps,
             launchAtLogin: s.launchAtLogin,
@@ -253,7 +125,8 @@ extension SettingsBackup {
             googleTranslationAPIKey: core.translate.apiKey,
             googleTranslationTargets: core.translate.targetCodes,
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
-            dashboardWidgets: SettingsData.DashboardWidgets(
+            currencyRatesEnabled: core.currencyRates.isEnabled,
+            dashboardWidgets: SettingsBackupData.DashboardWidgets(
                 widgetOrder: dashboard.widgetOrder.map(\DashboardWidgetKind.rawValue),
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier ?? "",
                 includesAllDayEvents: dashboard.includesAllDayEvents,
@@ -331,10 +204,10 @@ extension SettingsBackup {
     }
 
     /// Effective values, resolved with the same defaults their settings views use, so an export never carries "unset" holes.
-    private static func gatherPluginPrefs(from core: AppCore) -> PluginPrefs {
+    private static func gatherPluginPrefs(from core: AppCore) -> SettingsBackupPluginPrefs {
         let d = UserDefaults.standard
-        var prefs = PluginPrefs()
-        prefs.changeCase = PluginPrefs.ChangeCase(
+        var prefs = SettingsBackupPluginPrefs()
+        prefs.changeCase = SettingsBackupPluginPrefs.ChangeCase(
             source: d.string(forKey: "change-case.source")
                 ?? ChangeCaseInputSource.selectedText.rawValue,
             primaryAction: d.string(forKey: "change-case.primary-action")
@@ -349,7 +222,7 @@ extension SettingsBackup {
             pinned: d.stringArray(forKey: "change-case.pinned") ?? [],
             recent: d.stringArray(forKey: "change-case.recent") ?? [],
             disabled: d.stringArray(forKey: "change-case.disabled") ?? [])
-        prefs.killProcess = PluginPrefs.KillProcess(
+        prefs.killProcess = SettingsBackupPluginPrefs.KillProcess(
             sort: d.string(forKey: "kill-process.sort") ?? ProcessSort.cpu.rawValue,
             groupApps: d.object(forKey: "kill-process.group-apps") == nil
                 || d.bool(forKey: "kill-process.group-apps"),
@@ -363,29 +236,29 @@ extension SettingsBackup {
             showPath: d.bool(forKey: "kill-process.show-path"),
             refreshSeconds: d.object(forKey: "kill-process.refresh-seconds") == nil
                 ? 2.0 : d.double(forKey: "kill-process.refresh-seconds"))
-        prefs.imageModification = PluginPrefs.ImageModification(
+        prefs.imageModification = SettingsBackupPluginPrefs.ImageModification(
             output: d.string(forKey: "image-modification.output")
                 ?? ImageOutputLocation.alongside.rawValue,
             format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
-        prefs.screenshot = PluginPrefs.Screenshot(
+        prefs.screenshot = SettingsBackupPluginPrefs.Screenshot(
             roundedCorners: core.screenshot.roundedCorners,
             captureScale: core.screenshot.captureScale.rawValue,
             fileFormat: core.screenshot.fileFormat.rawValue,
             includesWindowShadow: core.screenshot.includesWindowShadow,
             hidesSpotterWindows: core.screenshot.hidesSpotterWindows,
             previewDuration: core.screenshot.previewDuration)
-        prefs.selectionTools = PluginPrefs.SelectionTools(
+        prefs.selectionTools = SettingsBackupPluginPrefs.SelectionTools(
             definitionPrompt: core.aiCommands.command(.define)?.prompt,
             grammarPrompt: core.aiCommands.command(.grammar)?.prompt)
-        prefs.caffeinate = PluginPrefs.Caffeinate(
+        prefs.caffeinate = SettingsBackupPluginPrefs.Caffeinate(
             keepsDisplayAwake: d.object(forKey: "coffee.keeps-display-awake") == nil
                 || d.bool(forKey: "coffee.keeps-display-awake"),
             keepsDiskAwake: d.bool(forKey: "coffee.keeps-disk-awake"))
-        prefs.windowManagement = PluginPrefs.WindowManagement(
+        prefs.windowManagement = SettingsBackupPluginPrefs.WindowManagement(
             gap: d.integer(forKey: WindowManagementDefaults.gapKey),
             cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
-        prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
-        prefs.note = PluginPrefs.Note(
+        prefs.mole = SettingsBackupPluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
+        prefs.note = SettingsBackupPluginPrefs.Note(
             windowTransparency: core.notes.windowTransparency,
             autoWindowSizing: core.notes.autoWindowSizing)
         return prefs
@@ -479,7 +352,7 @@ extension SettingsBackup {
         return summary
     }
 
-    private static func applyPluginPrefs(_ prefs: PluginPrefs, to core: AppCore) -> Int {
+    private static func applyPluginPrefs(_ prefs: SettingsBackupPluginPrefs, to core: AppCore) -> Int {
         let d = UserDefaults.standard
         var count = 0
         func set(_ value: Any?, _ key: String) {
@@ -583,7 +456,7 @@ extension SettingsBackup {
         return count
     }
 
-    private func applySettings(_ s: SettingsData, to core: AppCore, mode: ApplyMode) -> Int {
+    private func applySettings(_ s: SettingsBackupData, to core: AppCore, mode: ApplyMode) -> Int {
         let settings = core.settings
         var count = 0
         if let days = s.clipboardRetentionDays, let retention = ClipboardRetention(rawValue: days) {
@@ -710,6 +583,7 @@ extension SettingsBackup {
             core.updates.setAutoCheck(enabled)
             count += 1
         }
+        count += core.currencyRates.applyPreferences(enabled: s.currencyRatesEnabled)
         if let dashboard = s.dashboardWidgets {
             count += core.dashboardWidgets.applyPreferences(
                 widgetOrderRawValues: dashboard.widgetOrder,
@@ -720,6 +594,7 @@ extension SettingsBackup {
                 enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
                 unitRawValue: dashboard.weatherUnit)
         }
+        // is a no-op either way.
         return count
     }
 

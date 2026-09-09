@@ -178,6 +178,7 @@ run_harness() {
             ;;
         settings-sync)
             swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
+                Spotter/Core/Backup/SettingsBackupData.swift \
                 Tools/settings-sync-test.swift -o "$output" && "$output"
             ;;
         update)

@@ -47,7 +47,7 @@ enum RaycastImport {
             if options.contains(.shortcuts) { trimmed.hotkeys = backup.hotkeys }
             if options.contains(.favorites) { trimmed.favoriteApps = backup.favoriteApps }
 
-            var settings = SettingsBackup.SettingsData()
+            var settings = SettingsBackupData()
             var hasSettings = false
             if options.contains(.emojiSkinTone), let tone = backup.settings?.emojiSkinTone {
                 settings.emojiSkinTone = tone
@@ -153,9 +153,9 @@ enum RaycastImport {
         "right_command": .rightCommand,
     ]
 
-    private static func mapSettings(_ json: [String: Any]) -> SettingsBackup.SettingsData? {
+    private static func mapSettings(_ json: [String: Any]) -> SettingsBackupData? {
         let general = (json["settings"] as? [String: Any])?["general"] as? [String: Any]
-        var data = SettingsBackup.SettingsData()
+        var data = SettingsBackupData()
         var mapped = false
         if let openAtLogin = general?["openAtLogin"] as? Bool {
             data.launchAtLogin = openAtLogin

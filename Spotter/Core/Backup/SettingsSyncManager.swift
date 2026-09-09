@@ -159,6 +159,9 @@ final class SettingsSyncManager: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.scheduleSave() }
             .store(in: &cancellables)
+        // Every defaults-backed store rides this one notification — world clock, snippets, screenshot,
+        // translate, OpenRouter, updates, currency rates, the widget strip. Only the file- and
+        // SQLite-backed stores above need a publisher of their own.
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.scheduleSave() }

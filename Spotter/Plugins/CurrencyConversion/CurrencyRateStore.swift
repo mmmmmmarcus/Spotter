@@ -76,7 +76,8 @@ final class CurrencyRateStore: ObservableObject {
         }
     }
 
-    /// The Settings toggle's only entry point, called after the user accepts the consent dialog.
+    /// The Settings toggle, called after the user accepts the consent dialog, and the trusted-file
+    /// restore below — nothing else may flip consent.
     /// Disabling tears the loop down, drops the snapshot and deletes the cached file — opting out
     /// shouldn't leave downloaded data behind.
     func setEnabled(_ enabled: Bool) {
@@ -91,6 +92,15 @@ final class CurrencyRateStore: ObservableObject {
             rates = nil
             try? FileManager.default.removeItem(at: fileURL)
         }
+    }
+
+    /// Restores consent from a backup or sync snapshot; trusting that file is itself the consent
+    /// act. An absent field leaves this Mac's own choice alone.
+    @discardableResult
+    func applyPreferences(enabled: Bool?) -> Int {
+        guard let enabled else { return 0 }
+        setEnabled(enabled)
+        return 1
     }
 
     /// Manual "Update Now" from Settings. Returns whether a fresh table landed, so the pane can say

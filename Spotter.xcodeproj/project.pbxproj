@@ -207,6 +207,7 @@
 		C5A90D2F66912CF0E1FB5A2E /* CalcDateTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E99754BAF150F94F52D70F /* CalcDateTime.swift */; };
 		C906D9881A06EEADC4BD0B32 /* EmojiSymbolsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62B521E8A486B533AF74AC8 /* EmojiSymbolsPlugin.swift */; };
 		C92C7514F90469403D052722 /* DoubleTapDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC621FFFA712909B559E2B3 /* DoubleTapDetector.swift */; };
+		CA4761943167D017165DF6FD /* SettingsBackupData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA4845247A6E5ADB97F3BB /* SettingsBackupData.swift */; };
 		CAB28684B11E838CBAAE63D0 /* ThinScrollbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D58C310CD39C89001E71E53 /* ThinScrollbar.swift */; };
 		CE640D2E4EF8D3AA96B30EF8 /* CommandID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBEAA0B13F8EAC4A96E6971 /* CommandID.swift */; };
 		CEE52559A7F432B31E1300A1 /* CurrencyConversionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE606C002203EDEE75AD6EB9 /* CurrencyConversionPlugin.swift */; };
@@ -311,6 +312,7 @@
 		2EF4FC36249D2F239DC103AD /* CustomCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommand.swift; sourceTree = "<group>"; };
 		2FABAD3BE47CB4272128AAD7 /* DashboardWidgetsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsEngine.swift; sourceTree = "<group>"; };
 		307535C846A5B39643CCB935 /* UpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateViews.swift; sourceTree = "<group>"; };
+		30CA4845247A6E5ADB97F3BB /* SettingsBackupData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBackupData.swift; sourceTree = "<group>"; };
 		322BD1E0F51E36F6E499FFC5 /* TextReplacementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementStore.swift; sourceTree = "<group>"; };
 		33DA110D133BA16DE3B31358 /* Capso-BSL-1.1.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Capso-BSL-1.1.txt"; sourceTree = "<group>"; };
 		33E49FE9DA17F3916D19B86D /* WindowActionMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActionMemory.swift; sourceTree = "<group>"; };
@@ -862,6 +864,7 @@
 				0B021648C18367106C234D3C /* RaycastImport.swift */,
 				EFEA06CE5BB23625D06B9B5B /* Scrypt.swift */,
 				B4ADAAF0E7643B2886D05E41 /* SettingsBackup.swift */,
+				30CA4845247A6E5ADB97F3BB /* SettingsBackupData.swift */,
 				1D10E282B83D363D3D9A4FA8 /* SettingsSyncFile.swift */,
 				F271C3DE73C6AA9AC7A0DB63 /* SettingsSyncManager.swift */,
 			);
@@ -1358,6 +1361,7 @@
 				0527FC6AB7CD093420A9CEA3 /* SelectionToolsSettingsView.swift in Sources */,
 				A612A1A1ED5D021387F6F198 /* SelectionToolsTypes.swift in Sources */,
 				DFE0BBBAB57FDCC7D82536DE /* SettingsBackup.swift in Sources */,
+				CA4761943167D017165DF6FD /* SettingsBackupData.swift in Sources */,
 				0AC2999B2C9745BB543AC53D /* SettingsComponents.swift in Sources */,
 				39E3250E5E10457EC6BFC2BF /* SettingsPaneScanner.swift in Sources */,
 				EA2CF1863220F2B985AC16D3 /* SettingsRootView.swift in Sources */,

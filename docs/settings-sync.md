@@ -14,42 +14,141 @@ The path can be anywhere. When it is inside iCloud Drive, macOS transports it to
 Macs; Settings Sync itself uses no network service or CloudKit records. Synchronization can be paused
 or disconnected without deleting the file.
 
+## Format
+
+`Spotter/Core/Backup/SettingsBackupData.swift` holds the two dependency-free halves of the snapshot —
+every scalar setting and credential (`settings`) and every per-plugin preference (`pluginPrefs`) — so
+`Tools/settings-sync-test.swift` compiles the real format and pins its JSON contract.
+`SettingsBackup.swift` holds the rest of the record plus the gather/apply passes that touch the live
+stores.
+
+Every field is optional and every `Codable` conformance is synthesized: no `CodingKeys`, no
+hand-written `init(from:)`. That is what makes both directions of compatibility work. A field a
+writer didn't have is simply absent, and absent means *leave this Mac's value alone* — apply only
+ever runs inside `if let`, so a missing field never resets anything and never throws. A field a
+reader doesn't know is ignored rather than rejected. Only the `version` integer is checked, and only
+to refuse a file from a future format.
+
 ## Coverage
 
-Format v3 covers the complete automatic Settings Sync state:
+Format v3 carries everything below. "Field" is the path inside the JSON.
 
-- General, system-feature and plugin preferences, including every network consent flag. There is no
-  plugin enable state to carry, and Uptime's tallies stay device-local.
-- OpenRouter and Google Cloud Translation API keys and all associated model options.
-- Every shortcut — apps, panes, plugin actions, custom commands, quicklinks, AI commands and
-  Spotter's own built-in commands. Empty binding maps are authoritative, so unbinding a shortcut
-  propagates. A per-item binding is applied only once its item exists, which is why the quicklinks
-  and AI commands themselves are restored before the shortcut map is.
-- Custom commands, AI commands (names, prompts and per-command model choices), favorites, per-entry
-  launcher aliases, hidden launcher items, Quicklinks, World Clock cities and Text Replacement
-  rules. A file written before AI commands existed carries the two built-ins' prompts and models in
-  their old fields instead, and those are read only when the file has no AI commands of its own.
-- Text and image clipboard history, pinned clipboard state, calculator history, AI conversations and
-  current conversation, background-task rows, frequent emoji and learned launcher ranking.
+### General
 
-Manual backups additionally contain Notes and the selected note. Automatic Settings Sync does not
-observe `NoteStore`, so typing never rewrites the larger Settings file and an incoming Settings
-snapshot can never replace Notes. See [Notes](notes.md) for its independent folder pipeline.
+| Setting | Field |
+| --- | --- |
+| Clipboard retention | `settings.clipboardRetentionDays` |
+| Apps excluded from clipboard history | `settings.clipboardDisabledApps` |
+| Launch at login | `settings.launchAtLogin` |
+| Hyper Key: physical key, ⇧ inclusion, quick press, glyph collapse | `settings.hyperKey`, `.hyperKeyIncludesShift`, `.hyperKeyQuickPress`, `.hyperKeyReplacesGlyph` |
+| Emoji skin tone | `settings.emojiSkinTone` |
+| Menu-bar icon / Dock icon | `settings.showInMenuBar`, `.showInDock` |
+| Pop to root delay | `settings.popToRootSeconds` |
+| Compact mode, favorites in compact mode | `settings.compactMode`, `.showFavoritesInCompactMode` |
+| Open on the cursor's screen | `settings.openOnCursorScreen` |
+| Remember palette position (the preference, not the point) | `settings.remembersPalettePosition` |
+| Lock input to English | `settings.lockInputToEnglish` |
+| Preferred terminal | `settings.preferredTerminal` |
 
-A file written before Notes moved to a folder carries a `note.iCloudSyncEnabled` flag for the retired
-CloudKit pipeline. It is now neither written nor read: the field is gone from the format, so the key
-is ignored on decode and trusting such a file can never start CloudKit.
+### Launcher
+
+| Setting | Field |
+| --- | --- |
+| Search scopes | `settings.searchScopes` |
+| Section order and hidden sections | `settings.launcherSectionOrder`, `.launcherHiddenSections` |
+| Favorites | `favoriteApps` |
+| Hidden launcher items | `hiddenLauncherItems` |
+| Per-entry aliases | `launcherAliases` |
+| Learned ranking | `launcherRanking` |
+
+### Shortcuts
+
+Every binding, in `hotkeys`: palette and backup palette (`togglePalette`, `togglePaletteBackup`),
+per-app (`apps`), per-settings-pane (`panes`), every plugin action (`pluginActions`, keyed
+`<plugin-id>.<action-id>`, so a new plugin syncs with no format change), custom commands
+(`customCommands`), quicklinks (`quicklinks`), AI commands (`aiCommands`) and Spotter's own built-in
+commands (`builtInCommands`). Empty binding maps are authoritative, so unbinding propagates. A
+per-item binding is applied only once its item exists, which is why quicklinks, custom commands and
+AI commands are restored before the shortcut map is.
+
+### Credentials and networked features
+
+Restoring one of these *is* the consent act — the file is trusted explicitly before it is applied.
+
+| Setting | Field |
+| --- | --- |
+| OpenRouter API key (the gate for AI Chat and every AI command) | `settings.openRouterAPIKey` |
+| OpenRouter chat model, web search | `settings.openRouterChatModel`, `.openRouterChatWebSearch` |
+| Google Cloud Translation API key (the gate for Translate) | `settings.googleTranslationAPIKey` |
+| Translate target languages | `settings.googleTranslationTargets` |
+| Daily update check consent | `settings.updateAutoCheckEnabled` |
+| Currency-conversion consent | `settings.currencyRatesEnabled` |
+| Weather consent, city and unit | `settings.dashboardWidgets.weatherEnabled`, `.weatherCity`, `.weatherUnit` |
+
+A **"have we asked yet" marker never travels**, only the answer. A grant that arrives in a trusted
+file counts as answered, so the receiving Mac never re-prompts for a feature that is already on; but
+a marker saying "asked" with the feature still off would suppress a dialog on a Mac where the user
+has never seen the disclosure, which is exactly the wrong trade. Keep the local marker local and
+derive "answered" from the restored grant.
+
+### Plugins and system features
+
+| Setting | Field |
+| --- | --- |
+| Widget strip order, calendar source, all-day events, clock time zone | `settings.dashboardWidgets.widgetOrder`, `.calendarSourceIdentifier`, `.includesAllDayEvents`, `.clockTimeZoneIdentifier` |
+| Change Case: source, primary action, case/punctuation preservation, exceptions, affixes, pinned, recent, disabled | `pluginPrefs.changeCase.*` |
+| Kill Process: sort, grouping, search fields, prioritization, PID/path columns, refresh interval | `pluginPrefs.killProcess.*` |
+| Image Modification: output location, format | `pluginPrefs.imageModification.*` |
+| Screenshot: rounded corners, capture scale, file format, window shadow, hiding Spotter windows, preview duration | `pluginPrefs.screenshot.*` |
+| Caffeinate: keep display / disk awake | `pluginPrefs.caffeinate.*` |
+| Window Management: gap, cycle on repeat | `pluginPrefs.windowManagement.*` |
+| Mole binary path override | `pluginPrefs.mole.binaryPath` |
+| Notes window transparency and auto sizing | `pluginPrefs.note.*` |
+| World Clock cities | `worldClockCities` |
+| Quicklinks | `quicklinks` |
+| Snippets prefix and rules | `textReplacement.prefix`, `.rules` |
+| Custom commands | `customCommands` |
+| AI commands (names, prompts, per-command models) | `aiCommands` |
+
+A file written before AI commands existed carries the two built-ins' prompts and models in
+`pluginPrefs.selectionTools` and `settings.openRouterDefinitionModel` / `.openRouterGrammarModel`
+instead; those are read only when the file has no `aiCommands` of its own, and are still written so
+an older build reading a new file keeps them.
+
+### Content
+
+`clipboardHistory` (text and image rows, pinned state and image bytes), `calculatorHistory`,
+`aiChat` (sessions and the current one), `backgroundTasks`, `frequentEmoji`, `launcherRanking`.
+Manual backups additionally contain `notes` and the selected note.
+
+## Deliberately device-local
+
+None of this travels, and each has its own reason.
+
+| State | Why it stays |
+| --- | --- |
+| Uptime's counts, and any notion of it being enabled | Uptime is always on and has no consent flag, so there is nothing to carry; the tallies measure this Mac rather than configure it. |
+| Plugin enable state | There is none — a plugin cannot be disabled. |
+| `palettePositionX` / `palettePositionY` | the palette's concrete screen point; display geometry differs per Mac. The *preference* (`remembersPalettePosition`) does sync. |
+| `settings-sync.file-path`, `settings-sync.enabled` | the path to this very file. A path from another Mac points at nothing, or at the wrong thing. |
+| `note.folder-sync.folder-path`, `note.folder-sync.adoption-pending` | the Notes folder is the other synchronization path, and choosing it is its own consent act. Adoption runs once per Mac. |
+| Note content and `note.selected-id` | `NoteFolderSyncManager` owns per-Note replication through that folder; typing must never rewrite the larger Settings file, and an incoming snapshot must never replace Notes. Manual backups still include them. |
+| `dashboard-widgets.uptime-day`, `-keys`, `-clicks`, `-session-start` | daily key/click tallies are a measurement of *this* Mac, not a setting. The consent flag does sync. |
+| `update.last-check` | when this Mac last asked. Merging it would either suppress a due check or force a redundant one. |
+| `background-tasks.owner-id` | identifies rows this process owns, so a synced row is never mistaken for work running here. |
+| macOS privacy grants — Accessibility, Input Monitoring, Screen Recording, Automation, Full Disk Access | owned by `tccd` and keyed to this Mac and this signed bundle. Spotter cannot write them, and a "granted" flag that travelled would be a lie. |
+| Onboarding marker (`Application Support/<bundle-id>/onboarded`) | per-install first-run state, deliberately a file so an uninstall clears it. |
+| `app-identity-migration.*`, `plugin.command.visibility-initialized.*`, `plugin.command.visibility-migrated.*`, `hotkey.default-seeded.*` | one-shot migration and seed markers. Each Mac must run its own once; what they produce — hidden items, bindings — is what syncs. |
+| `shortcuts.collapsedGroups` | which groups are folded in the Shortcuts pane. Window state, not a setting. |
+| Caches: `currency-rates.json`, `weather.json`, app-icon and thumbnail caches, `Spotter.log` | provider responses and derived data, refetched or rebuilt locally. Clipboard image *bytes* are the exception and do travel, inside `clipboardHistory`. |
+| `NSInitialToolTipDelay` | registration-domain default, never a user value. |
+| The retired CloudKit Notes engine's local state | the pipeline has no entry point; a v3 file carrying `note.iCloudSyncEnabled` is ignored on decode and can never start it. |
+
+Runtime executors, in-flight requests and temporary files are not backup state either.
 
 Clipboard image bytes are embedded in the JSON and rebuilt under each Mac's own bundle-scoped cache;
 absolute cache paths never cross devices. Because v3 files can contain credentials and private
 content, the trust dialog shown when a sync file is connected says so.
-
-Alongside Note content, the other state deliberately excluded from automatic Settings Sync is
-device-bound: the palette's concrete screen coordinates, macOS privacy grants, all three
-synchronization paths (this file, the Notes folder and the retired CloudKit engine's local state),
-and the uptime card's daily key/click tallies. Notes window transparency, Notes auto window sizing
-and the “remember position” preference do sync. Runtime executors, provider response caches, temporary files
-and system-derived data are not backup state.
 
 Older v1/v2 files remain importable. Missing fields are preserved during a manual import, while an
 automatic v3 snapshot is authoritative: arrays, credentials and shortcuts can therefore propagate
@@ -59,6 +158,9 @@ deletions and cleared values.
 
 `AppCore` owns one `SettingsSyncManager`. It observes every automatic-sync store,
 debounces local changes, gathers canonical sorted JSON and writes it through `NSFileCoordinator`.
+File- and SQLite-backed stores get a publisher each; every defaults-backed store rides the single
+`UserDefaults.didChangeNotification` subscription, which is why adding a defaults-backed setting
+needs no new observer.
 An `NSFilePresenter` receives coordinated iCloud updates, while a parent-directory dispatch source
 also catches uncoordinated editors and atomic file replacement. Reads and writes pass through one
 actor so they cannot race inside a process; when two Macs write independently, the last file version
