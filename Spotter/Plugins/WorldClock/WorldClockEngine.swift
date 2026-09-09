@@ -22,6 +22,47 @@ struct WorldClockResult: Equatable, Sendable {
     let localDate: String
 }
 
+/// A parsed `8pm in london` query: a wall-clock time plus the words that should name a city.
+struct WorldClockConversionQuery: Equatable, Sendable {
+    let hour: Int
+    let minute: Int
+    /// The city words as typed (folded to lowercase); empty when the query stopped after the time.
+    let cityPhrase: String
+}
+
+/// One converted instant, rendered in one zone. Same fields the saved-city rows show.
+struct WorldClockConversionRow: Equatable, Sendable {
+    let id: String
+    let name: String
+    let timeZoneIdentifier: String
+    let time: String
+    let date: String
+    /// The row standing in for the Mac's own zone when no configured city already covers it.
+    let isLocal: Bool
+}
+
+struct WorldClockConversion: Equatable, Sendable {
+    let instant: Date
+    let sourceCity: String
+    let sourceTimeZoneIdentifier: String
+    /// Formatted from `instant`, not from the digits typed — a time inside a spring-forward gap
+    /// resolves to the instant that exists, and the headline must say which one that is.
+    let sourceTime: String
+    let sourceDate: String
+    let rows: [WorldClockConversionRow]
+    /// Section header: `8:00 PM in London · Sep 9, 2026`.
+    let headline: String
+}
+
+/// What the World Clock screen's one query field is being asked for.
+enum WorldClockScreenIntent: Equatable, Sendable {
+    /// No leading clock time: the field keeps searching the city catalog.
+    case citySearch
+    case conversion(WorldClockConversion)
+    /// A leading clock time whose city words name nothing in the catalog (empty when none typed).
+    case unresolvedCity(phrase: String)
+}
+
 /// Foundation-only local-time lookup. The clock, calendar and local time zone are injected.
 enum WorldClockEngine {
     private struct Location: Sendable {
@@ -165,6 +206,158 @@ enum WorldClockEngine {
             localTimeZoneIdentifier: localTimeZone.identifier,
             localTime: local.time,
             localDate: local.date)
+    }
+
+    // MARK: - Time conversion
+
+    static let conversionRowPrefix = "convert:"
+    static let localConversionRowID = "convert:#local"
+
+    /// Parse-first rule for the screen's single field: a query that *starts* with a clock time is a
+    /// conversion, anything else stays a city search. A bare number is never a time — `10 downing`
+    /// must keep searching — so the hour needs `am`/`pm` or a `:` to count.
+    static func parseConversion(_ raw: String) -> WorldClockConversionQuery? {
+        guard raw.count <= 256 else { return nil }
+        let tokens = conversionTokens(raw)
+        guard let first = tokens.first else { return nil }
+
+        var hour: Int
+        var minute = 0
+        var consumed = 1
+        switch first {
+        case "noon": hour = 12
+        case "midnight": hour = 0
+        default:
+            var digits = first
+            var meridiem: String?
+            if digits.hasSuffix("am") || digits.hasSuffix("pm") {
+                meridiem = String(digits.suffix(2))
+                digits = String(digits.dropLast(2))
+            }
+            guard let clock = parseWallClock(digits) else { return nil }
+            hour = clock.hour
+            minute = clock.minute
+            if meridiem == nil, tokens.count > 1, tokens[1] == "am" || tokens[1] == "pm" {
+                meridiem = tokens[1]
+                consumed = 2
+            }
+            if let meridiem {
+                guard (1...12).contains(hour) else { return nil }
+                hour = meridiem == "pm" ? (hour % 12) + 12 : hour % 12
+            } else {
+                // No meridiem: only a `:` form reads as 24-hour; `8` alone stays ambiguous.
+                guard clock.hadSeparator, (0...23).contains(hour) else { return nil }
+            }
+            guard (0...59).contains(minute) else { return nil }
+        }
+
+        var rest = tokens.dropFirst(consumed)
+        if let connector = rest.first, connector == "in" || connector == "at" {
+            rest = rest.dropFirst()
+        }
+        return WorldClockConversionQuery(
+            hour: hour, minute: minute, cityPhrase: rest.joined(separator: " "))
+    }
+
+    /// The screen's whole read of its query: search, a resolved conversion, or a city it can't place.
+    static func screenIntent(
+        for raw: String, cities: [WorldClockCity], now: Date, calendar: Calendar = .current,
+        locale: Locale = .current, localTimeZone: TimeZone
+    ) -> WorldClockScreenIntent {
+        guard let parsed = parseConversion(raw) else { return .citySearch }
+        guard let location = locationsByAlias[normalized(parsed.cityPhrase)],
+            let sourceZone = TimeZone(identifier: location.city.timeZoneIdentifier),
+            let instant = instant(
+                hour: parsed.hour, minute: parsed.minute, in: sourceZone, on: now,
+                calendar: calendar)
+        else { return .unresolvedCity(phrase: parsed.cityPhrase) }
+
+        let source = formatted(
+            instant, timeZone: sourceZone, calendar: calendar, locale: locale)
+        var rows: [WorldClockConversionRow] = []
+        for city in cities {
+            guard let zone = TimeZone(identifier: city.timeZoneIdentifier) else { continue }
+            let stamp = formatted(instant, timeZone: zone, calendar: calendar, locale: locale)
+            rows.append(
+                WorldClockConversionRow(
+                    id: conversionRowPrefix + city.id, name: city.name,
+                    timeZoneIdentifier: city.timeZoneIdentifier, time: stamp.time,
+                    date: stamp.date, isLocal: false))
+        }
+        // The answer is useless without the zone the user is sitting in, so it is always present.
+        if !cities.contains(where: { $0.timeZoneIdentifier == localTimeZone.identifier }) {
+            let stamp = formatted(
+                instant, timeZone: localTimeZone, calendar: calendar, locale: locale)
+            rows.append(
+                WorldClockConversionRow(
+                    id: localConversionRowID, name: "Local Time",
+                    timeZoneIdentifier: localTimeZone.identifier, time: stamp.time,
+                    date: stamp.date, isLocal: true))
+        }
+        return .conversion(
+            WorldClockConversion(
+                instant: instant,
+                sourceCity: location.city.name,
+                sourceTimeZoneIdentifier: location.city.timeZoneIdentifier,
+                sourceTime: source.time,
+                sourceDate: source.date,
+                rows: rows,
+                headline: source.time + " in " + location.city.name + " · "
+                    + shortDate(instant, timeZone: sourceZone, calendar: calendar, locale: locale)))
+    }
+
+    /// The instant of that wall-clock time on the zone's *own* current day — today there, never a
+    /// silent roll to tomorrow. `date(from:)` consults the zone's real rules for that date, so the
+    /// same digits in January and July are different instants wherever DST applies.
+    static func instant(
+        hour: Int, minute: Int, in zone: TimeZone, on now: Date, calendar: Calendar
+    ) -> Date? {
+        var zoned = calendar
+        zoned.timeZone = zone
+        var components = zoned.dateComponents([.year, .month, .day], from: now)
+        components.hour = hour
+        components.minute = minute
+        components.second = 0
+        return zoned.date(from: components)
+    }
+
+    /// `8:30`/`20:00`/`8`; `hadSeparator` is what lets the caller reject a bare hour.
+    private static func parseWallClock(_ atom: String) -> (
+        hour: Int, minute: Int, hadSeparator: Bool
+    )? {
+        guard !atom.isEmpty, atom.allSatisfy({ $0.isNumber || $0 == ":" }) else { return nil }
+        let parts = atom.split(separator: ":", omittingEmptySubsequences: false)
+        switch parts.count {
+        case 1:
+            guard parts[0].count <= 2, let hour = Int(parts[0]) else { return nil }
+            return (hour, 0, false)
+        case 2:
+            guard parts[0].count <= 2, parts[1].count == 2, let hour = Int(parts[0]),
+                let minute = Int(parts[1])
+            else { return nil }
+            return (hour, minute, true)
+        default:
+            return nil
+        }
+    }
+
+    /// Case-folded tokens that keep `:` inside the clock atom, which `normalized` would split.
+    private static func conversionTokens(_ raw: String) -> [String] {
+        let folded = raw.folding(
+            options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        let cleaned = folded.map { $0.isLetter || $0.isNumber || $0 == ":" ? $0 : " " }
+        return String(cleaned).split(whereSeparator: { $0.isWhitespace }).map(String.init)
+    }
+
+    private static func shortDate(
+        _ date: Date, timeZone: TimeZone, calendar: Calendar, locale: Locale
+    ) -> String {
+        var zonedCalendar = calendar
+        zonedCalendar.timeZone = timeZone
+        var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale)
+        style.calendar = zonedCalendar
+        style.timeZone = timeZone
+        return date.formatted(style)
     }
 
     private static func formatted(

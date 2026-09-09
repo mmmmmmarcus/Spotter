@@ -106,6 +106,16 @@ final class WorldClockStore: ObservableObject {
             localTimeZone: .autoupdatingCurrent)
     }
 
+    /// How the palette screen reads its query: city search, or a `8pm in london` conversion. The
+    /// scrub offset is deliberately not applied — a typed time is absolute.
+    func screenIntent(
+        for query: String, calendar: Calendar = .current, locale: Locale = .current
+    ) -> WorldClockScreenIntent {
+        WorldClockEngine.screenIntent(
+            for: query, cities: cities, now: now, calendar: calendar, locale: locale,
+            localTimeZone: .autoupdatingCurrent)
+    }
+
     private func persist() {
         defaults.set(cityIDs, forKey: Self.citiesKey)
     }

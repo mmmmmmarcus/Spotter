@@ -99,6 +99,9 @@ selection, and changing the query resets the offset.
 
 World Clock also registers a normal plugin palette screen. Launching its command shows the saved city
 rows through `PluginPaletteList`, with London, Shanghai and San Francisco as the first-run defaults.
+That screen's single field serves two readings: a query starting with a clock time (`8pm in london`)
+converts that instant into every configured city, anything else keeps searching the catalog to add a
+city. See [world-clock.md](world-clock.md).
 Image Modification uses the same shared screen as the second level of Convert Image: choosing the
 command shows writable target formats, and choosing a format is the action that starts conversion.
 
