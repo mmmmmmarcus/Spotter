@@ -69,7 +69,7 @@ longer carry a Shortcut(s) card, because every one of those actions is a launche
 presentation moved: every binding keeps its `KeyboardShortcuts_<name>` defaults key.
 
 The deliberate exceptions are recorders that configure *the row's own item* rather than duplicate a
-global setting, and they stay where the item is edited: AI Chat's per-command rows, the Built-in
+global setting, and they stay where the item is edited: an AI command's editor sheet, the Built-in
 Commands card and the custom-command rows.
 
 **Every launcher row that can be bound, is.** A row in Settings ▸ Shortcuts shows a recorder exactly

@@ -1,15 +1,9 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// User-facing entry points for the backup flows, shared between the Settings pane and the palette commands. The Raycast decrypt runs off the main actor (scrypt is CPU-heavy); everything else is quick.
+/// User-facing entry points for the backup flows, shared between the Settings pane and the palette commands.
 @MainActor
 enum BackupActions {
-    struct RaycastOutcome {
-        var summary: SettingsBackup.ApplySummary
-        var clipboardImported: Int
-        var missingImages: Int
-    }
-
     // MARK: - Spotter native (self-contained: own file panels + alerts)
 
     static func exportSettings() {
@@ -52,33 +46,27 @@ enum BackupActions {
         }
     }
 
-    static func connectSettingsSyncFile() {
+    /// The user picks the folder; Spotter owns the file name inside it. One control covers both
+    /// directions because the folder's contents decide: an existing settings file there is joined,
+    /// and only a folder that definitively has none gets a new one.
+    static func chooseSettingsSyncFolder() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = "Choose a Spotter settings JSON file to keep in sync."
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url,
-            confirmAutomaticSync()
-        else { return }
-        AppCore.shared.settingsSync.connectExisting(url)
-    }
-
-    static func createSettingsSyncFile() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "Spotter Settings.json"
         panel.canCreateDirectories = true
-        panel.message = "Save in iCloud Drive to keep Spotter settings synchronized across Macs."
+        panel.prompt = "Choose"
+        panel.message =
+            "Choose a folder for \(SettingsSyncManager.fileName). Put it in iCloud Drive to keep "
+            + "Spotter settings synchronized across Macs."
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url,
             confirmAutomaticSync()
         else { return }
-        AppCore.shared.settingsSync.create(at: url)
+        AppCore.shared.settingsSync.connect(toFolder: url)
     }
 
-    /// Choosing the folder is the consent act, exactly as choosing a file is for Settings Sync:
+    /// Choosing the folder is the consent act, exactly as choosing one is for Settings Sync:
     /// nothing is written anywhere until the user names the place it should be written.
     static func chooseNotesFolder() {
         let panel = NSOpenPanel()
@@ -92,50 +80,6 @@ enum BackupActions {
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         AppCore.shared.noteFolderSync.connect(to: url)
-    }
-
-    // MARK: - Raycast (the pane owns the passphrase field + inline status)
-
-    static func importRaycast(file: URL, passphrase: String, options: RaycastImportOptions = .all)
-        async throws -> RaycastOutcome
-    {
-        // Decrypt (scrypt/AES/gunzip) AND parse off the main actor, inside an autoreleasepool so the large JSON tree drains at once instead of spiking the main-thread footprint. Only the value-type Result crosses back.
-        let result = try await Task.detached(priority: .userInitiated) {
-            try autoreleasepool {
-                let decrypted = try RaycastImport.decrypt(file: file, passphrase: passphrase)
-                return try RaycastImport.parse(decrypted).selecting(options)
-            }
-        }.value
-        let summary = await result.backup.apply()
-        let imported =
-            result.clipboard.isEmpty
-            ? 0 : AppCore.shared.clipboardStore.importEntries(result.clipboard)
-        return RaycastOutcome(
-            summary: summary, clipboardImported: imported, missingImages: result.missingImages)
-    }
-
-    /// Every Raycast channel (stable, beta, alpha, internal) shares this bundle-id prefix.
-    static let raycastBundleIDPrefix = "com.raycast"
-
-    static func isRaycastBundleID(_ id: String) -> Bool { id.hasPrefix(raycastBundleIDPrefix) }
-
-    /// Quit any running Raycast app so its hotkeys stop clashing; skip `.prohibited` (pure background helpers/XPC).
-    static func quitRaycast() {
-        for app in NSWorkspace.shared.runningApplications
-        where app.bundleIdentifier.map(isRaycastBundleID) == true
-            && app.activationPolicy != .prohibited
-        {
-            app.terminate()
-        }
-    }
-
-    /// Shared `.rayconfig` file picker used by the Backup pane and onboarding.
-    static func pickRaycastFile() -> URL? {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        NSApp.activate(ignoringOtherApps: true)
-        return panel.runModal() == .OK ? panel.url : nil
     }
 
     // MARK: - Helpers

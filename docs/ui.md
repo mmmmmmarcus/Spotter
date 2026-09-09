@@ -524,8 +524,8 @@ callouts across every Settings pane are text-only; the sidebar keeps its tinted 
 name a destination rather than decorate a title. Per-item *artwork* is not a glyph and stays — an app
 icon in the Shortcuts list or the Clipboard exclusions, a quicklink's opener icon — since it says
 *which* item the row is. Where a glyph had been carrying meaning on its own it moves into the text:
-a Diagnostics error tints its message rather than showing a warning triangle, and a failed Raycast
-import reports through a `SettingsCallout`'s orange box rather than a red row symbol.
+a Diagnostics error tints its message rather than showing a warning triangle, and a missing Mole
+binary reports through a `SettingsCallout`'s orange box rather than a red row symbol.
 
 **Settings copy reports; it does not explain** (owner decision, Sep 2026). A subtitle earns its line
 only when it tells the user something that changes — a version, a timestamp, a count, a path in use,
@@ -539,8 +539,8 @@ whole job is to explain.
 
 **A shortcut is recorded in one place.** No plugin pane carries a recorder for a binding that
 Settings ▸ Shortcuts already lists; see [hotkeys.md](hotkeys.md). The exceptions are recorders that
-edit *that row's own item* rather than duplicate a global setting: AI Chat's per-command rows, the
-Built-in Commands card and custom-command rows.
+edit *that item's own* configuration rather than duplicate a global setting: an AI command's editor
+sheet, the Built-in Commands card and custom-command rows.
 
 Native plugin workspaces use `AppCore.showPluginWindow` and the same `Theme` tokens. Their SwiftUI
 root declares a minimum content size but never owns an `NSWindow`. Use the native overlay scroller,

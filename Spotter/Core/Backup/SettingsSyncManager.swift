@@ -1,13 +1,18 @@
 import Combine
 import Foundation
 
-/// Keeps the native settings backup hot across any user-selected JSON path, including iCloud Drive.
+/// Keeps the native settings backup hot in the folder the user chose, including one in iCloud Drive.
 @MainActor
 final class SettingsSyncManager: ObservableObject {
     private enum Key {
         static let filePath = "settings-sync.file-path"
         static let enabled = "settings-sync.enabled"
     }
+
+    /// The user chooses the folder; this is the name Spotter gives the file inside it. The stored
+    /// setting stays the full path, so a setup made when the picker asked for a file keeps using
+    /// exactly that file — the folder is simply read back off the path it already holds.
+    static let fileName = "Spotter Settings.json"
 
     @Published private(set) var fileURL: URL?
     @Published private(set) var isEnabled: Bool
@@ -41,10 +46,6 @@ final class SettingsSyncManager: ObservableObject {
         return "Up to date · " + lastSyncedAt.formatted(date: .omitted, time: .shortened)
     }
 
-    var isICloudLocation: Bool {
-        fileURL.map { FileManager.default.isUbiquitousItem(at: $0) } ?? false
-    }
-
     func start(core: AppCore) {
         guard !hasStarted else { return }
         hasStarted = true
@@ -56,66 +57,74 @@ final class SettingsSyncManager: ObservableObject {
         }
     }
 
-    func connectExisting(_ url: URL) {
-        Task { await connectExistingNow(url.standardizedFileURL) }
+    func connect(toFolder folder: URL) {
+        let url = folder.standardizedFileURL.appending(path: Self.fileName)
+        Task { await connectNow(url) }
     }
 
-    func create(at url: URL) {
-        Task { await createNow(at: url.standardizedFileURL) }
-    }
-
+    /// Turning sync off *is* disconnecting, so there is no separate Disconnect control: the watcher
+    /// stops, the file presenter and its directory source are released, the recorded revision is
+    /// dropped and the stored path goes with them. Nothing keeps a claim on a file the user has
+    /// stepped away from.
     func setEnabled(_ enabled: Bool) {
-        guard fileURL != nil, enabled != isEnabled else { return }
-        isEnabled = enabled
-        defaults.set(enabled, forKey: Key.enabled)
-        errorMessage = nil
+        guard enabled != isEnabled else { return }
         if enabled {
+            // Only reachable from a path an older build left paused; the switch is disabled otherwise.
+            guard fileURL != nil else { return }
+            isEnabled = true
+            defaults.set(true, forKey: Key.enabled)
+            errorMessage = nil
             startWatching()
             scheduleReload()
         } else {
             stopWatching()
+            fileURL = nil
+            isEnabled = false
+            revision = CoordinatedFileRevision()
+            lastSyncedAt = nil
+            errorMessage = nil
+            defaults.removeObject(forKey: Key.filePath)
+            defaults.removeObject(forKey: Key.enabled)
         }
     }
 
-    func disconnect() {
-        stopWatching()
-        fileURL = nil
-        isEnabled = false
-        revision = CoordinatedFileRevision()
-        lastSyncedAt = nil
-        errorMessage = nil
-        defaults.removeObject(forKey: Key.filePath)
-        defaults.removeObject(forKey: Key.enabled)
-    }
-
-    private func connectExistingNow(_ url: URL) async {
+    /// Join the settings file already in the chosen folder, or write a new one there. Only a read
+    /// that fails *because nothing is there* may create: every other failure means the file may well
+    /// exist and simply cannot be reached right now, and creating over it would destroy it.
+    private func connectNow(_ url: URL) async {
         isWorking = true
         errorMessage = nil
         do {
             let data = try await io.read(from: url)
-            let backup = try await SettingsBackup.decodedOffMain(data)
-            guard let core else { throw CocoaError(.userCancelled) }
-            stopWatching()
-            isApplyingRemote = true
-            _ = await backup.apply(to: core, mode: .replace, notes: .exclude)
-            isApplyingRemote = false
-            let effectiveData = try await SettingsBackup.gather(from: core, notes: .exclude)
-                .encodedOffMain()
-            configure(url: url, revisionData: effectiveData)
-            if effectiveData != data { try await io.write(effectiveData, to: url) }
-            lastSyncedAt = Date()
+            try await join(url: url, data: data)
         } catch {
-            isApplyingRemote = false
-            errorMessage = "Couldn’t connect: " + error.localizedDescription
-            AppLog.error("settings-sync", "Couldn’t connect: " + error.localizedDescription)
+            if Self.isMissingFile(error) {
+                await create(at: url)
+            } else {
+                isApplyingRemote = false
+                errorMessage = "Couldn’t connect: " + error.localizedDescription
+                AppLog.error("settings-sync", "Couldn’t connect: " + error.localizedDescription)
+            }
         }
         isWorking = false
     }
 
-    private func createNow(at url: URL) async {
+    private func join(url: URL, data: Data) async throws {
+        let backup = try await SettingsBackup.decodedOffMain(data)
+        guard let core else { throw CocoaError(.userCancelled) }
+        stopWatching()
+        isApplyingRemote = true
+        _ = await backup.apply(to: core, mode: .replace, notes: .exclude)
+        isApplyingRemote = false
+        let effectiveData = try await SettingsBackup.gather(from: core, notes: .exclude)
+            .encodedOffMain()
+        configure(url: url, revisionData: effectiveData)
+        if effectiveData != data { try await io.write(effectiveData, to: url) }
+        lastSyncedAt = Date()
+    }
+
+    private func create(at url: URL) async {
         guard let core else { return }
-        isWorking = true
-        errorMessage = nil
         do {
             let data = try await SettingsBackup.gather(from: core, notes: .exclude).encodedOffMain()
             try await io.write(data, to: url)
@@ -124,9 +133,26 @@ final class SettingsSyncManager: ObservableObject {
             lastSyncedAt = Date()
         } catch {
             errorMessage = "Couldn’t create the sync file: " + error.localizedDescription
-            AppLog.error("settings-sync", "Couldn’t create the sync file: " + error.localizedDescription)
+            AppLog.error(
+                "settings-sync", "Couldn’t create the sync file: " + error.localizedDescription)
         }
-        isWorking = false
+    }
+
+    /// "There is no file here" and "this file cannot be reached" are different answers, and only the
+    /// first is a fact about the user's configuration. An unmounted volume, a permissions refusal or
+    /// an iCloud item that has not materialized all read as unknown, which is treated as
+    /// configured-and-unavailable: the setting is kept, the condition is reported, and the watcher
+    /// tries again.
+    private static func isMissingFile(_ error: Error) -> Bool {
+        let error = error as NSError
+        switch error.domain {
+        case NSCocoaErrorDomain:
+            return error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError
+        case NSPOSIXErrorDomain:
+            return error.code == Int(ENOENT)
+        default:
+            return false
+        }
     }
 
     private func configure(url: URL, revisionData: Data) {

@@ -251,7 +251,7 @@ final class ClipboardStore: ObservableObject {
         return candidate
     }
 
-    /// Bulk-insert history from an external source (e.g. a Raycast import). Entries carry their original `createdAt` and image *paths* are stored as external references (zero-copy) — the store never owns or prunes files outside `imagesDir`. Dedups within the batch and against existing rows; imported items older than `maxAge` are pruned on reload.
+    /// Bulk-insert history from an external source. Entries carry their original `createdAt` and image *paths* are stored as external references (zero-copy) — the store never owns or prunes files outside `imagesDir`. Dedups within the batch and against existing rows; imported items older than `maxAge` are pruned on reload.
     func importEntries(_ entries: [ClipboardItem]) -> Int {
         guard let stmt = insertStmt else { return 0 }
         var seenText = Set<String>()

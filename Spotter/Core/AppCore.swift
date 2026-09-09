@@ -549,10 +549,6 @@ final class AppCore: ObservableObject {
         }
     }
 
-    func showBackupSettings() {
-        showSettings(tab: .backup)
-    }
-
     func showAbout() {
         showSettings(tab: .about)
     }
@@ -642,7 +638,7 @@ final class AppCore: ObservableObject {
         }
     }
 
-    /// The first-run wizard: palette shortcut, Accessibility, Raycast import. Also re-runnable from Settings.
+    /// The first-run wizard: palette shortcut, then Accessibility. Also re-runnable from Settings.
     func showOnboarding() {
         auxWindows.show(
             id: "onboarding", title: "Welcome to Spotter",
@@ -884,9 +880,6 @@ final class AppCore: ObservableObject {
         case .importSettings:
             hidePalette(restoreFocus: false)
             BackupActions.importSettings()
-        case .importFromRaycast:
-            hidePalette(restoreFocus: false)
-            showBackupSettings()
         case .settings:
             hidePalette(restoreFocus: false)
             showSettings()

@@ -35,7 +35,10 @@ the fresh-session Tab path; activating ChatGPT follows the same web handoff the 
 AI Chat is an always-available system feature, shown in the Settings sidebar as **AI Chat &
 Command**, but remains inert without an OpenRouter API key — the key is the gate and lives on that
 same pane's **AI (OpenRouter)** card, moved there from General in 1.6.0 so the gate sits with the
-feature it gates (entering or syncing a key is the consent act). AI Chat also owns **AI commands**, the prompts that run on
+feature it gates (entering or syncing a key is the consent act). The key field carries no example
+and no instructions; what it keeps is the one thing entering a key actually commits the user to —
+that messages go to OpenRouter under it, and that it rides settings backups and sync — replaced by
+the validation result once the key has been checked. AI Chat also owns **AI commands**, the prompts that run on
 selected text; Define Selected Text and Check Selected Text Grammar are the two Spotter ships.
 Google-powered translation lives in the [Translate](translate.md) plugin. Its implementation lives in
 `Spotter/Plugins/AIChat/` so it can reuse the registry's Settings, command, permission and shortcut
@@ -54,7 +57,7 @@ plumbing without being presented as an optional plugin.
 | `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
 | `AIChatView.swift` | The transcript body, in the palette's own list chrome. |
 | `AIChatMarkdownView.swift` | Renders those blocks; inline spans go through SwiftUI's own parser. |
-| `AIChatSettingsView.swift` | The OpenRouter API key, the chat model and web search, plus the AI command list and its editor. |
+| `AIChatSettingsView.swift` | The OpenRouter API key, the chat model and web search, plus the AI command list and its editor sheet. |
 
 `Core/OpenRouterModelCatalog.swift` is Foundation-only and pure too: it turns the `/models` payload
 into the brand → model menus.
@@ -82,7 +85,7 @@ alphabetically and each brand's models newest first. The stored value is still t
 so existing settings, backups and sync are unchanged. A stored model the live catalog doesn't carry
 — an older pick, or one OpenRouter has withdrawn — stays selected and stays selectable in a
 **Current** section at the top of the menu, so nothing is silently rewritten. A command pinned to a
-model the user's key can no longer reach therefore keeps that choice: the row still names it, the
+model the user's key can no longer reach therefore keeps that choice: its editor still names it, the
 request still asks for it, and if OpenRouter refuses, the reply is a status row carrying OpenRouter's
 own message. Only an empty pin resolves to the chat model — Spotter never silently answers as some
 other model. Switching that command back to **Default** is one menu away.
@@ -166,7 +169,14 @@ their name is not editable and they cannot be deleted, because those ids are wha
 reference resolves through and a deleted one could not be recovered. A user who wants one gone hides
 its launcher row and leaves it unbound.
 
-User commands are added in the pane's **Commands** card and are dynamic launcher entries, the shape
+User commands are added from the **Commands** group, whose **Add…** button rides the trailing edge
+of the section header — adding belongs to the group rather than to the list, so it stays put as the
+list grows instead of drifting down and reading as a last row. Each row names its command and offers
+its way in (**Edit…**, plus **Reset** for a built-in or **Delete** for a user command); the prompt,
+the model and the shortcut are that command's own configuration and are set inside its editor sheet
+rather than restated on the row. A command that has not been saved yet has no id for a binding to
+hang on, so the editor shows the shortcut recorder only when editing an existing command. They are
+dynamic launcher entries, the shape
 Commands uses for custom shell commands and Quicklinks for links. Each gets a shortcut recorder
 because `AppEntry.hotKeyAction` resolves its entry id to `.aiCommand(id:)`; bindings live under
 `KeyboardShortcuts_aiCommandHotkey.<uuid>`, are indexed in `boundAICommandIDs` so a deleted

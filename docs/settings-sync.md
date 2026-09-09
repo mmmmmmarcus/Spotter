@@ -2,17 +2,42 @@
 
 Settings → Backup groups manual export/import and automatic sync in one **Sync** card: one
 **Export & Import** row offers both directions, and the rows beneath it attach Spotter to one
-user-selected JSON file. Creating a file writes the live
-non-Note state; choosing an existing file validates and applies it before the path is persisted.
+settings file. **The user chooses the folder; Spotter owns the file name inside it**
+(`Spotter Settings.json`), so there is one control for both directions and the folder's contents
+decide which one runs: a settings file already there is validated and applied before the path is
+persisted, and a folder that definitively has none gets a fresh one written from the live non-Note
+state.
+
 Manual backup and automatic sync share the human-readable `SettingsBackup` format, but manual
 exports/imports include Notes for disaster recovery while automatic Settings Sync always omits and
 ignores Note content. Notes has its own replication — a user-chosen folder of Markdown files, under
 Settings → Plugins → Notes — whose path is device-local and never travels here; only the Notes
 window-transparency and auto-sizing preferences belong to trusted Settings state.
 
-The path can be anywhere. When it is inside iCloud Drive, macOS transports it to the user's other
-Macs; Settings Sync itself uses no network service or CloudKit records. Synchronization can be paused
-or disconnected without deleting the file.
+The folder can be anywhere. When it is inside iCloud Drive, macOS transports the file to the user's
+other Macs; Settings Sync itself uses no network service or CloudKit records.
+
+## Connecting and disconnecting
+
+**Turning Automatic Sync off *is* disconnecting**, so there is no separate Disconnect button. The
+switch going off stops the watcher, releases the file presenter and its parent-directory source,
+drops the recorded revision and the last-synced time, and removes the stored path — everything the
+old Disconnect control did. The file itself is never touched; reconnecting means choosing a folder
+again, which is the same trust prompt it always was.
+
+The stored setting is still the full path (`settings-sync.file-path`), which is what makes the move
+from a file picker to a folder picker invisible: a Mac that already chose a file keeps that exact
+file, with no prompt and no re-selection, and its folder is simply read back off the path it already
+holds. Nothing is renamed, moved or re-derived, and the migration touches the filesystem not at all.
+
+**Unreachable is not unconfigured.** When a folder is joined, only a read that fails *because
+nothing is there* (`NSFileNoSuchFileError` / `NSFileReadNoSuchFileError`, or `ENOENT`) may create a
+file. Every other failure — an unplugged disk, a permissions refusal, an iCloud item that has not
+materialized — means the file may well exist and simply cannot be reached, so Spotter reports the
+condition and writes nothing; creating over it would destroy it. The same rule holds once a path is
+configured: a failed read or write sets an inline error and the watcher keeps trying. **No IO
+failure ever clears the stored path.** The only things that drop it are the user turning the switch
+off and the user choosing a different folder.
 
 ## Format
 
@@ -130,7 +155,7 @@ None of this travels, and each has its own reason.
 | Uptime's counts, and any notion of it being enabled | Uptime is always on and has no consent flag, so there is nothing to carry; the tallies measure this Mac rather than configure it. |
 | Plugin enable state | There is none — a plugin cannot be disabled. |
 | `palettePositionX` / `palettePositionY` | the palette's concrete screen point; display geometry differs per Mac. The *preference* (`remembersPalettePosition`) does sync. |
-| `settings-sync.file-path`, `settings-sync.enabled` | the path to this very file. A path from another Mac points at nothing, or at the wrong thing. |
+| `settings-sync.file-path`, `settings-sync.enabled` | the path to this very file, and with it the folder the user chose. A path from another Mac points at nothing, or at the wrong thing. |
 | `note.folder-sync.folder-path`, `note.folder-sync.adoption-pending` | the Notes folder is the other synchronization path, and choosing it is its own consent act. Adoption runs once per Mac. |
 | Note content and `note.selected-id` | `NoteFolderSyncManager` owns per-Note replication through that folder; typing must never rewrite the larger Settings file, and an incoming snapshot must never replace Notes. Manual backups still include them. |
 | `dashboard-widgets.uptime-day`, `-keys`, `-clicks`, `-session-start` | daily key/click tallies are a measurement of *this* Mac, not a setting. The consent flag does sync. |
@@ -173,7 +198,7 @@ Locally executing AI requests and background tasks keep their executors so a rem
 orphan work in progress. The last
 effective JSON bytes suppress Spotter's own write notifications and normalized re-exports, preventing
 feedback loops. Malformed or unavailable files leave live state untouched, surface an inline error
-and remain watched for recovery.
+and remain watched for recovery — an unavailable file is never read as an absent one.
 
 Connecting a file requires an explicit trust alert because future changes are applied automatically.
 Fresh installs still default every network feature to off; trusting a sync file or manually importing
