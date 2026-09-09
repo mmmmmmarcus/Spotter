@@ -7,10 +7,8 @@ struct CustomCommandsSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Commands") {
-            SettingsCard(header: "Built-in Commands") {
-                ForEach(Array(SystemCommandCatalog.all.enumerated()), id: \.element.id.rawValue) {
-                    index, command in
-                    if index > 0 { SettingsDivider() }
+            Section("Built-in Commands") {
+                ForEach(SystemCommandCatalog.all, id: \.id.rawValue) { command in
                     SettingsRow(
                         title: command.name,
                         subtitle: command.confirmation == .required ? "Asks before running" : nil
@@ -20,22 +18,19 @@ struct CustomCommandsSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Custom Commands") {
+            Section("Custom Commands") {
                 if store.commands.isEmpty {
                     SettingsRow(title: "No custom commands") {
                         EmptyView()
                     }
                 } else {
-                    ForEach(Array(sortedCommands.enumerated()), id: \.element.id) {
-                        index, command in
-                        if index > 0 { SettingsDivider() }
+                    ForEach(sortedCommands) { command in
                         CustomCommandSettingsRow(
                             command: command,
                             onEdit: { editor = EditorTarget(command: command) },
                             onDelete: { pendingDeletion = command })
                     }
                 }
-                SettingsDivider()
 
                 SettingsRow(title: "Add Custom Command") {
                     Button("Add…") { editor = EditorTarget(command: nil) }
@@ -106,8 +101,6 @@ private struct CustomCommandSettingsRow: View {
             .help("Delete Command")
             .accessibilityLabel("Delete \(command.name)")
         }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
     }
 }
 

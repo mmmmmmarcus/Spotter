@@ -39,7 +39,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "General") {
-            SettingsCard(header: "Search") {
+            Section("Search") {
                 SettingsRow(title: "Learned ranking") {
                     Button("Reset…", role: .destructive) {
                         confirmingRankingReset = true
@@ -49,9 +49,9 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            SearchScopesCard()
+            SearchScopesSection()
 
-            SettingsCard(header: "Hyper Key") {
+            Section("Hyper Key") {
                 SettingsRow(
                     title: "Hyper Key", subtitle: hyperSubtitle, statusDot: hyperStatusDot
                 ) {
@@ -73,7 +73,6 @@ struct GeneralSettingsView: View {
                     }
                 }
                 if settings.hyperKey.hasOriginalFunction {
-                    SettingsDivider()
                     SettingsRow(title: "Quick Press") {
                         Picker("", selection: $settings.hyperKeyQuickPress) {
                             Text("Does Nothing").tag(HyperKeyQuickPress.none)
@@ -86,14 +85,12 @@ struct GeneralSettingsView: View {
                         .fixedSize()
                     }
                 }
-                SettingsDivider()
                 SettingsRow(title: "Include Shift (⇧)") {
                     Toggle("", isOn: $settings.hyperKeyIncludesShift)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Replace occurrences of \(hyperGlyphs) with ✦") {
                     Toggle("", isOn: $settings.hyperKeyReplacesGlyph)
                         .labelsHidden()
@@ -102,14 +99,13 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Appearance") {
+            Section("Appearance") {
                 SettingsRow(title: "Compact mode") {
                     Toggle("", isOn: $settings.compactMode)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Show favorites in compact mode") {
                     Toggle("", isOn: $settings.showFavoritesInCompactMode)
                         .labelsHidden()
@@ -118,7 +114,6 @@ struct GeneralSettingsView: View {
                         .disabled(!settings.compactMode)
                 }
                 .opacity(settings.compactMode ? 1 : 0.5)
-                SettingsDivider()
                 SettingsRow(title: "Follow the cursor across displays") {
                     Toggle("", isOn: $settings.openOnCursorScreen)
                         .labelsHidden()
@@ -127,11 +122,10 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Launcher Sections") {
+            Section("Launcher Sections") {
                 ForEach(
                     Array(settings.launcherSectionOrder.enumerated()), id: \.element
                 ) { index, section in
-                    if index > 0 { SettingsDivider() }
                     SettingsRow(title: section.title) {
                         HStack(spacing: Theme.Spacing.md) {
                             Button {
@@ -170,7 +164,7 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "General") {
+            Section("General") {
                 SettingsRow(title: "Run in Terminal uses") {
                     Picker("", selection: $settings.preferredTerminal) {
                         ForEach(installedTerminals, id: \.self) { terminal in
@@ -180,42 +174,36 @@ struct GeneralSettingsView: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-                SettingsDivider()
                 SettingsRow(title: "Launch at login") {
                     Toggle("", isOn: $settings.launchAtLogin)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Show in menu bar") {
                     Toggle("", isOn: $showInMenuBar)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Show in Dock") {
                     Toggle("", isOn: $settings.showInDock)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Remember Window Position") {
                     Toggle("", isOn: $settings.remembersPalettePosition)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Lock Input Method to English") {
                     Toggle("", isOn: $settings.lockInputToEnglish)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Pop to Root Search") {
                     Picker("", selection: $settings.popToRootTimeout) {
                         ForEach(PopToRootTimeout.allCases) { timeout in
@@ -225,14 +213,13 @@ struct GeneralSettingsView: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-                SettingsDivider()
                 SettingsRow(title: "Welcome Guide") {
                     Button("Show…") { AppCore.shared.showOnboarding() }
                         .controlSize(.small)
                 }
             }
 
-            UpdatesSettingsCard()
+            UpdatesSettingsSection()
         }
         .confirmationDialog(
             "Reset learned launcher ranking?",

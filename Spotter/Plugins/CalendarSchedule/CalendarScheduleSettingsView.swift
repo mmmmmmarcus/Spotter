@@ -7,7 +7,7 @@ struct CalendarScheduleSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Calendar") {
-            SettingsCard(header: "Calendars") {
+            Section("Calendars") {
                 SettingsRow(title: "Calendar Access", subtitle: accessSubtitle) {
                     switch store.calendarAccess {
                     case .notDetermined, .writeOnly:
@@ -33,7 +33,6 @@ struct CalendarScheduleSettingsView: View {
                 }
 
                 if store.calendarAccess == .fullAccess {
-                    SettingsDivider()
                     SettingsRow(title: "Account") {
                         Picker("", selection: calendarSourceBinding) {
                             Text("All Accounts").tag("")
@@ -51,7 +50,6 @@ struct CalendarScheduleSettingsView: View {
                     }
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "All-Day Events") {
                     Toggle("", isOn: includesAllDayEventsBinding)
                         .labelsHidden()

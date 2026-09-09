@@ -8,7 +8,7 @@ struct CurrencyConversionSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Currency Conversion") {
-            SettingsCard(header: "Exchange Rates") {
+            Section("Exchange Rates") {
                 SettingsRow(title: "Download Exchange Rates") {
                     // The switch is the consent act — the plugin is always on, but nothing is
                     // contacted until this is.
@@ -30,7 +30,6 @@ struct CurrencyConversionSettingsView: View {
                 }
 
                 if currencyRates.isEnabled {
-                    SettingsDivider()
                     SettingsRow(title: "Exchange Rates", subtitle: ratesStatus) {
                         Button("Update Now") {
                             refreshing = true

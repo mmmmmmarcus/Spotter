@@ -7,7 +7,7 @@ struct NoteSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Notes") {
-            SettingsCard(header: "Storage") {
+            Section("Storage") {
                 SettingsRow(title: "Stored Locally") {
                     Text("\(store.notes.count) \(store.notes.count == 1 ? "note" : "notes")")
                         .font(.callout.monospacedDigit())
@@ -15,7 +15,7 @@ struct NoteSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Sync") {
+            Section("Sync") {
                 SettingsRow(title: "Notes Folder", subtitle: folderSubtitle) {
                     HStack(spacing: Theme.Spacing.md) {
                         if sync.isEnabled {
@@ -29,7 +29,6 @@ struct NoteSettingsView: View {
                     }
                 }
                 if sync.isEnabled {
-                    SettingsDivider()
                     SettingsRow(title: "Sync Now") {
                         Button(syncing ? "Syncing…" : "Sync Now") {
                             syncing = true

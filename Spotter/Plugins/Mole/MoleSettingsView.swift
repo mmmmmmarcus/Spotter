@@ -13,7 +13,7 @@ struct MoleSettingsView: View {
                     tint: .orange)
             }
 
-            SettingsCard(header: "Command Line Tool") {
+            Section("Command Line Tool") {
                 SettingsRow(
                     title: "Binary Path",
                     subtitle: mole.binaryPath.map { "Using \($0)" }

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The editable list of folders (and individual `.app` bundles) the launcher indexes.
-struct SearchScopesCard: View {
+struct SearchScopesSection: View {
     @ObservedObject private var settings = AppCore.shared.settings
     /// Recomputed only when the list changes — a `fileExists` per row is cheap, but not cheap enough to run on every body render.
     @State private var missing: Set<String> = []
@@ -10,12 +10,11 @@ struct SearchScopesCard: View {
     private var isDefault: Bool { settings.searchScopes == SearchScopes.defaults }
 
     var body: some View {
-        SettingsCard(header: "Search Scopes") {
+        Section("Search Scopes") {
             ForEach(settings.searchScopes, id: \.self) { scope in
                 ScopeRow(scope: scope, isMissing: missing.contains(scope)) {
                     settings.searchScopes.removeAll { $0 == scope }
                 }
-                SettingsDivider()
             }
 
             HStack(spacing: Theme.Spacing.lg) {
@@ -31,8 +30,6 @@ struct SearchScopesCard: View {
                 .buttonStyle(.borderless)
                 .help("Add a folder or application to search.")
             }
-            .padding(.horizontal, Theme.Spacing.xl)
-            .padding(.vertical, Theme.Spacing.md)
         }
         .onAppear(perform: refreshMissing)
         .onChange(of: settings.searchScopes) { _, _ in refreshMissing() }
@@ -86,7 +83,5 @@ private struct ScopeRow: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
     }
 }

@@ -29,26 +29,24 @@ struct TextReplacementSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Snippets") {
+            Section("Snippets") {
                 if sortedSnippets.isEmpty {
                     SettingsRow(title: "No snippets") { EmptyView() }
                 } else {
-                    ForEach(Array(sortedSnippets.enumerated()), id: \.element.id) { index, snippet in
-                        if index > 0 { SettingsDivider() }
+                    ForEach(sortedSnippets) { snippet in
                         SnippetSettingsRow(
                             prefix: store.prefix, snippet: snippet,
                             onEdit: { editor = SnippetEditorTarget(snippet: snippet) },
                             onDelete: { pendingDeletion = snippet })
                     }
                 }
-                SettingsDivider()
                 SettingsRow(title: "Add Snippet") {
                     Button("Add…") { editor = SnippetEditorTarget(snippet: nil) }
                         .controlSize(.small)
                 }
             }
 
-            SettingsCard(header: "Expansion") {
+            Section("Expansion") {
                 SettingsRow(title: "Prefix") {
                     HStack(spacing: Theme.Spacing.md) {
                         TextField("@@", text: $prefixDraft)
@@ -62,7 +60,6 @@ struct TextReplacementSettingsView: View {
                     }
                 }
                 if let prefixError {
-                    SettingsDivider()
                     SettingsRow(title: "Invalid prefix", subtitle: prefixError) { EmptyView() }
                 }
             }
@@ -142,8 +139,6 @@ private struct SnippetSettingsRow: View {
             .buttonStyle(.plain)
             .help("Delete Snippet")
         }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
     }
 }
 

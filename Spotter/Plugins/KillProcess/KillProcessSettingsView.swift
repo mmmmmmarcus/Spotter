@@ -12,7 +12,7 @@ struct KillProcessSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Kill Process") {
-            SettingsCard(header: "Process List") {
+            Section("Process List") {
                 SettingsRow(title: "Sort By") {
                     Picker("", selection: $sortRaw) {
                         ForEach(ProcessSort.allCases, id: \.rawValue) { value in
@@ -22,19 +22,12 @@ struct KillProcessSettingsView: View {
                     .labelsHidden()
                     .frame(width: 140)
                 }
-                SettingsDivider()
                 toggleRow("Group Applications", $groupApps)
-                SettingsDivider()
                 toggleRow("Search Paths", $searchPaths)
-                SettingsDivider()
                 toggleRow("Search PIDs", $searchPIDs)
-                SettingsDivider()
                 toggleRow("Prioritize Apps", $prioritizeApps)
-                SettingsDivider()
                 toggleRow("Show PID", $showPID)
-                SettingsDivider()
                 toggleRow("Show Path", $showPath)
-                SettingsDivider()
                 SettingsRow(title: "Refresh Interval") {
                     Picker("", selection: $refreshSeconds) {
                         Text("0.5 sec").tag(0.5)

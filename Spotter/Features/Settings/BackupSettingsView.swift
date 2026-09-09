@@ -21,7 +21,7 @@ struct BackupSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Backup") {
-            SettingsCard(header: "Sync") {
+            Section("Sync") {
                 SettingsRow(title: "Export & Import") {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Export…") { BackupActions.exportSettings() }
@@ -30,7 +30,6 @@ struct BackupSettingsView: View {
                             .controlSize(.small)
                     }
                 }
-                SettingsDivider()
                 SettingsRow(
                     title: "Settings File", subtitle: settingsSync.fileURL.map(displayPath)
                 ) {
@@ -41,7 +40,6 @@ struct BackupSettingsView: View {
                             .controlSize(.small)
                     }
                 }
-                SettingsDivider()
                 SettingsRow(title: "Automatic Sync", subtitle: settingsSync.statusText) {
                     Toggle(
                         "",
@@ -54,26 +52,23 @@ struct BackupSettingsView: View {
                         .disabled(settingsSync.fileURL == nil || settingsSync.isWorking)
                 }
                 if settingsSync.fileURL != nil {
-                    SettingsDivider()
                     SettingsRow(title: "Disconnect") {
                         Button("Disconnect") { settingsSync.disconnect() }
                             .controlSize(.small)
                     }
                 }
             }
-            SettingsCard(header: "Import from Raycast") {
+            Section("Import from Raycast") {
                 SettingsRow(title: "Raycast Export", subtitle: raycastFile?.lastPathComponent) {
                     Button("Choose…") { chooseRaycastFile() }
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Passphrase") {
                     SecureField("Passphrase", text: $passphrase)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 160)
                         .onSubmit(runRaycastImport)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Import") {
                     if importing {
                         ProgressView().controlSize(.small)
@@ -84,11 +79,8 @@ struct BackupSettingsView: View {
                     }
                 }
                 RaycastImportSelection(selection: $selection)
-                    .padding(.horizontal, Theme.Spacing.xl)
-                    .padding(.bottom, Theme.Spacing.lg)
                 conflictCallout
                 if let status {
-                    SettingsDivider()
                     statusRow(status)
                 }
             }
@@ -104,8 +96,6 @@ struct BackupSettingsView: View {
                 Button("Quit Raycast") { BackupActions.quitRaycast() }
                     .controlSize(.small)
             }
-            .padding(.horizontal, Theme.Spacing.xl)
-            .padding(.vertical, Theme.Spacing.lg)
         }
     }
 
@@ -117,8 +107,6 @@ struct BackupSettingsView: View {
             SettingsRow(title: message) { EmptyView() }
         case .failure(let message):
             SettingsCallout(title: message, tint: .orange)
-                .padding(.horizontal, Theme.Spacing.xl)
-                .padding(.vertical, Theme.Spacing.lg)
         }
     }
 

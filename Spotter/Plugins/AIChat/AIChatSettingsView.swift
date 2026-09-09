@@ -8,15 +8,14 @@ struct AIChatSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "AI Chat & Command") {
-            OpenRouterSettingsCard()
+            OpenRouterSettingsSection()
 
-            SettingsCard(header: "Chat") {
+            Section("Chat") {
                 SettingsRow(title: "Chat Model", subtitle: chatModelStatus) {
                     AIChatModelMenu(
                         brands: openRouter.catalog, selected: openRouter.chatModel,
                         chatModel: nil, set: { openRouter.setChatModel($0 ?? "") })
                 }
-                SettingsDivider()
                 SettingsRow(title: "Model List", subtitle: catalogStatus) {
                     Button("Reload") { openRouter.refreshCatalog(force: true) }
                         .controlSize(.small)
@@ -24,9 +23,8 @@ struct AIChatSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Commands") {
-                ForEach(Array(commands.commands.enumerated()), id: \.element.id) { index, command in
-                    if index > 0 { SettingsDivider() }
+            Section("Commands") {
+                ForEach(commands.commands) { command in
                     AICommandSettingsRow(
                         command: command,
                         brands: openRouter.catalog,
@@ -34,14 +32,13 @@ struct AIChatSettingsView: View {
                         onEdit: { editor = AICommandEditorTarget(command: command) },
                         onDelete: { pendingDeletion = command })
                 }
-                SettingsDivider()
                 SettingsRow(title: "Add AI Command") {
                     Button("Add…") { editor = AICommandEditorTarget(command: nil) }
                         .controlSize(.small)
                 }
             }
 
-            SettingsCard(header: "Web Search") {
+            Section("Web Search") {
                 SettingsRow(title: "Search the Web") {
                     Toggle(
                         "",
@@ -149,8 +146,6 @@ private struct AICommandSettingsRow: View {
                 .accessibilityLabel("Delete \(command.name)")
             }
         }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
     }
 }
 
@@ -332,12 +327,12 @@ private struct AICommandEditorSheet: View {
 
 /// OpenRouter credential card. The key is the gate: present means AI Chat and every AI command may
 /// make requests; absent means fully on-device. Key and models sync through settings backups.
-private struct OpenRouterSettingsCard: View {
+private struct OpenRouterSettingsSection: View {
     @ObservedObject private var store = AppCore.shared.openRouter
     @State private var keyDraft = AppCore.shared.openRouter.apiKey
 
     var body: some View {
-        SettingsCard(header: "AI (OpenRouter)") {
+        Section("AI (OpenRouter)") {
             SettingsRow(
                 title: "API Key", subtitle: keySubtitle,
                 statusDot: store.isReady ? .green : nil

@@ -6,7 +6,7 @@ struct WindowManagementSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Window Management") {
-            SettingsCard(header: "Layout") {
+            Section("Layout") {
                 SettingsRow(title: "Gap") {
                     Picker("", selection: $gap) {
                         Text("None").tag(0)
@@ -18,7 +18,6 @@ struct WindowManagementSettingsView: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-                SettingsDivider()
                 SettingsRow(title: "Cycle on Repeat") {
                     Toggle("", isOn: $cycleOnRepeat)
                         .labelsHidden()

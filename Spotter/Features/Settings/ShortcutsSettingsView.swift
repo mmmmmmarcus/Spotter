@@ -22,34 +22,44 @@ struct ShortcutsSettingsView: View {
     }
 
     var body: some View {
-        // Same insets as `SettingsPane`: ignore the transparent-titlebar safe area and use one fixed `xxl` inset every side.
+        // The one pane that is not a `SettingsPane`: its list is every app on the Mac, which needs a
+        // lazy container and a scroll view of its own, so the Form here holds only the fixed section
+        // above it. `xxl` insets everything except that Form, which brings its own matching margin.
         VStack(alignment: .leading, spacing: Theme.Spacing.xxl) {
             SettingsHeader(title: "Shortcuts")
+                .padding(.horizontal, Theme.Spacing.xxl)
 
             globalShortcuts
 
             searchField
+                .padding(.horizontal, Theme.Spacing.xxl)
 
             list
+                .padding(.horizontal, Theme.Spacing.xxl)
         }
-        .padding(Theme.Spacing.xxl)
+        .padding(.vertical, Theme.Spacing.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea(edges: .top)
     }
 
-    /// The two summon shortcuts are app-level rather than launcher rows, so they sit in a fixed card
-    /// above the searchable list instead of inside it — a row without an alias or a visibility box
-    /// would put its recorder at a different x than every list row's.
+    /// The two summon shortcuts are app-level rather than launcher rows, so they sit in a fixed
+    /// section above the searchable list instead of inside it — a row without an alias or a
+    /// visibility box would put its recorder at a different x than every list row's. The Form hugs
+    /// its two rows rather than scrolling: the list below owns this pane's scrolling.
     private var globalShortcuts: some View {
-        SettingsCard(header: "Global Shortcuts") {
-            SettingsRow(title: "App Launcher") {
-                ShortcutRecorder(action: .togglePalette)
-            }
-            SettingsDivider()
-            SettingsRow(title: "Backup Shortcut") {
-                ShortcutRecorder(action: .togglePaletteBackup)
+        Form {
+            Section("Global Shortcuts") {
+                SettingsRow(title: "App Launcher") {
+                    ShortcutRecorder(action: .togglePalette)
+                }
+                SettingsRow(title: "Backup Shortcut") {
+                    ShortcutRecorder(action: .togglePaletteBackup)
+                }
             }
         }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Applications and System Settings are one group each; Commands is grouped by owner, so a

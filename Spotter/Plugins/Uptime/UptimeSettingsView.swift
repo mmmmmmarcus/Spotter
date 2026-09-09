@@ -5,7 +5,7 @@ struct UptimeSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Uptime") {
-            SettingsCard(header: "Counting") {
+            Section("Counting") {
                 SettingsRow(
                     title: "Keyboard Counting",
                     subtitle: store.needsAccessibility
@@ -22,7 +22,6 @@ struct UptimeSettingsView: View {
                     }
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Today's Counts") {
                     Button("Reset Today") { store.resetCounts() }
                         .controlSize(.small)

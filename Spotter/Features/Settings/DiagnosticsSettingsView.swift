@@ -7,7 +7,7 @@ struct DiagnosticsSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Diagnostics") {
-            SettingsCard(header: "Log File") {
+            Section("Log File") {
                 SettingsRow(title: "spotter.log") {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Show in Finder") {
@@ -27,14 +27,12 @@ struct DiagnosticsSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Recent Events") {
+            Section("Recent Events") {
                 if log.entries.isEmpty {
                     SettingsRow(title: "Nothing logged yet") { EmptyView() }
                 } else {
                     // Newest first — the entry being investigated is almost always the last one.
-                    ForEach(Array(log.entries.reversed().prefix(100).enumerated()), id: \.element.id)
-                    { index, entry in
-                        if index > 0 { SettingsDivider() }
+                    ForEach(Array(log.entries.reversed().prefix(100))) { entry in
                         DiagnosticsRow(entry: entry)
                     }
                 }
@@ -73,7 +71,5 @@ private struct DiagnosticsRow: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
     }
 }

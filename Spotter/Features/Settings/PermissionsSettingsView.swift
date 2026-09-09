@@ -13,7 +13,7 @@ struct PermissionsSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Permissions") {
-            SettingsCard {
+            Section {
                 SettingsRow(title: "Accessibility", subtitle: accessibilitySubtitle) {
                     if accessibilityTrusted {
                         grantedBadge
@@ -23,7 +23,6 @@ struct PermissionsSettingsView: View {
                     }
                 }
 
-                SettingsDivider()
                 // Automation has no queryable per-app state: macOS asks the first time Spotter drives
                 // another app, so the row can only ever offer the pane it is managed in.
                 SettingsRow(title: "App Automation", subtitle: automationSubtitle) {
@@ -31,12 +30,10 @@ struct PermissionsSettingsView: View {
                         .controlSize(.small)
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Calendar Events", subtitle: calendarSubtitle) {
                     calendarControl
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Screen Recording", subtitle: screenRecordingSubtitle) {
                     if screenRecordingAllowed {
                         grantedBadge

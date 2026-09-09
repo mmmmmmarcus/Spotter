@@ -76,9 +76,10 @@ enum Theme {
         /// this wide. Fixed rather than hugging: a bound shortcut's keycaps are narrower than the
         /// words "Record Shortcut", so a hugging pill would make every row's controls sit at a
         /// different x depending on whether that row happened to have a shortcut. Sized to the
-        /// realistic maximum rather than the theoretical one — ⌃⌥⌘ and a key measures 109pt with its
-        /// clear button, and "Record Shortcut" 91pt, so 120 carries both with slack. A rarer binding
-        /// (a fourth modifier, or a worded key glyph like Space) closes the chip spacing instead of
+        /// realistic maximum rather than the theoretical one — re-measured inside a grouped `Form`
+        /// row, ⌃⌥⌘ and a key is 110pt with its clear button, "Type or double-tap…" 113pt and
+        /// "Record Shortcut" 91pt, so 120 carries all three with slack. A rarer binding (a fourth
+        /// modifier at 132pt, or a worded key glyph like Space) closes the chip spacing instead of
         /// pushing out of the pill.
         static let shortcutRowControl: CGFloat = 120
         static let menuButton: CGFloat = 36

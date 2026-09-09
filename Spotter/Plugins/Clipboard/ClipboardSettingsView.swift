@@ -8,7 +8,7 @@ struct ClipboardSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Clipboard") {
-            SettingsCard(header: "History") {
+            Section("History") {
                 SettingsRow(title: "Keep history for") {
                     Picker("", selection: $settings.clipboardRetention) {
                         ForEach(ClipboardRetention.allCases) { retention in
@@ -25,12 +25,11 @@ struct ClipboardSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Disabled Applications") {
+            Section("Disabled Applications") {
                 ForEach(settings.clipboardDisabledApps, id: \.self) { bundleID in
                     DisabledAppRow(bundleID: bundleID) {
                         settings.clipboardDisabledApps.removeAll { $0 == bundleID }
                     }
-                    SettingsDivider()
                 }
 
                 HStack(spacing: Theme.Spacing.lg) {
@@ -49,11 +48,9 @@ struct ClipboardSettingsView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.xl)
-                .padding(.vertical, Theme.Spacing.md)
             }
 
-            SettingsCard(header: "Danger Zone") {
+            Section("Danger Zone") {
                 SettingsRow(title: "Clear history") {
                     Button("Clear…", role: .destructive) { confirmingClear = true }
                         .controlSize(.regular)
@@ -98,8 +95,6 @@ private struct DisabledAppRow: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
     }
 
     private func resolve() -> (String, NSImage) {

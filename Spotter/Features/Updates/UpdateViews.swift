@@ -1,17 +1,16 @@
 import SwiftUI
 
 /// Settings entry point for the updater: a manual check plus the consent-gated daily check.
-struct UpdatesSettingsCard: View {
+struct UpdatesSettingsSection: View {
     @ObservedObject private var store = AppCore.shared.updates
     @Environment(\.openURL) private var openURL
     @State private var askingConsent = false
 
     var body: some View {
-        SettingsCard(header: "Updates") {
+        Section("Updates") {
             SettingsRow(title: "Spotter \(currentVersion)", subtitle: statusText) {
                 trailingControl
             }
-            SettingsDivider()
             SettingsRow(title: "Check Automatically") {
                 Toggle("", isOn: autoCheckBinding)
                     .labelsHidden()

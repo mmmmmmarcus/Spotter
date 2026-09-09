@@ -40,7 +40,7 @@ struct DashboardWidgetsSettingsView: View {
     /// city's own zone. Until the question is answered the row offers the question instead, and the
     /// clock runs on whatever zone it already had — nothing is contacted to keep the time.
     private var clockAndWeatherCard: some View {
-        SettingsCard(header: "Clock & Weather") {
+        Section("Clock & Weather") {
             SettingsRow(title: "Location", subtitle: locationStatus) {
                 if weather.isEnabled {
                     HStack(spacing: Theme.Spacing.sm) {
@@ -61,7 +61,6 @@ struct DashboardWidgetsSettingsView: View {
             if weather.isEnabled {
                 // Results replace the list in place; picking one clears the field so it settles back.
                 ForEach(weather.searchResults) { result in
-                    SettingsDivider()
                     SettingsRow(
                         title: result.name,
                         subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel
@@ -76,7 +75,6 @@ struct DashboardWidgetsSettingsView: View {
                     }
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Units") {
                     Picker("", selection: unitBinding) {
                         ForEach(WeatherUnit.allCases, id: \.self) { unit in
@@ -87,7 +85,6 @@ struct DashboardWidgetsSettingsView: View {
                     .frame(width: 220)
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Conditions", subtitle: readingStatus) {
                     Button("Update Now") {
                         refreshing = true
@@ -117,7 +114,7 @@ struct DashboardWidgetsSettingsView: View {
     }
 
     private var musicCard: some View {
-        SettingsCard(header: "Music") {
+        Section("Music") {
             SettingsRow(
                 title: "Apple Music",
                 subtitle: music.snapshot.track.map {
@@ -136,7 +133,7 @@ struct DashboardWidgetsSettingsView: View {
     /// The card's real preferences moved to the Calendar plugin, which shares the same store —
     /// this stub says where they went rather than duplicating them.
     private var calendarCard: some View {
-        SettingsCard(header: "Calendar") {
+        Section("Calendar") {
             SettingsRow(title: "Calendar") {
                 Button("Open Calendar Settings") {
                     AppCore.shared.showSettings(plugin: .calendarSchedule)

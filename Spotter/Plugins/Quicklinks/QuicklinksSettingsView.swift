@@ -9,12 +9,11 @@ struct QuicklinksSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Quicklinks") {
-            SettingsCard(header: "Saved Quicklinks") {
+            Section("Saved Quicklinks") {
                 if store.sorted.isEmpty {
                     SettingsRow(title: "No quicklinks") { EmptyView() }
                 } else {
-                    ForEach(Array(store.sorted.enumerated()), id: \.element.id) { index, quicklink in
-                        if index > 0 { SettingsDivider() }
+                    ForEach(store.sorted) { quicklink in
                         QuicklinkSettingsRow(
                             quicklink: quicklink,
                             onTogglePin: { store.togglePinned(id: quicklink.id) },
@@ -22,7 +21,6 @@ struct QuicklinksSettingsView: View {
                             onDelete: { pendingDeletion = quicklink })
                     }
                 }
-                SettingsDivider()
                 SettingsRow(title: "Add Quicklink") {
                     Button("Add…") { editor = QuicklinkEditorTarget(quicklink: nil) }
                         .controlSize(.small)
@@ -96,8 +94,6 @@ private struct QuicklinkSettingsRow: View {
             .buttonStyle(.plain)
             .help("Delete Quicklink")
         }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
     }
 }
 

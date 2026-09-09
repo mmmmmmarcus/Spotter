@@ -92,13 +92,15 @@ alias field and the shortcut recorder. Fixed rather than hugging, and that is th
 bound shortcut's keycaps are narrower than the words "Record Shortcut", so hugging pills put every
 row's controls at a different x depending on whether that row happens to have a shortcut, and a
 column of them reads as ragged. 120 is sized to the **realistic** maximum rather than the theoretical
-one: measured in the recorder's own `caption` font, ⌃⌥⌘ plus a letter is 109pt with its clear button
-and the unbound "Record Shortcut" prompt is 91pt, so 120 carries both with slack while a wider pill
-just reads as empty. A rarer binding — a fourth modifier, or a worded key glyph like `Space` — closes
+one: re-measured inside a grouped `Form` row, ⌃⌥⌘ plus a letter is 110pt with its clear button, the
+recording prompt "Type or double-tap…" 113pt and the unbound "Record Shortcut" prompt 91pt, so 120
+carries all three with slack while a wider pill just reads as empty. The Form leaves a row's trailing
+control about 325pt at the 652-point content width, so nothing squeezes it. A rarer binding — a
+fourth modifier (132pt), or a worded key glyph like `Space` — closes
 the `xxs` gaps between its chips instead of pushing out of the pill; the prompt and conflict text are
 `lineLimit(1)` with a scale floor for the same reason. Changing the token moves both controls
-together. Measure before retuning it: earlier work sized this from a standalone AppKit probe
-computing `NSString.size(withAttributes:)` in the real text styles, not by eye.
+together. Measure before retuning it: both roundings came from a standalone AppKit probe hosting the
+real views and reading their laid-out sizes, not by eye.
 
 `settingsSidebar` is sized the same way, to the widest label rather than to a round number. In
 `rowTitle` (13pt system) the longest entry is **Window Management** at 131pt — wider than the
@@ -130,8 +132,8 @@ Black at a given alpha reads heavier than white, so the light column is a tuned 
 | `border`         | white 0.20 | black 0.18 | outlined keycap borders                          |
 | `textSecondary`  | white 0.60 | black 0.62 | secondary labels                                 |
 | `textTertiary`   | white 0.40 | black 0.42 | placeholders, trailing kind labels               |
-| `cardFill`       | white 0.05 | black 0.035| settings/calc card fill                          |
-| `cardStroke`     | white 0.10 | black 0.10 | settings/calc card border + inset dividers       |
+| `cardFill`       | white 0.05 | black 0.035| calc card, `PanelCard`, small field/pill fills    |
+| `cardStroke`     | white 0.10 | black 0.10 | the same borders, and `PanelCard`'s inset dividers|
 | `surfaceGlow`    | white 0.06 | black 0.05 | icon placeholder tile, Onboarding glow           |
 | `glassFrost`     | white 0.05 | white 0.30 | tint layered into the floating glass             |
 | `screenshotSelectionBorder` | white 1.00 | black 1.00 | screenshot selection outline             |
@@ -403,8 +405,11 @@ appearance on its own, at alpha 0.30 rest →
 0.42 hover → 0.5 drag) that fattens on hover, with a faint rail revealed only while hovering/dragging.
 
 Routing: the palette lists (App Launcher, Clipboard history, Emoji, Calculator history, plugin screens) use
-`.thinScrollbar()` + `.hideNativeScrollers()`; the Clipboard preview (right pane) and every Settings
-pane use the native `.overlayScroller()`. Don't reintroduce native scrollers on the palette lists.
+`.thinScrollbar()` + `.hideNativeScrollers()`; the Clipboard preview (right pane) and the Settings
+sidebar use the native `.overlayScroller()`. A settings pane's `Form` owns its scroll view rather
+than sitting inside one, so `SettingsPane` uses `.containerOverlayScroller()` — the same forced
+overlay style, resolved by looking *down* into the container instead of up at an enclosing scroll
+view. Don't reintroduce native scrollers on the palette lists.
 
 ---
 
@@ -426,10 +431,42 @@ shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not 
   the real system state, so a grant revoked in System Settings drops back to its button. Calendar is
   the one permission with more than two states, so its single control carries all of them.
 
-- **`SettingsPane`**: bold `.title2` title, then scrollable content, `xxl` inset all around, the same thin scrollbar. No subtitle — the sidebar already names the pane.
-- **`SettingsCard`**: rounded `card 10` container, `cardFill` fill, `cardStroke` hairline border. Rows inside are split by `SettingsDivider` — an inset hairline aligned under the row title, at the row's own `xl` leading inset.
-- **`SettingsRow`**: title (+ optional `statusDot`), optional caption subtitle, trailing control, fixed `.horizontal xl / .vertical lg` rhythm. There is no leading-glyph parameter.
-- **`SettingsCallout`**: title + optional message in a `tint`-washed box, with an optional trailing control. `tint` colours the box; it no longer feeds a glyph.
+**The content area is a native grouped `Form`.** Row metrics, typography, separators, group
+backgrounds, Dynamic Type and the label→control accessibility pairing all come from macOS and keep
+tracking it as macOS changes; Spotter supplies only the pane title, the copy and the controls. The
+groups, their order and their rows are exactly what they were as hand-rolled cards — this is a change
+of substrate, not of information architecture.
+
+- **`SettingsPane`**: bold `.title2` title, `xxl` in from the leading edge so it lines up with the
+  section boxes, then `Form { content }.formStyle(.grouped)`. No subtitle — the sidebar already names
+  the pane. The title sits above the Form rather than inside it, so it no longer scrolls with the
+  content; a grouped Form boxes anything loose at its top level, and a boxed pane title reads wrong.
+- **A group is a `Section`.** There is no `SettingsCard`, no `SettingsDivider` and no `cardFill`
+  container in a pane: `Section("Header") { … }` draws the group and the Form draws the separators
+  between its rows. A struct that is one group (`SearchScopesSection`, `UpdatesSettingsSection`,
+  `OpenRouterSettingsSection`) has a `Section` for its whole body.
+- **`SettingsRow`**: a `LabeledContent` pairing the title (+ optional `statusDot`) with the row's
+  control, plus — only where the copy *reports* — a caption **under** both, at full row width. It
+  carries no insets of its own; the Form supplies them (measured: at the 652-point content width a
+  row runs x=30 to x=622, and a bare custom row is inset identically, which is why the custom rows
+  that used to pad themselves `.horizontal xl / .vertical lg` no longer do). The `LabeledContent`
+  pairing is also what gives a `labelsHidden` switch its accessible name. There is no leading-glyph
+  parameter. The subtitle is deliberately not folded into the label: `LabeledContent` confines a
+  label to roughly half the row, and the kept disclosures are paragraphs — measured, one of them
+  runs 218 points tall inside the label against 133 with the caption under the row.
+- **`SettingsCallout`**: title + optional message in a `tint`-washed box, with an optional trailing
+  control. `tint` colours the box; it no longer feeds a glyph. It keeps its own padding, since the
+  box is the thing.
+- **`PanelCard` / `PanelCardRow` / `PanelCardDivider`** are the hand-rolled card kept for the two
+  surfaces that are not forms — About's links and the onboarding steps. Both are bespoke layouts (a
+  hero column, a wizard step) rather than lists of settings, so neither can be a `Form`; giving them
+  their own card is what let the panes go native without restyling either. They are the only
+  remaining `cardFill`/`cardStroke` container in this part of the app.
+- **Shortcuts is the one pane that is not a `SettingsPane`.** Its list is every app on the Mac, which
+  needs a lazy container and a scroll view of its own, and a grouped `Form` is a non-lazy scroll view;
+  so the pane keeps its own scaffold, holds the Global Shortcuts group in a hugging
+  `Form` (`.scrollDisabled(true).fixedSize(horizontal: false, vertical: true)`, measured to hug), and
+  the searchable list below stays a `cardFill`/`cardStroke` bordered list.
 
 **Symbols render monochrome** (owner decision, Sep 2026). Every `Image(systemName:)` in the app
 uses `.symbolRenderingMode(.monochrome)`; `.hierarchical` is not used anywhere. A hierarchical symbol

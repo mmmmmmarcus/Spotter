@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// First-launch wizard: set the palette shortcut, offer Accessibility + launch-at-login, offer a Raycast import, then drop into the launcher. Re-runnable from Settings. Reuses the app's own controls (`ShortcutRecorder`, `SettingsCard`, `BackupActions`) so it looks and behaves like the rest of Spotter.
+/// First-launch wizard: set the palette shortcut, offer Accessibility + launch-at-login, offer a Raycast import, then drop into the launcher. Re-runnable from Settings. Reuses the app's own controls (`ShortcutRecorder`, `PanelCard`, `BackupActions`) so it looks and behaves like the rest of Spotter.
 struct OnboardingView: View {
     @State private var step = 0
     @StateObject private var model = OnboardingModel()
@@ -128,14 +128,14 @@ struct OnboardingView: View {
 
     private var shortcutStep: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SettingsCard {
-                SettingsRow(
+            PanelCard {
+                PanelCardRow(
                     title: "App Launcher", subtitle: "Press this shortcut to open Spotter."
                 ) {
                     ShortcutRecorder(action: .togglePalette)
                 }
-                SettingsDivider()
-                SettingsRow(
+                PanelCardDivider()
+                PanelCardRow(
                     title: "Launch at login",
                     subtitle: "Start Spotter automatically when you log in."
                 ) {
@@ -149,8 +149,8 @@ struct OnboardingView: View {
 
     private var accessibilityStep: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SettingsCard {
-                SettingsRow(
+            PanelCard {
+                PanelCardRow(
                     title: "Accessibility",
                     subtitle:
                         "Without it Spotter can still copy, but it can't paste a clipboard or emoji item back into the app you were using."
@@ -164,16 +164,16 @@ struct OnboardingView: View {
 
     private var raycastStep: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            SettingsCard {
-                SettingsRow(
+            PanelCard {
+                PanelCardRow(
                     title: "Raycast Export",
                     subtitle: model.file?.lastPathComponent
                         ?? "Choose a .rayconfig file exported from Raycast."
                 ) {
                     Button("Choose…") { model.chooseFile() }.controlSize(.small)
                 }
-                SettingsDivider()
-                SettingsRow(
+                PanelCardDivider()
+                PanelCardRow(
                     title: "Passphrase",
                     subtitle: "The password you set when exporting from Raycast."
                 ) {

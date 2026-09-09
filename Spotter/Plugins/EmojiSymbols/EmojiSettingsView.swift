@@ -5,7 +5,7 @@ struct EmojiSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Emoji & Symbols") {
-            SettingsCard(header: "Appearance") {
+            Section("Appearance") {
                 SettingsRow(title: "Emoji Skin Tone") {
                     // A hand per tone, Raycast style — quicker to scan than a dropdown of tone names.
                     Picker("", selection: $settings.emojiSkinTone) {

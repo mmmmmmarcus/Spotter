@@ -69,11 +69,11 @@ struct AboutView: View {
     }
 
     private var links: some View {
-        SettingsCard(header: "Links") {
+        PanelCard(header: "Links") {
             // Rows paint a full-bleed hover fill, so the stack is clipped to the card's corner — otherwise the first/last row's highlight squares off the rounded ends.
             VStack(spacing: 0) {
                 ForEach(AboutLink.all) { link in
-                    if link.id != AboutLink.all.first?.id { SettingsDivider() }
+                    if link.id != AboutLink.all.first?.id { PanelCardDivider() }
                     AboutLinkRow(link: link)
                 }
             }

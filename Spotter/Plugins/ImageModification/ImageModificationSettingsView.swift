@@ -6,11 +6,10 @@ struct ImageModificationSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Image Modification") {
-            SettingsCard(header: "Defaults") {
+            Section("Defaults") {
                 SettingsRow(title: "Output") {
                     Picker("", selection: $output) { ForEach(ImageOutputLocation.allCases) { Text($0.title).tag($0.rawValue) } }.labelsHidden()
                 }
-                SettingsDivider()
                 SettingsRow(title: "Created Image Format") {
                     Picker("", selection: $format) { ForEach(ImageFormat.allCases) { Text($0.title).tag($0.rawValue) } }.labelsHidden()
                 }

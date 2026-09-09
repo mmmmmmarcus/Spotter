@@ -11,12 +11,11 @@ struct WorldClockSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "World Clock") {
-            SettingsCard(header: "Cities") {
+            Section("Cities") {
                 if store.cities.isEmpty {
                     SettingsRow(title: "No Cities") { EmptyView() }
                 } else {
-                    ForEach(Array(store.cities.enumerated()), id: \.element.id) { index, city in
-                        if index > 0 { SettingsDivider() }
+                    ForEach(store.cities) { city in
                         SettingsRow(title: city.name, subtitle: city.timeZoneIdentifier) {
                             Button {
                                 store.remove(id: city.id)
@@ -30,7 +29,6 @@ struct WorldClockSettingsView: View {
                     }
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Add City") {
                     TextField("London", text: $cityQuery)
                         .textFieldStyle(.roundedBorder)
@@ -39,7 +37,6 @@ struct WorldClockSettingsView: View {
                 }
 
                 ForEach(suggestions) { city in
-                    SettingsDivider()
                     SettingsRow(title: city.name, subtitle: city.timeZoneIdentifier) {
                         Button("Add") { add(city) }
                             .controlSize(.small)
@@ -47,7 +44,6 @@ struct WorldClockSettingsView: View {
                 }
 
                 if !store.usesDefaults {
-                    SettingsDivider()
                     SettingsRow(title: "Default Cities") {
                         Button("Restore") { store.restoreDefaults() }
                             .controlSize(.small)

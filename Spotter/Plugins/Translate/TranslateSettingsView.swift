@@ -16,7 +16,7 @@ struct TranslateSettingsView: View {
                     tint: .orange)
             }
 
-            SettingsCard(header: "Google Cloud Translation") {
+            Section("Google Cloud Translation") {
                 SettingsRow(
                     title: "API Key",
                     subtitle:
@@ -34,7 +34,6 @@ struct TranslateSettingsView: View {
                         .onChange(of: apiKeyDraft) { translate.setAPIKey(apiKeyDraft) }
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Connection", subtitle: validationStatus) {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Test API Key") {
@@ -45,15 +44,12 @@ struct TranslateSettingsView: View {
                     }
                 }
 
-                SettingsDivider()
                 if translate.targets.isEmpty {
                     SettingsRow(title: "No target languages") {
                         EmptyView()
                     }
                 } else {
-                    ForEach(Array(translate.targets.enumerated()), id: \.element.id) {
-                        index, language in
-                        if index > 0 { SettingsDivider() }
+                    ForEach(translate.targets) { language in
                         SettingsRow(title: language.name) {
                             Button(role: .destructive) {
                                 translate.removeTarget(language.code)
@@ -66,7 +62,6 @@ struct TranslateSettingsView: View {
                     }
                 }
 
-                SettingsDivider()
                 SettingsRow(title: "Add a Language") {
                     Menu("Add") {
                         ForEach(translate.availableTargets) { language in

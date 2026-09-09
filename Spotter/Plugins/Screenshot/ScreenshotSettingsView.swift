@@ -5,28 +5,25 @@ struct ScreenshotSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Screenshot") {
-            SettingsCard(header: "Capture") {
+            Section("Capture") {
                 SettingsRow(title: "Rounded Corners") {
                     Toggle("", isOn: $screenshot.roundedCorners)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Resolution") {
                     Picker("", selection: $screenshot.captureScale) {
                         ForEach(ScreenshotCaptureScale.allCases) { Text($0.title).tag($0) }
                     }
                     .labelsHidden()
                 }
-                SettingsDivider()
                 SettingsRow(title: "Hide Spotter While Capturing") {
                     Toggle("", isOn: $screenshot.hidesSpotterWindows)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                SettingsDivider()
                 SettingsRow(title: "Thumbnail Duration") {
                     HStack(spacing: Theme.Spacing.sm) {
                         TextField("", value: durationBinding, format: .number.precision(.fractionLength(0...1)))
@@ -38,7 +35,6 @@ struct ScreenshotSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                SettingsDivider()
                 SettingsRow(title: "Window Shadow") {
                     Toggle("", isOn: $screenshot.includesWindowShadow)
                         .labelsHidden()
@@ -47,7 +43,7 @@ struct ScreenshotSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Saving") {
+            Section("Saving") {
                 SettingsRow(title: "File Format") {
                     Picker("", selection: $screenshot.fileFormat) {
                         ForEach(ScreenshotFileFormat.allCases) { Text($0.title).tag($0) }

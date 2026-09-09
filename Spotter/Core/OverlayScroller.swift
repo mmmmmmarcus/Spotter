@@ -3,12 +3,21 @@ import SwiftUI
 
 extension View {
     func overlayScroller() -> some View {
-        background(OverlayScrollerConfigurator().frame(width: 0, height: 0))
+        background(OverlayScrollerConfigurator(searchesDescendants: false).frame(width: 0, height: 0))
+    }
+
+    /// The same forced overlay style for a container that owns its scroll view *below* this view
+    /// instead of around it — a `Form`, whose `NSScrollView` is a sibling of the probe, never an
+    /// ancestor of it.
+    func containerOverlayScroller() -> some View {
+        background(OverlayScrollerConfigurator(searchesDescendants: true).frame(width: 0, height: 0))
     }
 }
 
 private struct OverlayScrollerConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { ProbeView() }
+    let searchesDescendants: Bool
+
+    func makeNSView(context: Context) -> NSView { ProbeView(searchesDescendants: searchesDescendants) }
     func updateNSView(_ nsView: NSView, context: Context) {
         (nsView as? ProbeView)?.applyOverlayStyle()
     }
@@ -16,8 +25,12 @@ private struct OverlayScrollerConfigurator: NSViewRepresentable {
     private final class ProbeView: NSView {
         private var attemptsRemaining = 12
         private var styleObserver: NotificationToken?
+        private let searchesDescendants: Bool
 
-        override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
+        init(searchesDescendants: Bool) {
+            self.searchesDescendants = searchesDescendants
+            super.init(frame: .zero)
+        }
 
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError() }
@@ -45,8 +58,30 @@ private struct OverlayScrollerConfigurator: NSViewRepresentable {
             styleObserver = NotificationToken(token, center: .default)
         }
 
+        /// The scroll view a sibling container owns. Bounded on both axes: only a few hops up, and
+        /// the first match wins, so the search can never wander out to the pane's own sidebar.
+        private var containedScrollView: NSScrollView? {
+            var ancestor = superview
+            var hops = 0
+            while let current = ancestor, hops < 2 {
+                if let found = Self.firstScrollView(in: current) { return found }
+                ancestor = current.superview
+                hops += 1
+            }
+            return nil
+        }
+
+        private static func firstScrollView(in view: NSView) -> NSScrollView? {
+            for subview in view.subviews {
+                if let scrollView = subview as? NSScrollView { return scrollView }
+                if let nested = firstScrollView(in: subview) { return nested }
+            }
+            return nil
+        }
+
         func applyOverlayStyle() {
-            guard let scrollView = enclosingScrollView else {
+            guard let scrollView = searchesDescendants ? containedScrollView : enclosingScrollView
+            else {
                 // Not spliced into the scroll view yet; retry next tick, bounded so a view that never lands in one can't spin the main thread.
                 guard attemptsRemaining > 0 else { return }
                 attemptsRemaining -= 1
