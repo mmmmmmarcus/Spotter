@@ -8,21 +8,11 @@ struct UpdatesSettingsCard: View {
 
     var body: some View {
         SettingsCard(header: "Updates") {
-            SettingsRow(
-                title: "Spotter \(currentVersion)",
-                subtitle: statusText,
-                systemImage: "arrow.down.circle",
-                tint: .blue
-            ) {
+            SettingsRow(title: "Spotter \(currentVersion)", subtitle: statusText) {
                 trailingControl
             }
             SettingsDivider()
-            SettingsRow(
-                title: "Check Automatically",
-                subtitle: "Ask \(UpdateStore.provider) once a day whether a newer release exists. Only the request is sent.",
-                systemImage: "clock.arrow.circlepath",
-                tint: .blue
-            ) {
+            SettingsRow(title: "Check Automatically") {
                 Toggle("", isOn: autoCheckBinding)
                     .labelsHidden()
                     .toggleStyle(.switch)
@@ -70,9 +60,10 @@ struct UpdatesSettingsCard: View {
         store.currentVersion.map(String.init(describing:)) ?? "—"
     }
 
-    private var statusText: String {
+    /// Nil until something has actually happened — the row reports state, it does not describe the updater.
+    private var statusText: String? {
         switch store.status {
-        case .idle: "Installed from GitHub Releases; updates keep your settings and permissions."
+        case .idle: nil
         case .checking: "Checking \(UpdateStore.provider)…"
         case .upToDate: "You're on the latest version."
         case .available(let release): "Version \(release.version.description) is available."
@@ -190,13 +181,8 @@ private struct UpdateConsentSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            HStack(spacing: Theme.Spacing.lg) {
-                Image(systemName: "network")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(.blue)
-                Text("Check for updates automatically?")
-                    .font(.headline)
-            }
+            Text("Check for updates automatically?")
+                .font(.headline)
 
             Text(
                 "Spotter asks \(UpdateStore.provider) once a day whether a newer release exists. "

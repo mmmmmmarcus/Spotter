@@ -28,35 +28,19 @@ struct GeneralSettingsView: View {
         }
     }
 
-    private var hyperSubtitle: String {
-        guard settings.hyperKey != .none else {
-            return
-                "Select a physical key to remap to the \(hyperGlyphs) modifier keys simultaneously."
-        }
-        var text =
-            "Pressing \(settings.hyperKey.title) will trigger the left \(hyperGlyphs) modifier keys."
-        if settings.hyperKeyReplacesGlyph {
-            text += " Hyper Key shortcuts will be shown in Spotter with ✦."
-        }
+    /// What the Hyper Key is currently doing, or why it isn't — never what a Hyper Key is.
+    private var hyperSubtitle: String? {
+        guard settings.hyperKey != .none else { return nil }
         if hyperTap.status == .needsAccessibility {
-            text += " Spotter needs Accessibility access to remap keys."
+            return "Spotter needs Accessibility access to remap keys."
         }
-        return text
+        return "\(settings.hyperKey.title) triggers the left \(hyperGlyphs) modifier keys."
     }
 
     var body: some View {
-        SettingsPane(
-            title: "General",
-            subtitle: "Search, appearance and startup behaviour."
-        ) {
+        SettingsPane(title: "General") {
             SettingsCard(header: "Search") {
-                SettingsRow(
-                    title: "Learned ranking",
-                    subtitle:
-                        "Spotter privately learns which results you choose for each query. Reset all learned choices to restore the default order.",
-                    systemImage: "chart.line.uptrend.xyaxis",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Learned ranking") {
                     Button("Reset…", role: .destructive) {
                         confirmingRankingReset = true
                     }
@@ -69,11 +53,7 @@ struct GeneralSettingsView: View {
 
             SettingsCard(header: "Hyper Key") {
                 SettingsRow(
-                    title: "Hyper Key",
-                    subtitle: hyperSubtitle,
-                    systemImage: "sparkle",
-                    tint: .purple,
-                    statusDot: hyperStatusDot
+                    title: "Hyper Key", subtitle: hyperSubtitle, statusDot: hyperStatusDot
                 ) {
                     if hyperTap.status == .needsAccessibility {
                         Button("Grant Access…") { Permissions.openAccessibilitySettings() }
@@ -94,13 +74,7 @@ struct GeneralSettingsView: View {
                 }
                 if settings.hyperKey.hasOriginalFunction {
                     SettingsDivider()
-                    SettingsRow(
-                        title: "Quick Press",
-                        subtitle:
-                            "Select an action to perform when \(settings.hyperKey.title) is pressed without any other keys.",
-                        systemImage: "hand.tap",
-                        tint: .teal
-                    ) {
+                    SettingsRow(title: "Quick Press") {
                         Picker("", selection: $settings.hyperKeyQuickPress) {
                             Text("Does Nothing").tag(HyperKeyQuickPress.none)
                             if let original = settings.hyperKey.quickPressOriginalTitle {
@@ -113,24 +87,14 @@ struct GeneralSettingsView: View {
                     }
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Include Shift (⇧)",
-                    subtitle: "Hyper Key will remap to the \(hyperGlyphs) modifier keys.",
-                    systemImage: "shift",
-                    tint: .indigo
-                ) {
+                SettingsRow(title: "Include Shift (⇧)") {
                     Toggle("", isOn: $settings.hyperKeyIncludesShift)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Replace occurrences of \(hyperGlyphs) with ✦",
-                    subtitle: "Shortcuts containing the Hyper Key modifiers are shown with ✦.",
-                    systemImage: "keyboard",
-                    tint: .gray
-                ) {
+                SettingsRow(title: "Replace occurrences of \(hyperGlyphs) with ✦") {
                     Toggle("", isOn: $settings.hyperKeyReplacesGlyph)
                         .labelsHidden()
                         .toggleStyle(.switch)
@@ -139,26 +103,14 @@ struct GeneralSettingsView: View {
             }
 
             SettingsCard(header: "Appearance") {
-                SettingsRow(
-                    title: "Compact mode",
-                    subtitle:
-                        "Open the launcher as a slim search bar that expands into the full list as you type.",
-                    systemImage: "macwindow",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Compact mode") {
                     Toggle("", isOn: $settings.compactMode)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Show favorites in compact mode",
-                    subtitle:
-                        "Pin favorite app icons to the right of the compact bar (⌘1–⌘5 to launch).",
-                    systemImage: "star",
-                    tint: .yellow
-                ) {
+                SettingsRow(title: "Show favorites in compact mode") {
                     Toggle("", isOn: $settings.showFavoritesInCompactMode)
                         .labelsHidden()
                         .toggleStyle(.switch)
@@ -167,13 +119,7 @@ struct GeneralSettingsView: View {
                 }
                 .opacity(settings.compactMode ? 1 : 0.5)
                 SettingsDivider()
-                SettingsRow(
-                    title: "Follow the cursor across displays",
-                    subtitle:
-                        "Open the launcher on whichever display the pointer is on, rather than the one with the menu bar.",
-                    systemImage: "display.2",
-                    tint: .teal
-                ) {
+                SettingsRow(title: "Follow the cursor across displays") {
                     Toggle("", isOn: $settings.openOnCursorScreen)
                         .labelsHidden()
                         .toggleStyle(.switch)
@@ -186,12 +132,7 @@ struct GeneralSettingsView: View {
                     Array(settings.launcherSectionOrder.enumerated()), id: \.element
                 ) { index, section in
                     if index > 0 { SettingsDivider() }
-                    SettingsRow(
-                        title: section.title,
-                        subtitle: section.settingsSubtitle,
-                        systemImage: section.systemImage,
-                        tint: .teal
-                    ) {
+                    SettingsRow(title: section.title) {
                         HStack(spacing: Theme.Spacing.md) {
                             Button {
                                 settings.moveLauncherSection(section, delta: -1)
@@ -230,12 +171,7 @@ struct GeneralSettingsView: View {
             }
 
             SettingsCard(header: "General") {
-                SettingsRow(
-                    title: "Run in Terminal uses",
-                    subtitle: "The terminal the launcher's Run in Terminal action hands commands to.",
-                    systemImage: "terminal",
-                    tint: .indigo
-                ) {
+                SettingsRow(title: "Run in Terminal uses") {
                     Picker("", selection: $settings.preferredTerminal) {
                         ForEach(installedTerminals, id: \.self) { terminal in
                             Text(terminal.displayName).tag(terminal)
@@ -245,76 +181,42 @@ struct GeneralSettingsView: View {
                     .fixedSize()
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Launch at login",
-                    subtitle: "Start Spotter automatically when you log in.",
-                    systemImage: "power",
-                    tint: .green
-                ) {
+                SettingsRow(title: "Launch at login") {
                     Toggle("", isOn: $settings.launchAtLogin)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Show in menu bar",
-                    subtitle:
-                        "Keep the Spotter icon in the menu bar. Shortcuts still work when hidden.",
-                    systemImage: "menubar.arrow.up.rectangle",
-                    tint: .gray
-                ) {
+                SettingsRow(title: "Show in menu bar") {
                     Toggle("", isOn: $showInMenuBar)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Show in Dock",
-                    subtitle:
-                        "Keep the Spotter icon in the Dock. Clicking it opens the app launcher.",
-                    systemImage: "dock.rectangle",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Show in Dock") {
                     Toggle("", isOn: $settings.showInDock)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Remember Window Position",
-                    subtitle:
-                        "Drag the launcher by its background to move it. On, it reopens where you left it; off, it re-centers every time.",
-                    systemImage: "macwindow.on.rectangle",
-                    tint: .indigo
-                ) {
+                SettingsRow(title: "Remember Window Position") {
                     Toggle("", isOn: $settings.remembersPalettePosition)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Lock Input Method to English",
-                    subtitle:
-                        "Switch the keyboard to an ASCII layout when the launcher opens. You can still switch to another input method while it's open.",
-                    systemImage: "keyboard",
-                    tint: .indigo
-                ) {
+                SettingsRow(title: "Lock Input Method to English") {
                     Toggle("", isOn: $settings.lockInputToEnglish)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Pop to Root Search",
-                    subtitle: "Reset to the launcher this long after the window closes.",
-                    systemImage: "arrow.uturn.backward",
-                    tint: .indigo
-                ) {
+                SettingsRow(title: "Pop to Root Search") {
                     Picker("", selection: $settings.popToRootTimeout) {
                         ForEach(PopToRootTimeout.allCases) { timeout in
                             Text(timeout.title).tag(timeout)
@@ -324,13 +226,7 @@ struct GeneralSettingsView: View {
                     .fixedSize()
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Welcome Guide",
-                    subtitle:
-                        "Re-run the first-launch setup: shortcut, permissions, and Raycast import.",
-                    systemImage: "sparkles",
-                    tint: .yellow
-                ) {
+                SettingsRow(title: "Welcome Guide") {
                     Button("Show…") { AppCore.shared.showOnboarding() }
                         .controlSize(.small)
                 }

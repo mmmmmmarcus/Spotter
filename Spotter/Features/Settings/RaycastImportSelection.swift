@@ -6,20 +6,19 @@ struct RaycastImportSelection: View {
 
     private struct Category: Identifiable {
         let option: RaycastImportOptions
-        let symbol: String
         let label: String
         var id: Int { option.rawValue }
     }
 
     private static let categories: [Category] = [
-        .init(option: .shortcuts, symbol: "command", label: "Shortcuts"),
-        .init(option: .favorites, symbol: "star", label: "Favorites"),
-        .init(option: .emojiSkinTone, symbol: "face.smiling", label: "Emoji skin tone"),
-        .init(option: .launchAtLogin, symbol: "power", label: "Launch at login"),
-        .init(option: .menuBarVisibility, symbol: "menubar.rectangle", label: "Menu-bar icon"),
-        .init(option: .clipboardHistory, symbol: "doc.on.clipboard", label: "Clipboard history"),
-        .init(option: .popToRoot, symbol: "arrow.uturn.backward", label: "Pop to root"),
-        .init(option: .compactMode, symbol: "macwindow", label: "Compact mode"),
+        .init(option: .shortcuts, label: "Shortcuts"),
+        .init(option: .favorites, label: "Favorites"),
+        .init(option: .emojiSkinTone, label: "Emoji skin tone"),
+        .init(option: .launchAtLogin, label: "Launch at login"),
+        .init(option: .menuBarVisibility, label: "Menu-bar icon"),
+        .init(option: .clipboardHistory, label: "Clipboard history"),
+        .init(option: .popToRoot, label: "Pop to root"),
+        .init(option: .compactMode, label: "Compact mode"),
     ]
 
     private static let columns = Array(
@@ -36,12 +35,7 @@ struct RaycastImportSelection: View {
             LazyVGrid(columns: Self.columns, alignment: .leading, spacing: Theme.Spacing.sm) {
                 ForEach(Self.categories) { category in
                     Toggle(isOn: included(category.option)) {
-                        HStack(spacing: Theme.Spacing.sm) {
-                            Image(systemName: category.symbol)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 16)
-                            Text(category.label).lineLimit(1)
-                        }
+                        Text(category.label).lineLimit(1)
                     }
                     .toggleStyle(.checkbox)
                 }

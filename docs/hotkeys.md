@@ -61,8 +61,16 @@ plugins expose stable `PluginActionKey` values through `PluginRegistry`; new key
 bindings live in its Global Shortcuts card rather than in General, AI Chat's Open AI Chat row and
 Caffeinate's and Mole's whole Shortcuts sections are gone, and every one of those actions is still
 bound from the same pane — Open AI Chat, the five Caffeinate actions and the nine Mole screens are
-launcher commands, so they were already listed under their owner's heading. Only presentation moved:
-every binding keeps its `KeyboardShortcuts_<name>` defaults key.
+launcher commands, so they were already listed under their owner's heading. The remaining duplicates
+went with them: Notes, Kill Process, Image Modification, Screenshot, Translate, File Search, Search,
+World Clock, Emoji & Symbols, Uptime, Calendar, Change Case, Window Management and Clipboard no
+longer carry a Shortcut(s) card, because every one of those actions is a launcher command whose
+`AppEntry.hotKeyAction` resolves to the same `.plugin(PluginActionKey)` the pane recorder used. Only
+presentation moved: every binding keeps its `KeyboardShortcuts_<name>` defaults key.
+
+The deliberate exceptions are recorders that configure *the row's own item* rather than duplicate a
+global setting, and they stay where the item is edited: AI Chat's per-command rows, the Built-in
+Commands card and the custom-command rows.
 
 **Every launcher row that can be bound, is.** A row in Settings ▸ Shortcuts shows a recorder exactly
 when `AppEntry.hotKeyAction` resolves, and each command kind resolves through its own case:

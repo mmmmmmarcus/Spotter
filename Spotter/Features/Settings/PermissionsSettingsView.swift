@@ -12,17 +12,9 @@ struct PermissionsSettingsView: View {
     private let refreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        SettingsPane(
-            title: "Permissions",
-            subtitle: "Access Spotter needs to work with other apps."
-        ) {
+        SettingsPane(title: "Permissions") {
             SettingsCard {
-                SettingsRow(
-                    title: "Accessibility",
-                    subtitle: accessibilitySubtitle,
-                    systemImage: "accessibility",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Accessibility", subtitle: accessibilitySubtitle) {
                     if accessibilityTrusted {
                         grantedBadge
                     } else {
@@ -34,33 +26,18 @@ struct PermissionsSettingsView: View {
                 SettingsDivider()
                 // Automation has no queryable per-app state: macOS asks the first time Spotter drives
                 // another app, so the row can only ever offer the pane it is managed in.
-                SettingsRow(
-                    title: "App Automation",
-                    subtitle: automationSubtitle,
-                    systemImage: "gearshape.2",
-                    tint: .purple
-                ) {
+                SettingsRow(title: "App Automation", subtitle: automationSubtitle) {
                     Button("Open Settings…") { Permissions.openAutomationSettings() }
                         .controlSize(.small)
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Calendar Events",
-                    subtitle: calendarSubtitle,
-                    systemImage: "calendar",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Calendar Events", subtitle: calendarSubtitle) {
                     calendarControl
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Screen Recording",
-                    subtitle: screenRecordingSubtitle,
-                    systemImage: "rectangle.dashed.badge.record",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Screen Recording", subtitle: screenRecordingSubtitle) {
                     if screenRecordingAllowed {
                         grantedBadge
                     } else {

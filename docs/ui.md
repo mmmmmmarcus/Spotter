@@ -71,9 +71,9 @@ Always `RoundedRectangle(cornerRadius:, style: .continuous)` — continuous corn
 ### Size (`Theme.Size`)
 
 `panelWidth 628` · `panelHeight 475` · `headerHeight 44` · `headerContentGap 10` · `bottomBarHeight 52` · `rowIcon 24` ·
-`keyCap 18` · `recorderKeyCap 16` · `shortcutRowControl 140` · `menuButton 36` · `clipboardListWidth 290` ·
+`keyCap 18` · `recorderKeyCap 16` · `shortcutRowControl 120` · `menuButton 36` · `clipboardListWidth 290` ·
 `backgroundTaskProgressWidth 96` · `menuWidth 276` · `menuIcon 20` ·
-`settingsWindow 860×550` · `settingsSidebar 184` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
+`settingsWindow 860×550` · `settingsSidebar 208` · `settingsRowIcon 20` · `hudBottomMargin 120` · `confirmationWidth 380`
 
 Widgets use `launcherDashboardHeight 116`; every card is a 116-point square, and the
 title-free clock contains an 88-point analog face. A square leaves 96 points of content between its
@@ -91,9 +91,21 @@ room for File Info without moving the window.
 alias field and the shortcut recorder. Fixed rather than hugging, and that is the whole point: a
 bound shortcut's keycaps are narrower than the words "Record Shortcut", so hugging pills put every
 row's controls at a different x depending on whether that row happens to have a shortcut, and a
-column of them reads as ragged. 140 is sized to the longest realistic binding — ⌃⌥⇧⌘ and a key, with
-its clear button — so nothing overflows; the recorder's prompt and conflict text are `lineLimit(1)`
-with a scale floor for the same reason. Changing the token moves both controls together.
+column of them reads as ragged. 120 is sized to the **realistic** maximum rather than the theoretical
+one: measured in the recorder's own `caption` font, ⌃⌥⌘ plus a letter is 109pt with its clear button
+and the unbound "Record Shortcut" prompt is 91pt, so 120 carries both with slack while a wider pill
+just reads as empty. A rarer binding — a fourth modifier, or a worded key glyph like `Space` — closes
+the `xxs` gaps between its chips instead of pushing out of the pill; the prompt and conflict text are
+`lineLimit(1)` with a scale floor for the same reason. Changing the token moves both controls
+together. Measure before retuning it: earlier work sized this from a standalone AppKit probe
+computing `NSString.size(withAttributes:)` in the real text styles, not by eye.
+
+`settingsSidebar` is sized the same way, to the widest label rather than to a round number. In
+`rowTitle` (13pt system) the longest entry is **Window Management** at 131pt — wider than the
+longer-by-character-count *Currency Conversion* at 127pt — and the row's 22pt tint tile, its `lg` gap
+and the `md` insets on both the row and the column add a fixed 64pt of chrome, putting the floor at
+195. 208 leaves a couple of characters of headroom so the next plugin name does not immediately
+truncate.
 
 ### Typography (`Theme.Typography`)
 
@@ -414,9 +426,33 @@ shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not 
   the real system state, so a grant revoked in System Settings drops back to its button. Calendar is
   the one permission with more than two states, so its single control carries all of them.
 
-- **`SettingsPane`**: bold `.title2` title + secondary subtitle header, then scrollable content, `xxl` inset all around, the same thin scrollbar.
-- **`SettingsCard`**: rounded `card 10` container, `cardFill` fill, `cardStroke` hairline border. Rows inside are split by `SettingsDivider` — an inset hairline aligned under the row title (past the icon).
-- **`SettingsRow`**: optional 20pt SF Symbol, title + optional caption subtitle, trailing control, fixed `.horizontal xl / .vertical lg` rhythm.
+- **`SettingsPane`**: bold `.title2` title, then scrollable content, `xxl` inset all around, the same thin scrollbar. No subtitle — the sidebar already names the pane.
+- **`SettingsCard`**: rounded `card 10` container, `cardFill` fill, `cardStroke` hairline border. Rows inside are split by `SettingsDivider` — an inset hairline aligned under the row title, at the row's own `xl` leading inset.
+- **`SettingsRow`**: title (+ optional `statusDot`), optional caption subtitle, trailing control, fixed `.horizontal xl / .vertical lg` rhythm. There is no leading-glyph parameter.
+- **`SettingsCallout`**: title + optional message in a `tint`-washed box, with an optional trailing control. `tint` colours the box; it no longer feeds a glyph.
+
+**No leading glyph outside the sidebar** (owner decision, Sep 2026). Section headers, rows and
+callouts across every Settings pane are text-only; the sidebar keeps its tinted tiles, because those
+name a destination rather than decorate a title. Per-item *artwork* is not a glyph and stays — an app
+icon in the Shortcuts list or the Clipboard exclusions, a quicklink's opener icon — since it says
+*which* item the row is. Where a glyph had been carrying meaning on its own it moves into the text:
+a Diagnostics error tints its message rather than showing a warning triangle, and a failed Raycast
+import reports through a `SettingsCallout`'s orange box rather than a red row symbol.
+
+**Settings copy reports; it does not explain** (owner decision, Sep 2026). A subtitle earns its line
+only when it tells the user something that changes — a version, a timestamp, a count, a path in use,
+a granted/denied state, an error. A line that would read identically on a fresh install forever is
+gone: the control's own label and position say what it does. Three deliberate exceptions stay,
+because they are statements of what Spotter does with the user's data rather than descriptions of a
+control — File Search's *What Is Searched* card, Uptime's *Counts only* callout, and Notes'
+*One Markdown file per note* callout — as do About's licence callout and the key rows that name a
+network provider and what is billed (Translate, OpenRouter). Onboarding is outside this rule; its
+whole job is to explain.
+
+**A shortcut is recorded in one place.** No plugin pane carries a recorder for a binding that
+Settings ▸ Shortcuts already lists; see [hotkeys.md](hotkeys.md). The exceptions are recorders that
+edit *that row's own item* rather than duplicate a global setting: AI Chat's per-command rows, the
+Built-in Commands card and custom-command rows.
 
 Native plugin workspaces use `AppCore.showPluginWindow` and the same `Theme` tokens. Their SwiftUI
 root declares a minimum content size but never owns an `NSWindow`. Use the native overlay scroller,

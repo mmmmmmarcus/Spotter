@@ -87,7 +87,6 @@ struct AboutView: View {
             title: "Open Source",
             message:
                 "Spotter is free and open source under AGPL-3.0. Issues, ideas and pull requests are welcome on GitHub.",
-            systemImage: "bolt.fill",
             tint: Theme.Colors.brand
         )
     }
@@ -105,35 +104,28 @@ struct AboutView: View {
 
 /// One external destination in the About "Links" card.
 private struct AboutLink: Identifiable {
-    enum Glyph {
-        case symbol(String)
-        /// A brand mark from `Assets.xcassets` (template SVG) — SF Symbols ships no GitHub logo.
-        case brand(String)
-    }
-
     let id: String
-    let glyph: Glyph
     let title: String
     let detail: String
     let url: URL
 
     static let all: [AboutLink] = [
         AboutLink(
-            id: "website", glyph: .symbol("globe"), title: "Website",
+            id: "website", title: "Website",
             detail: "mmmmmmarcus.github.io/Spotter",
             url: URL(string: "https://mmmmmmarcus.github.io/Spotter/")!),
         AboutLink(
-            id: "github", glyph: .brand("BrandGitHub"), title: "GitHub",
+            id: "github", title: "GitHub",
             detail: "github.com/mmmmmmarcus/Spotter",
             url: URL(string: "https://github.com/mmmmmmarcus/Spotter")!),
         AboutLink(
-            id: "upstream", glyph: .brand("BrandGitHub"), title: "Based on Tinycast",
+            id: "upstream", title: "Based on Tinycast",
             detail: "github.com/abue-ammar/tinycast",
             url: URL(string: "https://github.com/abue-ammar/tinycast")!),
     ]
 }
 
-/// A tappable row inside the About "Links" card: glyph, title, the destination in plain text, and the external-link arrow.
+/// A tappable row inside the About "Links" card: title, the destination in plain text, and the external-link arrow.
 private struct AboutLinkRow: View {
     let link: AboutLink
 
@@ -144,9 +136,6 @@ private struct AboutLinkRow: View {
             NSWorkspace.shared.open(link.url)
         } label: {
             HStack(spacing: Theme.Spacing.lg) {
-                glyph
-                    .frame(width: Theme.Size.settingsRowIcon)
-                    .foregroundStyle(.secondary)
                 Text(link.title)
                     .font(.body)
                 Spacer(minLength: Theme.Spacing.xl)
@@ -165,22 +154,6 @@ private struct AboutLinkRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
-    }
-
-    @ViewBuilder
-    private var glyph: some View {
-        switch link.glyph {
-        case .symbol(let name):
-            Image(systemName: name)
-                .font(.system(size: 13, weight: .medium))
-        case .brand(let name):
-            // Brand marks paint edge to edge, so they sit a point under the SF Symbol box to read the same weight.
-            Image(name)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 14, height: 14)
-        }
     }
 }
 

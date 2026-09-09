@@ -48,7 +48,7 @@ weekday+date) and time spans.
 ## Settings
 
 The pane hosts the shared calendar preferences (access state, account
-picker, all-day toggle — moved here from the Widgets page, which now points at this pane), and the
-My Schedule shortcut recorder. Leaving the screen returns an
+picker, all-day toggle — moved here from the Widgets page, which now points at this pane). The
+My Schedule binding is recorded in Settings ▸ Shortcuts with every other launcher command. Leaving the screen returns an
 active schedule screen to the launcher; the widget card keeps showing, since widgets have no off
 switch.

@@ -7,28 +7,9 @@ struct ClipboardSettingsView: View {
     @State private var showingAppPicker = false
 
     var body: some View {
-        SettingsPane(
-            title: "Clipboard",
-            subtitle: "Control how much history Spotter keeps and which apps are recorded."
-        ) {
-            SettingsCard(header: "Shortcut") {
-                SettingsRow(
-                    title: "Clipboard History",
-                    subtitle: "Open the clipboard history browser.",
-                    systemImage: "doc.on.clipboard",
-                    tint: .orange
-                ) {
-                    ShortcutRecorder(action: .plugin(.openClipboard))
-                }
-            }
-
+        SettingsPane(title: "Clipboard") {
             SettingsCard(header: "History") {
-                SettingsRow(
-                    title: "Keep history for",
-                    subtitle: "Entries older than this are deleted automatically.",
-                    systemImage: "clock.arrow.circlepath",
-                    tint: .orange
-                ) {
+                SettingsRow(title: "Keep history for") {
                     Picker("", selection: $settings.clipboardRetention) {
                         ForEach(ClipboardRetention.allCases) { retention in
                             Text(retention.title).tag(retention)
@@ -53,9 +34,6 @@ struct ClipboardSettingsView: View {
                 }
 
                 HStack(spacing: Theme.Spacing.lg) {
-                    Text("Clipboard changes from these apps won't be recorded.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Spacer(minLength: Theme.Spacing.xl)
                     Button {
                         showingAppPicker = true
@@ -76,12 +54,7 @@ struct ClipboardSettingsView: View {
             }
 
             SettingsCard(header: "Danger Zone") {
-                SettingsRow(
-                    title: "Clear history",
-                    subtitle: "Permanently remove every saved clip and image.",
-                    systemImage: "trash",
-                    tint: .red
-                ) {
+                SettingsRow(title: "Clear history") {
                     Button("Clear…", role: .destructive) { confirmingClear = true }
                         .controlSize(.regular)
                 }

@@ -6,17 +6,9 @@ struct DiagnosticsSettingsView: View {
     @ObservedObject private var log = AppLog.shared
 
     var body: some View {
-        SettingsPane(
-            title: "Diagnostics",
-            subtitle: "What went wrong and when — errors from every feature land here."
-        ) {
+        SettingsPane(title: "Diagnostics") {
             SettingsCard(header: "Log File") {
-                SettingsRow(
-                    title: "spotter.log",
-                    subtitle: "Full history, capped at 512 KB with one rotation. Attach it to a bug report.",
-                    systemImage: "doc.text",
-                    tint: .orange
-                ) {
+                SettingsRow(title: "spotter.log") {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Show in Finder") {
                             NSWorkspace.shared.activateFileViewerSelecting([log.fileURL])
@@ -37,12 +29,7 @@ struct DiagnosticsSettingsView: View {
 
             SettingsCard(header: "Recent Events") {
                 if log.entries.isEmpty {
-                    SettingsRow(
-                        title: "Nothing logged yet",
-                        subtitle: "Errors and notable events from this session will appear here.",
-                        systemImage: "checkmark.circle",
-                        tint: .secondary
-                    ) { EmptyView() }
+                    SettingsRow(title: "Nothing logged yet") { EmptyView() }
                 } else {
                     // Newest first — the entry being investigated is almost always the last one.
                     ForEach(Array(log.entries.reversed().prefix(100).enumerated()), id: \.element.id)
@@ -61,15 +48,13 @@ private struct DiagnosticsRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.lg) {
-            Image(systemName: entry.level == .error ? "exclamationmark.triangle.fill" : "info.circle")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(entry.level == .error ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-                .frame(width: Theme.Size.settingsRowIcon)
-                .padding(.top, 1)
-
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
+                // The severity glyph is gone with every other leading icon, so the message itself carries the error tint.
                 Text(entry.message)
                     .font(.callout)
+                    .foregroundStyle(
+                        entry.level == .error ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary)
+                    )
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: Theme.Spacing.sm) {

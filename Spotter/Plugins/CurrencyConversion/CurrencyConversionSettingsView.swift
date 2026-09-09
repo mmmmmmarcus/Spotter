@@ -7,17 +7,9 @@ struct CurrencyConversionSettingsView: View {
     @State private var refreshFailed = false
 
     var body: some View {
-        SettingsPane(
-            title: "Currency Conversion",
-            subtitle: "Convert currencies inline using consented daily exchange rates."
-        ) {
+        SettingsPane(title: "Currency Conversion") {
             SettingsCard(header: "Exchange Rates") {
-                SettingsRow(
-                    title: "Download Exchange Rates",
-                    subtitle: conversionStatus,
-                    systemImage: "dollarsign.arrow.circlepath",
-                    tint: .green
-                ) {
+                SettingsRow(title: "Download Exchange Rates") {
                     // The switch is the consent act — the plugin is always on, but nothing is
                     // contacted until this is.
                     Toggle(
@@ -39,12 +31,7 @@ struct CurrencyConversionSettingsView: View {
 
                 if currencyRates.isEnabled {
                     SettingsDivider()
-                    SettingsRow(
-                        title: "Exchange Rates",
-                        subtitle: ratesStatus,
-                        systemImage: "clock.arrow.circlepath",
-                        tint: .secondary
-                    ) {
+                    SettingsRow(title: "Exchange Rates", subtitle: ratesStatus) {
                         Button("Update Now") {
                             refreshing = true
                             Task {
@@ -68,12 +55,6 @@ struct CurrencyConversionSettingsView: View {
         }
     }
 
-    private var conversionStatus: String {
-        let examples = "Convert inline — \"100 dollars to yen\", \"€20 to GBP\"."
-        return currencyRates.isEnabled
-            ? examples : "\(examples) Off — no service is contacted."
-    }
-
     private var ratesStatus: String {
         if refreshing { return "Updating…" }
         if refreshFailed { return "Couldn't reach \(CurrencyRateStore.provider). Try again." }
@@ -91,13 +72,8 @@ private struct CurrencyConsentSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            HStack(spacing: Theme.Spacing.lg) {
-                Image(systemName: "network")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(.green)
-                Text("Turn on currency conversion?")
-                    .font(.headline)
-            }
+            Text("Turn on currency conversion?")
+                .font(.headline)
 
             Text(
                 "Spotter downloads exchange rates from \(CurrencyRateStore.provider) once a day and "

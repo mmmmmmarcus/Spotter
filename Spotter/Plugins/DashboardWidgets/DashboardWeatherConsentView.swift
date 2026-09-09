@@ -8,13 +8,8 @@ struct WeatherConsentContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            HStack(spacing: Theme.Spacing.lg) {
-                Image(systemName: "cloud.sun.fill")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(.cyan)
-                Text("Show the weather on the clock?")
-                    .font(.headline)
-            }
+            Text("Show the weather on the clock?")
+                .font(.headline)
 
             Text(
                 "Spotter asks \(DashboardWeatherStore.provider) for the current conditions of the "

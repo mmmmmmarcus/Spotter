@@ -15,12 +15,7 @@ struct DashboardWidgetsSettingsView: View {
     @State private var refreshFailed = false
 
     var body: some View {
-        SettingsPane(
-            title: "Widgets",
-            subtitle:
-                "The cards above launcher results while the search is empty. Drag a card in the "
-                + "palette to move it along the row."
-        ) {
+        SettingsPane(title: "Widgets") {
             clockAndWeatherCard
             musicCard
             calendarCard
@@ -46,11 +41,7 @@ struct DashboardWidgetsSettingsView: View {
     /// clock runs on whatever zone it already had — nothing is contacted to keep the time.
     private var clockAndWeatherCard: some View {
         SettingsCard(header: "Clock & Weather") {
-            SettingsRow(
-                title: "Location",
-                subtitle: locationStatus,
-                systemImage: "mappin.and.ellipse", tint: .orange
-            ) {
+            SettingsRow(title: "Location", subtitle: locationStatus) {
                 if weather.isEnabled {
                     HStack(spacing: Theme.Spacing.sm) {
                         if weather.isSearching { ProgressView().controlSize(.small) }
@@ -73,8 +64,7 @@ struct DashboardWidgetsSettingsView: View {
                     SettingsDivider()
                     SettingsRow(
                         title: result.name,
-                        subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel,
-                        systemImage: "location", tint: .secondary
+                        subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel
                     ) {
                         // Whole-record, not id: a city saved before it carried a zone must stay
                         // choosable, since re-picking it is what hands the clock that zone.
@@ -87,11 +77,7 @@ struct DashboardWidgetsSettingsView: View {
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Units",
-                    subtitle: "Readings are downloaded in Celsius and converted on this Mac.",
-                    systemImage: "thermometer.medium", tint: .cyan
-                ) {
+                SettingsRow(title: "Units") {
                     Picker("", selection: unitBinding) {
                         ForEach(WeatherUnit.allCases, id: \.self) { unit in
                             Text(unit.label).tag(unit)
@@ -102,11 +88,7 @@ struct DashboardWidgetsSettingsView: View {
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Conditions",
-                    subtitle: readingStatus,
-                    systemImage: "arrow.clockwise", tint: .secondary
-                ) {
+                SettingsRow(title: "Conditions", subtitle: readingStatus) {
                     Button("Update Now") {
                         refreshing = true
                         Task {
@@ -140,8 +122,7 @@ struct DashboardWidgetsSettingsView: View {
                 title: "Apple Music",
                 subtitle: music.snapshot.track.map {
                     "\($0.title) — \(DashboardMusicEngine.subtitle(for: $0))"
-                } ?? DashboardMusicEngine.restingLine(isRunning: music.snapshot.isRunning),
-                systemImage: "music.note", tint: .pink
+                } ?? DashboardMusicEngine.restingLine(isRunning: music.snapshot.isRunning)
             ) {
                 Label(
                     music.snapshot.isPlaying ? "Playing" : "Idle",
@@ -156,13 +137,7 @@ struct DashboardWidgetsSettingsView: View {
     /// this stub says where they went rather than duplicating them.
     private var calendarCard: some View {
         SettingsCard(header: "Calendar") {
-            SettingsRow(
-                title: "Calendar",
-                subtitle:
-                    "The card shows the next event. Its account, access and all-day settings live "
-                    + "with the Calendar plugin, which shares them.",
-                systemImage: "calendar", tint: .red
-            ) {
+            SettingsRow(title: "Calendar") {
                 Button("Open Calendar Settings") {
                     AppCore.shared.showSettings(plugin: .calendarSchedule)
                 }

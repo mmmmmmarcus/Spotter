@@ -8,19 +8,10 @@ struct QuicklinksSettingsView: View {
     @State private var pendingDeletion: Quicklink?
 
     var body: some View {
-        SettingsPane(
-            title: "Quicklinks",
-            subtitle: "Save links, files and deep links as launcher entries you can open by name."
-        ) {
-
+        SettingsPane(title: "Quicklinks") {
             SettingsCard(header: "Saved Quicklinks") {
                 if store.sorted.isEmpty {
-                    SettingsRow(
-                        title: "No quicklinks",
-                        subtitle: "Add a name and the link it should open.",
-                        systemImage: "link.badge.plus",
-                        tint: .secondary
-                    ) { EmptyView() }
+                    SettingsRow(title: "No quicklinks") { EmptyView() }
                 } else {
                     ForEach(Array(store.sorted.enumerated()), id: \.element.id) { index, quicklink in
                         if index > 0 { SettingsDivider() }
@@ -32,12 +23,7 @@ struct QuicklinksSettingsView: View {
                     }
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Add Quicklink",
-                    subtitle: "Create another named link.",
-                    systemImage: "plus.circle",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Add Quicklink") {
                     Button("Add…") { editor = QuicklinkEditorTarget(quicklink: nil) }
                         .controlSize(.small)
                 }

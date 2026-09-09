@@ -6,29 +6,14 @@ struct CustomCommandsSettingsView: View {
     @State private var pendingDeletion: CustomCommand?
 
     var body: some View {
-        SettingsPane(
-            title: "Commands",
-            subtitle: "Run your own shell commands from the launcher or a global shortcut."
-        ) {
-            SettingsCallout(
-                title: "Built-in commands are read-only",
-                message:
-                    "Spotter maintains these macOS actions. You can assign shortcuts, but their "
-                    + "names and behavior cannot be edited or deleted.",
-                systemImage: "checkmark.shield",
-                tint: .green
-            )
-
+        SettingsPane(title: "Commands") {
             SettingsCard(header: "Built-in Commands") {
                 ForEach(Array(SystemCommandCatalog.all.enumerated()), id: \.element.id.rawValue) {
                     index, command in
                     if index > 0 { SettingsDivider() }
                     SettingsRow(
                         title: command.name,
-                        subtitle: command.confirmation == .required
-                            ? "Built in · Asks before running" : "Built in",
-                        systemImage: command.sfSymbol,
-                        tint: .green
+                        subtitle: command.confirmation == .required ? "Asks before running" : nil
                     ) {
                         ShortcutRecorder(action: .plugin(.systemCommand(command.id)))
                     }
@@ -37,12 +22,7 @@ struct CustomCommandsSettingsView: View {
 
             SettingsCard(header: "Custom Commands") {
                 if store.commands.isEmpty {
-                    SettingsRow(
-                        title: "No custom commands",
-                        subtitle: "Add one to make it searchable from the launcher.",
-                        systemImage: "terminal",
-                        tint: .secondary
-                    ) {
+                    SettingsRow(title: "No custom commands") {
                         EmptyView()
                     }
                 } else {
@@ -57,12 +37,7 @@ struct CustomCommandsSettingsView: View {
                 }
                 SettingsDivider()
 
-                SettingsRow(
-                    title: "Add Custom Command",
-                    subtitle: "Give the command a searchable name and optional global shortcut.",
-                    systemImage: "plus.circle",
-                    tint: .green
-                ) {
+                SettingsRow(title: "Add Custom Command") {
                     Button("Add…") { editor = EditorTarget(command: nil) }
                         .controlSize(.small)
                 }
@@ -101,11 +76,6 @@ private struct CustomCommandSettingsRow: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: "terminal")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.green)
-                .frame(width: Theme.Size.settingsRowIcon)
-
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
                 Text(command.name)
                     .font(.body)

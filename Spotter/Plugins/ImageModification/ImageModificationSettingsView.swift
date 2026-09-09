@@ -5,22 +5,14 @@ struct ImageModificationSettingsView: View {
     @AppStorage("image-modification.format") private var format = ImageFormat.png.rawValue
 
     var body: some View {
-        SettingsPane(title: "Image Modification", subtitle: "A native toolbox powered by Core Image, Vision, and ImageIO.") {
+        SettingsPane(title: "Image Modification") {
             SettingsCard(header: "Defaults") {
-                SettingsRow(title: "Output", subtitle: "Convert Image asks for a format first; Replace Original always asks for confirmation.", systemImage: "folder", tint: .teal) {
+                SettingsRow(title: "Output") {
                     Picker("", selection: $output) { ForEach(ImageOutputLocation.allCases) { Text($0.title).tag($0.rawValue) } }.labelsHidden()
                 }
                 SettingsDivider()
-                SettingsRow(title: "Created Image Format", systemImage: "photo", tint: .teal) {
+                SettingsRow(title: "Created Image Format") {
                     Picker("", selection: $format) { ForEach(ImageFormat.allCases) { Text($0.title).tag($0.rawValue) } }.labelsHidden()
-                }
-            }
-            SettingsCard(header: "Command Shortcuts") {
-                ForEach(Array(ImageOperation.allCases.enumerated()), id: \.element.id) { index, operation in
-                    if index > 0 { SettingsDivider() }
-                    SettingsRow(title: operation.title, systemImage: operation.systemImage, tint: .teal) {
-                        ShortcutRecorder(action: .plugin(.imageModification(operation)))
-                    }
                 }
             }
         }

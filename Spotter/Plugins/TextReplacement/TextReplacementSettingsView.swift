@@ -15,11 +15,7 @@ struct TextReplacementSettingsView: View {
     }
 
     var body: some View {
-        SettingsPane(
-            title: "Snippets",
-            subtitle:
-                "Reusable text to search and paste from the palette — give a snippet a keyword to expand it as you type."
-        ) {
+        SettingsPane(title: "Snippets") {
             if manager.status == .needsAccessibility,
                 store.snippets.contains(where: { $0.keyword != nil })
             {
@@ -27,7 +23,6 @@ struct TextReplacementSettingsView: View {
                     title: "Accessibility access is required for expansion.",
                     message:
                         "Spotter needs permission to observe keyworded triggers and type their snippets. Palette search and paste work without it.",
-                    systemImage: "accessibility",
                     tint: .orange
                 ) {
                     Button("Request Access…") { Permissions.ensureAccessibility() }
@@ -36,12 +31,7 @@ struct TextReplacementSettingsView: View {
 
             SettingsCard(header: "Snippets") {
                 if sortedSnippets.isEmpty {
-                    SettingsRow(
-                        title: "No snippets",
-                        subtitle: "Add a named piece of text to paste from the palette.",
-                        systemImage: "text.badge.plus",
-                        tint: .secondary
-                    ) { EmptyView() }
+                    SettingsRow(title: "No snippets") { EmptyView() }
                 } else {
                     ForEach(Array(sortedSnippets.enumerated()), id: \.element.id) { index, snippet in
                         if index > 0 { SettingsDivider() }
@@ -52,25 +42,14 @@ struct TextReplacementSettingsView: View {
                     }
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Add Snippet",
-                    subtitle: "Name it, write the text, and optionally give it an expansion keyword.",
-                    systemImage: "plus.circle",
-                    tint: .teal
-                ) {
+                SettingsRow(title: "Add Snippet") {
                     Button("Add…") { editor = SnippetEditorTarget(snippet: nil) }
                         .controlSize(.small)
                 }
             }
 
             SettingsCard(header: "Expansion") {
-                SettingsRow(
-                    title: "Prefix",
-                    subtitle:
-                        "Typed before every keyword. For example, @@ plus gmail becomes @@gmail.",
-                    systemImage: "character.cursor.ibeam",
-                    tint: .teal
-                ) {
+                SettingsRow(title: "Prefix") {
                     HStack(spacing: Theme.Spacing.md) {
                         TextField("@@", text: $prefixDraft)
                             .textFieldStyle(.roundedBorder)
@@ -84,12 +63,7 @@ struct TextReplacementSettingsView: View {
                 }
                 if let prefixError {
                     SettingsDivider()
-                    SettingsRow(
-                        title: "Invalid prefix",
-                        subtitle: prefixError,
-                        systemImage: "exclamationmark.triangle.fill",
-                        tint: .orange
-                    ) { EmptyView() }
+                    SettingsRow(title: "Invalid prefix", subtitle: prefixError) { EmptyView() }
                 }
             }
         }
@@ -133,11 +107,6 @@ private struct SnippetSettingsRow: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: snippet.keyword == nil ? "text.quote" : "keyboard")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.teal)
-                .frame(width: Theme.Size.settingsRowIcon)
-
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
                 HStack(spacing: Theme.Spacing.sm) {
                     Text(snippet.name)

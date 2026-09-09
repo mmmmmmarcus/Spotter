@@ -24,10 +24,7 @@ struct ShortcutsSettingsView: View {
     var body: some View {
         // Same insets as `SettingsPane`: ignore the transparent-titlebar safe area and use one fixed `xxl` inset every side.
         VStack(alignment: .leading, spacing: Theme.Spacing.xxl) {
-            SettingsHeader(
-                title: "Shortcuts",
-                subtitle: "Assign global shortcuts and aliases, and choose what appears in the launcher."
-            )
+            SettingsHeader(title: "Shortcuts")
 
             globalShortcuts
 
@@ -45,21 +42,11 @@ struct ShortcutsSettingsView: View {
     /// would put its recorder at a different x than every list row's.
     private var globalShortcuts: some View {
         SettingsCard(header: "Global Shortcuts") {
-            SettingsRow(
-                title: "App Launcher",
-                subtitle: "Summon the fuzzy app launcher.",
-                systemImage: "magnifyingglass",
-                tint: .blue
-            ) {
+            SettingsRow(title: "App Launcher") {
                 ShortcutRecorder(action: .togglePalette)
             }
             SettingsDivider()
-            SettingsRow(
-                title: "Backup Shortcut",
-                subtitle: "A second shortcut that also summons the app launcher.",
-                systemImage: "magnifyingglass.circle",
-                tint: .cyan
-            ) {
+            SettingsRow(title: "Backup Shortcut") {
                 ShortcutRecorder(action: .togglePaletteBackup)
             }
         }

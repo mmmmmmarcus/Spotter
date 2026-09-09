@@ -9,8 +9,9 @@ Display-renamed from Selection Tools (Sep 2026), when everything Google-Translat
 judgement as Snippets and Caffeinate: the persisted preferences,
 the `KeyboardShortcuts_plugin.selection-tools.search` binding and the
 `command:selection-tools:search` launcher command all key off that identity, so renaming it would
-silently read as unbound. The action resolves its recorder through `AppEntry.hotKeyAction`; new
-installs ship it unbound, and Settings recommends Hyper + S.
+silently read as unbound. The action resolves its recorder through `AppEntry.hotKeyAction` in
+Settings ▸ Shortcuts, which is now the only place it is recorded; new installs ship it unbound. The
+plugin's own Settings pane is deliberately a bare title — Search has nothing else to configure.
 
 Definition and grammar actions are **not** here and never were moved back: they belong to
 [AI Chat](ai-chat.md), which kept their original `selection-tools.*` defaults keys.

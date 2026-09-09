@@ -130,17 +130,14 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             SettingsCard {
                 SettingsRow(
-                    title: "App Launcher",
-                    subtitle: "Press this shortcut to open Spotter.",
-                    systemImage: "magnifyingglass", tint: .blue
+                    title: "App Launcher", subtitle: "Press this shortcut to open Spotter."
                 ) {
                     ShortcutRecorder(action: .togglePalette)
                 }
                 SettingsDivider()
                 SettingsRow(
                     title: "Launch at login",
-                    subtitle: "Start Spotter automatically when you log in.",
-                    systemImage: "power", tint: .green
+                    subtitle: "Start Spotter automatically when you log in."
                 ) {
                     Toggle("", isOn: $settings.launchAtLogin)
                         .labelsHidden().toggleStyle(.switch).controlSize(.small)
@@ -156,8 +153,7 @@ struct OnboardingView: View {
                 SettingsRow(
                     title: "Accessibility",
                     subtitle:
-                        "Without it Spotter can still copy, but it can't paste a clipboard or emoji item back into the app you were using.",
-                    systemImage: "accessibility", tint: .blue
+                        "Without it Spotter can still copy, but it can't paste a clipboard or emoji item back into the app you were using."
                 ) {
                     statusBadge
                 }
@@ -172,16 +168,14 @@ struct OnboardingView: View {
                 SettingsRow(
                     title: "Raycast Export",
                     subtitle: model.file?.lastPathComponent
-                        ?? "Choose a .rayconfig file exported from Raycast.",
-                    systemImage: "doc.badge.gearshape", tint: .orange
+                        ?? "Choose a .rayconfig file exported from Raycast."
                 ) {
                     Button("Choose…") { model.chooseFile() }.controlSize(.small)
                 }
                 SettingsDivider()
                 SettingsRow(
                     title: "Passphrase",
-                    subtitle: "The password you set when exporting from Raycast.",
-                    systemImage: "key", tint: .gray
+                    subtitle: "The password you set when exporting from Raycast."
                 ) {
                     SecureField("Passphrase", text: $model.passphrase)
                         .textFieldStyle(.roundedBorder)

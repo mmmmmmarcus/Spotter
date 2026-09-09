@@ -6,32 +6,9 @@ struct NoteSettingsView: View {
     @State private var syncing = false
 
     var body: some View {
-        SettingsPane(
-            title: "Notes",
-            subtitle: "Capture local Markdown notes in a lightweight floating window."
-        ) {
-            SettingsCard(header: "Shortcuts") {
-                SettingsRow(
-                    title: "Open Notes", subtitle: "Focus the last active note.",
-                    systemImage: "keyboard", tint: .yellow
-                ) {
-                    ShortcutRecorder(action: .plugin(.openNotes))
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "New Note", subtitle: "Create and immediately focus an empty note.",
-                    systemImage: "keyboard.badge.ellipsis", tint: .yellow
-                ) {
-                    ShortcutRecorder(action: .plugin(.newNote))
-                }
-            }
-
+        SettingsPane(title: "Notes") {
             SettingsCard(header: "Storage") {
-                SettingsRow(
-                    title: "Stored Locally",
-                    subtitle: "Notes stay on this Mac inside Spotter’s bundle-specific Application Support folder.",
-                    systemImage: "internaldrive", tint: .yellow
-                ) {
+                SettingsRow(title: "Stored Locally") {
                     Text("\(store.notes.count) \(store.notes.count == 1 ? "note" : "notes")")
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -39,12 +16,7 @@ struct NoteSettingsView: View {
             }
 
             SettingsCard(header: "Sync") {
-                SettingsRow(
-                    title: "Notes Folder",
-                    subtitle: folderSubtitle,
-                    systemImage: sync.errorMessage == nil ? "folder" : "exclamationmark.triangle",
-                    tint: sync.errorMessage == nil ? .blue : .orange
-                ) {
+                SettingsRow(title: "Notes Folder", subtitle: folderSubtitle) {
                     HStack(spacing: Theme.Spacing.md) {
                         if sync.isEnabled {
                             Button("Stop Syncing") { sync.disconnect() }
@@ -58,11 +30,7 @@ struct NoteSettingsView: View {
                 }
                 if sync.isEnabled {
                     SettingsDivider()
-                    SettingsRow(
-                        title: "Sync Now",
-                        subtitle: "Read the folder and write out any pending changes immediately.",
-                        systemImage: "arrow.triangle.2.circlepath", tint: .teal
-                    ) {
+                    SettingsRow(title: "Sync Now") {
                         Button(syncing ? "Syncing…" : "Sync Now") {
                             syncing = true
                             Task {
@@ -76,6 +44,8 @@ struct NoteSettingsView: View {
                 }
             }
 
+            // Kept deliberately: this is what a Note file is and what a missing one is not — the
+            // difference between syncing and losing work.
             SettingsCallout(
                 title: "One Markdown file per note",
                 message:
@@ -84,16 +54,12 @@ struct NoteSettingsView: View {
                     + "in iCloud Drive and your Macs share it. Deleting a note is recorded "
                     + "explicitly, so a file that hasn’t downloaded yet is never mistaken for one "
                     + "you deleted, and disconnecting leaves every note and every file in place.",
-                systemImage: "doc.text",
                 tint: .blue)
         }
     }
 
     private var folderSubtitle: String {
-        guard let url = sync.folderURL else {
-            return "Choose a folder — in iCloud Drive to share Notes between Macs. "
-                + sync.statusText
-        }
+        guard let url = sync.folderURL else { return sync.statusText }
         return url.path(percentEncoded: false) + " · " + sync.statusText
     }
 }

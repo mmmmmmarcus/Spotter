@@ -75,9 +75,12 @@ enum Theme {
         /// Both trailing controls of a shortcut row — the alias field and the recorder — are exactly
         /// this wide. Fixed rather than hugging: a bound shortcut's keycaps are narrower than the
         /// words "Record Shortcut", so a hugging pill would make every row's controls sit at a
-        /// different x depending on whether that row happened to have a shortcut. Wide enough for
-        /// the longest realistic binding, ⌃⌥⇧⌘ and a key, with its clear button.
-        static let shortcutRowControl: CGFloat = 140
+        /// different x depending on whether that row happened to have a shortcut. Sized to the
+        /// realistic maximum rather than the theoretical one — ⌃⌥⌘ and a key measures 109pt with its
+        /// clear button, and "Record Shortcut" 91pt, so 120 carries both with slack. A rarer binding
+        /// (a fourth modifier, or a worded key glyph like Space) closes the chip spacing instead of
+        /// pushing out of the pill.
+        static let shortcutRowControl: CGFloat = 120
         static let menuButton: CGFloat = 36
         static let clipboardListWidth: CGFloat = 290
         static let emojiCell: CGFloat = 56
@@ -89,8 +92,13 @@ enum Theme {
         /// Settings window: wider content area keeps descriptive row text readable beside trailing controls.
         static let settingsWindowWidth: CGFloat = 860
         static let settingsWindowHeight: CGFloat = 550
-        /// Settings sidebar column width and the small icon used in setting rows.
-        static let settingsSidebar: CGFloat = 184
+        /// Settings sidebar column width. Sized to the longest entry rather than rounded: "Window
+        /// Management" renders 131pt in `rowTitle`, and the row's 22pt tile, its `lg` gap and the two
+        /// `md` insets on both the row and the column add 64, so 195 is the floor. 208 leaves a
+        /// couple of characters of headroom for the next plugin name.
+        static let settingsSidebar: CGFloat = 208
+        /// Small icon used in setting rows. Settings rows themselves are glyph-free; this sizes the
+        /// per-item artwork a few rows still carry (a quicklink's favicon, a command's kind glyph).
         static let settingsRowIcon: CGFloat = 20
         static let textReplacementPrefixFieldWidth: CGFloat = 80
         static let textReplacementEditorWidth: CGFloat = 480

@@ -10,25 +10,14 @@ struct WorldClockSettingsView: View {
     }
 
     var body: some View {
-        SettingsPane(
-            title: "World Clock",
-            subtitle: "Compare local time and keep your important cities in the launcher."
-        ) {
+        SettingsPane(title: "World Clock") {
             SettingsCard(header: "Cities") {
                 if store.cities.isEmpty {
-                    SettingsRow(
-                        title: "No Cities",
-                        subtitle: "Search below to add a city to the World Clock palette.",
-                        systemImage: "globe", tint: .blue
-                    ) { EmptyView() }
+                    SettingsRow(title: "No Cities") { EmptyView() }
                 } else {
                     ForEach(Array(store.cities.enumerated()), id: \.element.id) { index, city in
                         if index > 0 { SettingsDivider() }
-                        SettingsRow(
-                            title: city.name,
-                            subtitle: city.timeZoneIdentifier,
-                            systemImage: "clock", tint: .blue
-                        ) {
+                        SettingsRow(title: city.name, subtitle: city.timeZoneIdentifier) {
                             Button {
                                 store.remove(id: city.id)
                             } label: {
@@ -42,11 +31,7 @@ struct WorldClockSettingsView: View {
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Add City",
-                    subtitle: "Search the IANA time-zone cities built into macOS.",
-                    systemImage: "plus.circle", tint: .blue
-                ) {
+                SettingsRow(title: "Add City") {
                     TextField("London", text: $cityQuery)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 210)
@@ -55,11 +40,7 @@ struct WorldClockSettingsView: View {
 
                 ForEach(suggestions) { city in
                     SettingsDivider()
-                    SettingsRow(
-                        title: city.name,
-                        subtitle: city.timeZoneIdentifier,
-                        systemImage: "mappin.and.ellipse", tint: .blue
-                    ) {
+                    SettingsRow(title: city.name, subtitle: city.timeZoneIdentifier) {
                         Button("Add") { add(city) }
                             .controlSize(.small)
                     }
@@ -67,24 +48,10 @@ struct WorldClockSettingsView: View {
 
                 if !store.usesDefaults {
                     SettingsDivider()
-                    SettingsRow(
-                        title: "Default Cities",
-                        subtitle: "London, Shanghai, and San Francisco.",
-                        systemImage: "arrow.counterclockwise", tint: .blue
-                    ) {
+                    SettingsRow(title: "Default Cities") {
                         Button("Restore") { store.restoreDefaults() }
                             .controlSize(.small)
                     }
-                }
-            }
-
-            SettingsCard(header: "Shortcut") {
-                SettingsRow(
-                    title: "World Clock",
-                    subtitle: "Open your saved cities in the Spotter palette.",
-                    systemImage: "keyboard", tint: .blue
-                ) {
-                    ShortcutRecorder(action: .plugin(.openWorldClock))
                 }
             }
         }

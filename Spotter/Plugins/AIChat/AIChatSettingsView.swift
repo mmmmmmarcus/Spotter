@@ -7,28 +7,17 @@ struct AIChatSettingsView: View {
     @State private var pendingDeletion: AICommand?
 
     var body: some View {
-        SettingsPane(
-            title: "AI Chat & Command",
-            subtitle: "Ask Spotter AI, send to ChatGPT on the web, or run a command on selected text."
-        ) {
+        SettingsPane(title: "AI Chat & Command") {
             OpenRouterSettingsCard()
 
             SettingsCard(header: "Chat") {
-                SettingsRow(
-                    title: "Chat Model",
-                    subtitle: modelSubtitle("Used for regular messages and follow-ups."),
-                    systemImage: "bubble.left.and.bubble.right", tint: .purple
-                ) {
+                SettingsRow(title: "Chat Model", subtitle: chatModelStatus) {
                     AIChatModelMenu(
                         brands: openRouter.catalog, selected: openRouter.chatModel,
                         chatModel: nil, set: { openRouter.setChatModel($0 ?? "") })
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Model List",
-                    subtitle: catalogStatus,
-                    systemImage: "arrow.clockwise", tint: .secondary
-                ) {
+                SettingsRow(title: "Model List", subtitle: catalogStatus) {
                     Button("Reload") { openRouter.refreshCatalog(force: true) }
                         .controlSize(.small)
                         .disabled(!openRouter.isReady || openRouter.catalogState == .loading)
@@ -46,24 +35,14 @@ struct AIChatSettingsView: View {
                         onDelete: { pendingDeletion = command })
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Add AI Command",
-                    subtitle: "Name it, write its prompt, then give it a shortcut.",
-                    systemImage: "plus.circle",
-                    tint: .purple
-                ) {
+                SettingsRow(title: "Add AI Command") {
                     Button("Add…") { editor = AICommandEditorTarget(command: nil) }
                         .controlSize(.small)
                 }
             }
 
             SettingsCard(header: "Web Search") {
-                SettingsRow(
-                    title: "Search the Web",
-                    subtitle:
-                        "Lets regular replies and follow-ups cite current information. An AI command's first reply stays offline from web search.",
-                    systemImage: "globe", tint: .purple
-                ) {
+                SettingsRow(title: "Search the Web") {
                     Toggle(
                         "",
                         isOn: Binding(
@@ -106,8 +85,8 @@ struct AIChatSettingsView: View {
         }
     }
 
-    private func modelSubtitle(_ subtitle: String) -> String {
-        openRouter.isReady ? subtitle : subtitle + " Inactive until an API key is added."
+    private var chatModelStatus: String? {
+        openRouter.isReady ? nil : "Inactive until an API key is added."
     }
 }
 
@@ -125,11 +104,6 @@ private struct AICommandSettingsRow: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: command.systemImage)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.purple)
-                .frame(width: Theme.Size.settingsRowIcon)
-
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
                 Text(command.name)
                     .font(.body)
@@ -365,10 +339,7 @@ private struct OpenRouterSettingsCard: View {
     var body: some View {
         SettingsCard(header: "AI (OpenRouter)") {
             SettingsRow(
-                title: "API Key",
-                subtitle: keySubtitle,
-                systemImage: "key",
-                tint: .purple,
+                title: "API Key", subtitle: keySubtitle,
                 statusDot: store.isReady ? .green : nil
             ) {
                 HStack(spacing: Theme.Spacing.md) {

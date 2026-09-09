@@ -19,26 +19,6 @@ enum LauncherSection: String, CaseIterable, Sendable {
         case .commands: "Commands"
         }
     }
-
-    var settingsSubtitle: String {
-        switch self {
-        case .favorites: "Apps you starred, pinned above everything else."
-        case .activeApps: "Running apps, with live CPU and memory usage."
-        case .applications: "Every installed application."
-        case .systemSettings: "System Settings panes."
-        case .commands: "Built-in and plugin commands."
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .favorites: "star"
-        case .activeApps: "gauge.with.needle"
-        case .applications: "square.grid.2x2"
-        case .systemSettings: "gearshape"
-        case .commands: "command"
-        }
-    }
 }
 
 /// One rendered browse section: its header title and how many of the flat results it owns.

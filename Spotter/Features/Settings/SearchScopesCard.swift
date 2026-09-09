@@ -19,9 +19,6 @@ struct SearchScopesCard: View {
             }
 
             HStack(spacing: Theme.Spacing.lg) {
-                Text("Folders searched when indexing applications.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 Spacer(minLength: Theme.Spacing.xl)
                 if !isDefault {
                     Button("Restore Defaults") { settings.searchScopes = SearchScopes.defaults }
@@ -72,10 +69,6 @@ private struct ScopeRow: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: (scope as NSString).pathExtension == "app" ? "app" : "folder")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: Theme.Size.settingsRowIcon)
             Text(scope)
                 .font(Theme.Typography.rowTitle)
                 .lineLimit(1)

@@ -6,16 +6,9 @@ struct CalendarScheduleSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
 
     var body: some View {
-        SettingsPane(
-            title: "Calendar",
-            subtitle: "Your upcoming events in the launcher, one keystroke from a meeting's call."
-        ) {
+        SettingsPane(title: "Calendar") {
             SettingsCard(header: "Calendars") {
-                SettingsRow(
-                    title: "Calendar Access",
-                    subtitle: accessSubtitle,
-                    systemImage: "lock.open", tint: .blue
-                ) {
+                SettingsRow(title: "Calendar Access", subtitle: accessSubtitle) {
                     switch store.calendarAccess {
                     case .notDetermined, .writeOnly:
                         if store.isRequestingCalendarAccess {
@@ -41,11 +34,7 @@ struct CalendarScheduleSettingsView: View {
 
                 if store.calendarAccess == .fullAccess {
                     SettingsDivider()
-                    SettingsRow(
-                        title: "Account",
-                        subtitle: "All Accounts includes every event calendar available to macOS.",
-                        systemImage: "person.crop.circle", tint: .blue
-                    ) {
+                    SettingsRow(title: "Account") {
                         Picker("", selection: calendarSourceBinding) {
                             Text("All Accounts").tag("")
                             ForEach(store.calendarAccounts) { account in
@@ -63,39 +52,26 @@ struct CalendarScheduleSettingsView: View {
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "All-Day Events",
-                    subtitle: "Include all-day entries in the schedule and the widget card.",
-                    systemImage: "sun.max", tint: .blue
-                ) {
+                SettingsRow(title: "All-Day Events") {
                     Toggle("", isOn: includesAllDayEventsBinding)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
             }
-
-            SettingsCard(header: "Shortcuts") {
-                SettingsRow(
-                    title: "My Schedule",
-                    subtitle: "Open the upcoming events screen from anywhere.",
-                    systemImage: "calendar.day.timeline.left", tint: .red
-                ) {
-                    ShortcutRecorder(action: .plugin(.openCalendarSchedule))
-                }
-            }
         }
         .task { store.refresh() }
     }
 
-    private var accessSubtitle: String {
+    /// Only the states the trailing control cannot show on its own: Allow… and Granted speak for
+    /// themselves, a refusal or a partial grant does not.
+    private var accessSubtitle: String? {
         switch store.calendarAccess {
-        case .notDetermined: return "Allow read access to show your events."
+        case .notDetermined, .fullAccess: return nil
         case .denied: return "Calendar access was denied. You can change it in System Settings."
         case .restricted: return "Calendar access is restricted on this Mac."
         case .writeOnly:
             return "Write-only access cannot show events; grant full access to continue."
-        case .fullAccess: return "Spotter can read upcoming events from your macOS calendars."
         }
     }
 

@@ -4,16 +4,15 @@ import SwiftUI
 
 // MARK: - Pane scaffold
 
-/// Standard layout for a settings pane (title + subtitle header, then scrollable content) so headers, insets and scroll behaviour stay identical across the app.
+/// Standard layout for a settings pane (title header, then scrollable content) so headers, insets and scroll behaviour stay identical across the app.
 struct SettingsPane<Content: View>: View {
     let title: String
-    let subtitle: String
     @ViewBuilder var content: Content
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.xxl) {
-                SettingsHeader(title: title, subtitle: subtitle)
+                SettingsHeader(title: title)
                 content
             }
             // Ignore the transparent-titlebar safe area and use one fixed `xxl` inset every side instead (the titlebar band is taller than the rhythm we want; traffic lights sit over the sidebar, so nothing collides).
@@ -26,19 +25,13 @@ struct SettingsPane<Content: View>: View {
     }
 }
 
-/// The title + subtitle block at the top of every pane.
+/// The title block at the top of every pane. The sidebar already names the pane, so nothing under it restates what the pane is for.
 struct SettingsHeader: View {
     let title: String
-    let subtitle: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(title)
-                .font(.title2.weight(.bold))
-            Text(subtitle)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
+        Text(title)
+            .font(.title2.weight(.bold))
     }
 }
 
@@ -70,36 +63,29 @@ struct SettingsCard<Content: View>: View {
     }
 }
 
-/// Inset divider between rows inside a `SettingsCard`, aligned under the row's title (past the icon).
+/// Inset divider between rows inside a `SettingsCard`, aligned under the row's title.
 struct SettingsDivider: View {
     var body: some View {
         Rectangle()
             .fill(Theme.Colors.cardStroke)
             .frame(height: 1)
-            .padding(.leading, Theme.Spacing.xl + Theme.Size.settingsRowIcon + Theme.Spacing.lg)
+            .padding(.leading, Theme.Spacing.xl)
     }
 }
 
 // MARK: - Row
 
-/// A single settings line (optional SF Symbol, title with optional subtitle, trailing control); fixed vertical rhythm keeps every card aligned regardless of the control.
+/// A single settings line (title with optional status subtitle, trailing control); fixed vertical rhythm keeps every card aligned regardless of the control.
 struct SettingsRow<Trailing: View>: View {
     let title: String
+    /// Reserved for copy that *reports* — a version, a timestamp, a count, a granted state, a path, an error. Never a description of what the row is.
     var subtitle: String? = nil
-    var systemImage: String? = nil
-    var tint: Color = .secondary
     /// Optional state indicator rendered after the title (green = active, orange = attention).
     var statusDot: Color? = nil
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(tint)
-                    .frame(width: Theme.Size.settingsRowIcon)
-            }
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
                 HStack(spacing: Theme.Spacing.sm) {
                     Text(title)
@@ -127,20 +113,15 @@ struct SettingsRow<Trailing: View>: View {
 
 // MARK: - Callout
 
-/// A tinted inset box for a notice or warning inside a `SettingsCard` — SF Symbol + title + optional message, with an optional trailing control (e.g. a fix-it button).
+/// A tinted inset box for a notice or warning inside a `SettingsCard` — title + optional message, with an optional trailing control (e.g. a fix-it button). `tint` is the box's colour, not a glyph's.
 struct SettingsCallout<Trailing: View>: View {
     let title: String
     var message: String? = nil
-    var systemImage: String = "info.circle"
     var tint: Color = .secondary
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: Theme.Size.settingsRowIcon)
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
                 Text(title).font(.body)
                 if let message {
@@ -167,7 +148,7 @@ struct SettingsCallout<Trailing: View>: View {
 }
 
 extension SettingsCallout where Trailing == EmptyView {
-    init(title: String, message: String? = nil, systemImage: String = "info.circle", tint: Color = .secondary) {
-        self.init(title: title, message: message, systemImage: systemImage, tint: tint) { EmptyView() }
+    init(title: String, message: String? = nil, tint: Color = .secondary) {
+        self.init(title: title, message: message, tint: tint) { EmptyView() }
     }
 }

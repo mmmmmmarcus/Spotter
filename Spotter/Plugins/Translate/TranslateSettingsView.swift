@@ -5,10 +5,7 @@ struct TranslateSettingsView: View {
     @State private var apiKeyDraft = AppCore.shared.translate.apiKey
 
     var body: some View {
-        SettingsPane(
-            title: "Translate",
-            subtitle: "Translate typed or selected text into the languages you choose."
-        ) {
+        SettingsPane(title: "Translate") {
             if translate.apiKey.isEmpty {
                 SettingsCallout(
                     title: "Translate needs an API key.",
@@ -16,7 +13,7 @@ struct TranslateSettingsView: View {
                         "Create a Google Cloud project, enable Cloud Translation Basic, then paste its "
                         + "API key below. Without a key Spotter sends nothing to Google, and both "
                         + "Translate and Translate Selected Text stay unavailable.",
-                    systemImage: "key", tint: .orange)
+                    tint: .orange)
             }
 
             SettingsCard(header: "Google Cloud Translation") {
@@ -27,8 +24,7 @@ struct TranslateSettingsView: View {
                         + "Basic — one billable request per target language. The Translate page "
                         + "translates when you stop typing, never per keystroke, and never repeats "
                         + "text it has already translated into the same languages. Stored in "
-                        + "bundle-scoped preferences and included in trusted sync or backup files.",
-                    systemImage: "key", tint: .teal
+                        + "bundle-scoped preferences and included in trusted sync or backup files."
                 ) {
                     SecureField("Google Cloud API key", text: $apiKeyDraft)
                         .textFieldStyle(.roundedBorder)
@@ -39,11 +35,7 @@ struct TranslateSettingsView: View {
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Connection",
-                    subtitle: validationStatus,
-                    systemImage: "network", tint: .secondary
-                ) {
+                SettingsRow(title: "Connection", subtitle: validationStatus) {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Test API Key") {
                             Task { await translate.validateAPIKey() }
@@ -55,23 +47,14 @@ struct TranslateSettingsView: View {
 
                 SettingsDivider()
                 if translate.targets.isEmpty {
-                    SettingsRow(
-                        title: "No target languages",
-                        subtitle: "Add one below — without a target there is nothing to translate into.",
-                        systemImage: "exclamationmark.triangle", tint: .orange
-                    ) {
+                    SettingsRow(title: "No target languages") {
                         EmptyView()
                     }
                 } else {
                     ForEach(Array(translate.targets.enumerated()), id: \.element.id) {
                         index, language in
                         if index > 0 { SettingsDivider() }
-                        SettingsRow(
-                            title: language.name,
-                            subtitle:
-                                "Skipped when the text is already written in \(language.name).",
-                            systemImage: "character.book.closed", tint: .teal
-                        ) {
+                        SettingsRow(title: language.name) {
                             Button(role: .destructive) {
                                 translate.removeTarget(language.code)
                             } label: {
@@ -84,11 +67,7 @@ struct TranslateSettingsView: View {
                 }
 
                 SettingsDivider()
-                SettingsRow(
-                    title: "Add a Language",
-                    subtitle: "Every target gets its own row — and its own billable request.",
-                    systemImage: "plus.circle", tint: .secondary
-                ) {
+                SettingsRow(title: "Add a Language") {
                     Menu("Add") {
                         ForEach(translate.availableTargets) { language in
                             Button(language.name) { translate.addTarget(language.code) }
@@ -99,32 +78,15 @@ struct TranslateSettingsView: View {
                 }
             }
 
-            SettingsCard(header: "Shortcuts") {
-                SettingsRow(
-                    title: "Translate",
-                    subtitle: "Opens the Translate page, where the search field is the text.",
-                    systemImage: "translate", tint: .teal
-                ) {
-                    ShortcutRecorder(action: .plugin(.translateText))
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Translate Selected Text",
-                    subtitle: "Recommended: Hyper + T",
-                    systemImage: "character.bubble", tint: .teal
-                ) {
-                    ShortcutRecorder(action: .plugin(.translateSelectedText))
-                }
-            }
         }
         .onChange(of: translate.apiKey) {
             if translate.apiKey != apiKeyDraft { apiKeyDraft = translate.apiKey }
         }
     }
 
-    private var validationStatus: String {
+    private var validationStatus: String? {
         switch translate.validation {
-        case .unknown: "Test the key with one short translation request."
+        case .unknown: nil
         case .checking: "Testing Google Cloud Translation…"
         case .valid(let message), .invalid(let message): message
         }

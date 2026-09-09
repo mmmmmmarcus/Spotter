@@ -20,19 +20,9 @@ struct BackupSettingsView: View {
     }
 
     var body: some View {
-        SettingsPane(
-            title: "Backup",
-            subtitle: "Sync or export your Spotter data, restore a backup, or import from Raycast."
-        ) {
+        SettingsPane(title: "Backup") {
             SettingsCard(header: "Sync") {
-                SettingsRow(
-                    title: "Export & Import",
-                    subtitle:
-                        "Save settings, shortcuts, API keys, Notes, histories and other content to "
-                        + "JSON, or merge a backup file into this Mac.",
-                    systemImage: "arrow.up.arrow.down.circle",
-                    tint: .blue
-                ) {
+                SettingsRow(title: "Export & Import") {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Export…") { BackupActions.exportSettings() }
                             .controlSize(.small)
@@ -42,11 +32,7 @@ struct BackupSettingsView: View {
                 }
                 SettingsDivider()
                 SettingsRow(
-                    title: "Settings File",
-                    subtitle: settingsSync.fileURL.map(displayPath)
-                        ?? "Choose an existing JSON file or create one in iCloud Drive.",
-                    systemImage: settingsSync.isICloudLocation ? "icloud" : "doc.text",
-                    tint: .blue
+                    title: "Settings File", subtitle: settingsSync.fileURL.map(displayPath)
                 ) {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Choose…") { BackupActions.connectSettingsSyncFile() }
@@ -56,13 +42,7 @@ struct BackupSettingsView: View {
                     }
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Automatic Sync",
-                    subtitle: settingsSync.statusText,
-                    systemImage: settingsSync.errorMessage == nil
-                        ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle.fill",
-                    tint: settingsSync.errorMessage == nil ? .teal : .orange
-                ) {
+                SettingsRow(title: "Automatic Sync", subtitle: settingsSync.statusText) {
                     Toggle(
                         "",
                         isOn: Binding(
@@ -75,47 +55,26 @@ struct BackupSettingsView: View {
                 }
                 if settingsSync.fileURL != nil {
                     SettingsDivider()
-                    SettingsRow(
-                        title: "Disconnect",
-                        subtitle: "Stops syncing without deleting the JSON file.",
-                        systemImage: "link.badge.minus",
-                        tint: .secondary
-                    ) {
+                    SettingsRow(title: "Disconnect") {
                         Button("Disconnect") { settingsSync.disconnect() }
                             .controlSize(.small)
                     }
                 }
             }
             SettingsCard(header: "Import from Raycast") {
-                SettingsRow(
-                    title: "Raycast Export",
-                    subtitle: raycastFile?.lastPathComponent
-                        ?? "Choose a .rayconfig file exported from Raycast.",
-                    systemImage: "doc.badge.gearshape",
-                    tint: .orange
-                ) {
+                SettingsRow(title: "Raycast Export", subtitle: raycastFile?.lastPathComponent) {
                     Button("Choose…") { chooseRaycastFile() }
                         .controlSize(.small)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Passphrase",
-                    subtitle: "The password you set when exporting from Raycast.",
-                    systemImage: "key",
-                    tint: .gray
-                ) {
+                SettingsRow(title: "Passphrase") {
                     SecureField("Passphrase", text: $passphrase)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 160)
                         .onSubmit(runRaycastImport)
                 }
                 SettingsDivider()
-                SettingsRow(
-                    title: "Import",
-                    subtitle: "Choose what to bring over, then import.",
-                    systemImage: "arrow.down.circle",
-                    tint: .indigo
-                ) {
+                SettingsRow(title: "Import") {
                     if importing {
                         ProgressView().controlSize(.small)
                     } else {
@@ -140,38 +99,26 @@ struct BackupSettingsView: View {
     private var conflictCallout: some View {
         if raycastRunning {
             SettingsCallout(
-                title: "Raycast is running — quit it to avoid hotkey conflicts.",
-                systemImage: "exclamationmark.triangle.fill",
-                tint: .orange
+                title: "Raycast is running — quit it to avoid hotkey conflicts.", tint: .orange
             ) {
                 Button("Quit Raycast") { BackupActions.quitRaycast() }
                     .controlSize(.small)
             }
             .padding(.horizontal, Theme.Spacing.xl)
             .padding(.vertical, Theme.Spacing.lg)
-        } else {
-            SettingsCallout(
-                title: "Tip: unset the matching Raycast shortcuts to avoid conflicts.",
-                systemImage: "info.circle",
-                tint: .secondary
-            )
-            .padding(.horizontal, Theme.Spacing.xl)
-            .padding(.vertical, Theme.Spacing.lg)
         }
     }
 
+    /// A failure keeps the callout's tinted box now that no leading glyph is left to carry severity.
     @ViewBuilder
     private func statusRow(_ status: Status) -> some View {
         switch status {
         case .success(let message):
-            SettingsRow(title: message, systemImage: "checkmark.circle.fill", tint: .green) {
-                EmptyView()
-            }
+            SettingsRow(title: message) { EmptyView() }
         case .failure(let message):
-            SettingsRow(title: message, systemImage: "exclamationmark.triangle.fill", tint: .orange)
-            {
-                EmptyView()
-            }
+            SettingsCallout(title: message, tint: .orange)
+                .padding(.horizontal, Theme.Spacing.xl)
+                .padding(.vertical, Theme.Spacing.lg)
         }
     }
 
