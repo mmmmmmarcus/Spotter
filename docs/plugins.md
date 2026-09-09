@@ -277,7 +277,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
   event tap without storing typing history or using the clipboard.
-- **Notes** (`Spotter/Plugins/Note/`) — unlimited local notes in a translucent,
+- **Notes** (`Spotter/Plugins/Note/`) — the editor preserves live IME compositions across same-note
+  model refreshes, with AppKit regression coverage in `Tools/note-editor-test.swift`. Unlimited local notes in a translucent,
   content-height floating Markdown editor that opens 440 points wide with a 20-point window radius
   and an inset overlay list, plus `Open Notes` and `New Note` actions. Selected text has a native
   editing and visible H1/H2/H3/Text/list format section, wrapped list content uses marker-width

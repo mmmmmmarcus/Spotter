@@ -448,8 +448,13 @@ Three input rules fire from `shouldChangeTextIn`, each keyed to one typed charac
 **An uncommitted composition owns the text view, and every path that writes to it stands down.**
 A Chinese, Japanese or Korean input method puts its marked text into the storage before the user has
 chosen anything, so `hasMarkedText()` gates the input rules, the arithmetic refresh, the restyling
-pass, the checkbox click, Tab and the ⌘B/⌘I/⌘K and block-format commands; replacing the note under a
-live composition abandons it through the input context first. The restyling pass matters most: it
+pass, the checkbox click, Tab and the ⌘B/⌘I/⌘K and block-format commands. The editor receives a
+stable Note ID: a refresh of the same Note must leave marked text and its selection untouched,
+even when the binding still contains the pre-composition body. AppKit need not send `textDidChange`
+for marked-text updates, so publishing from that callback alone cannot keep the binding current.
+Only an actual Note switch may discard a composition before replacing the document. A committed
+edit reaches the binding normally; external changes still apply when no composition is active.
+The restyling pass matters most: it
 resets attributes across the whole document, which would strip the marked run's underline, and its
 concealed ranges collapse to no width, which would hide pinyin still being chosen — and it ran on
 every marked-text update, several per committed character. The pass is deferred instead, and the
@@ -562,3 +567,9 @@ relaunch) still sees the adoption, a pass whose `io.apply` throws because the fo
 it pending, and the retry — which must not fork the same divergence a second time — clears it for
 good. It never opens the floating window, contacts CloudKit, or reads real application data
 or a real iCloud Drive folder.
+
+`Tools/note-editor-test.swift` exercises the real AppKit editor and TextKit stack without opening a
+window or reading user data. It updates marked pinyin between model refreshes in prose, lists and
+bold text, verifies text/marked-range/selection preservation and commits Chinese characters. It also
+checks document switching and external updates. Run it through `scripts/test-all.sh`; only the
+app-wide selection-capture identifier is stubbed.

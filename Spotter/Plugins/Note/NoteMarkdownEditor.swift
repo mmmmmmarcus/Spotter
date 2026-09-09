@@ -82,6 +82,7 @@ private enum NoteListMarker {
 
 struct NoteMarkdownEditor: NSViewRepresentable {
     @Binding var text: String
+    let noteID: UUID
     let tint: NoteTint?
     /// Whether the window grows with the text; when it does not, the editor scrolls inside it.
     let autoSizes: Bool
@@ -93,6 +94,10 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
+        makeScrollView(coordinator: context.coordinator)
+    }
+
+    func makeScrollView(coordinator: Coordinator) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = false
@@ -115,25 +120,25 @@ struct NoteMarkdownEditor: NSViewRepresentable {
 
         let textView = NoteTextView(frame: .zero, textContainer: container)
         textView.identifier = SelectedTextCapture.localSourceIdentifier
-        textView.markdownCommandHandler = { [weak coordinator = context.coordinator] command in
+        textView.markdownCommandHandler = { [weak coordinator] command in
             coordinator?.apply(command)
         }
-        textView.blockFormatHandler = { [weak coordinator = context.coordinator] format in
+        textView.blockFormatHandler = { [weak coordinator] format in
             coordinator?.apply(format)
         }
-        textView.checkboxClickHandler = { [weak coordinator = context.coordinator] index in
+        textView.checkboxClickHandler = { [weak coordinator] index in
             coordinator?.toggleCheckbox(atCharacterIndex: index) ?? false
         }
-        textView.indentHandler = { [weak coordinator = context.coordinator] direction in
+        textView.indentHandler = { [weak coordinator] direction in
             coordinator?.applyIndent(direction) ?? false
         }
-        textView.deleteHandler = { [weak coordinator = context.coordinator] in
+        textView.deleteHandler = { [weak coordinator] in
             coordinator?.deleteListMarker() ?? false
         }
-        textView.navigationHandler = { [weak coordinator = context.coordinator] direction in
+        textView.navigationHandler = { [weak coordinator] direction in
             coordinator?.navigate(direction)
         }
-        textView.delegate = context.coordinator
+        textView.delegate = coordinator
         textView.string = text
         textView.drawsBackground = false
         textView.textColor = .labelColor
@@ -156,33 +161,19 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
         scrollView.documentView = textView
-        context.coordinator.textView = textView
-        context.coordinator.applyTint()
-        context.coordinator.highlight()
+        coordinator.textView = textView
+        coordinator.applyTint()
+        coordinator.highlight()
 
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
-            context.coordinator.reportContentHeight()
+            coordinator.reportContentHeight()
         }
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        let tintChanged = context.coordinator.parent.tint != tint
-        context.coordinator.parent = self
-        guard let textView = context.coordinator.textView else { return }
-        if tintChanged { context.coordinator.applyTint() }
-        if textView.string != text {
-            // Swapping the document under a live composition leaves the input method marking a range
-            // that no longer exists, so the uncommitted text is abandoned before the note changes.
-            if textView.hasMarkedText() { textView.inputContext?.discardMarkedText() }
-            let selection = textView.selectedRange()
-            textView.string = text
-            textView.setSelectedRange(
-                NSRange(location: min(selection.location, (text as NSString).length), length: 0))
-            context.coordinator.highlight()
-        }
-        context.coordinator.reportContentHeight()
+        context.coordinator.update(from: self)
     }
 
     @MainActor
@@ -209,6 +200,26 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             self.parent = parent
         }
 
+        func update(from incoming: NoteMarkdownEditor) {
+            let noteChanged = parent.noteID != incoming.noteID
+            let tintChanged = parent.tint != incoming.tint
+            parent = incoming
+            guard let textView else { return }
+            if tintChanged { applyTint() }
+            // Marked-text updates need not publish textDidChange; the binding is stale until commit.
+            guard noteChanged || !textView.hasMarkedText() else { return }
+            if noteChanged || textView.string != incoming.text {
+                // Only switching documents may abandon the input method's live composition.
+                if textView.hasMarkedText() { textView.inputContext?.discardMarkedText() }
+                let selection = textView.selectedRange()
+                textView.string = incoming.text
+                textView.setSelectedRange(
+                    NSRange(location: min(selection.location, (incoming.text as NSString).length), length: 0))
+                highlight()
+            }
+            reportContentHeight()
+        }
+
         /// The caret and selection wear the note's own color: the tint is the note's identity, and
         /// a system-blue caret on a red note reads as a different app's text field.
         func applyTint() {
@@ -223,8 +234,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView, !isHighlighting else { return }
             refreshArithmeticAnswer()
-            // Published even mid-composition, deliberately: the binding staying equal to the view's
-            // own string is what keeps a stray SwiftUI update from replacing the text under it.
+            // AppKit may omit this notification while marked text changes; update(from:) protects that draft.
             parent.text = textView.string
             reportContentHeight()
             // Synchronous, not debounced: a deferred pass leaves a frame where a new line's dash is

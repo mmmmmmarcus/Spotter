@@ -135,6 +135,7 @@ struct NoteView: View {
                 ZStack(alignment: .topLeading) {
                     NoteMarkdownEditor(
                         text: selectedContent,
+                        noteID: note.id,
                         tint: note.tint,
                         autoSizes: store.autoWindowSizing,
                         onContentHeightChange: updateEditorHeight,

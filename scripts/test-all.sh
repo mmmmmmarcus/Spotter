@@ -26,6 +26,7 @@ TESTS=(
     translate
     image-modification
     note
+    note-editor
     text-replacement
     settings-sync
     update
@@ -170,6 +171,14 @@ run_harness() {
                 Spotter/Plugins/Note/NoteFolderDocument.swift \
                 Spotter/Plugins/Note/NoteFolderIO.swift \
                 Tools/note-test.swift -o "$output" && "$output"
+            ;;
+        note-editor)
+            swiftc -swift-version 6 Spotter/Core/Theme.swift \
+                Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteMarkdownEditor.swift \
+                Spotter/Core/Calculator/*.swift \
+                Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
+                Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
+                Tools/note-editor-test.swift -o "$output" && "$output"
             ;;
         text-replacement)
             swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \

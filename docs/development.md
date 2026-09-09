@@ -139,6 +139,9 @@ beyond the synchronized version fallback:
 scripts/release.sh prepare <x.y.z>
 ```
 
+The `note-editor` harness also exercises the real AppKit editor's marked-text lifecycle without
+opening a window or using the installed app's data.
+
 Individual standalone harnesses:
 
 ```sh
@@ -207,8 +210,15 @@ swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageI
     Spotter/Plugins/ImageModification/ImageModificationEngine.swift Tools/image-modification-test.swift \
     -o /tmp/image-modification-test && /tmp/image-modification-test
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
-    Spotter/Plugins/Note/NoteSyncDocument.swift \
+    Spotter/Plugins/Note/NoteSyncDocument.swift Spotter/Plugins/Note/NoteFolderDocument.swift \
+    Spotter/Plugins/Note/NoteFolderIO.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
+swiftc -swift-version 6 Spotter/Core/Theme.swift \
+    Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteMarkdownEditor.swift \
+    Spotter/Core/Calculator/*.swift \
+    Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
+    Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
+    Tools/note-editor-test.swift -o /tmp/note-editor-test && /tmp/note-editor-test
 swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \
     Spotter/Plugins/TextReplacement/TextReplacementStore.swift Tools/text-replacement-test.swift \
     -o /tmp/text-replacement-test && /tmp/text-replacement-test
