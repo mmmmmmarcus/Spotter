@@ -47,7 +47,6 @@ enum QuicklinksPlugin {
                     "Save links, files and deep links as launcher entries, with {argument} placeholders you fill as you go.",
                 systemImage: "link",
                 tint: .blue),
-            defaultEnabled: true,
             shortcutActions: [
                 PluginActionRegistration(key: .openQuicklinks) { core.openQuicklinks() },
                 PluginActionRegistration(key: .createQuicklink) { core.createQuicklink() },
@@ -75,11 +74,6 @@ enum QuicklinksPlugin {
                 }
             },
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                if core?.palette.mode == .plugin(.quicklinks) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: {
                 AnyView(
                     QuicklinksSettingsView(store: core.quicklinks, appIndex: core.appIndex))
@@ -238,20 +232,18 @@ enum QuicklinkResults {
 
 extension AppCore {
     func openQuicklinks() {
-        guard plugins.isEnabled(.quicklinks) else { return }
         quicklinkManager.showList()
         palette.prepare(mode: .plugin(.quicklinks))
         showPalette(mode: .plugin(.quicklinks))
     }
 
     func createQuicklink() {
-        guard plugins.isEnabled(.quicklinks) else { return }
         hidePalette(restoreFocus: false)
         showSettings(plugin: .quicklinks)
     }
 
     func runQuicklink(id: UUID) {
-        guard plugins.isEnabled(.quicklinks), let quicklink = quicklinks.quicklink(id: id) else {
+        guard let quicklink = quicklinks.quicklink(id: id) else {
             return
         }
         switch quicklinkManager.begin(quicklink) {
@@ -266,7 +258,6 @@ extension AppCore {
     }
 
     func performQuicklinkRow(itemID: String) {
-        guard plugins.isEnabled(.quicklinks) else { return }
         switch quicklinkManager.screen {
         case .list:
             guard let quicklink = QuicklinkResults.quicklink(core: self, itemID: itemID) else {

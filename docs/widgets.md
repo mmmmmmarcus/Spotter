@@ -241,7 +241,21 @@ Weather is the one networked part of the dashboard, so it follows the project's 
 ships off. Nothing reaches the network until the user accepts a dialog naming the provider
 (Open-Meteo), the cadence and what leaves the machine. `DashboardWeatherStore` re-checks `isEnabled`
 at every entry point rather than trusting a caller, including on both sides of the `await` around a
-request, since consent can be withdrawn mid-flight.
+request.
+
+**The dialog is raised once, at first launch, and once granted weather is permanently on** (owner
+decision, Sep 2026). That makes "asked" and "granted" two different persisted facts:
+`dashboard-widgets.weather-consent-asked` records that the question was put, and
+`dashboard-widgets.weather-enabled` records the answer being yes. A decline sets the first and not the
+second — weather stays off, the question is never asked again, and Settings ▸ Widgets keeps a
+**Turn On Weather…** button that raises the same dialog for someone who changes their mind. There is
+no way back off: the pure `DashboardWeatherEngine.consentState(hasBeenAsked:isGranted:)` and
+`shouldPresentConsent(...)` hold the one-question rule, and `Tools/dashboard-widgets-test.swift`
+pins it. A grant restored from a trusted settings file counts as answered without a dialog, since
+trusting the file is itself the consent act; a `false` in such a file is neither a revocation nor an
+answer, so the receiving Mac still gets asked. `AppCore` presents it from
+`presentWeatherConsentIfNeeded()` — after the first-run wizard on a fresh Mac, and at
+`start()` for a Mac already past it.
 
 Spotter never reads Location Services. Until the user picks a city, the card uses
 `WeatherCity.default` — a fixed place (Tokyo, Japan), deliberately a constant rather than something
@@ -259,25 +273,23 @@ it, so an unusable or absent identifier can never blank a working clock setting.
 a city the user picked is not location inference — it is their choice, not this Mac's; the fixed
 fallback city deliberately carries **no** zone, so a place nobody chose can never retime the clock.
 
-Sharing runs one way only, which is what keeps the gate where it was. **The clock's own time-zone
-picker is the offline half of the location and never touches weather**: `setClockTimeZoneIdentifier`
-writes a preference and nothing else, so a user who only wants another zone stays entirely offline
-and weather stays off. The other direction — a city — is reachable **only after consent**: the
-`Choose City…` button raises `WeatherConsentSheet`, whose Enable is the only caller of
-`weather.setEnabled(true)`, and the search field, the results and `chooseCity` render only inside
-`if weather.isEnabled`. So the dialog still runs before the first request, still names Open-Meteo,
-the 30-minute cadence and what leaves the Mac, and setting a location performs no request by itself:
-`setCity` writes the city and calls `start()`, which returns immediately without consent. Every guard
-in `DashboardWeatherStore` is unchanged — the init read, the pump, the search, and `fetchAndStore`
+Sharing runs one way only. Choosing a city writes both halves; nothing about the clock ever reaches
+a city or sends anything. Setting a location performs no request by itself: `setCity` writes the city
+and calls `start()`, which returns immediately without consent. Every guard in
+`DashboardWeatherStore` is unchanged — the init read, the pump, the search, and `fetchAndStore`
 re-checking `isEnabled` on both sides of the `await` — and a fresh install is still off, since the
 consent flag defaults to false.
 
-The picker stays on screen whenever the clock is *not* on the chosen city's zone
-(`DashboardWidgetsEngine.clockFollowsCity`), which is exactly the state a Mac upgrading into this
-change starts in: a city saved before the change carries no zone (the field is optional, so old JSON
-decodes with nil), so the clock keeps the zone it already had, weather keeps the coordinates it
-already had, and the Location line says so — "Berlin, Germany for the weather · clock on
-Europe/Paris" — until the next city is chosen, at which point the two become one place.
+**Choosing a city is now the only location control** (owner decision, Sep 2026): the separate clock
+time-zone picker is gone, and the clock's zone is whatever the chosen city named. With weather
+permanently on after consent, the city is always reachable, so no setting is stranded behind the
+network gate. **A clock still works before the question is answered**: `store.clockTimeZone` resolves
+`DashboardWidgetsEngine.resolvedTimeZone(identifier:fallback:)` over the saved
+`dashboard-widgets.clock-time-zone`, falling back to the system zone, so a Mac that declined — or has
+not been asked yet — keeps the zone it already had rather than a blank face. A city saved before the
+two shared a location carries no zone (the field is optional, so old JSON decodes with nil), so the
+clock keeps its own setting and the Location line says so — "Berlin, Germany for the weather · clock
+on Europe/Paris" — until the next city is chosen, at which point the two become one place.
 `DashboardWidgetsEngine.locationSummary` never claims a sharing that isn't in effect. Nothing
 migrates on disk: `dashboard-widgets.clock-time-zone`, `dashboard-widgets.weather-city` and
 `dashboard-widgets.weather-enabled` keep their names and meanings, and the extra key inside the
@@ -288,9 +300,8 @@ the shared on-disk `URLCache` that opting out would not delete.
 The reading refreshes every 30 minutes while the dashboard is visible, backing off to a shorter retry
 only after a failure, and the loop does not run without both consent and a city. The latest snapshot
 is cached in a bundle-scoped `weather.json` so a relaunch shows the last reading instead of an empty
-card; turning the widget off deletes that file and clears the reading. Consent, city and unit travel
-in the trusted settings backup/sync file — restoring one may switch the feature on, which is itself
-the consent act.
+card. Consent, city and unit travel in the trusted settings backup/sync file — restoring one may
+switch the feature on, which is itself the consent act.
 
 ## File Info and the Finder
 
@@ -317,21 +328,20 @@ always the same selection, and clearing first would flash the card away and back
 
 Widgets is an always-available system feature placed under Settings → System, and the whole strip is
 configured on **one page** — three sections, one for each card that has something to decide: **Clock
-& Weather** (the shared location, the time-zone picker, the city search, units and the last
-reading), **Music** (what is playing and the Automation note) and **Calendar** (a pointer to the
+& Weather** (one merged Location control, units and the last
+reading), **Music** (what is playing) and **Calendar** (a pointer to the
 Calendar plugin, which owns the real preferences). Device Battery and File Info have **no section**:
 they are text-only cards with nothing to configure, and their privacy posture is unchanged by the
 removal — the battery read still needs no gate, and File Info's gate is still macOS's own Automation
 prompt (owner decision, Sep 2026). There is no Show list, no pane of its own for any card and no
 arrangement list: every card shows, and order belongs to the palette.
 
-The Clock & Weather section is the one that reads unusually: weather has no switch, because it is
-three complications on the clock rather than a card of its own. Choosing a city is what turns it on
-and Turn Off Weather is how it goes off again, which leaves one control instead of two without
-touching the gate — the consent dialog still names the provider, the cadence and what leaves the Mac
-before anything is contacted, and the offline time-zone picker is the only location control until
-then. Turning weather off leaves the clock on the zone the city set: the reading and its cached file
-go, the place the user chose does not.
+The Clock & Weather section is one row: **Location**. Once consent has been granted it is a city
+search whose result sets the weather's coordinates and the clock's zone in one act; before that it is
+a **Turn On Weather…** button raising the same dialog the first launch did. There is no Turn Off
+Weather and no time-zone picker (owner decision, Sep 2026), and the Music section no longer carries an
+Automation Permission row — the Finder and Music reads and macOS's own Automation prompt are
+unchanged, only the settings row is gone.
 
 Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
 identifiers for removed widgets are ignored. The permission overview exposes Calendar and

@@ -13,7 +13,6 @@ enum UptimePlugin {
         static let session = "uptime:session"
         static let keys = "uptime:keys"
         static let clicks = "uptime:clicks"
-        static let consent = "uptime:consent"
     }
 
     static func registration(core: AppCore) -> PluginRegistration {
@@ -28,15 +27,10 @@ enum UptimePlugin {
                 return snapshot(store: core.uptime, query: query)
             },
             performPrimaryAction: { [weak core] itemID in
-                guard let core else { return }
-                if itemID == Row.consent {
-                    core.askUptimeConsent()
-                } else {
-                    core.copyUptimeRow(id: itemID)
-                }
+                core?.copyUptimeRow(id: itemID)
             },
             actions: { [weak core] itemID in
-                guard let core, core.uptime.isEnabled else { return nil }
+                guard let core else { return nil }
                 return PopoverMenuContent(
                     header: "Uptime",
                     items: [
@@ -51,7 +45,7 @@ enum UptimePlugin {
             },
             observeChanges: { [weak core] invalidate in
                 // The tallies deliberately do not publish — they move at typing speed. The palette
-                // re-reads them on its own; this only carries consent and trust changes.
+                // re-reads them on its own; this only carries Accessibility-trust changes.
                 core?.uptime.objectWillChange.sink { invalidate() } ?? AnyCancellable {}
             })
         return PluginRegistration(
@@ -61,10 +55,6 @@ enum UptimePlugin {
                 summary: "How long today's session has run, with the day's key and click counts.",
                 systemImage: "timer",
                 tint: .green),
-            defaultEnabled: false,
-            // The registry must never grant it: consent belongs to the store, whose own flag rides
-            // the trusted settings snapshot.
-            exportsEnabledState: false,
             // Counting keys needs the grant; clicks do not. The rows say so rather than reporting
             // a keyboard that looks idle.
             permissions: [.accessibility],
@@ -75,33 +65,10 @@ enum UptimePlugin {
                     actionKey: .openUptime, perform: open)
             ],
             paletteScreen: screen,
-            // Consent to watch input *is* this plugin's enabled state: one switch, so a monitor can
-            // never be running under a plugin the user believes is off.
-            readEnabled: { [weak core] in core?.uptime.isEnabled ?? false },
-            writeEnabled: { [weak core] enabled in core?.uptime.setEnabled(enabled) },
-            onDisable: { [weak core] in
-                if core?.palette.mode == .plugin(.uptime) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(UptimeSettingsView(store: core.uptime)) })
     }
 
     private static func snapshot(store: UptimeStore, query: String) -> PluginPaletteSnapshot {
-        guard store.isEnabled else {
-            return PluginPaletteSnapshot(
-                sectionTitle: "Uptime",
-                items: [
-                    PluginPaletteItem(
-                        id: Row.consent,
-                        title: "Turn on Uptime",
-                        subtitle:
-                            "Counts keys and clicks — never what was typed, or where it was clicked.",
-                        icon: .symbol("timer"),
-                        primaryActionTitle: "Turn On")
-                ],
-                emptyMessage: "Uptime is off.")
-        }
         let now = Date()
         let snapshot = store.snapshot(now: now)
         let elapsed = snapshot.sessionStart
@@ -167,34 +134,14 @@ enum UptimePlugin {
 
 extension AppCore {
     func openUptime() {
-        guard plugins.isEnabled(.uptime) else { return }
         showPalette(mode: .plugin(.uptime))
     }
 
     func copyUptimeRow(id: String) {
-        guard plugins.isEnabled(.uptime),
-            let value = UptimePlugin.copyableValue(rowID: id, store: uptime)
+        guard let value = UptimePlugin.copyableValue(rowID: id, store: uptime)
         else { return }
         hidePalette(restoreFocus: false)
         Paster.copyPlainText(value)
-    }
-
-    /// Turning it on from the palette asks the same question Settings does, in the card the palette
-    /// already uses for a decision — consent is never a side effect of opening the screen.
-    func askUptimeConsent() {
-        confirmInPalette(
-            PaletteConfirmation(
-                title: "Turn on Uptime?",
-                message:
-                    "Spotter counts how many keys you press and how many times you click, today "
-                    + "only, on this Mac. It never records which keys, what was typed, or where "
-                    + "you clicked, and none of it leaves the machine. Turning it off deletes the "
-                    + "counts.",
-                actionTitle: "Turn On",
-                isDestructive: false
-            ) { [weak self] in
-                self?.uptime.setEnabled(true)
-            })
     }
 
     func confirmUptimeReset() {

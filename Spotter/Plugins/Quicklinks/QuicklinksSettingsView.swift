@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct QuicklinksSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: QuicklinkStore
     @ObservedObject var appIndex: AppIndex
     @State private var editor: QuicklinkEditorTarget?
@@ -13,24 +12,6 @@ struct QuicklinksSettingsView: View {
             title: "Quicklinks",
             subtitle: "Save links, files and deep links as launcher entries you can open by name."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Quicklinks",
-                    subtitle: "Show your saved links in the launcher and in their own search screen.",
-                    systemImage: "link",
-                    tint: .blue
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.quicklinks) },
-                            set: { plugins.setEnabled($0, for: .quicklinks) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
 
             SettingsCard(header: "Saved Quicklinks") {
                 if store.sorted.isEmpty {

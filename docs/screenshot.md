@@ -307,8 +307,7 @@ newest one, and closes the pin as it goes — the capture is about to appear in 
 actually edit it, so leaving the floating copy behind would be two of the same thing on screen.
 Other pins are untouched; each holds its own capture. Scrolling behaves exactly as it does on the thumbnail through the shared
 `ScreenshotScrollFlick`: lift to open the editor, push down to dismiss, over 0.16s. Several pins can
-float at once, each dropping out of the manager's list as it closes, and all of them close when the
-plugin is disabled.
+float at once, each dropping out of the manager's list as it closes.
 
 Every pointer decision on a pin — move, resize, click, flick — is resolved in AppKit rather than
 SwiftUI, because one press on one surface has to become a click, a drag or a resize depending on
@@ -326,8 +325,7 @@ the panel's hosting view overrides `scrollWheel` and hands the event to the HUD.
 dismisses when the user activates another app
 (`NSWorkspace.didActivateApplicationNotification`), after 3.5 seconds, on click, or on a downward
 scroll; hovering holds it. The manager retains the last capture (raw pixels plus the corner treatment
-the clipboard copy received) until the next capture or until the plugin is disabled, which also
-dismisses the thumbnail and closes the editor.
+the clipboard copy received) until the next capture.
 
 The editor is a resizable auxiliary window through `AppCore.showPluginWindow`, sized to the capture
 at native points and clamped to 85% of the visible frame; each capture reopens it fresh on the

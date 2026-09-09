@@ -239,8 +239,9 @@ appearances, so a marker that flipped with the system would be the part that loo
 is 8 points thick with a 4.5-point marker riding *inside* it, clear of the capsule's caps, so the bar
 reads as one object. No range, no bar: a reading that predates the daily block drops the row
 entirely rather than borrowing a scale it can't caption. The card appears once weather consent
-is granted — that consent is its enable state, so there is no separate widget switch to drift out of
-sync with the network gate; an unset city resolves to `WeatherCity.default` rather than hiding it.
+is granted — asked once at first launch, and permanent after that, so there is no separate widget
+switch to drift out of sync with the network gate; an unset city resolves to `WeatherCity.default`
+rather than hiding it.
 
 Device battery is title-free too: its grid of ring gauges fills the square, and a heading would cost
 a row of gauge. Each ring is a faint `controlSurface` track with the level swept clockwise from

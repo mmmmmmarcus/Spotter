@@ -53,7 +53,6 @@ enum MolePlugin {
                     "Drive the Mole CLI from the launcher: health, cleanup, optimize, purge, uninstall and disk analysis, all rendered in the palette.",
                 systemImage: "chart.pie",
                 tint: .green),
-            defaultEnabled: true,
             shortcutActions: [
                 PluginActionRegistration(key: .openMoleMenu) { core.openMole(.menu) },
                 PluginActionRegistration(key: .openMoleStatus) { core.openMole(.status) },
@@ -74,12 +73,6 @@ enum MolePlugin {
                 ) { core.runMole(command) }
             },
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                core?.mole.stop()
-                if core?.palette.mode == .plugin(.mole) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(MoleSettingsView()) })
     }
 }
@@ -528,21 +521,18 @@ enum MoleResults {
 
 extension AppCore {
     func openMole(_ screen: MoleScreen) {
-        guard plugins.isEnabled(.mole) else { return }
         mole.open(screen)
         palette.prepare(mode: .plugin(.mole))
         showPalette(mode: .plugin(.mole))
     }
 
     func runMole(_ command: MoleCommand) {
-        guard plugins.isEnabled(.mole) else { return }
         openMole(command.screen)
     }
 
     /// Installer files are plain files, so Spotter trashes them itself — recoverable, confirmed
     /// in-palette, and the list re-reads so what's left is what's shown.
     func trashMoleInstaller(_ entry: MoleInstallerEntry) {
-        guard plugins.isEnabled(.mole) else { return }
         confirmInPalette(
             PaletteConfirmation(
                 title: "Move “\(entry.name)” to Trash?",
@@ -569,7 +559,7 @@ extension AppCore {
 
     /// Whether an app row can offer the Mole hand-off: real apps only, never Spotter itself.
     func canUninstallWithMole(_ app: AppEntry) -> Bool {
-        plugins.isEnabled(.mole) && mole.isInstalled && app.kind == .application
+        mole.isInstalled && app.kind == .application
             && app.bundleID != Bundle.main.bundleIdentifier
     }
 
@@ -587,7 +577,7 @@ extension AppCore {
                     + moleQueueNote(),
                 actionTitle: "Uninstall"
             ) { [weak self] in
-                guard let self, self.plugins.isEnabled(.mole) else { return }
+                guard let self else { return }
                 // The row's id is minted here so its Cancel can name the very task it belongs to.
                 let taskID = UUID()
                 self.backgroundTasks.begin(
@@ -627,7 +617,7 @@ extension AppCore {
     /// The one funnel every state-changing Mole *screen* run passes through, so no palette-screen
     /// path skips the confirmation; the launcher hand-off above carries its own confirmation.
     func runMoleAction(_ action: MoleAction) {
-        guard plugins.isEnabled(.mole), !mole.isPending(action) else { return }
+        guard !mole.isPending(action) else { return }
         confirmInPalette(
             PaletteConfirmation(
                 title: "\(action.title)?",
@@ -635,7 +625,7 @@ extension AppCore {
                 actionTitle: action.title,
                 isDestructive: action.isPermanent
             ) { [weak self] in
-                guard let self, self.plugins.isEnabled(.mole) else { return }
+                guard let self else { return }
                 let taskID = UUID()
                 self.backgroundTasks.begin(
                     title: action.backgroundTaskTitle,
@@ -689,7 +679,6 @@ extension AppCore {
     }
 
     func performMoleRow(itemID: String) {
-        guard plugins.isEnabled(.mole) else { return }
         if itemID.hasPrefix("menu:") {
             let raw = String(itemID.dropFirst("menu:".count))
             guard let command = MoleCommand(rawValue: raw) else { return }

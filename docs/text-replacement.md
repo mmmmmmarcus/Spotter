@@ -3,7 +3,7 @@
 Snippets are named pieces of reusable text: searched and pasted from the palette's **Search
 Snippets** screen, and — when a snippet carries an optional expansion keyword — expanded in any
 text field as you type, the original Text Replacement behavior. The plugin keeps its historical
-`text-replacement` identity (plugin ID, permission wiring, preference keys) so enable state,
+`text-replacement` identity (plugin ID, permission wiring, preference keys) so preferences,
 shortcuts and stored data survive the reshape; only the model and surfaces grew.
 
 A prefix is shared by every keyword: with prefix `@@` and keyword `gmail` on a snippet holding
@@ -37,8 +37,7 @@ The plugin ships enabled. The event tap only installs once at least one *keyword
 and the Accessibility grant is present, so the default state observes nothing; palette search and
 paste never need the tap. Its registration declares Accessibility so System → Permissions lists the
 dependency. `TextReplacementManager` installs a modifying session event tap only while the plugin is
-enabled; disabling the plugin, ending the user session or revoking Accessibility tears down or
-disables the tap. A one-second health check retries after the user grants permission and revives a
+enabled; ending the user session or revoking Accessibility tears down or disables the tap. A one-second health check retries after the user grants permission and revives a
 system-disabled tap.
 
 `AppCore` owns the one `TextReplacementStore` and one `TextReplacementManager`; the plugin registry's

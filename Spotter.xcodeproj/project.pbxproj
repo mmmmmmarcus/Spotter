@@ -182,6 +182,7 @@
 		B045027536A0E515FE689F96 /* EmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6BCD53FEC24E0276B722CEB /* EmojiCatalog.swift */; };
 		B0C094B6F69225388968BF06 /* SelectionToolsResults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCD067CF03771680ED94C60 /* SelectionToolsResults.swift */; };
 		B25BC5786FBD863BB4872309 /* FileSearchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBDBBD795BF0CE1C678C267 /* FileSearchSession.swift */; };
+		B32EC335F029958C823E5A5E /* DashboardWeatherConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02AD8528C0DC90F5C89B8F76 /* DashboardWeatherConsentView.swift */; };
 		B3E1B073D04A69B1C80330E1 /* NoteSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA6658947F332E55343E683 /* NoteSyncManager.swift */; };
 		B4A5B407BC1F9D8B6870D0D5 /* LauncherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C94DDF292E0C7B431FBA9CB /* LauncherView.swift */; };
 		B4BF4401E903EDB2AF48CA5C /* Paster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14AC6BD1CAA98BDDEA059A5A /* Paster.swift */; };
@@ -264,6 +265,7 @@
 		00F7DDECB63C5DAF7722B842 /* MoleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoleSettingsView.swift; sourceTree = "<group>"; };
 		0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteWindowController.swift; sourceTree = "<group>"; };
 		01EA2A2638FC7AA2981CDD37 /* PaletteDragHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteDragHandle.swift; sourceTree = "<group>"; };
+		02AD8528C0DC90F5C89B8F76 /* DashboardWeatherConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWeatherConsentView.swift; sourceTree = "<group>"; };
 		046C81A9351D9CF343F8FCFB /* ClipboardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStore.swift; sourceTree = "<group>"; };
 		054E9477DF5DF415492936A9 /* BuiltInPlugins.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltInPlugins.swift; sourceTree = "<group>"; };
 		056DCF4B8C817B965ECCC134 /* CoffeeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeManager.swift; sourceTree = "<group>"; };
@@ -759,6 +761,7 @@
 				FAB2878DBC8906BA0DA2D59C /* DashboardFileInfoStore.swift */,
 				3B0A3DC0C810023DAF6993F3 /* DashboardMusicEngine.swift */,
 				E0D8017FF4F6F4F2F3C541DD /* DashboardMusicStore.swift */,
+				02AD8528C0DC90F5C89B8F76 /* DashboardWeatherConsentView.swift */,
 				E1A5104C40D9A6C6391AE462 /* DashboardWeatherEngine.swift */,
 				A7CDE08D2DEEAA6D2430D819 /* DashboardWeatherStore.swift */,
 				2FABAD3BE47CB4272128AAD7 /* DashboardWidgetsEngine.swift */,
@@ -1226,6 +1229,7 @@
 				E0199EACDC6E6F009043E624 /* DashboardFileInfoStore.swift in Sources */,
 				30E4214DB34E45F3A957ECB3 /* DashboardMusicEngine.swift in Sources */,
 				09B7139FB21A6F8CD4D8EBD2 /* DashboardMusicStore.swift in Sources */,
+				B32EC335F029958C823E5A5E /* DashboardWeatherConsentView.swift in Sources */,
 				6F317CF7D762C41794F3A96C /* DashboardWeatherEngine.swift in Sources */,
 				688C8EDEC59BCD200CB9F870 /* DashboardWeatherStore.swift in Sources */,
 				36246E0AA712FC57D048E1CB /* DashboardWidgetsEngine.swift in Sources */,

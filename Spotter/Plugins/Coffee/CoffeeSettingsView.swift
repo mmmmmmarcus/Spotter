@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct CoffeeSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var coffee = AppCore.shared.coffee
 
     var body: some View {
@@ -9,19 +8,6 @@ struct CoffeeSettingsView: View {
             title: "Caffeinate",
             subtitle: "Keep your Mac awake without changing Energy Saver."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Caffeinate",
-                    subtitle: coffee.state.summary,
-                    systemImage: "cup.and.saucer", tint: .orange
-                ) {
-                    Toggle("", isOn: enabledBinding)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "What Stays Awake") {
                 SettingsRow(
                     title: "Keep the Display On",
@@ -46,11 +32,5 @@ struct CoffeeSettingsView: View {
                 }
             }
         }
-    }
-
-    private var enabledBinding: Binding<Bool> {
-        Binding(
-            get: { plugins.isEnabled(.coffee) },
-            set: { plugins.setEnabled($0, for: .coffee) })
     }
 }

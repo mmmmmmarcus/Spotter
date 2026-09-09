@@ -48,11 +48,11 @@ plugin's own directory. These are source-level modules in the main target, so th
 calls and compile-time checking without framework or runtime-loader overhead.
 
 The registry adds system-feature rows to the fixed System Settings group, generates the Plugins
-group, persists plugin enable states, routes
-launcher commands and shortcut actions, declares permission use, keeps a precomputed enabled
+group, routes
+launcher commands and shortcut actions, declares permission use, keeps a precomputed
 query-provider list, and hosts plugin palette-screen registrations. AI Chat and Widgets
 are always-available system features that reuse this wiring — Widgets contributing the sidebar's
-Widgets section, one row per card, rather than a pane of its own; Commands is a disableable plugin. See
+Widgets section, one row per card, rather than a pane of its own; Commands is an ordinary plugin. See
 [plugins.md](plugins.md) for the contract, directory rules, `spotter-plugin` project skill and plugin
 lifecycle checklists.
 
@@ -77,7 +77,7 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
   complete check/download/verify/install/relaunch flow inside the shared palette shell.
 - **Plugin workspaces** — the same `AuxWindowController`, reached only through
   `AppCore.showPluginWindow`. A plugin owns the hosted view and feature manager, while `AppCore`
-  retains sole window ownership and closes the workspace from `onDisable`. The helper can opt a
+  retains sole window ownership. The helper can opt a
   workspace into transparency, resizing and floating window level. Notes uses all three and requests
   content-driven height changes through `AppCore`, including its temporary list expansion, leaving
   frame ownership and activation routing centralized.

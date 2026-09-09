@@ -18,8 +18,8 @@ or disconnected without deleting the file.
 
 Format v3 covers the complete automatic Settings Sync state:
 
-- General and system-feature settings, plugin enable states and preferences, including every network
-  consent toggle and the dashboard uptime card's input-counting consent.
+- General, system-feature and plugin preferences, including every network consent flag. There is no
+  plugin enable state to carry, and Uptime's tallies stay device-local.
 - OpenRouter and Google Cloud Translation API keys and all associated model options.
 - Every shortcut — apps, panes, plugin actions, custom commands, quicklinks, AI commands and
   Spotter's own built-in commands. Empty binding maps are authoritative, so unbinding a shortcut

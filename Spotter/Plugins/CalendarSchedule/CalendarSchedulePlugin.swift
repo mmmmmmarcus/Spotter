@@ -47,7 +47,6 @@ enum CalendarSchedulePlugin {
                     "See the days ahead in the launcher and jump straight into a meeting's video call.",
                 systemImage: "calendar",
                 tint: .red),
-            defaultEnabled: true,
             shortcutActions: [PluginActionRegistration(key: .openCalendarSchedule, perform: open)],
             launcherCommands: [
                 PluginCommandRegistration(
@@ -55,11 +54,6 @@ enum CalendarSchedulePlugin {
                     systemImage: "calendar", actionKey: .openCalendarSchedule, perform: open)
             ],
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                if core?.palette.mode == .plugin(.calendarSchedule) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: {
                 AnyView(CalendarScheduleSettingsView(store: core.dashboardWidgets))
             })
@@ -183,7 +177,6 @@ enum CalendarSchedulePlugin {
 
 extension AppCore {
     func openCalendarSchedule() {
-        guard plugins.isEnabled(.calendarSchedule) else { return }
         showPalette(mode: .plugin(.calendarSchedule))
     }
 
@@ -204,7 +197,6 @@ extension AppCore {
     }
 
     func performCalendarScheduleRow(itemID: String) {
-        guard plugins.isEnabled(.calendarSchedule) else { return }
         switch itemID {
         case "request-access":
             dashboardWidgets.requestCalendarAccess()

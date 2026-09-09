@@ -30,7 +30,7 @@ foreground mask powers background removal.
 After inputs and any Replace Original confirmation are resolved, every operation returns Spotter to
 the launcher and starts a background-task row. Multi-image batches update the row after each output;
 Done or Failed remains visible until dismissed. Cancelling before input or confirmation creates no
-row, while disabling the plugin discards its running row.
+row.
 
 Outputs can be written beside the original, to Desktop or Downloads, opened in Preview, copied to the
 clipboard, or used to replace the original. Replace Original always confirms the resolved batch count.

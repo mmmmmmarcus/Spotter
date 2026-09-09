@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct KillProcessSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @AppStorage("kill-process.sort") private var sortRaw = ProcessSort.cpu.rawValue
     @AppStorage("kill-process.group-apps") private var groupApps = true
     @AppStorage("kill-process.search-paths") private var searchPaths = false
@@ -16,9 +15,6 @@ struct KillProcessSettingsView: View {
             title: "Kill Process",
             subtitle: "Inspect and terminate running processes; refreshes only while its palette is open."
         ) {
-            SettingsCard(header: "Plugin") {
-                toggleRow("Kill Process", "List processes by CPU or memory usage.", "xmark.octagon", pluginsEnabled)
-            }
             SettingsCard(header: "Process List") {
                 SettingsRow(
                     title: "Sort By", subtitle: "Order the process results in the palette.",
@@ -60,10 +56,6 @@ struct KillProcessSettingsView: View {
                 }
             }
         }
-    }
-
-    private var pluginsEnabled: Binding<Bool> {
-        Binding(get: { plugins.isEnabled(.killProcess) }, set: { plugins.setEnabled($0, for: .killProcess) })
     }
 
     private func toggleRow(

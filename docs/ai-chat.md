@@ -134,7 +134,7 @@ whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw M
   has no row selection.
 - `AIChatMode` is a core `PaletteMode` (like Emoji) rather than a `PluginPaletteList` screen: a
   conversation flow is not a filter-a-list interaction, and the emoji grid is the precedent for a
-  mode with its own body view while the plugin carries enable state, the launcher command and the
+  mode with its own body view while the plugin carries the launcher command and the
   shortcut.
 
 ## AI commands

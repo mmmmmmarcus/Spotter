@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct CurrencyConversionSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var currencyRates = AppCore.shared.currencyRates
     @State private var askingConsent = false
     @State private var refreshing = false
@@ -12,22 +11,24 @@ struct CurrencyConversionSettingsView: View {
             title: "Currency Conversion",
             subtitle: "Convert currencies inline using consented daily exchange rates."
         ) {
-            SettingsCard(header: "Plugin") {
+            SettingsCard(header: "Exchange Rates") {
                 SettingsRow(
-                    title: "Currency Conversion",
+                    title: "Download Exchange Rates",
                     subtitle: conversionStatus,
                     systemImage: "dollarsign.arrow.circlepath",
                     tint: .green
                 ) {
+                    // The switch is the consent act — the plugin is always on, but nothing is
+                    // contacted until this is.
                     Toggle(
                         "",
                         isOn: Binding(
-                            get: { plugins.isEnabled(.currencyConversion) },
+                            get: { currencyRates.isEnabled },
                             set: { wantsOn in
                                 if wantsOn {
                                     askingConsent = true
                                 } else {
-                                    plugins.setEnabled(false, for: .currencyConversion)
+                                    currencyRates.setEnabled(false)
                                 }
                             })
                     )
@@ -36,7 +37,7 @@ struct CurrencyConversionSettingsView: View {
                     .controlSize(.small)
                 }
 
-                if plugins.isEnabled(.currencyConversion) {
+                if currencyRates.isEnabled {
                     SettingsDivider()
                     SettingsRow(
                         title: "Exchange Rates",
@@ -62,14 +63,14 @@ struct CurrencyConversionSettingsView: View {
                 onCancel: { askingConsent = false },
                 onAccept: {
                     askingConsent = false
-                    plugins.setEnabled(true, for: .currencyConversion)
+                    currencyRates.setEnabled(true)
                 })
         }
     }
 
     private var conversionStatus: String {
         let examples = "Convert inline — \"100 dollars to yen\", \"€20 to GBP\"."
-        return plugins.isEnabled(.currencyConversion)
+        return currencyRates.isEnabled
             ? examples : "\(examples) Off — no service is contacted."
     }
 

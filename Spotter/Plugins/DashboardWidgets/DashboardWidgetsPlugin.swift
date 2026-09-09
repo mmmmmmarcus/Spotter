@@ -13,9 +13,6 @@ enum DashboardWidgetsPlugin {
                 systemImage: "rectangle.3.group",
                 tint: .purple,
                 settingsPlacement: .system),
-            defaultEnabled: true,
-            canDisable: false,
-            exportsEnabledState: false,
             // Automation covers both cards that ask another app a question: File Info asking
             // the Finder what is selected, and Music asking Music what is playing.
             permissions: [.calendar, .automation],
@@ -26,7 +23,6 @@ enum DashboardWidgetsPlugin {
                         music: core.dashboardMusic, battery: core.dashboardDeviceBattery,
                         fileInfo: core.dashboardFileInfo))
             },
-            readEnabled: { true },
             settingsView: {
                 AnyView(
                     DashboardWidgetsSettingsView(
@@ -37,6 +33,30 @@ enum DashboardWidgetsPlugin {
 }
 
 extension AppCore {
+    private static let weatherConsentWindowID = "weather-consent"
+
+    /// Raises the one weather question, for someone who has never answered it. Returns whether it
+    /// was actually put on screen, so the caller can hold back whatever would sit on top of it.
+    @discardableResult
+    func presentWeatherConsentIfNeeded(thenShowLauncher: Bool = false) -> Bool {
+        guard dashboardWeather.needsConsentPrompt else { return false }
+        showPluginWindow(
+            id: Self.weatherConsentWindowID, title: "Weather",
+            size: WeatherConsentWindow.windowSize
+        ) {
+            WeatherConsentWindow(opensLauncher: thenShowLauncher)
+        }
+        return true
+    }
+
+    /// Both answers land here. A decline is recorded as an answer, so the question is never asked
+    /// again; a grant is permanent, since weather has no off switch.
+    func answerWeatherConsent(granted: Bool, opensLauncher: Bool) {
+        dashboardWeather.recordConsent(granted: granted)
+        closePluginWindow(id: Self.weatherConsentWindowID)
+        if opensLauncher { showPalette(mode: .launcher) }
+    }
+
     /// Read once per summon, from `showPalette`, so the File Info card is current without anything
     /// watching the Finder between summons.
     func refreshDashboardFileInfo() {

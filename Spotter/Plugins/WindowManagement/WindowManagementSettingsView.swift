@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct WindowManagementSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @AppStorage(WindowManagementDefaults.gapKey) private var gap = 0
     @AppStorage(WindowManagementDefaults.cycleKey) private var cycleOnRepeat = false
 
@@ -10,19 +9,6 @@ struct WindowManagementSettingsView: View {
             title: "Window Management",
             subtitle: "Position the frontmost window from the launcher or a shortcut."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Window Management",
-                    subtitle: "Halves, quarters, thirds, sizing, display moves and fullscreen.",
-                    systemImage: "macwindow.on.rectangle", tint: .blue
-                ) {
-                    Toggle("", isOn: enabledBinding)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "Layout") {
                 SettingsRow(
                     title: "Gap",
@@ -67,11 +53,5 @@ struct WindowManagementSettingsView: View {
                 }
             }
         }
-    }
-
-    private var enabledBinding: Binding<Bool> {
-        Binding(
-            get: { plugins.isEnabled(.windowManagement) },
-            set: { plugins.setEnabled($0, for: .windowManagement) })
     }
 }

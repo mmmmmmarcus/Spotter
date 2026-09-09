@@ -32,8 +32,9 @@ correction deterministic where a post-mount timer only raced it.
 **Tab cycles empty root surfaces, Shift-Tab cycles them backward** — Apps → AI Chat → Clipboard →
 Emoji → Apps. `PaletteMode.cycle(isPluginEnabled:)` is the single source of truth for the stop list,
 read by both the key handling and the header glyph so the affordance can't promise a loop the keys
-don't perform. Apps and AI Chat are system features and always present; Clipboard and Emoji drop out
-when their plugins are disabled. Walking in both directions keeps every stop at most one press away
+don't perform. Apps, AI Chat, Clipboard and Emoji are the four stops; every other mode is a
+sub-screen reached from the launcher and keeps its back chevron. Walking in both directions keeps
+every stop at most one press away
 in some direction. Each hop goes through `prepare`, so the arriving surface starts with a cleared
 query and selection — every surface has its own row order, and a selection carried across would
 point at the wrong row.

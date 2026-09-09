@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct CustomCommandsSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @EnvironmentObject private var store: CustomCommandStore
     @State private var editor: EditorTarget?
     @State private var pendingDeletion: CustomCommand?
@@ -11,25 +10,6 @@ struct CustomCommandsSettingsView: View {
             title: "Commands",
             subtitle: "Run your own shell commands from the launcher or a global shortcut."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Commands",
-                    subtitle: "Built-in macOS actions and your saved shell commands.",
-                    systemImage: "terminal",
-                    tint: .green
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.commands) },
-                            set: { plugins.setEnabled($0, for: .commands) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             SettingsCallout(
                 title: "Built-in commands are read-only",
                 message:

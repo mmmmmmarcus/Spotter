@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct TranslateSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var translate = AppCore.shared.translate
     @State private var apiKeyDraft = AppCore.shared.translate.apiKey
 
@@ -10,24 +9,6 @@ struct TranslateSettingsView: View {
             title: "Translate",
             subtitle: "Translate typed or selected text into the languages you choose."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Translate",
-                    subtitle: "Google Cloud Translation, on text you type or text you select.",
-                    systemImage: "translate", tint: .teal
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.translate) },
-                            set: { plugins.setEnabled($0, for: .translate) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             if translate.apiKey.isEmpty {
                 SettingsCallout(
                     title: "Translate needs an API key.",

@@ -18,9 +18,6 @@ enum AIChatPlugin {
                 systemImage: "sparkles",
                 tint: .purple,
                 settingsPlacement: .system),
-            defaultEnabled: true,
-            canDisable: false,
-            exportsEnabledState: false,
             permissions: [.accessibility],
             shortcutActions: [
                 PluginActionRegistration(key: .openAIChat, perform: open)
@@ -40,7 +37,6 @@ enum AIChatPlugin {
                     ) { [weak core] in core?.runAICommandFromLauncher(id: command.id) }
                 }
             },
-            readEnabled: { true },
             settingsView: { AnyView(AIChatSettingsView()) })
     }
 }

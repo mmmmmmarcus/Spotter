@@ -15,7 +15,6 @@ enum NotePlugin {
                 id: .note, name: "Notes",
                 summary: "Capture Markdown notes and todos in an always-ready floating window.",
                 systemImage: "note.text", tint: .yellow),
-            defaultEnabled: true,
             shortcutActions: [
                 PluginActionRegistration(key: .openNotes, perform: open),
                 PluginActionRegistration(key: .newNote, perform: create),
@@ -28,14 +27,8 @@ enum NotePlugin {
                     id: "command:notes:new", name: "New Note", systemImage: "square.and.pencil",
                     actionKey: .newNote, perform: create),
             ],
-            onEnable: { [weak core] in
+            onStart: { [weak core] in
                 core?.noteFolderSync.start()
-            },
-            onDisable: { [weak core] in
-                guard let core else { return }
-                core.closePluginWindow(id: "notes")
-                core.noteFolderSync.stop()
-                Task { await core.notes.flush() }
             },
             settingsView: {
                 AnyView(NoteSettingsView(store: core.notes, sync: core.noteFolderSync))
@@ -45,7 +38,6 @@ enum NotePlugin {
 
 extension AppCore {
     func openNotes(creatingNewNote: Bool = false) {
-        guard plugins.isEnabled(.note) else { return }
         // Open Notes is a toggle — the window floats over everything, so the shortcut that summoned
         // it is the obvious way to put it away. New Note always opens, since it has a note to show.
         if !creatingNewNote, isPluginWindowShowing(id: "notes") {

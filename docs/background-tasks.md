@@ -70,7 +70,7 @@ The current one-shot work integrated with this surface is:
 
 Mole and image batches publish determinate progress when they have a trustworthy total. Uninstall
 and AI requests stay indeterminate rather than inventing a percentage. Feature-owned cancellation
-(such as Stop Waiting or disabling Image Modification) discards the running row; Mole offers a
+(such as Stop Waiting) discards the running row; Mole offers a
 call-off only while a run is still queued, and retires it the moment the run starts, because a
 half-finished uninstall cannot say which files it already removed. User dismissal
 remains limited to Done and Failed rows. Built-in and custom Commands deliberately use the brief HUD

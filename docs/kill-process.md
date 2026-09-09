@@ -28,5 +28,5 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
 
 `KillProcessManager` is owned by `AppCore`; `KillProcessEngine` is Foundation-only and tested with a
 fixed `ps` fixture. Its registration maps the manager state into `PluginPaletteSnapshot` rows and
-routes row IDs back to process actions. Leaving the mode, hiding the palette or disabling the plugin
-cancels refresh work; disabling also returns the palette to the launcher root.
+routes row IDs back to process actions. Leaving the mode or hiding the palette cancels refresh
+work.

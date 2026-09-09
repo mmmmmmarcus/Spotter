@@ -20,7 +20,7 @@ goes through `AppCore`, which unregisters the hotkey and clears those references
 command. Native settings backups include both commands and bindings; import warns before accepting
 executable content.
 
-`CommandsPlugin` owns the feature registration and Settings view. Disabling it withdraws both the
+`CommandsPlugin` owns the feature registration and Settings view. It publishes both the
 built-in and custom launcher entries and makes their hotkeys no-op. It leaves the custom-command
 store, UUIDs, favorites, visibility, hotkeys and backup data intact. Re-enabling republishes the same
 entries. A custom process that was already launched continues under the existing no-timeout

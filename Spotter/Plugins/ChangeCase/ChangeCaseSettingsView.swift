@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ChangeCaseSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: ChangeCaseStore
     @AppStorage("change-case.source") private var source = ChangeCaseInputSource.selectedText.rawValue
     @AppStorage("change-case.primary-action") private var primaryAction = ChangeCasePrimaryAction.paste.rawValue
@@ -13,11 +12,6 @@ struct ChangeCaseSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Change Case", subtitle: "Transform selected or copied text with native, offline commands.") {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(title: "Change Case", subtitle: "Includes the browser and 21 direct commands.", systemImage: "textformat", tint: .purple) {
-                    Toggle("", isOn: Binding(get: { plugins.isEnabled(.changeCase) }, set: { plugins.setEnabled($0, for: .changeCase) })).labelsHidden().toggleStyle(.switch).controlSize(.small)
-                }
-            }
             SettingsCard(header: "Input & Action") {
                 SettingsRow(title: "Preferred Input", subtitle: "Falls back to the other source when unavailable.", systemImage: "selection.pin.in.out", tint: .purple) {
                     Picker("", selection: $source) { ForEach(ChangeCaseInputSource.allCases) { Text($0.title).tag($0.rawValue) } }.labelsHidden()

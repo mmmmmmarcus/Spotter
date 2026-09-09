@@ -10,7 +10,6 @@ enum ClipboardPlugin {
                 summary: "Keep searchable text and image clipboard history.",
                 systemImage: "doc.on.clipboard",
                 tint: .orange),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: [
                 PluginActionRegistration(key: .openClipboard) { [weak core] in
@@ -27,15 +26,10 @@ enum ClipboardPlugin {
                     core?.toggleClipboard()
                 }
             ],
-            onEnable: { [weak core] in
+            onStart: { [weak core] in
                 guard let core else { return }
                 Task { core.clipboardStore.load() }
                 core.clipboardManager.start()
-            },
-            onDisable: { [weak core] in
-                guard let core else { return }
-                core.clipboardManager.stop()
-                if core.palette.mode == .clipboard { core.palette.prepare(mode: .launcher) }
             },
             settingsView: { AnyView(ClipboardSettingsView()) })
     }

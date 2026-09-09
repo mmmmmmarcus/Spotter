@@ -197,24 +197,35 @@ Never break these without an explicit task to do so.
   already carries; don't widen it to anything the chosen city doesn't already imply. An unset city
   resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the reading; keep
   that default a constant, since deriving one from the locale or time zone would be location
-  inference by another name. Weather deliberately has **no switch of its own** — choosing a city is
-  what turns it on and removing it is what turns it off — but that is a change of control, not of
-  gate: the consent dialog still runs before the first request, and `isEnabled` is still re-checked
-  at every entry point. The Clock shares that city, and the sharing runs **one way only** — choosing
-  a city sets the clock's zone, but setting a zone reaches no city and sends nothing. Keep it that
-  way: the city is reachable only from behind the consent sheet, which is what stops a clock setting
-  from enabling a networked feature. Do not make the complications draw without it. Its consent flag, city and unit ride in the trusted v3 snapshot.
-  `Plugins/Uptime/UptimeStore.swift` applies the same shape to a feature that is
-  *not* networked, because watching input system-wide earns it: Uptime ships off, its
-  dialog names exactly what is and isn't recorded, no `NSEvent` monitor is installed until consent,
-  and turning it off deletes the tallies. Its counters must stay counters — key or click and an
-  autorepeat flag are the only facts taken off an event; never read a key code, character, modifier
-  or click location. Count through passive `NSEvent` monitors, never a new `CGEventTap`. Only the
-  consent flag rides in the trusted v3 snapshot; the tallies stay device-local. Uptime is a plugin
-  rather than a widget (owner decision, Aug 2026): its consent flag *is* the plugin's enabled state,
-  read and written through `readEnabled`/`writeEnabled`, and `exportsEnabledState` stays false so the
-  registry can never grant it. Its persistence keys keep their `dashboard-widgets.uptime-*` names —
-  renaming them would silently drop existing consent and tallies.
+  inference by another name. **Weather is asked once, at first launch, and once granted it is
+  permanently on** (owner decision, Sep 2026) — the one exception to "a networked feature must be
+  withdrawable", and it is not a licence to build a second one. Everything else about the gate
+  stands: no request before consent, a dialog that still names Open-Meteo, the 30-minute cadence and
+  what leaves the Mac, and `isEnabled` re-checked at every entry point including both sides of the
+  `await`. Because the question is asked exactly once, **"asked" and "granted" are two separate
+  persisted facts** (`dashboard-widgets.weather-consent-asked` and
+  `dashboard-widgets.weather-enabled`): a decline records the answer and leaves weather off, is never
+  asked again on a later launch, and leaves Settings ▸ Widgets a way to grant it later. There is no
+  off switch; `DashboardWeatherEngine.consentState`/`shouldPresentConsent` hold that rule as pure
+  logic and `Tools/dashboard-widgets-test.swift` pins it. The Clock shares that city, and the sharing
+  runs **one way only** — choosing a city sets the clock's zone, but setting a zone reaches no city
+  and sends nothing. **Choosing a city is the only location control**: there is no separate time-zone
+  picker, and a Mac that has not answered the dialog still gets a working clock from its saved zone
+  or the system's, never a blank face. Do not make the complications draw without consent. Its
+  consent flag, city and unit ride in the trusted v3 snapshot; a snapshot carrying `false` grants
+  nothing and is not an answer, so the receiving Mac is still asked.
+  `Plugins/Uptime/UptimeStore.swift` is deliberately **always on, with no switch and no consent
+  dialog** (owner decision, Sep 2026), and what makes that defensible is how little it takes rather
+  than a gate: the counters must stay counters — key or click and an autorepeat flag are the only
+  facts taken off an event; never read a key code, character, modifier or click location. Nothing
+  identifying is retained, so there is nothing here from which typing could be reconstructed; the
+  tallies clear at midnight, stay device-local, and ride in no backup or sync file. Count through
+  passive `NSEvent` monitors, never a new `CGEventTap` — a global monitor cannot alter or swallow an
+  event, and the local one beside it is only there because global monitors never see Spotter's own.
+  Widen any of that — a key code, a location, a tap, a network hop, anything persisted beyond the
+  day's integers — and the feature needs a gate again, which is an owner decision. Uptime is a plugin
+  rather than a widget (owner decision, Aug 2026). Its persistence keys keep their
+  `dashboard-widgets.uptime-*` names — renaming them would silently drop existing tallies.
   The music card is not consent-gated, for the File Info reason: it asks Music through one Apple
   Event and macOS's own Automation prompt is the gate. It must never launch Music — check that the
   app is already running before any script, since `tell application "Music"` starts it — and it polls
@@ -274,17 +285,28 @@ Never break these without an explicit task to do so.
   longer rides the backup — a v3 file carrying `iCloudSyncEnabled: true` is ignored on decode and can
   never start it. Restoring it means restoring an entry point, not rewriting the engine, so leave
   both files and the CloudKit entitlement/provisioning arrangement alone.
-- **Plugins are native compile-time modules.** Every built-in plugin owns one
-  `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add runtime-loaded bundles,
-  JavaScript execution, reflection-based discovery or a second plugin registry. See
-  [`docs/plugins.md`](docs/plugins.md) and use the tracked `spotter-plugin` skill.
-- **AI Chat and Widgets are system features; Commands is a plugin.** Both reuse registry wiring,
-  stay always enabled, and never export an enable state. AI Chat uses `settingsPlacement: .system`;
+- **Plugins are native compile-time modules, and every one of them is always on.** Every built-in
+  plugin owns one `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add
+  runtime-loaded bundles, JavaScript execution, reflection-based discovery or a second plugin
+  registry. **A plugin cannot be disabled** (owner decision, Sep 2026): the registry keeps no enable
+  state, `PluginRegistration` has no `defaultEnabled` / `canDisable` / `exportsEnabledState` /
+  `readEnabled` / `writeEnabled` / `onDisable` (only an idempotent `onStart`), no Settings pane
+  carries an enable switch, and nothing guards on `isEnabled`. The stale `plugin.<id>.enabled`
+  defaults keys and a backup's `pluginStates` are simply unread, so a file that carried a disabled
+  plugin restores it on — a plugin can never end up off and unreachable. Do not reintroduce the
+  concept, and do not confuse it with a **network consent gate**, which belongs to the owning store
+  and stays: `CurrencyRateStore` is the reference, and its Settings switch is that consent act, not a
+  plugin switch. See [`docs/plugins.md`](docs/plugins.md) and use the tracked `spotter-plugin` skill.
+- **AI Chat and Widgets are system features; Commands is a plugin.** Both reuse registry wiring.
+  AI Chat uses `settingsPlacement: .system`;
   Widgets uses `.system` too, with **one page for the whole strip** (owner decision, Aug 2026,
   superseding both the per-card panes and the Arrangement pane that briefly replaced them): a
   section per card that has something to configure, no pane of its own for any card. A card with
   nothing to set gets no section at all (Device Battery and File Info, owner decision, Sep 2026),
-  and cards that share a setting share one section — Clock and Weather share a location. **Order is set by dragging the cards in the
+  and cards that share a setting share one section — Clock and Weather share **one merged Location
+  control**, with no time-zone picker and no way to turn weather off; the Music section carries no
+  Automation Permission row either (owner decision, Sep 2026 — the Finder and Music reads and macOS's
+  own Automation prompt are unchanged, only the row is gone). **Order is set by dragging the cards in the
   palette**, which is the thing being arranged — do not reintroduce a list of names for it. Strip
   order is `DashboardWidgetPreferences.widgetOrder`, which is the strip's *only* preference:
   every card shows, with no on/off state at all (owner decision, Aug 2026 — do not reintroduce a Show
@@ -296,8 +318,7 @@ Never break these without an explicit task to do so.
   same record as one the user writes, keeping their historical launcher entry ids and
   `KeyboardShortcuts_plugin.selection-tools.*` binding keys — their prompt, model and shortcut are
   editable and resettable, their name and identity are not, and they cannot be deleted. Commands
-  owns the custom-command Settings view and dynamic launcher entries; disabling it preserves command
-  data and bindings while hiding entries and making their hotkeys no-op.
+  owns the custom-command Settings view and dynamic launcher entries.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
   registered `PluginPaletteScreenRegistration` and the shared `PluginPaletteList`; they must not
   create a separate window, search field, list chrome or footer. Dedicated plugin windows are limited
@@ -333,7 +354,8 @@ Never break these without an explicit task to do so.
 - **Settings sync reuses `SettingsBackup`.** The selected JSON file may live in iCloud Drive, but
   Spotter must coordinate access with `NSFileCoordinator`, observe replacement-safe file changes,
   hot-apply only fully decoded snapshots, suppress its own write notifications, and mirror all
-  covered user-owned settings and content, including credentials and network consent. Notes are the
+  covered user-owned settings and content, including credentials and network consent. Plugin enable
+  state is not among them — there is none. Notes are the
   deliberate exception: manual backups still include them, but automatic Settings Sync must exclude
   Note content because `NoteFolderSyncManager` owns per-Note replication through the user's Notes
   folder. That folder's path is device-local and never travels in a snapshot, as neither
@@ -366,7 +388,8 @@ Never break these without an explicit task to do so.
   ordinary edit collision would be noise. `NoteFolderReconciler.plan` takes that as an undefaulted
   `NoteFolderPass`; the once-per-Mac flag is `NoteFolderAdoption`, set when a folder is chosen and
   cleared only by a reconcile that finished. Do not unify the two paths.
-  See [`docs/notes.md`](docs/notes.md).
+  Window Transparency and Auto Window Sizing live only in the Note window's own tint popover; Notes
+  Settings carries no Appearance card (owner decision, Sep 2026). See [`docs/notes.md`](docs/notes.md).
 - **Snippets' expansion never records arbitrary typing or uses the clipboard.** The plugin keeps its
   historical `text-replacement` identity (IDs, keys, file names); its matcher retains only a suffix
   that can still become a configured trigger (built from keyworded snippets only — palette-only

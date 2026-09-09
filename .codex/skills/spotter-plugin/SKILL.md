@@ -61,9 +61,9 @@ actor.
 2. Create one self-contained plugin folder and a `@MainActor` registration factory. Omit `core` from
    `registration(core:)` only when the plugin needs no manager or app action.
 3. Add exactly one ordered factory call to `BuiltInPlugins.registrations(core:)`.
-4. Supply metadata, `defaultEnabled`, and a standard Settings view with its `Plugin` enable card first.
+4. Supply metadata and a standard Settings view. Plugins are always on — never add an enable switch.
 5. Add only the capabilities the plugin actually needs: permissions, shortcuts, launcher commands,
-   query provider, palette screen, lifecycle hooks, or feature-owned enabled-state adapters.
+   query provider, palette screen, or an `onStart` hook.
 6. Add a pure-logic harness, subsystem documentation, and the required development test command.
 
 Use stable `PluginActionKey` values. Set `defaultVisible: false` for secondary or direct commands that
@@ -130,9 +130,9 @@ Use `PluginRegistration` as the only integration contract:
 - `launcherCommands` for signed in-process commands.
 - `queryProvider` for inline answers.
 - `paletteScreen` for shared-palette result lists and row actions.
-- `onEnable` and `onDisable` for timers, tasks, monitors, and cleanup.
-- `readEnabled` and `writeEnabled` only when the owning store must gate its own state.
-- `exportsEnabledState = false` for consent flags or any state a backup must not grant.
+- `onStart` for timers, tasks and monitors a manager must bring up at launch; keep it idempotent.
+- A network consent gate belongs to the owning store, never the registry: `CurrencyRateStore` is the
+  reference, and its Settings switch is the consent act rather than a plugin switch.
 
 Build Settings with `SettingsPane`, `SettingsCard`, `SettingsRow`, `SettingsDivider`, and `Theme`
 tokens. Do not add a `SettingsTab`; the Plugins sidebar is registry-driven. Declare permissions in

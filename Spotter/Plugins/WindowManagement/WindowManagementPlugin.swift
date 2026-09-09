@@ -20,7 +20,6 @@ enum WindowManagementPlugin {
                 summary: "Halves, quarters, thirds, sizing and display moves for the frontmost window.",
                 systemImage: "macwindow.on.rectangle",
                 tint: .blue),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: WindowCommandCatalog.all.map { command in
                 PluginActionRegistration(key: .windowCommand(command.id)) {
@@ -50,7 +49,6 @@ enum WindowManagementPlugin {
 extension AppCore {
     /// The one funnel both the palette row and the global shortcut reach.
     func runWindowCommand(_ id: WindowCommand.ID) {
-        guard plugins.isEnabled(.windowManagement) else { return }
         // The palette owns key focus by the time a command dispatches from it, so the target is the app recorded before it opened — never Spotter itself.
         let paletteVisible = isPaletteShowing
         let target = paletteVisible ? previousApplication : NSWorkspace.shared.frontmostApplication

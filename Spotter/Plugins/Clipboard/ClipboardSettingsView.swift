@@ -2,7 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ClipboardSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var settings = AppCore.shared.settings
     @State private var confirmingClear = false
     @State private var showingAppPicker = false
@@ -12,25 +11,6 @@ struct ClipboardSettingsView: View {
             title: "Clipboard",
             subtitle: "Control how much history Spotter keeps and which apps are recorded."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Clipboard",
-                    subtitle: "Capture searchable text and image clipboard history.",
-                    systemImage: "doc.on.clipboard",
-                    tint: .orange
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.clipboard) },
-                            set: { plugins.setEnabled($0, for: .clipboard) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "Shortcut") {
                 SettingsRow(
                     title: "Clipboard History",

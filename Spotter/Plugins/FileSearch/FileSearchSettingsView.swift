@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct FileSearchSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
 
     var body: some View {
         SettingsPane(
@@ -9,16 +8,6 @@ struct FileSearchSettingsView: View {
             subtitle:
                 "Find files and folders by name. Spotter reads the Spotlight index macOS already keeps — it builds, stores and watches no index of its own."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "File Search",
-                    subtitle: "Search files and folders by name from the palette.",
-                    systemImage: "doc.text.magnifyingglass", tint: .teal
-                ) {
-                    Toggle("", isOn: pluginEnabled)
-                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                }
-            }
             SettingsCard(header: "What Is Searched") {
                 SettingsRow(
                     title: "Your Home Folder",
@@ -50,11 +39,5 @@ struct FileSearchSettingsView: View {
                 }
             }
         }
-    }
-
-    private var pluginEnabled: Binding<Bool> {
-        Binding(
-            get: { plugins.isEnabled(.fileSearch) },
-            set: { plugins.setEnabled($0, for: .fileSearch) })
     }
 }

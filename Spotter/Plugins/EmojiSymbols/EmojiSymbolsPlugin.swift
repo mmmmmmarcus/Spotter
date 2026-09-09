@@ -10,7 +10,6 @@ enum EmojiSymbolsPlugin {
                 summary: "Search and paste emoji and symbols into any app.",
                 systemImage: "face.smiling",
                 tint: .yellow),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: [
                 PluginActionRegistration(key: .openEmoji) { [weak core] in
@@ -27,13 +26,9 @@ enum EmojiSymbolsPlugin {
                     core?.toggleEmoji()
                 }
             ],
-            onEnable: { [weak core] in
+            onStart: { [weak core] in
                 guard let core else { return }
                 Task { await core.emojiIndex.load() }
-            },
-            onDisable: { [weak core] in
-                guard let core else { return }
-                if core.palette.mode == .emoji { core.palette.prepare(mode: .launcher) }
             },
             settingsView: { AnyView(EmojiSettingsView()) })
     }

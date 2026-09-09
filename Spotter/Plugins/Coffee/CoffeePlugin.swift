@@ -58,7 +58,6 @@ enum CoffeePlugin {
                 summary: "Keep your Mac awake — indefinitely, for a set time, or while an app runs.",
                 systemImage: "cup.and.saucer",
                 tint: .orange),
-            defaultEnabled: true,
             shortcutActions: [
                 PluginActionRegistration(key: .coffeeStart) { core.startCoffee() },
                 PluginActionRegistration(key: .coffeeStop) { core.stopCoffee() },
@@ -89,13 +88,6 @@ enum CoffeePlugin {
                 ) { core.openCoffeeScreen(.status) },
             ],
             paletteScreen: screen,
-            // Leaving the assertion held after the user turned the plugin off would be a lie about what's running.
-            onDisable: { [weak core] in
-                core?.coffee.decaffeinate()
-                if core?.palette.mode == .plugin(.coffee) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(CoffeeSettingsView()) })
     }
 }
@@ -171,32 +163,27 @@ enum CoffeeResults {
 
 extension AppCore {
     func toggleCoffee() {
-        guard plugins.isEnabled(.coffee) else { return }
         coffee.toggle()
         hidePalette(restoreFocus: false)
     }
 
     func startCoffee() {
-        guard plugins.isEnabled(.coffee) else { return }
         coffee.caffeinate()
         hidePalette(restoreFocus: false)
     }
 
     func stopCoffee() {
-        guard plugins.isEnabled(.coffee) else { return }
         coffee.decaffeinate()
         hidePalette(restoreFocus: false)
     }
 
     func openCoffeeScreen(_ screen: CoffeeScreen) {
-        guard plugins.isEnabled(.coffee) else { return }
         coffeeScreen = screen
         palette.prepare(mode: .plugin(.coffee))
         showPalette(mode: .plugin(.coffee))
     }
 
     func performCoffeeRow(itemID: String) {
-        guard plugins.isEnabled(.coffee) else { return }
         if itemID == "status" {
             coffee.toggle()
         } else if itemID.hasPrefix("duration:"),

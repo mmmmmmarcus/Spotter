@@ -32,7 +32,6 @@ enum SelectionToolsPlugin {
                 summary: "Search the text you have selected, in your default browser.",
                 systemImage: "magnifyingglass",
                 tint: .teal),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: [
                 PluginActionRegistration(key: .searchSelectedText, perform: runAction)
@@ -46,19 +45,12 @@ enum SelectionToolsPlugin {
                     perform: runCommand)
             ],
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                core?.selectionTools.reset()
-                if core?.palette.mode == .plugin(.selectionTools) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(SelectionToolsSettingsView()) })
     }
 }
 
 extension AppCore {
     func searchSelectedText() {
-        guard plugins.isEnabled(.selectionTools) else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             performSelectionSearch(await selectedTextCapture.capture())
@@ -66,7 +58,6 @@ extension AppCore {
     }
 
     func searchSelectedTextFromLauncher() {
-        guard plugins.isEnabled(.selectionTools) else { return }
         guard palette.mode == .launcher else {
             searchSelectedText()
             return
@@ -81,7 +72,6 @@ extension AppCore {
     private func performSelectionSearch(
         _ capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     ) {
-        guard plugins.isEnabled(.selectionTools) else { return }
         switch capture {
         case .failure(let error):
             showSelectionSearchFailure(error.message)

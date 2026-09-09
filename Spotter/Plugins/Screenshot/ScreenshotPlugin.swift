@@ -25,7 +25,6 @@ enum ScreenshotPlugin {
                 summary: "Capture a region, window or screen, read text, or sample a color.",
                 systemImage: "camera.viewfinder",
                 tint: .blue),
-            defaultEnabled: true,
             permissions: [.screenRecording],
             shortcutActions: [
                 PluginActionRegistration(
@@ -42,10 +41,6 @@ enum ScreenshotPlugin {
                     actionKey: .captureScreenshot,
                     perform: capture)
             ],
-            onDisable: { [weak core] in
-                core?.screenshot.cancel()
-                core?.dismissScreenshotEditor()
-            },
             settingsView: { AnyView(ScreenshotSettingsView()) })
     }
 }
@@ -61,7 +56,6 @@ extension AppCore {
 
     /// A pinned window edits the capture it holds, which is not necessarily the most recent one.
     func showScreenshotEditor(for capture: ScreenshotCapturePayload) {
-        guard plugins.isEnabled(.screenshot) else { return }
         closePluginWindow(id: Self.screenshotEditorWindowID)
         showPluginWindow(
             id: Self.screenshotEditorWindowID,
@@ -99,7 +93,7 @@ extension AppCore {
     /// entry is inserted here rather than polled: that is what lets it keep the name the editor
     /// would save it under, which is also what marks it as a screenshot.
     private func recordScreenshotInHistory() {
-        guard plugins.isEnabled(.clipboard), let capture = screenshot.lastCapture else { return }
+        guard let capture = screenshot.lastCapture else { return }
         // An app the user excluded from history is excluded from this too.
         if let bundleID = capture.sourceBundleID,
             settings.clipboardDisabledApps.contains(bundleID)
@@ -128,7 +122,6 @@ extension AppCore {
         screenshot.clearLastCapture()
     }
 
-
     /// Wide enough for the action bar and no wider; a small capture now sits at 1:1 inside it
     /// rather than being stretched to fill.
     private static let screenshotEditorMinimumSize = CGSize(width: 620, height: 400)
@@ -150,10 +143,6 @@ extension AppCore {
     }
 
     func captureScreenshot() {
-        guard plugins.isEnabled(.screenshot) else {
-            AppLog.info("screenshot", "Capture ignored because the plugin is disabled.")
-            return
-        }
         if screenshot.isCapturing {
             // The overlay is deliberately near-invisible, so the shortcut that opened it is the one
             // a stuck user reaches for. Make it the way out rather than a no-op.

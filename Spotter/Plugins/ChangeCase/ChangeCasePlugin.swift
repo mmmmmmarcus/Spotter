@@ -33,18 +33,15 @@ enum ChangeCasePlugin {
                 id: .changeCase, name: "Change Case",
                 summary: "Convert selected or copied text between 21 common letter cases.",
                 systemImage: "textformat", tint: .purple),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: actions,
             launcherCommands: commands,
-            onDisable: { [weak core] in core?.closePluginWindow(id: "change-case") },
             settingsView: { AnyView(ChangeCaseSettingsView(store: core.changeCase)) })
     }
 }
 
 extension AppCore {
     func openChangeCase() {
-        guard plugins.isEnabled(.changeCase) else { return }
         let sourceApp = previousApplication
         if palette.mode == .launcher { hidePalette(restoreFocus: false) }
         changeCase.loadInput(from: sourceApp)
@@ -54,7 +51,7 @@ extension AppCore {
     }
 
     func runChangeCase(_ kind: ChangeCaseKind) {
-        guard plugins.isEnabled(.changeCase), changeCase.isEnabled(kind) else { return }
+        guard changeCase.isEnabled(kind) else { return }
         let target = previousApplication
         changeCase.loadInput(from: target)
         let output = changeCase.output(for: kind)

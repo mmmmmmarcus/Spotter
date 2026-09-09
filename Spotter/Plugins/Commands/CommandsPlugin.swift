@@ -10,7 +10,6 @@ enum CommandsPlugin {
                 summary: "Run built-in macOS actions and your own shell commands.",
                 systemImage: "terminal",
                 tint: .green),
-            defaultEnabled: true,
             permissions: [.accessibility, .automation],
             shortcutActions: SystemCommandCatalog.all.map { command in
                 PluginActionRegistration(key: .systemCommand(command.id)) {

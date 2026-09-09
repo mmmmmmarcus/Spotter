@@ -3,9 +3,8 @@
 A palette root surface presenting a searchable emoji grid. It is a **Tab-cycle stop** alongside Apps,
 AI Chat and Clipboard (see [palette.md](palette.md)) as well as being reachable by its own launcher
 command and shortcut, and its header shows the emoji mode glyph rather than a back chevron.
-It is a built-in plugin: the catalog loads lazily when enabled, its launcher command and shortcut are
-routed through `PluginRegistry`, disabling it drops it out of the Tab cycle, and disabling it returns
-an open emoji palette to the launcher.
+It is a built-in plugin: the catalog loads lazily on first use, and its launcher command and
+shortcut are routed through `PluginRegistry`.
 
 ## Layout
 

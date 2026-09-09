@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct NoteSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: NoteStore
     @ObservedObject var sync: NoteFolderSyncManager
     @State private var syncing = false
@@ -11,24 +10,6 @@ struct NoteSettingsView: View {
             title: "Notes",
             subtitle: "Capture local Markdown notes in a lightweight floating window."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Notes",
-                    subtitle: "Includes unlimited local notes, Markdown formatting, and todos.",
-                    systemImage: "note.text", tint: .yellow
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.note) },
-                            set: { plugins.setEnabled($0, for: .note) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "Shortcuts") {
                 SettingsRow(
                     title: "Open Notes", subtitle: "Focus the last active note.",
@@ -54,44 +35,6 @@ struct NoteSettingsView: View {
                     Text("\(store.notes.count) \(store.notes.count == 1 ? "note" : "notes")")
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
-                }
-            }
-
-            SettingsCard(header: "Appearance") {
-                SettingsRow(
-                    title: "Auto Window Sizing",
-                    subtitle: "Grows and shrinks the window to fit the note. Off keeps the size you drag it to.",
-                    systemImage: "arrow.up.and.down.and.arrow.left.and.right", tint: .yellow
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { store.autoWindowSizing },
-                            set: { store.setAutoWindowSizing($0) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-                SettingsDivider()
-                SettingsRow(
-                    title: "Window Transparency",
-                    subtitle: "Fades the Note background through to the desktop, leaving text and controls untouched.",
-                    systemImage: "circle.lefthalf.filled", tint: .yellow
-                ) {
-                    HStack(spacing: Theme.Spacing.md) {
-                        Slider(
-                            value: Binding(
-                                get: { store.windowTransparency },
-                                set: { store.setWindowTransparency($0) }),
-                            in: 0...NoteStore.maximumWindowTransparency,
-                            step: 0.05)
-                            .frame(width: 140)
-                        Text(store.windowTransparency.formatted(.percent.precision(.fractionLength(0))))
-                            .font(.callout.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 38, alignment: .trailing)
-                    }
                 }
             }
 

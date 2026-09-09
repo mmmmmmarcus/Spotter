@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct EmojiSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var settings = AppCore.shared.settings
 
     var body: some View {
@@ -9,25 +8,6 @@ struct EmojiSettingsView: View {
             title: "Emoji & Symbols",
             subtitle: "Search emoji and symbols, and paste them into any app."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Emoji & Symbols",
-                    subtitle: "Search and paste emoji and symbols into any app.",
-                    systemImage: "face.smiling",
-                    tint: .yellow
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.emoji) },
-                            set: { plugins.setEnabled($0, for: .emoji) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "Global Shortcuts") {
                 SettingsRow(
                     title: "Emoji & Symbols",

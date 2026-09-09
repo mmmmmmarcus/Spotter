@@ -47,16 +47,10 @@ enum PaletteMode: Equatable, Identifiable {
         case .plugin: return "puzzlepiece.extension"
         }
     }
-    /// The Tab cycle's stops, in order, minus any whose plugin is switched off. The single source of
-    /// truth for both the key handling and the header glyph, so the affordance can't promise a loop
-    /// the keys don't perform. Apps and AI Chat are system features and always present; every mode
-    /// left out is a sub-screen reached from the launcher and keeps its back chevron.
-    static func cycle(isPluginEnabled: (PluginID) -> Bool) -> [PaletteMode] {
-        var stops: [PaletteMode] = [.launcher, .aiChat]
-        if isPluginEnabled(.clipboard) { stops.append(.clipboard) }
-        if isPluginEnabled(.emoji) { stops.append(.emoji) }
-        return stops
-    }
+    /// The Tab cycle's stops, in order. The single source of truth for both the key handling and the
+    /// header glyph, so the affordance can't promise a loop the keys don't perform. Every mode left
+    /// out is a sub-screen reached from the launcher and keeps its back chevron.
+    static let cycle: [PaletteMode] = [.launcher, .aiChat, .clipboard, .emoji]
 
     var placeholder: String {
         switch self {
@@ -397,9 +391,8 @@ final class AppCore: ObservableObject {
         // Terminate through NSApp so applicationWillTerminate still runs (Hyper Key remap cleanup) before the relaunch helper brings the new build up.
         updates.terminateForRelaunch = { NSApp.terminate(nil) }
         updates.start()
-        // No-ops without consent and a chosen city, so it is safe to call unconditionally.
+        // A no-op until the weather question has been answered with a yes.
         dashboardWeather.start()
-        // Likewise a no-op without consent — it installs no input monitors until then.
         uptime.start()
 
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
@@ -421,6 +414,10 @@ final class AppCore: ObservableObject {
         if !OnboardingState.hasOnboarded {
             OnboardingState.markShown()
             showOnboarding()
+        } else {
+            // Somebody already past the wizard gets the weather question on the first launch after
+            // it existed, and never again whatever they answer.
+            presentWeatherConsentIfNeeded()
         }
     }
 
@@ -446,7 +443,6 @@ final class AppCore: ObservableObject {
     }
 
     func toggleClipboard() {
-        guard plugins.isEnabled(.clipboard) else { return }
         if windowController.isVisible, palette.mode == .clipboard {
             hidePalette()
         } else {
@@ -455,7 +451,6 @@ final class AppCore: ObservableObject {
     }
 
     func toggleEmoji() {
-        guard plugins.isEnabled(.emoji) else { return }
         if windowController.isVisible, palette.mode == .emoji {
             hidePalette()
         } else {
@@ -652,9 +647,12 @@ final class AppCore: ObservableObject {
         }
     }
 
-    /// Final onboarding step: close the wizard and drop straight into the launcher.
+    /// Final onboarding step: close the wizard and drop straight into the launcher — unless the one
+    /// weather question is still unanswered, in which case it is asked first and the launcher opens
+    /// behind it once it is.
     func finishOnboarding() {
         auxWindows.close(id: "onboarding")
+        guard !presentWeatherConsentIfNeeded(thenShowLauncher: true) else { return }
         showPalette(mode: .launcher)
     }
 
@@ -761,8 +759,7 @@ final class AppCore: ObservableObject {
 
     /// The one funnel for both palette activation and the command's global hotkey, so the confirmation gate can't be bypassed by either.
     func runCustomCommand(id: UUID) {
-        guard plugins.isEnabled(.commands),
-            let command = customCommands.command(id: id)
+        guard let command = customCommands.command(id: id)
         else { return }
         if command.requiresConfirmation {
             confirmInPalette(

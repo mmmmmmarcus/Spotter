@@ -156,7 +156,7 @@ filter before returning to the hub.
 ## Launcher hand-off
 
 An app row's ⌘K menu in the launcher offers **Uninstall with Mole** (apps only, never Spotter
-itself, only while Mole is installed and the plugin enabled). It confirms in-palette immediately,
+itself, only while Mole is installed). It confirms in-palette immediately,
 then does everything as one background task: the inventory read runs first, the app is resolved
 against it **by exact path** (`MoleParser.uninstallTarget`), and only a uniquely addressable,
 non-cask match enters the run queue. A missing, ambiguous or Homebrew-owned copy fails the task

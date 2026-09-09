@@ -66,7 +66,6 @@ enum TranslatePlugin {
                 summary: "Translate typed or selected text into the languages you choose.",
                 systemImage: "translate",
                 tint: .teal),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: [
                 PluginActionRegistration(key: .translateSelectedText, perform: translateAction),
@@ -88,19 +87,12 @@ enum TranslatePlugin {
                     perform: translateCommand),
             ],
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                core?.translate.prepare(screen: .selection)
-                if core?.palette.mode == .plugin(.translate) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(TranslateSettingsView()) })
     }
 }
 
 extension AppCore {
     func translateSelectedText() {
-        guard plugins.isEnabled(.translate) else { return }
         guard translate.isTranslationReady else {
             showTranslationFailure(GoogleTranslationError.missingAPIKey.localizedDescription)
             return
@@ -112,7 +104,6 @@ extension AppCore {
     }
 
     func translateSelectedTextFromLauncher() {
-        guard plugins.isEnabled(.translate) else { return }
         guard translate.isTranslationReady else {
             showTranslationFailure(GoogleTranslationError.missingAPIKey.localizedDescription)
             return
@@ -131,7 +122,7 @@ extension AppCore {
     private func performSelectionTranslation(
         _ capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     ) {
-        guard plugins.isEnabled(.translate), translate.isTranslationReady else { return }
+        guard translate.isTranslationReady else { return }
         translate.prepare(screen: .selection)
         switch capture {
         case .failure(let error):
@@ -153,7 +144,6 @@ extension AppCore {
     /// Opens the Translate page. It is enterable with no key and no text: the page says what is
     /// missing rather than refusing to open, exactly as the selection screen does.
     func openTranslate() {
-        guard plugins.isEnabled(.translate) else { return }
         translate.prepare(screen: .compose)
         palette.prepare(mode: .plugin(.translate))
         showPalette(mode: .plugin(.translate))
@@ -161,7 +151,7 @@ extension AppCore {
 
     /// The retry row a failure leaves behind — the one request the page asks the user to spend.
     func retryTypedTranslation() {
-        guard plugins.isEnabled(.translate), translate.screen == .compose else { return }
+        guard translate.screen == .compose else { return }
         translate.retry(palette.query)
     }
 

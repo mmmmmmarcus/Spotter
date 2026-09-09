@@ -64,13 +64,12 @@ struct PluginLauncherDashboardRegistration {
     let content: () -> AnyView
 }
 
-/// A compiled, signed built-in plugin registration that standardizes discovery without runtime loading.
+/// A compiled, signed built-in plugin registration that standardizes discovery without runtime
+/// loading. Every registered plugin is always on: there is no enable state to read, write, back up
+/// or guard on (owner decision, Sep 2026).
 @MainActor
 struct PluginRegistration {
     let metadata: PluginMetadata
-    let defaultEnabled: Bool
-    var canDisable = true
-    var exportsEnabledState = true
     var permissions: Set<PluginPermission> = []
     var shortcutActions: [PluginActionRegistration] = []
     var launcherCommands: [PluginCommandRegistration] = []
@@ -79,31 +78,23 @@ struct PluginRegistration {
     var dynamicLauncherCommands: (() -> [PluginCommandRegistration])?
     var paletteScreen: PluginPaletteScreenRegistration?
     var launcherDashboard: PluginLauncherDashboardRegistration?
-    var readEnabled: (() -> Bool)?
-    var writeEnabled: ((Bool) -> Void)?
-    var onEnable: () -> Void = {}
-    var onDisable: () -> Void = {}
+    /// Run once from `PluginRegistry.start()`, for a plugin with a manager to bring up.
+    var onStart: () -> Void = {}
     var settingsView: (() -> AnyView)?
 }
 
 /// Ordered built-in registry; `AppCore` remains the sole owner of it and all captured managers.
 @MainActor
 final class PluginRegistry: ObservableObject {
-    private let defaults: UserDefaults
     private var registrations: [PluginID: PluginRegistration] = [:]
     private var orderedIDs: [PluginID] = []
-    private var enabledQueryProviders: [any PluginQueryProvider] = []
+    private var queryProviders: [any PluginQueryProvider] = []
     private var commandOwners: [String: PluginID] = [:]
     private var paletteObservers: [PluginID: AnyCancellable] = [:]
     private var activePaletteScreen: PluginID?
     private var launcherDashboardOwner: PluginID?
     private var started = false
     var onCommandsChanged: (([AppEntry]) -> Void)?
-    var onEnabledStatesChanged: (() -> Void)?
-
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-    }
 
     var plugins: [PluginMetadata] {
         orderedIDs.compactMap { id in
@@ -137,7 +128,7 @@ final class PluginRegistry: ObservableObject {
 
     var launcherCommands: [AppEntry] {
         orderedIDs.flatMap { id -> [AppEntry] in
-            guard isEnabled(id), let registration = registrations[id] else { return [] }
+            guard let registration = registrations[id] else { return [] }
             let dynamic = registration.dynamicLauncherCommands?() ?? []
             return (registration.launcherCommands + dynamic).map(\.entry)
         }
@@ -180,37 +171,9 @@ final class PluginRegistry: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
-        for id in orderedIDs where isEnabled(id) {
-            registrations[id]?.onEnable()
+        for id in orderedIDs {
+            registrations[id]?.onStart()
         }
-    }
-
-    func isEnabled(_ id: PluginID) -> Bool {
-        guard let registration = registrations[id] else { return false }
-        if let readEnabled = registration.readEnabled { return readEnabled() }
-        let key = enabledKey(for: id)
-        guard defaults.object(forKey: key) != nil else { return registration.defaultEnabled }
-        return defaults.bool(forKey: key)
-    }
-
-    func setEnabled(_ enabled: Bool, for id: PluginID) {
-        guard let registration = registrations[id], registration.canDisable,
-            enabled != isEnabled(id)
-        else { return }
-
-        objectWillChange.send()
-        if !enabled { deactivatePaletteScreen(id) }
-        if let writeEnabled = registration.writeEnabled {
-            writeEnabled(enabled)
-        } else {
-            defaults.set(enabled, forKey: enabledKey(for: id))
-        }
-        if started {
-            enabled ? registration.onEnable() : registration.onDisable()
-        }
-        rebuildQueryProviders()
-        onCommandsChanged?(launcherCommands)
-        onEnabledStatesChanged?()
     }
 
     /// Re-publishes the launcher slice after a plugin's dynamic commands change; routing resolves through the same owner map.
@@ -236,34 +199,31 @@ final class PluginRegistry: ObservableObject {
     }
 
     func launcherDashboardView() -> AnyView? {
-        guard let id = launcherDashboardOwner, isEnabled(id) else { return nil }
+        guard let id = launcherDashboardOwner else { return nil }
         return registrations[id]?.launcherDashboard?.content()
     }
 
     func paletteScreenPlaceholder(for id: PluginID) -> String? {
-        guard isEnabled(id) else { return nil }
         guard let screen = registrations[id]?.paletteScreen else { return nil }
         return screen.livePlaceholder?() ?? screen.placeholder
     }
 
     func paletteHourAdjustment(for id: PluginID) -> ((Int) -> Void)? {
-        guard isEnabled(id) else { return nil }
-        return registrations[id]?.paletteScreen?.adjustHours
+        registrations[id]?.paletteScreen?.adjustHours
     }
 
     func paletteSnapshot(for id: PluginID, query: String) -> PluginPaletteSnapshot? {
-        guard isEnabled(id), let screen = registrations[id]?.paletteScreen else { return nil }
+        guard let screen = registrations[id]?.paletteScreen else { return nil }
         return screen.snapshot(query)
     }
 
     func performPalettePrimaryAction(pluginID: PluginID, itemID: String) {
-        guard isEnabled(pluginID), let screen = registrations[pluginID]?.paletteScreen else { return }
+        guard let screen = registrations[pluginID]?.paletteScreen else { return }
         screen.performPrimaryAction(itemID)
     }
 
     func performPaletteSecondaryAction(pluginID: PluginID, itemID: String) -> Bool {
-        guard isEnabled(pluginID),
-            let perform = registrations[pluginID]?.paletteScreen?.performSecondaryAction
+        guard let perform = registrations[pluginID]?.paletteScreen?.performSecondaryAction
         else { return false }
         perform(itemID)
         return true
@@ -271,21 +231,18 @@ final class PluginRegistry: ObservableObject {
 
     /// One back-step for the active plugin screen; false when the screen has no deeper level open.
     func performPaletteBack(pluginID: PluginID) -> Bool {
-        guard isEnabled(pluginID),
-            let handleBack = registrations[pluginID]?.paletteScreen?.handleBack
+        guard let handleBack = registrations[pluginID]?.paletteScreen?.handleBack
         else { return false }
         return handleBack()
     }
 
     func paletteActions(pluginID: PluginID, itemID: String) -> PopoverMenuContent? {
-        guard isEnabled(pluginID), let screen = registrations[pluginID]?.paletteScreen else {
-            return nil
-        }
+        guard let screen = registrations[pluginID]?.paletteScreen else { return nil }
         return screen.actions(itemID)
     }
 
     func activatePaletteScreen(_ id: PluginID) {
-        guard isEnabled(id), let screen = registrations[id]?.paletteScreen else { return }
+        guard let screen = registrations[id]?.paletteScreen else { return }
         guard activePaletteScreen != id else { return }
         if let activePaletteScreen {
             registrations[activePaletteScreen]?.paletteScreen?.onClose()
@@ -300,20 +257,20 @@ final class PluginRegistry: ObservableObject {
         activePaletteScreen = nil
     }
 
-    /// Runs only the precomputed enabled-provider array and returns the first claim by registry order.
+    /// Runs the precomputed provider array and returns the first claim by registry order.
     func evaluate(_ query: String, now: Date = Date(), calendar: Calendar = .current)
         -> PluginQueryResult?
     {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 256 else { return nil }
-        for provider in enabledQueryProviders {
+        for provider in queryProviders {
             if let result = provider.evaluate(trimmed, now: now, calendar: calendar) { return result }
         }
         return nil
     }
 
     func perform(_ key: PluginActionKey) {
-        guard isEnabled(key.pluginID),
+        guard
             let action = registrations[key.pluginID]?.shortcutActions.first(where: { $0.key == key })
         else { return }
         action.perform()
@@ -321,8 +278,7 @@ final class PluginRegistry: ObservableObject {
 
     @discardableResult
     func performCommand(_ commandID: String) -> Bool {
-        guard let owner = commandOwners[commandID], isEnabled(owner),
-            let registration = registrations[owner]
+        guard let owner = commandOwners[commandID], let registration = registrations[owner]
         else { return false }
         let dynamic = registration.dynamicLauncherCommands?() ?? []
         guard
@@ -334,10 +290,6 @@ final class PluginRegistry: ObservableObject {
         return true
     }
 
-    func isCommandEnabled(_ commandID: String) -> Bool {
-        commandOwners[commandID].map(isEnabled) ?? true
-    }
-
     func features(requiring permission: PluginPermission) -> [PluginMetadata] {
         orderedIDs.compactMap { id in
             guard registrations[id]?.permissions.contains(permission) == true else { return nil }
@@ -345,38 +297,7 @@ final class PluginRegistry: ObservableObject {
         }
     }
 
-    /// System features without an enable state may opt out of the complete plugin-state map.
-    func exportedEnabledStates() -> [String: Bool] {
-        Dictionary(uniqueKeysWithValues: orderedIDs.compactMap { id in
-            guard registrations[id]?.exportsEnabledState == true else { return nil }
-            return (id.rawValue, isEnabled(id))
-        })
-    }
-
-    @discardableResult
-    func applyEnabledStates(_ states: [String: Bool]) -> Int {
-        var applied = 0
-        for (rawID, enabled) in states {
-            let id = PluginID(rawValue: rawID)
-            guard registrations[id]?.exportsEnabledState == true else { continue }
-            setEnabled(enabled, for: id)
-            applied += 1
-        }
-        return applied
-    }
-
     private func rebuildQueryProviders() {
-        enabledQueryProviders = orderedIDs.compactMap { id in
-            guard isEnabled(id) else { return nil }
-            return registrations[id]?.queryProvider
-        }
+        queryProviders = orderedIDs.compactMap { registrations[$0]?.queryProvider }
     }
-
-    /// Not private: a plugin split out of another one has to read the old owner's state once to
-    /// inherit a deliberate "off" instead of silently switching itself back on.
-    nonisolated static func enabledKey(for id: PluginID) -> String {
-        "plugin.\(id.rawValue).enabled"
-    }
-
-    private func enabledKey(for id: PluginID) -> String { Self.enabledKey(for: id) }
 }

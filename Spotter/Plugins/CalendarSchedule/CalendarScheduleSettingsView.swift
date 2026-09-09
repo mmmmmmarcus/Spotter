@@ -3,7 +3,6 @@ import SwiftUI
 /// One pane for the whole calendar feature: the schedule screen and the widget card share every
 /// preference here, since both read the same store.
 struct CalendarScheduleSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: DashboardWidgetsStore
 
     var body: some View {
@@ -11,25 +10,6 @@ struct CalendarScheduleSettingsView: View {
             title: "Calendar",
             subtitle: "Your upcoming events in the launcher, one keystroke from a meeting's call."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Calendar",
-                    subtitle:
-                        "Browse the days ahead with My Schedule and join meetings directly. The widget card keeps showing either way.",
-                    systemImage: "calendar", tint: .red
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.calendarSchedule) },
-                            set: { plugins.setEnabled($0, for: .calendarSchedule) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "Calendars") {
                 SettingsRow(
                     title: "Calendar Access",

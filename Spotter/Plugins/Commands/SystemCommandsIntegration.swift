@@ -39,8 +39,7 @@ enum SystemCommandPresenter {
 extension AppCore {
     /// The one funnel both palette activation and the global shortcut reach, so no path can skip the confirmation.
     func runSystemCommand(_ id: SystemCommand.ID) {
-        guard plugins.isEnabled(.commands),
-            let command = SystemCommandCatalog.all.first(where: { $0.id == id })
+        guard let command = SystemCommandCatalog.all.first(where: { $0.id == id })
         else { return }
         if command.confirmation == .required {
             confirmInPalette(

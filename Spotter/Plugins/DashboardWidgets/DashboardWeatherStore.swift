@@ -5,8 +5,10 @@ import Foundation
 /// `DashboardWeatherEngine` stays pure and is handed finished values.
 ///
 /// This reaches the network, so it is gated on explicit consent — off until the user accepts the
-/// dialog in Settings. Every path that could reach the network or surface a reading re-checks
-/// `isEnabled` rather than trusting a caller. Modeled on `CurrencyRateStore`; keep the shapes aligned.
+/// dialog Spotter raises once, at first launch. Every path that could reach the network or surface a
+/// reading re-checks `isEnabled` rather than trusting a caller. Consent is asked exactly once and,
+/// once given, is permanent: there is no off switch (owner decision, Sep 2026), so "asked" and
+/// "granted" are persisted separately — a decline is an answer that leaves the feature off.
 @MainActor
 final class DashboardWeatherStore: ObservableObject {
     /// Open-Meteo (`open-meteo.com`) — no key, no account, free for non-commercial use. Only the
@@ -22,6 +24,8 @@ final class DashboardWeatherStore: ObservableObject {
 
     /// Explicit user consent, persisted locally and mirrored by the trusted settings-sync file.
     @Published private(set) var isEnabled: Bool
+    /// Whether the one dialog has been answered at all — a decline records this without granting.
+    @Published private(set) var hasBeenAsked: Bool
     /// The newest reading, or nil when none has landed — and always nil while consent is withheld.
     @Published private(set) var snapshot: WeatherSnapshot?
     /// Never absent: an unset city reads as `WeatherCity.default` rather than hiding the card.
@@ -32,6 +36,7 @@ final class DashboardWeatherStore: ObservableObject {
 
     private enum Keys {
         static let consent = "dashboard-widgets.weather-enabled"
+        static let asked = "dashboard-widgets.weather-consent-asked"
         static let city = "dashboard-widgets.weather-city"
         static let unit = "dashboard-widgets.weather-unit"
     }
@@ -45,6 +50,7 @@ final class DashboardWeatherStore: ObservableObject {
         self.defaults = defaults
         // Absent reads as false, which is the only safe default for a network feature.
         isEnabled = defaults.bool(forKey: Keys.consent)
+        hasBeenAsked = defaults.bool(forKey: Keys.asked)
         unit = DashboardWeatherEngine.resolvedUnit(from: defaults.string(forKey: Keys.unit))
         city =
             (defaults.data(forKey: Keys.city)
@@ -68,6 +74,27 @@ final class DashboardWeatherStore: ObservableObject {
     /// What the widget may render: nil whenever consent is withheld.
     var reading: WeatherSnapshot? { isEnabled ? snapshot : nil }
 
+    var consentState: WeatherConsentState {
+        DashboardWeatherEngine.consentState(hasBeenAsked: hasBeenAsked, isGranted: isEnabled)
+    }
+
+    /// True only for someone who has never answered. The one place anything decides to ask.
+    var needsConsentPrompt: Bool {
+        DashboardWeatherEngine.shouldPresentConsent(hasBeenAsked: hasBeenAsked, isGranted: isEnabled)
+    }
+
+    /// The one entry point for an answer, from the first-launch dialog or the Settings row that
+    /// stands in for it afterwards. Declining records the answer and leaves the feature off; there
+    /// is no path back through here to switch a granted feature off again.
+    func recordConsent(granted: Bool) {
+        hasBeenAsked = true
+        defaults.set(true, forKey: Keys.asked)
+        guard granted, !isEnabled else { return }
+        isEnabled = true
+        defaults.set(true, forKey: Keys.consent)
+        start()
+    }
+
     /// Starts the refresh loop: fetch whenever the cached reading is older than `refreshInterval`,
     /// otherwise sleep exactly until it expires. Guard 3 — no consent, no loop, so
     /// `AppCore.start()` can call this unconditionally.
@@ -89,27 +116,6 @@ final class DashboardWeatherStore: ObservableObject {
                 let ok = await self.fetchAndStore()
                 try? await Task.sleep(for: .seconds(ok ? Self.refreshInterval : Self.retryInterval))
             }
-        }
-    }
-
-    /// The Settings toggle's only entry point, called after the user accepts the consent dialog.
-    /// Disabling tears the loop down, drops the reading and deletes the cached file — opting out
-    /// shouldn't leave downloaded data behind. The chosen city is a plain preference, so it stays.
-    func setEnabled(_ enabled: Bool) {
-        guard enabled != isEnabled else { return }
-        isEnabled = enabled
-        defaults.set(enabled, forKey: Keys.consent)
-        if enabled {
-            start()
-        } else {
-            pump?.cancel()
-            pump = nil
-            searchTask?.cancel()
-            searchTask = nil
-            searchResults = []
-            isSearching = false
-            snapshot = nil
-            try? FileManager.default.removeItem(at: fileURL)
         }
     }
 
@@ -138,7 +144,9 @@ final class DashboardWeatherStore: ObservableObject {
 
     /// Restores consent, city and unit from a trusted backup or sync file. Trusting such a file is
     /// itself the consent act, so this may switch the feature on — the same rule the other
-    /// consent-gated stores follow. Returns how many fields were touched, for the import summary.
+    /// consent-gated stores follow. A file carrying `false` is not a revocation and not an answer:
+    /// there is no off switch, and this Mac's user still gets asked. Returns how many fields were
+    /// touched, for the import summary.
     @discardableResult
     func applyPreferences(enabled: Bool?, cityData: Data?, unitRawValue: String?) -> Int {
         var count = 0
@@ -152,8 +160,8 @@ final class DashboardWeatherStore: ObservableObject {
                 (try? JSONDecoder().decode(WeatherCity.self, from: cityData)) ?? .default)
             count += 1
         }
-        if let enabled {
-            setEnabled(enabled)
+        if let enabled, enabled {
+            recordConsent(granted: true)
             count += 1
         }
         return count
@@ -225,8 +233,8 @@ final class DashboardWeatherStore: ObservableObject {
     }
 
     /// Deliberately not `URLSession.shared`: a cacheable response would leave a second copy in the
-    /// on-disk `URLCache` that `setEnabled(false)` never deletes. Cacheless, so revoking consent
-    /// really does leave nothing behind.
+    /// on-disk `URLCache` nothing else would ever delete. Cacheless, so a reading only ever exists
+    /// where this store put it.
     private nonisolated static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil

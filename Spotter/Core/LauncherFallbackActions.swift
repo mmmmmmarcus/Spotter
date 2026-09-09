@@ -11,12 +11,7 @@ extension AppCore {
         case .terminal:
             runInTerminal(fallback.query)
         case .fileSearch:
-            // With the plugin on, the row stays inside the palette; Finder is the fallback's fallback.
-            if plugins.isEnabled(.fileSearch) {
-                openFileSearch(query: fallback.query)
-            } else {
-                searchFiles(for: fallback.query)
-            }
+            openFileSearch(query: fallback.query)
         }
     }
 
@@ -31,16 +26,5 @@ extension AppCore {
                 title: "Could Not Run in Terminal", symbol: "exclamationmark.triangle",
                 isNoOp: true)
         }
-    }
-
-    private func searchFiles(for query: String) {
-        guard NSWorkspace.shared.showSearchResults(forQueryString: query) else {
-            AppLog.error("launcher", "Finder file search could not be opened.")
-            hud.show(
-                title: "Could Not Search Files", symbol: "exclamationmark.triangle",
-                isNoOp: true)
-            return
-        }
-        hidePalette(restoreFocus: false)
     }
 }

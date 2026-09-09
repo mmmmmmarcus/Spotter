@@ -111,6 +111,51 @@ struct DashboardWidgetsTests {
             !DashboardWidgetsEngine.clockFollowsCity(
                 cityTimeZoneIdentifier: "Europe/Berlin", clockTimeZoneIdentifier: nil),
             "a clock on System Default is not following a city")
+        // Weather is asked exactly once, and "asked" is not "granted".
+        check(
+            DashboardWeatherEngine.consentState(hasBeenAsked: false, isGranted: false)
+                == .unanswered,
+            "a fresh install has not answered the weather question")
+        check(
+            DashboardWeatherEngine.consentState(hasBeenAsked: true, isGranted: false) == .declined,
+            "a decline is an answer, and leaves weather off")
+        check(
+            DashboardWeatherEngine.consentState(hasBeenAsked: true, isGranted: true) == .granted,
+            "an accepted dialog grants weather")
+        check(
+            DashboardWeatherEngine.consentState(hasBeenAsked: false, isGranted: true) == .granted,
+            "a grant restored from a trusted file counts as answered without a dialog")
+        check(
+            DashboardWeatherEngine.shouldPresentConsent(hasBeenAsked: false, isGranted: false),
+            "the dialog is raised for someone who has never answered")
+        check(
+            !DashboardWeatherEngine.shouldPresentConsent(hasBeenAsked: true, isGranted: false),
+            "someone who declined is never asked again")
+        check(
+            !DashboardWeatherEngine.shouldPresentConsent(hasBeenAsked: true, isGranted: true),
+            "someone who accepted is never asked again")
+        check(
+            !DashboardWeatherEngine.shouldPresentConsent(hasBeenAsked: false, isGranted: true),
+            "a synced grant is not re-asked on the receiving Mac")
+
+        // The clock runs whether or not the weather question has been answered: its saved zone, or
+        // the system's, and never a blank face.
+        check(
+            DashboardWidgetsEngine.resolvedTimeZone(
+                identifier: "Europe/Berlin", fallback: TimeZone(identifier: "Europe/Paris")!)
+                == TimeZone(identifier: "Europe/Berlin")!,
+            "a saved zone drives the clock with no city and no consent")
+        check(
+            DashboardWidgetsEngine.resolvedTimeZone(
+                identifier: nil, fallback: TimeZone(identifier: "Europe/Paris")!)
+                == TimeZone(identifier: "Europe/Paris")!,
+            "an unset zone falls back rather than leaving the clock without one")
+        check(
+            DashboardWidgetsEngine.resolvedTimeZone(
+                identifier: "Nowhere/Nowhere", fallback: TimeZone(identifier: "Europe/Paris")!)
+                == TimeZone(identifier: "Europe/Paris")!,
+            "an unresolvable saved zone falls back rather than stranding the clock")
+
         // 1_000_000_020 is a whole minute past the reference epoch; 1_000_000_000 is 40s short of it.
         let midMinute = Date(timeIntervalSinceReferenceDate: 1_000_000_000)
         check(

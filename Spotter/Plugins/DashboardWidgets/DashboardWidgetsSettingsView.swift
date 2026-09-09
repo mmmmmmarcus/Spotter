@@ -14,8 +14,6 @@ struct DashboardWidgetsSettingsView: View {
     @State private var refreshing = false
     @State private var refreshFailed = false
 
-    private static let timeZoneIdentifiers = TimeZone.knownTimeZoneIdentifiers.sorted()
-
     var body: some View {
         SettingsPane(
             title: "Widgets",
@@ -28,19 +26,24 @@ struct DashboardWidgetsSettingsView: View {
             calendarCard
         }
         .sheet(isPresented: $askingWeatherConsent) {
-            WeatherConsentSheet(
-                onCancel: { askingWeatherConsent = false },
+            WeatherConsentContent(
+                onDecline: {
+                    askingWeatherConsent = false
+                    weather.recordConsent(granted: false)
+                },
                 onAccept: {
                     askingWeatherConsent = false
-                    weather.setEnabled(true)
-                })
+                    weather.recordConsent(granted: true)
+                }
+            )
+            .frame(width: 460)
         }
     }
 
-    /// The clock and the weather complications are one face, so they are one section on one
-    /// location. Weather still has no switch of its own: choosing a city is what turns it on, and
-    /// that button is what raises the consent dialog, so setting a location never contacts anything
-    /// by itself — the offline time-zone picker is the only location control until consent is given.
+    /// The clock and the weather complications are one face on one place, so choosing a city is the
+    /// only location control there is: it sets where the weather is read and hands the clock that
+    /// city's own zone. Until the question is answered the row offers the question instead, and the
+    /// clock runs on whatever zone it already had — nothing is contacted to keep the time.
     private var clockAndWeatherCard: some View {
         SettingsCard(header: "Clock & Weather") {
             SettingsRow(
@@ -49,48 +52,6 @@ struct DashboardWidgetsSettingsView: View {
                 systemImage: "mappin.and.ellipse", tint: .orange
             ) {
                 if weather.isEnabled {
-                    Button("Turn Off Weather") { weather.setEnabled(false) }
-                        .controlSize(.small)
-                } else {
-                    Button("Choose City…") { askingWeatherConsent = true }
-                        .controlSize(.small)
-                }
-            }
-
-            // The clock keeps its own picker until a chosen city names the zone it is already set
-            // to: a city saved before the two shared a location names none, and hiding the picker
-            // then would strand a setting nothing else can reach.
-            if !clockFollowsCity {
-                SettingsDivider()
-                SettingsRow(
-                    title: "Time Zone",
-                    subtitle:
-                        "System Default follows changes made in macOS Settings. Choosing a city "
-                        + "sets this to that city's own zone.",
-                    systemImage: "globe", tint: .orange
-                ) {
-                    Picker("", selection: clockTimeZoneBinding) {
-                        Text("System Default (\(TimeZone.autoupdatingCurrent.identifier))")
-                            .tag("")
-                        ForEach(Self.timeZoneIdentifiers, id: \.self) { identifier in
-                            Text(DashboardWidgetsEngine.readableTimeZone(identifier))
-                                .tag(identifier)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 250)
-                }
-            }
-
-            if weather.isEnabled {
-                SettingsDivider()
-                SettingsRow(
-                    title: "Change City",
-                    subtitle:
-                        "The clock keeps this city's time and shows its temperature, today's range "
-                        + "and condition.",
-                    systemImage: "magnifyingglass", tint: .cyan
-                ) {
                     HStack(spacing: Theme.Spacing.sm) {
                         if weather.isSearching { ProgressView().controlSize(.small) }
                         TextField("Search a city", text: $citySearch)
@@ -98,8 +59,15 @@ struct DashboardWidgetsSettingsView: View {
                             .frame(width: 220)
                             .onChange(of: citySearch) { _, query in weather.search(query) }
                     }
+                } else {
+                    // Consent is asked once at first launch; this is the way back for someone who
+                    // declined it, and the only thing that can ever turn weather on.
+                    Button("Turn On Weather…") { askingWeatherConsent = true }
+                        .controlSize(.small)
                 }
+            }
 
+            if weather.isEnabled {
                 // Results replace the list in place; picking one clears the field so it settles back.
                 ForEach(weather.searchResults) { result in
                     SettingsDivider()
@@ -181,15 +149,6 @@ struct DashboardWidgetsSettingsView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(music.snapshot.isPlaying ? .pink : .secondary)
             }
-
-            SettingsDivider()
-            SettingsRow(
-                title: "Automation Permission",
-                subtitle:
-                    "The card asks Music what is playing through one Apple Event. macOS asks for "
-                    + "Automation access the first time; Music is never launched by Spotter.",
-                systemImage: "lock.shield", tint: .secondary
-            ) { EmptyView() }
         }
     }
 
@@ -212,15 +171,6 @@ struct DashboardWidgetsSettingsView: View {
         }
     }
 
-    /// The clock's own picker stays on screen until a chosen city is what the clock is set to.
-    private var clockFollowsCity: Bool {
-        weather.isEnabled
-            && DashboardWidgetsEngine.clockFollowsCity(
-                cityTimeZoneIdentifier: DashboardWeatherEngine.clockTimeZoneIdentifier(
-                    for: weather.city),
-                clockTimeZoneIdentifier: store.preferences.clockTimeZoneIdentifier)
-    }
-
     private var locationStatus: String {
         let summary = DashboardWidgetsEngine.locationSummary(
             cityLabel: weather.isEnabled ? cityLabel : nil,
@@ -229,7 +179,7 @@ struct DashboardWidgetsSettingsView: View {
             clockTimeZoneIdentifier: store.preferences.clockTimeZoneIdentifier,
             systemTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
         guard weather.isEnabled else {
-            return summary + " · no service is contacted until you choose a city."
+            return summary + " · the clock keeps time offline; no service is contacted."
         }
         return summary
     }
@@ -251,58 +201,5 @@ struct DashboardWidgetsSettingsView: View {
 
     private var unitBinding: Binding<WeatherUnit> {
         Binding(get: { weather.unit }, set: { weather.setUnit($0) })
-    }
-
-    private var clockTimeZoneBinding: Binding<String> {
-        Binding(
-            get: { store.preferences.clockTimeZoneIdentifier ?? "" },
-            set: { store.setClockTimeZoneIdentifier($0) })
-    }
-
-}
-
-private struct WeatherConsentSheet: View {
-    let onCancel: () -> Void
-    let onAccept: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            HStack(spacing: Theme.Spacing.lg) {
-                Image(systemName: "network")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(.cyan)
-                Text("Show the weather on the clock?")
-                    .font(.headline)
-            }
-
-            Text(
-                "Spotter asks \(DashboardWeatherStore.provider) for the current conditions of the "
-                    + "city you choose, every 30 minutes while Spotter is running, and keeps the "
-                    + "latest reading on your Mac. Searching sends what you type in the city field. "
-                    + "No account, no identifiers, and your Mac's location is never read. The city "
-                    + "you pick also sets the clock's time zone, which nothing is contacted for. "
-                    + "Turning it off deletes the cached reading and leaves the clock where it is."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: Theme.Spacing.lg) {
-                Link(destination: DashboardWeatherStore.providerURL) {
-                    HStack(spacing: Theme.Spacing.xs) {
-                        Text(DashboardWeatherStore.providerURL.host() ?? "Provider")
-                        Image(systemName: "arrow.up.right.square")
-                    }
-                    .font(.callout)
-                }
-                Spacer()
-                Button("Not Now", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                Button("Enable", action: onAccept)
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(Theme.Spacing.xxl)
-        .frame(width: 420)
     }
 }

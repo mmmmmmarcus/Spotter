@@ -67,7 +67,6 @@ enum WorldClockPlugin {
                 summary: "Compare local time and keep a launcher list of cities around the world.",
                 systemImage: "globe.americas",
                 tint: .blue),
-            defaultEnabled: true,
             shortcutActions: [PluginActionRegistration(key: .openWorldClock, perform: open)],
             launcherCommands: [
                 PluginCommandRegistration(
@@ -76,12 +75,6 @@ enum WorldClockPlugin {
             ],
             queryProvider: WorldClockQueryProvider(),
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                core?.worldClock.stop()
-                if core?.palette.mode == .plugin(.worldClock) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(WorldClockSettingsView(store: core.worldClock)) })
     }
 
@@ -145,12 +138,11 @@ enum WorldClockPlugin {
 
 extension AppCore {
     func openWorldClock() {
-        guard plugins.isEnabled(.worldClock) else { return }
         showPalette(mode: .plugin(.worldClock))
     }
 
     func copyWorldClockTime(cityID: String) {
-        guard plugins.isEnabled(.worldClock), let result = worldClock.result(for: cityID)
+        guard let result = worldClock.result(for: cityID)
         else { return }
         hidePalette(restoreFocus: false)
         Paster.copyPlainText(result.time)
@@ -158,7 +150,7 @@ extension AppCore {
 
     /// Adds a catalog city from its "Add City" row, clearing the query so the grown list shows.
     func addWorldClockCity(id: String) {
-        guard plugins.isEnabled(.worldClock), let city = WorldClockEngine.city(id: id) else {
+        guard let city = WorldClockEngine.city(id: id) else {
             return
         }
         worldClock.add(city)

@@ -92,7 +92,7 @@ actions, so an existing Define or Grammar binding survives becoming an AI comman
 at all. Every live command is registered at launch rather than only the indexed ones, since those two
 bindings predate the index.
 
-Disabling a plugin makes registry dispatch a no-op while preserving the Carbon registration and saved
+A plugin action with no registered handler makes registry dispatch a no-op while preserving the Carbon registration and saved
 binding. Re-enabling resumes the action without creating plugin-specific branches in `HotKeyManager`.
 Plugins with several commands expose a stable action key per command, so each can be bound directly.
 Screenshot's `Capture Screenshot` action seeds Option-Z exactly once on a fresh install. The seed

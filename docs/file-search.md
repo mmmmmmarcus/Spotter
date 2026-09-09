@@ -77,6 +77,6 @@ aliasing it onto the primary.
 ## The launcher's Search Files row
 
 The launcher appends a **Search Files** fallback row to every non-empty query
-(`Core/LauncherFallback.swift`). With this plugin enabled that row opens this screen with the query
-already typed; with it disabled the row keeps its original behaviour and hands the query to Finder.
+(`Core/LauncherFallback.swift`). That row opens this screen with the query
+already typed.
 One row, one name, and what it does follows the plugin switch.

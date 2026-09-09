@@ -41,19 +41,6 @@ final class TranslateManager: ObservableObject {
         let stored = defaults.stringArray(forKey: Self.targetsKey)
         targetCodes = TranslationLanguages.targets(for: stored ?? TranslationLanguages.defaultTargetCodes)
             .map(\.code)
-        Self.inheritDisabledState(from: defaults)
-    }
-
-    /// One-time, bounded: translation used to belong to Selection Tools (now Search). Somebody who
-    /// had switched that plugin off must not find translation switched back on by the split.
-    private static func inheritDisabledState(from defaults: UserDefaults) {
-        let own = PluginRegistry.enabledKey(for: .translate)
-        let previousOwner = PluginRegistry.enabledKey(for: .selectionTools)
-        guard defaults.object(forKey: own) == nil,
-            defaults.object(forKey: previousOwner) != nil,
-            !defaults.bool(forKey: previousOwner)
-        else { return }
-        defaults.set(false, forKey: own)
     }
 
     /// The API key is the gate: with no key no request can be made, so entering one is the consent

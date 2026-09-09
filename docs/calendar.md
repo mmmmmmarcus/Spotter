@@ -47,8 +47,8 @@ weekday+date) and time spans.
 
 ## Settings
 
-The pane hosts the plugin enable card, the shared calendar preferences (access state, account
+The pane hosts the shared calendar preferences (access state, account
 picker, all-day toggle — moved here from the Widgets page, which now points at this pane), and the
-My Schedule shortcut recorder. Disabling the plugin removes the command and screen and returns an
+My Schedule shortcut recorder. Leaving the screen returns an
 active schedule screen to the launcher; the widget card keeps showing, since widgets have no off
 switch.

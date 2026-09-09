@@ -45,7 +45,6 @@ enum KillProcessPlugin {
                 summary: "Inspect, terminate, force-terminate, and restart running processes.",
                 systemImage: "xmark.octagon",
                 tint: .red),
-            defaultEnabled: true,
             shortcutActions: [PluginActionRegistration(key: .openKillProcess, perform: open)],
             launcherCommands: [
                 PluginCommandRegistration(
@@ -53,12 +52,6 @@ enum KillProcessPlugin {
                     systemImage: "xmark.octagon", actionKey: .openKillProcess, perform: open)
             ],
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                core?.killProcess.stop()
-                if core?.palette.mode == .plugin(.killProcess) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(KillProcessSettingsView()) })
     }
 
@@ -185,7 +178,6 @@ enum KillProcessPlugin {
 
 extension AppCore {
     func openKillProcess() {
-        guard plugins.isEnabled(.killProcess) else { return }
         showPalette(mode: .plugin(.killProcess))
     }
 

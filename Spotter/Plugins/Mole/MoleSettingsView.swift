@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct MoleSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var mole = AppCore.shared.mole
     @State private var pathDraft = AppCore.shared.mole.binaryPathOverride
 
@@ -10,19 +9,6 @@ struct MoleSettingsView: View {
             title: "Mole",
             subtitle: "Drive the Mole CLI from the launcher."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Mole",
-                    subtitle: "Health, cleanup, optimize, purge, uninstall and disk analysis, all rendered in the palette.",
-                    systemImage: "chart.pie", tint: .green
-                ) {
-                    Toggle("", isOn: enabledBinding)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-            }
-
             if !mole.isInstalled {
                 SettingsCallout(
                     title: "Mole not found",
@@ -53,11 +39,5 @@ struct MoleSettingsView: View {
                     + "and deleting one moves it to the Trash — no Terminal, ever.",
                 systemImage: "macwindow")
         }
-    }
-
-    private var enabledBinding: Binding<Bool> {
-        Binding(
-            get: { plugins.isEnabled(.mole) },
-            set: { plugins.setEnabled($0, for: .mole) })
     }
 }

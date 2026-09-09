@@ -16,7 +16,6 @@ struct SettingsBackup: Codable, Sendable {
     var hiddenLauncherKinds: [String]?
     /// Per-entry launcher aliases, keyed by `preferenceKey`. Data, not a capability — an alias grants nothing, so it rides an untrusted restore like favorites do.
     var launcherAliases: [String: String]?
-    var pluginStates: [String: Bool]?
     var pluginPrefs: PluginPrefs?
     var worldClockCities: [String]?
     var quicklinks: [Quicklink]?
@@ -38,13 +37,12 @@ struct SettingsBackup: Codable, Sendable {
             var calendarSourceIdentifier: String?
             var includesAllDayEvents: Bool?
             var clockTimeZoneIdentifier: String?
-            // Weather consent travels with the trusted file: restoring one is itself the consent act.
+            // Weather consent travels with the trusted file: restoring one is itself the consent
+            // act. A file carrying `false` grants nothing and is not an answer — weather has no off
+            // switch, so the receiving Mac is still asked its one question.
             var weatherEnabled: Bool?
             var weatherCity: Data?
             var weatherUnit: String?
-            /// Consent to count input, from before Uptime became a plugin of its own. Read for
-            /// files written then; new files carry it in `PluginPrefs.Uptime` instead.
-            var uptimeEnabled: Bool?
         }
 
         var clipboardRetentionDays: Int?
@@ -158,11 +156,6 @@ struct SettingsBackup: Codable, Sendable {
             // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
             var binaryPath: String?
         }
-        struct Uptime: Codable, Sendable {
-            // Consent travels with the trusted file: restoring one is itself the consent act. The
-            // tallies themselves stay device-local.
-            var enabled: Bool?
-        }
         struct Note: Codable, Sendable {
             // A file written before Notes moved to a folder carries `iCloudSyncEnabled`. It is
             // neither written nor read now: an old snapshot can never start the dormant CloudKit
@@ -179,7 +172,6 @@ struct SettingsBackup: Codable, Sendable {
         var windowManagement: WindowManagement?
         var mole: Mole?
         var note: Note?
-        var uptime: Uptime?
         // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
         var dashboardWidgets: SettingsData.DashboardWidgets?
     }
@@ -217,7 +209,6 @@ struct SettingsBackup: Codable, Sendable {
         var hiddenItems = 0
         var launcherAliases = 0
         var customCommands = 0
-        var plugins = 0
         var contentCollections = 0
     }
 }
@@ -269,8 +260,7 @@ extension SettingsBackup {
                 clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier ?? "",
                 weatherEnabled: core.dashboardWeather.isEnabled,
                 weatherCity: core.dashboardWeather.encodedCity,
-                weatherUnit: core.dashboardWeather.unit.rawValue,
-                uptimeEnabled: nil))
+                weatherUnit: core.dashboardWeather.unit.rawValue))
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -321,7 +311,6 @@ extension SettingsBackup {
         backup.favoriteApps = core.favorites.keys
         backup.hiddenLauncherItems = core.visibility.hiddenItemKeys.sorted()
         backup.launcherAliases = core.aliases.aliases
-        backup.pluginStates = core.plugins.exportedEnabledStates()
         backup.pluginPrefs = gatherPluginPrefs(from: core)
         backup.worldClockCities = core.worldClock.cityIDs
         backup.quicklinks = core.quicklinks.sorted
@@ -396,7 +385,6 @@ extension SettingsBackup {
             gap: d.integer(forKey: WindowManagementDefaults.gapKey),
             cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
         prefs.mole = PluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
-        prefs.uptime = PluginPrefs.Uptime(enabled: core.uptime.isEnabled)
         prefs.note = PluginPrefs.Note(
             windowTransparency: core.notes.windowTransparency,
             autoWindowSizing: core.notes.autoWindowSizing)
@@ -411,9 +399,6 @@ extension SettingsBackup {
         var summary = ApplySummary()
         if let s = settings {
             summary.settingsFields = applySettings(s, to: core, mode: mode)
-        }
-        if let pluginStates {
-            summary.plugins = core.plugins.applyEnabledStates(pluginStates)
         }
         if let customCommands {
             summary.customCommands = core.replaceCustomCommands(customCommands)
@@ -595,10 +580,6 @@ extension SettingsBackup {
                 enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
                 unitRawValue: dashboard.weatherUnit)
         }
-        // Uptime's own field wins; the widget-era field is the fallback for files written before it
-        // became a plugin, so restoring an older snapshot still carries the user's consent across.
-        count += core.uptime.applyPreferences(
-            enabled: prefs.uptime?.enabled ?? prefs.dashboardWidgets?.uptimeEnabled)
         return count
     }
 
@@ -739,10 +720,6 @@ extension SettingsBackup {
                 enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
                 unitRawValue: dashboard.weatherUnit)
         }
-        // The widget-era field, for files written before Uptime became a plugin of its own. New
-        // files carry consent in `PluginPrefs.Uptime`, applied above; applying the same value twice
-        // is a no-op either way.
-        count += core.uptime.applyPreferences(enabled: s.dashboardWidgets?.uptimeEnabled)
         return count
     }
 

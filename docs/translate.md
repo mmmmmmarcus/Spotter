@@ -15,10 +15,6 @@ a favorited command, a ranked command and a stored key all survive the move unto
 resolve their recorder through `AppEntry.hotKeyAction` like every other plugin command, and new
 installs ship both unbound.
 
-`TranslateManager.inheritDisabledState` is the one migration: a user who had explicitly switched
-Selection Tools **off** starts with Translate off too, rather than finding translation switched back
-on by a split they did not ask for. It runs once, only when Translate has no saved state of its own.
-
 ## The API key is the whole gate
 
 There is no separate consent toggle. With no key no request can be made and neither surface can send
@@ -113,5 +109,4 @@ Translate shares `AppCore`'s `SelectedTextCapture` with Search and AI Chat; see
 
 `TranslateResults.snapshot` defaults `hasAPIKey` to `false`, so a caller that forgets to pass it
 renders the blocked page rather than a live one. Clearing the key cancels the active request, empties
-the memo and clears the in-memory result. Disabling the plugin cancels its active work, removes both
-commands, makes their shortcuts no-ops and returns an active plugin screen to the launcher.
+the memo and clears the in-memory result, and both commands then refuse rather than translating.

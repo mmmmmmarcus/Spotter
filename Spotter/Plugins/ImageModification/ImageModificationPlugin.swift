@@ -33,17 +33,10 @@ enum ImageModificationPlugin {
                 id: .imageModification, name: "Image Modification",
                 summary: "Convert, resize, filter, optimize, and edit images with macOS frameworks.",
                 systemImage: "photo.badge.arrow.down", tint: .teal),
-            defaultEnabled: true,
             permissions: [.automation],
             shortcutActions: actions,
             launcherCommands: commands,
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                core?.imageModification.cancel()
-                if core?.palette.mode == .plugin(.imageModification) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(ImageModificationSettingsView()) })
     }
 
@@ -70,7 +63,6 @@ enum ImageModificationPlugin {
 
 extension AppCore {
     func runImageModification(_ operation: ImageOperation) {
-        guard plugins.isEnabled(.imageModification) else { return }
         if operation == .convert {
             showPalette(mode: .plugin(.imageModification))
             return
@@ -81,7 +73,6 @@ extension AppCore {
     }
 
     func convertImage(to format: ImageFormat) {
-        guard plugins.isEnabled(.imageModification) else { return }
         let sourceApp = previousApplication
         hidePalette()
         imageModification.convert(to: format, sourceApp: sourceApp)

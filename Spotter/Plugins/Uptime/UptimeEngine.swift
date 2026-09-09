@@ -13,8 +13,6 @@ struct UptimeInputCounts: Equatable, Sendable {
 struct UptimeSnapshot: Equatable, Sendable {
     var sessionStart: Date?
     var counts: UptimeInputCounts
-
-    static let empty = UptimeSnapshot(sessionStart: nil, counts: .zero)
 }
 
 enum UptimeEngine {

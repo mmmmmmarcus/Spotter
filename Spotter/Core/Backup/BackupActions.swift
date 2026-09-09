@@ -148,7 +148,6 @@ enum BackupActions {
         if s.hiddenItems > 0 { parts.append("\(s.hiddenItems) hidden items") }
         if s.launcherAliases > 0 { parts.append("\(s.launcherAliases) aliases") }
         if s.customCommands > 0 { parts.append("\(s.customCommands) custom commands") }
-        if s.plugins > 0 { parts.append("\(s.plugins) plugins") }
         if s.contentCollections > 0 {
             parts.append("\(s.contentCollections) content collections")
         }

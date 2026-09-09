@@ -14,6 +14,14 @@ enum WeatherUnit: String, CaseIterable, Equatable, Sendable {
     }
 }
 
+/// Where the answer to the one weather question stands. "Asked" and "granted" are two different
+/// facts: a decline is an answer, so it must never be asked again, and it is not a grant.
+enum WeatherConsentState: Equatable, Sendable {
+    case unanswered
+    case declined
+    case granted
+}
+
 /// A place chosen from a search, or the fixed default below. Spotter never reads the Mac's location.
 struct WeatherCity: Codable, Equatable, Identifiable, Sendable {
     let id: Int
@@ -63,6 +71,18 @@ struct WeatherSnapshot: Codable, Equatable, Sendable {
 }
 
 enum DashboardWeatherEngine {
+    /// A grant counts as an answer on its own: it may arrive from a trusted settings file that
+    /// carries no record of a dialog, and asking someone who is already opted in would be absurd.
+    static func consentState(hasBeenAsked: Bool, isGranted: Bool) -> WeatherConsentState {
+        if isGranted { return .granted }
+        return hasBeenAsked ? .declined : .unanswered
+    }
+
+    /// The one-question rule: the dialog is raised only for someone who has never answered it.
+    static func shouldPresentConsent(hasBeenAsked: Bool, isGranted: Bool) -> Bool {
+        consentState(hasBeenAsked: hasBeenAsked, isGranted: isGranted) == .unanswered
+    }
+
     /// WMO 4677, the code table Open-Meteo reports. Grouped the way a forecast reads rather than
     /// code-by-code: the intensity steps inside a family share a symbol and differ only in wording.
     static func condition(forWeatherCode code: Int, isDay: Bool) -> WeatherCondition {

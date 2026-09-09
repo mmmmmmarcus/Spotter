@@ -163,7 +163,6 @@ final class SettingsSyncManager: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.scheduleSave() }
             .store(in: &cancellables)
-        core.plugins.onEnabledStatesChanged = { [weak self] in self?.scheduleSave() }
     }
 
     private func scheduleSave() {

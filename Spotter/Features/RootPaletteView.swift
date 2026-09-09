@@ -72,7 +72,6 @@ struct RootPaletteView: View {
         // Visibility filtering stays downstream of `matches` so its one-deep memo cache is never keyed on hidden state; hidden favorites drop out here too.
         let base = appIndex.matches(vm.query)
             .filter(visibility.isVisible)
-            .filter { plugins.isCommandEnabled($0.id) }
         guard isQueryEmpty else { return LauncherBrowse(entries: base, sections: nil, usage: [:]) }
 
         // The flat array is rebuilt in section order, so the flat selection index and the visible
@@ -1353,7 +1352,7 @@ struct RootPaletteView: View {
     }
 
     /// The Tab cycle's stops for the current plugin set; also decides which modes get the header disc.
-    private var modeCycle: [PaletteMode] { PaletteMode.cycle(isPluginEnabled: plugins.isEnabled) }
+    private var modeCycle: [PaletteMode] { PaletteMode.cycle }
 
     /// Tab walks the empty root surfaces forward, Shift-Tab backward, so any stop is at most one
     /// press away in some direction. A typed launcher query starts a fresh AI Chat turn instead, and

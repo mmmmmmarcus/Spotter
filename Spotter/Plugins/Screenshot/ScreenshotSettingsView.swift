@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ScreenshotSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject private var screenshot = AppCore.shared.screenshot
 
     var body: some View {
@@ -9,20 +8,6 @@ struct ScreenshotSettingsView: View {
             title: "Screenshot",
             subtitle: "Capture regions, windows and screens, read text, or sample a color — straight to the clipboard."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Screenshot",
-                    subtitle: "Show a global crosshair for region, window and screen capture.",
-                    systemImage: "camera.viewfinder",
-                    tint: .blue
-                ) {
-                    Toggle("", isOn: enabledBinding)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "Capture") {
                 SettingsRow(
                     title: "Rounded Corners",
@@ -124,11 +109,5 @@ struct ScreenshotSettingsView: View {
         Binding(
             get: { screenshot.previewDuration },
             set: { screenshot.previewDuration = ScreenshotManager.clampPreviewDuration($0) })
-    }
-
-    private var enabledBinding: Binding<Bool> {
-        Binding(
-            get: { plugins.isEnabled(.screenshot) },
-            set: { plugins.setEnabled($0, for: .screenshot) })
     }
 }

@@ -35,5 +35,5 @@ row by ±1 hour** (the same gesture as the inline card): the offset shows in the
 The saved list itself syncs as `SettingsBackup.worldClockCities`.
 
 The plugin Settings pane searches the macOS city catalog, adds or removes cities and restores the
-three defaults. Disabling the plugin stops its visible-only clock task and exits an active World Clock
+three defaults. Leaving the screen stops its visible-only clock task and exits an active World Clock
 palette screen.

@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct TextReplacementSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: TextReplacementStore
     @ObservedObject var manager: TextReplacementManager
     @State private var prefixDraft: String
@@ -21,27 +20,7 @@ struct TextReplacementSettingsView: View {
             subtitle:
                 "Reusable text to search and paste from the palette — give a snippet a keyword to expand it as you type."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "Snippets",
-                    subtitle:
-                        "Search snippets in the launcher, and expand the keyworded ones in any text field.",
-                    systemImage: "text.badge.plus",
-                    tint: .teal
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.textReplacement) },
-                            set: { plugins.setEnabled($0, for: .textReplacement) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
-            if plugins.isEnabled(.textReplacement), manager.status == .needsAccessibility,
+            if manager.status == .needsAccessibility,
                 store.snippets.contains(where: { $0.keyword != nil })
             {
                 SettingsCallout(

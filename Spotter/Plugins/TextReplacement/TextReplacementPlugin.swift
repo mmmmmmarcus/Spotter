@@ -60,7 +60,6 @@ enum TextReplacementPlugin {
                     "Save named pieces of text to search and paste anywhere — and give a snippet a keyword to expand it as you type.",
                 systemImage: "text.badge.plus",
                 tint: .teal),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: [PluginActionRegistration(key: .openSnippets, perform: open)],
             launcherCommands: [
@@ -82,13 +81,7 @@ enum TextReplacementPlugin {
                     }
             },
             paletteScreen: screen,
-            onEnable: { [weak core] in core?.textReplacementManager.start() },
-            onDisable: { [weak core] in
-                core?.textReplacementManager.stop()
-                if core?.palette.mode == .plugin(.textReplacement) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
+            onStart: { [weak core] in core?.textReplacementManager.start() },
             settingsView: {
                 AnyView(
                     TextReplacementSettingsView(
@@ -135,14 +128,12 @@ enum TextReplacementPlugin {
 
 extension AppCore {
     func openSnippets() {
-        guard plugins.isEnabled(.textReplacement) else { return }
         showPalette(mode: .plugin(.textReplacement))
     }
 
     /// The launcher row's ↵: paste straight into the app the palette was summoned from.
     func pasteSnippet(id: UUID) {
-        guard plugins.isEnabled(.textReplacement),
-            let snippet = textReplacements.snippets.first(where: { $0.id == id })
+        guard let snippet = textReplacements.snippets.first(where: { $0.id == id })
         else { return }
         let previous = previousApplication
         hidePalette(restoreFocus: false)
@@ -151,8 +142,7 @@ extension AppCore {
 
     /// A snippet row's action: paste into the previous app (↵), or copy without pasting (⌘↵).
     func performSnippetRow(itemID: String, paste: Bool) {
-        guard plugins.isEnabled(.textReplacement),
-            let snippet = textReplacements.snippets.first(where: { $0.id.uuidString == itemID })
+        guard let snippet = textReplacements.snippets.first(where: { $0.id.uuidString == itemID })
         else { return }
         if paste {
             pasteSnippet(id: snippet.id)

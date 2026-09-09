@@ -54,7 +54,6 @@ enum FileSearchPlugin {
                 summary: "Find files and folders by name through the system Spotlight index.",
                 systemImage: "doc.text.magnifyingglass",
                 tint: .teal),
-            defaultEnabled: true,
             shortcutActions: [PluginActionRegistration(key: .openFileSearch, perform: open)],
             launcherCommands: [
                 PluginCommandRegistration(
@@ -63,12 +62,6 @@ enum FileSearchPlugin {
                     perform: open)
             ],
             paletteScreen: screen,
-            onDisable: { [weak core] in
-                core?.fileSearch.stop()
-                if core?.palette.mode == .plugin(.fileSearch) {
-                    core?.palette.prepare(mode: .launcher)
-                }
-            },
             settingsView: { AnyView(FileSearchSettingsView()) })
     }
 
@@ -115,13 +108,11 @@ enum FileSearchPlugin {
 
 extension AppCore {
     func openFileSearch() {
-        guard plugins.isEnabled(.fileSearch) else { return }
         showPalette(mode: .plugin(.fileSearch))
     }
 
     /// Opens the launcher's Search Files screen with `query` already typed — where the launcher's own "Search Files" fallback row lands once the plugin is on.
     func openFileSearch(query: String) {
-        guard plugins.isEnabled(.fileSearch) else { return }
         showPalette(mode: .plugin(.fileSearch))
         palette.query = query
         palette.selection = 0

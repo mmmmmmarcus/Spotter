@@ -1,7 +1,8 @@
 # Built-in feature registry
 
 Spotter's system features and plugins are native Swift modules compiled into the signed application.
-System features stay available, while plugins may be independently enabled. There is no runtime bundle
+Every registered feature is always on: a plugin cannot be disabled, and there is no enable state to
+read, write, back up or guard on (owner decision, Sep 2026). There is no runtime bundle
 loader, JavaScript runtime or reflection-based discovery. Adding or removing feature source requires
 rebuilding the app; once built, registry calls have the same performance characteristics as the rest
 of Spotter.
@@ -62,20 +63,19 @@ The shared integration points are:
 
 - `Spotter/Plugins/Infrastructure/PluginTypes.swift` — Foundation-only IDs, metadata, permissions,
   shortcut action IDs and query-provider/result contracts.
-- `Spotter/Plugins/Infrastructure/PluginRegistry.swift` — ordered registration, persisted enable
-  state, lifecycle, settings factories, command routing and the enabled query-provider cache.
+- `Spotter/Plugins/Infrastructure/PluginRegistry.swift` — ordered registration, startup lifecycle,
+  settings factories, command routing and the query-provider cache.
 - `Spotter/Plugins/BuiltInPlugins.swift` — one ordered entry per compiled plugin.
 - `Spotter/Features/Settings/SettingsRootView.swift` — the fixed System group, registered system
   feature rows and the registry-generated Plugins group.
 
-Catalog order is user-visible in Settings and also determines query priority: the first enabled
-provider that claims a query wins. Choose the order deliberately and make providers reject unrelated
+Catalog order is user-visible in Settings and also determines query priority: the first provider
+that claims a query wins. Choose the order deliberately and make providers reject unrelated
 input cheaply.
 
 ## Registration capabilities
 
-Every registration supplies `metadata`, `defaultEnabled` and a standard Settings view. Everything else
-is optional:
+Every registration supplies `metadata` and a standard Settings view. Everything else is optional:
 
 - `permissions` declares macOS grants the feature uses. System → Permissions derives its feature list
   from this metadata rather than maintaining another list.
@@ -84,8 +84,8 @@ is optional:
   `PluginActionKey.standard(...)`. A genuinely primary action may supply `defaultShortcut`; it is
   seeded only once, never overwrites an existing/conflicting Spotter binding, and a later unbind is
   preserved by a separate seed marker.
-- `launcherCommands` contributes signed in-process commands to `AppIndex`. Enabling or disabling the
-  plugin adds or removes them without editing `CommandRegistry` or `AppCore.runCommand`.
+- `launcherCommands` contributes signed in-process commands to `AppIndex`, without editing
+  `CommandRegistry` or `AppCore.runCommand`.
 - `launcherCommands.defaultVisible` defaults to true. Set it to false for secondary commands that
   should ship hidden but remain discoverable in System → Shortcuts. The one-time visibility seed does
   not overwrite a later user choice.
@@ -100,8 +100,6 @@ is optional:
   Settings → Plugins. System features may reuse the registry's command, shortcut and Settings routing
   without being presented as optional plugins. Widgets is one of them: the whole card strip is
   configured on a single System page, a section per card.
-- `canDisable` (default true) pins a registration on. AI Chat and Widgets set it false
-  because they are system features rather than optional plugins.
 - `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
   renders the recorded keycap. Pass the plugin's *existing* `shortcutActions` key rather than
   minting a second one: one `PluginActionKey` then serves the plugin's own Settings pane, its
@@ -121,22 +119,17 @@ is optional:
   background state change re-snapshots the visible list.
 - `launcherDashboard` contributes one non-selectable view above the empty-query launcher rows. The
   registry enforces a single owner so the launcher layout and flat selection remain deterministic.
-- `onEnable` and `onDisable` start and stop work. They run once at startup for enabled plugins and on
-  later state transitions. Both must be idempotent.
-- `readEnabled` and `writeEnabled` adapt a feature-owned state gate. Currency uses these because
-  network consent must remain on `CurrencyRateStore`; ordinary plugins use the registry's
-  bundle-scoped `UserDefaults` key.
-- `exportsEnabledState` controls Settings backup. It defaults to true; set it false only for a system
-  feature whose registry enable state is not user-configurable. Trusted
-  v3 backup/sync snapshots intentionally include network-consent plugin states.
-- Per-plugin **preferences** (not just the enable flag) sync by extending
+- `onStart` brings a plugin's manager up. It runs once, from `PluginRegistry.start()`, and must be
+  idempotent.
+- Per-plugin **preferences** sync by extending
   `SettingsBackup.PluginPrefs` — gather effective values, apply through the owning manager when the
   manager caches state. Change Case, Kill Process, Image Modification, Screenshot, Caffeinate,
   Window Management and Mole are the current entries; a new plugin with preferences adds its own.
 
-Disabled plugin commands disappear from launcher search, shortcut actions no-op, query providers are
-removed from the hot-path cache, and `onDisable` stops ongoing work. A feature-specific entry point
-should still guard `PluginRegistry.isEnabled` as defense in depth.
+A **network consent gate is not an enable state** and never was: it belongs to the owning store, not
+the registry. Currency Conversion is the reference — the plugin is always registered and always
+searchable, while `CurrencyRateStore.isEnabled` decides whether anything is ever downloaded, and its
+Settings switch is that consent act rather than a plugin switch.
 
 Search/filter → result-list → action plugins are palette screens by default. They register
 `PluginPaletteScreenRegistration`, return `PluginPaletteSnapshot` values, and let
@@ -174,8 +167,7 @@ struct ExampleQueryProvider: PluginQueryProvider {
 }
 ```
 
-The registry rebuilds a compact array of enabled providers only when registration or enablement
-changes. Typing performs no settings lookup, reflection, disk read, network request or view creation;
+The registry builds a compact array of providers at registration. Typing performs no settings lookup, reflection, disk read, network request or view creation;
 it walks that array and stops at the first result. Queries are rejected at 256 characters. A provider
 must apply a cheap syntax or prefix check before parsing and should keep immutable indexes in
 `static let` storage. Expensive or network-backed state belongs in an `AppCore`-owned store and is
@@ -207,12 +199,13 @@ The manual creation flow is:
    result list, or a justified dedicated workspace only for sustained editing/complex multi-step work.
 5. Add `<Name>Plugin.swift` with a `@MainActor` registration factory. If the plugin needs a long-lived
    manager, add exactly one owner property to `AppCore` and have the factory capture that instance.
-6. Add a Settings view built from `SettingsPane`, `SettingsCard` and `SettingsRow`. Its first card is
-   conventionally `Plugin` and contains the enable switch bound to `PluginRegistry`.
+6. Add a Settings view built from `SettingsPane`, `SettingsCard` and `SettingsRow`. It has no enable
+   switch: plugins are always on, and the only switch a pane may carry is a consent gate its own
+   store owns.
 7. Add one factory call to the ordered array in `Spotter/Plugins/BuiltInPlugins.swift`. Do not add
    reflection, directory scanning or another registry.
-8. If it runs work, make lifecycle methods idempotent. Palette-only work starts/stops in screen
-   `onOpen`/`onClose`; `onDisable` stops it too and returns an active mode to `.launcher`.
+8. If it runs work, make `onStart` idempotent. Palette-only work starts and stops in the screen's
+   `onOpen`/`onClose`.
 9. If it reaches the network, follow `CurrencyRateStore`: ship off, show explicit provider/cadence/data
    consent, re-check consent before and after every `await`, use a private cacheless session, delete
    cached data on revoke, and include the consent state in the trusted v3 backup/sync snapshot.
@@ -234,7 +227,6 @@ enum ExamplePlugin {
                 summary: "Does one bounded thing.",
                 systemImage: "sparkles",
                 tint: .purple),
-            defaultEnabled: true,
             permissions: [.accessibility],
             shortcutActions: [PluginActionRegistration(key: exampleAction, perform: open)],
             launcherCommands: [
@@ -245,8 +237,7 @@ enum ExamplePlugin {
                     perform: open)
             ],
             queryProvider: ExampleQueryProvider(),
-            onEnable: start,
-            onDisable: stop,
+            onStart: start,
             settingsView: { AnyView(ExampleSettingsView()) })
     }
 }
@@ -259,9 +250,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
 
 - **AI Chat** (`Spotter/Plugins/AIChat/`) — an always-available system feature shown under
   Settings → System as **AI Chat & Command**. It reuses registry infrastructure for Settings routing,
-  commands, permissions and shortcuts, but cannot be disabled and does not export an enable state. It
-  remains inert without the shared OpenRouter key for Spotter-hosted replies, which is entered on
-  that same pane. ↵ sends the composer draft through
+  commands, permissions and shortcuts. It remains inert without the shared OpenRouter key for
+  Spotter-hosted replies, which is entered on that same pane. ↵ sends the composer draft through
   OpenRouter; the ⌘K Actions row Send to ChatGPT opens the same draft at `https://chatgpt.com/?q=…`
   in the default browser. It also owns **AI commands** — a prompt with `{selection}` in it, its own
   shortcut and its own model — which appear as dynamic launcher entries; Define Selected Text and
@@ -279,60 +269,57 @@ shell-command feature; do not use shell commands as an internal plugin API.
 
 ## Current plugins
 
-- **Currency Conversion** (`Spotter/Plugins/CurrencyConversion/`) — the one plugin still disabled
-  by default: its enable switch is the network-consent gate, so shipping it on would grant network
-  access without consent;
-  `CurrencyRateStore` owns consent and daily rates.
-- **Clipboard** (`Spotter/Plugins/Clipboard/`) — enabled by default; disabling stops pasteboard
-  polling while preserving history.
-- **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — enabled by default; expands
+- **Currency Conversion** (`Spotter/Plugins/CurrencyConversion/`) — the plugin is always on, but
+  ships with its rate download **off**: `CurrencyRateStore` owns consent and the daily table, and its
+  Settings switch is that consent act rather than a plugin switch. Without it nothing is contacted
+  and no conversion resolves.
+- **Clipboard** (`Spotter/Plugins/Clipboard/`) — pasteboard polling with a persisted history.
+- **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
   event tap without storing typing history or using the clipboard.
-- **Notes** (`Spotter/Plugins/Note/`) — enabled by default; unlimited local notes in a translucent,
+- **Notes** (`Spotter/Plugins/Note/`) — unlimited local notes in a translucent,
   content-height floating Markdown editor that opens 440 points wide with a 20-point window radius
   and an inset overlay list, plus `Open Notes` and `New Note` actions. Selected text has a native
   editing and visible H1/H2/H3/Text/list format section, wrapped list content uses marker-width
   hanging indents, and a background-only transparency preference syncs through trusted Settings.
   Empty Notes are discarded when the window closes. Its consented private CloudKit sync replicates
   each Note and deletion independently from automatic Settings Sync.
-- **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — enabled by default; user-saved links, files and
+- **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — user-saved links, files and
   deep links published as launcher entries through `dynamicLauncherCommands`, with `{argument}`
   placeholders collected one step at a time on a palette screen using `livePlaceholder`.
-- **Commands** (`Spotter/Plugins/Commands/`) — enabled by default; provides 30 read-only built-in
+- **Commands** (`Spotter/Plugins/Commands/`) — provides 30 read-only built-in
   macOS actions and publishes the user's editable persisted shell commands through
-  `dynamicLauncherCommands`. Disabling it preserves custom commands and every binding, removes both
-  command sources from the launcher, and makes their global shortcuts no-op. Commands never create
+  `dynamicLauncherCommands`. Commands never create
   background-task rows; successful invisible work reports through the brief command HUD, while
-  failures preserve their detailed alerts. Work already running is not terminated when Commands is
-  disabled.
-- **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — enabled by default; lazily loads its
-  Foundation catalog when enabled.
-- **World Clock** (`Spotter/Plugins/WorldClock/`) — enabled by default; local-only, backed by macOS
+  failures preserve their detailed alerts.
+- **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — lazily loads its Foundation catalog on
+  first use.
+- **World Clock** (`Spotter/Plugins/WorldClock/`) — local-only, backed by macOS
   IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
   adjustment; its launcher screen shows a user-managed saved-city list.
-- **Uptime** (`Spotter/Plugins/Uptime/`) — ships **off**; its switch is the consent act for counting
-  input, so the registration reads and writes the enabled state through `UptimeStore` and exports
-  none of it. A palette screen shows today's session, key presses and mouse clicks.
-- **Kill Process** (`Spotter/Plugins/KillProcess/`) — enabled by default; launcher-native palette screen backed by an
+- **Uptime** (`Spotter/Plugins/Uptime/`) — always on, with no switch and no consent dialog (owner
+  decision, Sep 2026). A palette screen shows today's session, key presses and mouse clicks; the
+  counters are counts only and nothing leaves the Mac.
+- **Kill Process** (`Spotter/Plugins/KillProcess/`) — launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
-- **Change Case** (`Spotter/Plugins/ChangeCase/`) — enabled by default; 21 local text transforms, selected-text/clipboard
+- **Change Case** (`Spotter/Plugins/ChangeCase/`) — 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
 - **Search** (`Spotter/Plugins/SelectionTools/`, display-renamed from Selection Tools; the id stays
-  `selection-tools` so persisted state survives) — enabled by default; captures selected text and
+  `selection-tools` so persisted state survives) — captures selected text and
   opens a Google Search in the default browser. Its former AI actions belong to AI Chat and its
   translation belongs to Translate.
-- **Translate** (`Spotter/Plugins/Translate/`) — enabled by default but inert without a Google Cloud
+- **Translate** (`Spotter/Plugins/Translate/`) — inert without a Google Cloud
   Translation API key, which is its only gate. A palette page translates what you type once typing
   pauses, and Translate Selected Text translates the frontmost app's selection; both list one row per
   configured target language.
-- **Image Modification** (`Spotter/Plugins/ImageModification/`) — enabled by default; local Core Image, Vision and
+- **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
   ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
   a searchable target-format palette before any conversion begins, then every operation reports
   batch progress through the launcher background-task surface.
-- **Window Management** (`Spotter/Plugins/WindowManagement/`) — enabled by default; 30 commands
+- **Window Management** (`Spotter/Plugins/WindowManagement/`) — 30 commands
   covering halves, quarters, thirds, sizing, display moves and fullscreen, on a pure geometry engine
   with an AX mover.
-- **Mole** (`Spotter/Plugins/Mole/`) — enabled by default (idle until the CLI is installed); a
+- **Mole** (`Spotter/Plugins/Mole/`) — idle until the CLI is installed; a
   launcher front end for the Mole CLI with no Terminal hand-off — the installer screen is Spotter's
   own scan and native Trash. Launcher app rows offer **Uninstall with Mole**, which confirms first
   and then resolves the exact copy by path and uninstalls as one background task.
@@ -340,9 +327,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   off a menu hub; state-changing runs preview first, go through one confirmed funnel, then return to
   the launcher as persistent background-task rows. Nothing hands off to Terminal.
 - **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
-  persisted state survives) — enabled by default; keeps the Mac awake indefinitely,
+  persisted state survives) — keeps the Mac awake indefinitely,
   for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
-- **Screenshot** (`Spotter/Plugins/Screenshot/`) — enabled by default; Option-Z (seeded once and
+- **Screenshot** (`Spotter/Plugins/Screenshot/`) — Option-Z (seeded once and
   user-editable), the launcher command and the menu-bar menu open the same non-activating crosshair
   overlay without taking focus from the current app. A left drag captures a region through a
   display-scoped ScreenCaptureKit filter, a right click captures the window under the pointer, and

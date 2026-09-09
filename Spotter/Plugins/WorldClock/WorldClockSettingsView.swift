@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct WorldClockSettingsView: View {
-    @EnvironmentObject private var plugins: PluginRegistry
     @ObservedObject var store: WorldClockStore
     @State private var cityQuery = ""
 
@@ -15,25 +14,6 @@ struct WorldClockSettingsView: View {
             title: "World Clock",
             subtitle: "Compare local time and keep your important cities in the launcher."
         ) {
-            SettingsCard(header: "Plugin") {
-                SettingsRow(
-                    title: "World Clock",
-                    subtitle: "Uses the time-zone data built into macOS. No network access.",
-                    systemImage: "globe.americas",
-                    tint: .blue
-                ) {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { plugins.isEnabled(.worldClock) },
-                            set: { plugins.setEnabled($0, for: .worldClock) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-
             SettingsCard(header: "Cities") {
                 if store.cities.isEmpty {
                     SettingsRow(

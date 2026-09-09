@@ -248,7 +248,7 @@ running dot and the availability of the quit actions:
   the app it just quit *was* `previousApp`.
 - **Quit All Applications** — normally the Commands plugin's read-only built-in (`AppCore.runCommand`
   dispatches `plugins.performCommand` first, and `AppIndex.publishEntries` drops the registry's
-  duplicate id while Commands publishes it). With Commands disabled, the `CommandRegistry`
+  duplicate id while Commands publishes it). Without that publication, the `CommandRegistry`
   fallback runs `AppCore.quitAllApps()`: `AppLauncher.quitAllTargets()` is the policy (every
   `.regular` app except Finder — `terminate()` only relaunches it — and Spotter, excluded by PID
   because About/Settings temporarily flips it to `.regular`), the list resolves **once**, the

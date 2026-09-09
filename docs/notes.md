@@ -17,7 +17,7 @@ The plugin registers two launcher commands and two independently bindable global
 - **New Note** creates an empty note and focuses it immediately. It always opens, never toggles,
   since it has a new note to show.
 
-Both routes call `AppCore.openNotes`, which guards plugin enablement, dismisses the launcher when
+Both routes call `AppCore.openNotes`, which dismisses the launcher when
 needed and opens the shared `AuxWindowController` workspace. The translucent window opts into
 resizing, `.floating` level and all-Spaces visibility, but the plugin never creates or retains an
 `NSWindow`. The native window backdrop stays clear while its host neutralizes the title-bar safe-area
@@ -74,7 +74,7 @@ viewport never passes through intermediate heights or scrolls the content while 
 vertical scroller remains disabled until content genuinely exceeds the twenty-line cap, preventing
 the transient scrollbar flash that an about-to-grow viewport would otherwise produce. Explicit UI
 transitions such as opening the notes list still interpolate real window frames.
-Disabling the plugin closes the window and flushes the latest in-memory snapshot.
+Closing the window flushes the latest in-memory snapshot.
 
 While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
 next one. Navigation follows the same newest-first order as the notes list and wraps at either end.
@@ -104,8 +104,10 @@ The wash is deliberately *not* attenuated by Window Transparency: a tint that di
 slider would leave the most see-through windows the least identifiable. Editor text and controls are
 untouched. In the notes list a tinted Note shows a small dot beside its title.
 
-The same popover carries the Window Transparency slider and the Auto Window Sizing switch, both bound
-to the values Settings edits, so the two surfaces can never disagree. Transparency fades exactly one
+The same popover is the **only** place either control lives: it carries the Window Transparency
+slider and the Auto Window Sizing switch, and Notes Settings duplicated neither since Sep 2026 (owner
+decision — the controls belong next to the window they change). Both settings themselves are
+unchanged. Transparency fades exactly one
 layer: the adaptive `panelScrim` over the window's frost. The `.hudWindow` material stays at full
 strength at every setting and the tint film keeps its color, so the desktop shows through the scrim's
 absence rather than through a hole in the window — the frost is what makes a Note read as glass, and
@@ -497,8 +499,8 @@ titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and t
 identical behavior. There is no separate title field, preview surface, formatting palette,
 word/character counter or save-status footer; persistence remains automatic in the background.
 
-The Appearance card in Notes Settings owns the Auto Window Sizing switch and a live Window
-Transparency slider from 0–90%, the same two controls the toolbar's color popover carries.
+Auto Window Sizing and the 0–90% Window Transparency slider live only in the toolbar's color
+popover; Notes Settings carries no Appearance card (owner decision, Sep 2026).
 Transparency fades the adaptive `panelScrim` and nothing else: the `.hudWindow` material and the tint
 film hold their strength, and editor content and controls remain fully opaque throughout. Both values
 are bundle-scoped and ride in trusted Settings backup/sync state, while the system material continues

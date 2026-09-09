@@ -14,9 +14,8 @@ being re-captured as a duplicate Clipboard-history entry.
 re-capturing Spotter's own writes, every write stamps a private `internalType` marker on the
 pasteboard and the poller skips anything carrying it.
 
-Its plugin lifecycle starts this timer only while the plugin is enabled;
-disabling it stops capture without deleting existing history, and re-enabling resumes with the
-current pasteboard change count so old contents are not re-captured.
+Its plugin lifecycle starts this timer once, from `onStart`, with the current pasteboard change
+count so contents present before launch are not re-captured.
 
 ## Store
 
@@ -51,8 +50,7 @@ kinds below. Unlike them it is deliberately *not* exclusive: a capture is an ima
 keeps it and Screenshots Only is the narrower slice. An image capture reaches history at all because
 `AppCore` inserts it directly after a successful capture; the pasteboard copy keeps its internal
 marker, which is what stops the poller from recording a second, differently-named copy of the same
-pixels. A capture from an app the user excluded from history is excluded here too, and disabling the
-Clipboard plugin stops the insert.
+pixels. A capture from an app the user excluded from history is excluded here too.
 
 **Links and emails are derived, never stored.** `ClipboardItem.Kind` stays `text`/`image` — the two
 things capture can actually tell apart — and `ClipboardFilter` reads `ClipboardItem.textForm`
