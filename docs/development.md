@@ -7,6 +7,31 @@ How to build, test, package, and release Spotter.
 - macOS 26 or later (Liquid Glass).
 - Xcode 26 installed — it provides the SwiftUI macro plugin and SDK used to build.
 
+
+## This project's own GitHub login
+
+Spotter's repository lives under a different account from the one `gh` is usually signed into on a
+given Mac, and publishing reads the repository's Actions secrets — so a globally signed-in reader
+gets an HTTP 403 partway through `scripts/release.sh publish`, after the version commit is already
+made. `gh` 2.35 has no `auth switch` and no per-repository account, but it honours `GH_CONFIG_DIR`,
+so the project keeps a config directory of its own:
+
+```bash
+source scripts/gh-env.sh && gh auth login
+```
+
+That directory is `~/.config/gh-spotter` — deliberately outside the working tree, since it holds an
+OAuth token and a token inside the repository is one `git add -A` away from being published. Only
+the user runs that login; tooling never does.
+
+`scripts/release.sh` and `scripts/release-preflight.sh` source `scripts/gh-env.sh`, which exports
+`GH_CONFIG_DIR` only when that directory exists — so a fresh clone keeps using the global login and
+nothing breaks for someone who has not set one up. `git push` follows the same identity through a
+repository-local credential helper in `.git/config`, which is not version-controlled.
+
+Verify the split with `gh auth status` (global) against
+`GH_CONFIG_DIR=~/.config/gh-spotter gh auth status` (this project).
+
 ## First-time setup
 
 Debug builds sign with the release Developer ID identity when it is in the keychain, which keeps

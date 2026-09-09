@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Use this project's own GitHub login when one has been set up; see scripts/gh-env.sh.
+. "$ROOT/scripts/gh-env.sh"
+
 usage() {
     cat >&2 <<'EOF'
 Usage:
