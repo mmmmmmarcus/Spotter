@@ -186,7 +186,7 @@ private struct LauncherFallbackRow: View {
         HStack(spacing: Theme.Spacing.lg) {
             Image(systemName: fallback.action.systemImage)
                 .font(.body)
-                .symbolRenderingMode(.hierarchical)
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
             Text(fallback.title)
@@ -222,7 +222,7 @@ private struct BackgroundTaskRow: View {
         HStack(spacing: Theme.Spacing.lg) {
             Image(systemName: task.state == .running ? task.systemImage : task.state.systemImage)
                 .font(.body)
-                .symbolRenderingMode(.hierarchical)
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {

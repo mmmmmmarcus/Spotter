@@ -110,7 +110,7 @@ struct CalculatorCard: View {
             case .error(let message):
                 HStack(spacing: Theme.Spacing.md) {
                     Image(systemName: "exclamationmark.triangle")
-                        .symbolRenderingMode(.hierarchical)
+                        .symbolRenderingMode(.monochrome)
                     Text(message)
                         .lineLimit(1)
                 }

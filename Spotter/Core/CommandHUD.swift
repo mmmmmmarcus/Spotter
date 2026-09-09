@@ -120,7 +120,7 @@ private struct CommandHUDView: View {
             HStack(spacing: Theme.Spacing.lg) {
                 Image(systemName: feedback.symbol)
                     .font(Theme.Typography.headerIcon)
-                    .symbolRenderingMode(.hierarchical)
+                    .symbolRenderingMode(.monochrome)
                     // A no-op reports that nothing happened, so it reads quieter than a real change.
                     .foregroundStyle(feedback.isNoOp ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                 Text(feedback.title)

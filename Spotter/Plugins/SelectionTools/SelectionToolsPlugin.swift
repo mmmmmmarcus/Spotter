@@ -44,8 +44,7 @@ enum SelectionToolsPlugin {
                     actionKey: .searchSelectedText,
                     perform: runCommand)
             ],
-            paletteScreen: screen,
-            settingsView: { AnyView(SelectionToolsSettingsView()) })
+            paletteScreen: screen)
     }
 }
 

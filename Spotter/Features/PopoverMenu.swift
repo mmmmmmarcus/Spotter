@@ -104,7 +104,7 @@ private struct PopoverMenuRow: View {
                 case .symbol(let name):
                     Image(systemName: name)
                         .font(Theme.Typography.menuIcon)
-                        .symbolRenderingMode(.hierarchical)
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(item.isDestructive ? Color.red : Color.secondary)
                         .frame(width: Theme.Size.menuIcon, height: Theme.Size.menuIcon)
                 case .file(let path):

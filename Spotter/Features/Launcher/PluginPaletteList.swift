@@ -119,7 +119,7 @@ private struct PluginPaletteRowIcon: View {
             case .symbol(let name):
                 Image(systemName: name)
                     .font(.title3)
-                    .symbolRenderingMode(.hierarchical)
+                    .symbolRenderingMode(.monochrome)
                     .foregroundStyle(.secondary)
             case .tintedSymbol(let name, let tint):
                 RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)

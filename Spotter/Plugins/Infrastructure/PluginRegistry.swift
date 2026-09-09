@@ -96,12 +96,15 @@ final class PluginRegistry: ObservableObject {
     private var started = false
     var onCommandsChanged: (([AppEntry]) -> Void)?
 
+    /// Only those with something to configure: a plugin whose one binding lives in Settings ▸
+    /// Shortcuts has nothing left to show, and a sidebar row onto a bare title is a dead end.
     var plugins: [PluginMetadata] {
         orderedIDs.compactMap { id in
-            guard let metadata = registrations[id]?.metadata,
-                metadata.settingsPlacement == .plugin
+            guard let registration = registrations[id],
+                registration.metadata.settingsPlacement == .plugin,
+                registration.settingsView != nil
             else { return nil }
-            return metadata
+            return registration.metadata
         }
     }
 

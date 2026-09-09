@@ -119,7 +119,7 @@ private struct CalcHistoryRow: View {
                 .overlay(
                     Image(systemName: "plus.forwardslash.minus")
                         .font(.system(size: 12))
-                        .symbolRenderingMode(.hierarchical)
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(.secondary)
                 )
             Text(entry.expression)

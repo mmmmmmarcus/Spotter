@@ -431,6 +431,12 @@ shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not 
 - **`SettingsRow`**: title (+ optional `statusDot`), optional caption subtitle, trailing control, fixed `.horizontal xl / .vertical lg` rhythm. There is no leading-glyph parameter.
 - **`SettingsCallout`**: title + optional message in a `tint`-washed box, with an optional trailing control. `tint` colours the box; it no longer feeds a glyph.
 
+**Symbols render monochrome** (owner decision, Sep 2026). Every `Image(systemName:)` in the app
+uses `.symbolRenderingMode(.monochrome)`; `.hierarchical` is not used anywhere. A hierarchical symbol
+carries its own internal shading, which beside text reads as a second weight rather than as depth —
+most visibly in the palette's leading slot, hard against the caret. Colour comes from
+`foregroundStyle` and a Theme token, never from the symbol's own layers.
+
 **No leading glyph outside the sidebar** (owner decision, Sep 2026). Section headers, rows and
 callouts across every Settings pane are text-only; the sidebar keeps its tinted tiles, because those
 name a destination rather than decorate a title. Per-item *artwork* is not a glyph and stays — an app

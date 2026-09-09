@@ -245,7 +245,7 @@ private struct ClipboardRow: View {
             .overlay(
                 Image(systemName: systemName)
                     .font(.system(size: 12))
-                    .symbolRenderingMode(.hierarchical)
+                    .symbolRenderingMode(.monochrome)
                     .foregroundStyle(.secondary)
             )
     }
@@ -329,7 +329,7 @@ struct ClipboardPreview: View {
                     )
             } placeholder: {
                 Image(systemName: "photo").font(.system(.largeTitle))
-                    .symbolRenderingMode(.hierarchical).foregroundStyle(.tertiary)
+                    .symbolRenderingMode(.monochrome).foregroundStyle(.tertiary)
             }
         }
     }

@@ -14,7 +14,6 @@
 		045A4B42912E9F058A9EC8C5 /* NoteFolderIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41796FF72EE139CF7ED0A32 /* NoteFolderIO.swift */; };
 		04899D47DDE5357CBA41FBE0 /* FinderSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347A458A28E4B4070FD3C024 /* FinderSelection.swift */; };
 		04BD0C95C5A98DB1E9B4122D /* CurrencyConversionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6919806BEBF9D1E830E9E0A /* CurrencyConversionSettingsView.swift */; };
-		0527FC6AB7CD093420A9CEA3 /* SelectionToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */; };
 		05B869933FF72958D085019A /* TerminalCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E0FCA72B3EF5C8E00F2ED6 /* TerminalCommandRunner.swift */; };
 		05E166214EB13354668D8FE3 /* TextReplacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AF8927AABC43F0F4697DEA /* TextReplacementEngine.swift */; };
 		0786DFECE4F2486AFEF16653 /* BackgroundTaskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53812463933BC7F47104B76B /* BackgroundTaskStore.swift */; };
@@ -325,7 +324,6 @@
 		3B5534165D6477C68E4E8B63 /* ChangeCaseSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeCaseSettingsView.swift; sourceTree = "<group>"; };
 		3C21A51F218D5BF5BAF45E5B /* WindowMover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMover.swift; sourceTree = "<group>"; };
 		3CC9BA4857734F23518D0B11 /* ScreenshotFileName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotFileName.swift; sourceTree = "<group>"; };
-		3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolsSettingsView.swift; sourceTree = "<group>"; };
 		3EF6651871870579AC38B920 /* UptimeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UptimeEngine.swift; sourceTree = "<group>"; };
 		3EF66C6ACEBE04CFA8A66339 /* SelectedTextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedTextCapture.swift; sourceTree = "<group>"; };
 		3FBEAA0B13F8EAC4A96E6971 /* CommandID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandID.swift; sourceTree = "<group>"; };
@@ -895,7 +893,6 @@
 				CBC9C7B1C931032E7A8857D7 /* SelectionToolsManager.swift */,
 				A0A385D1DE1C72BBE9C9892E /* SelectionToolsPlugin.swift */,
 				9FCD067CF03771680ED94C60 /* SelectionToolsResults.swift */,
-				3D4BE54EB549E451575A9CB2 /* SelectionToolsSettingsView.swift */,
 				D10E544C780380D882E6910C /* SelectionToolsTypes.swift */,
 			);
 			path = SelectionTools;
@@ -1358,7 +1355,6 @@
 				6BCD0BBDFF479DB1510AC4C2 /* SelectionToolsManager.swift in Sources */,
 				189C24F0A10D6480C64AEE6D /* SelectionToolsPlugin.swift in Sources */,
 				B0C094B6F69225388968BF06 /* SelectionToolsResults.swift in Sources */,
-				0527FC6AB7CD093420A9CEA3 /* SelectionToolsSettingsView.swift in Sources */,
 				A612A1A1ED5D021387F6F198 /* SelectionToolsTypes.swift in Sources */,
 				DFE0BBBAB57FDCC7D82536DE /* SettingsBackup.swift in Sources */,
 				CA4761943167D017165DF6FD /* SettingsBackupData.swift in Sources */,

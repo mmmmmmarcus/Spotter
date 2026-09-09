@@ -104,7 +104,7 @@ private struct AIChatHistoryRow: View {
         HStack(spacing: Theme.Spacing.lg) {
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.title3)
-                .symbolRenderingMode(.hierarchical)
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
@@ -175,7 +175,7 @@ private struct AIChatStatusRow: View {
         HStack(spacing: Theme.Spacing.lg) {
             Image(systemName: symbol)
                 .font(Theme.Typography.rowTrailing)
-                .symbolRenderingMode(.hierarchical)
+                .symbolRenderingMode(.monochrome)
                 .symbolEffect(.pulse, isActive: pulses)
                 .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.rowIcon)

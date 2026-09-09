@@ -1502,7 +1502,7 @@ private struct ClipboardFilterButton: View {
             HStack(spacing: Theme.Spacing.xxs) {
                 Image(systemName: filter.systemImage)
                     .font(Theme.Typography.bar)
-                    .symbolRenderingMode(.hierarchical)
+                    .symbolRenderingMode(.monochrome)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .semibold))
             }
@@ -1559,7 +1559,7 @@ struct EmptyResults: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "magnifyingglass").font(.largeTitle)
-                .symbolRenderingMode(.hierarchical).foregroundStyle(.tertiary)
+                .symbolRenderingMode(.monochrome).foregroundStyle(.tertiary)
             Text(text).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
