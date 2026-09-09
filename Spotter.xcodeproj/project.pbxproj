@@ -39,6 +39,7 @@
 		1598906F2EF3E633435A2962 /* PluginRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C447EC230F950212A0D676 /* PluginRegistry.swift */; };
 		18035C7DA4AC20617C274AE8 /* ShellCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7441AEA90EAD88A1E78D22C0 /* ShellCommandRunner.swift */; };
 		189C24F0A10D6480C64AEE6D /* SelectionToolsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A385D1DE1C72BBE9C9892E /* SelectionToolsPlugin.swift */; };
+		1A397D93A68CBE63378292D1 /* DashboardWeatherLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C652D385E897B412FCCE468 /* DashboardWeatherLocation.swift */; };
 		1AEBCC14B3F6E69AC2C53973 /* RunningApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DFC1BD2FC739DA6D944DF0 /* RunningApps.swift */; };
 		1BEBC6EF26B3013AEDEDC2EF /* ShortcutsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2B6E0210EE0AAE0B9CB19D /* ShortcutsSettingsView.swift */; };
 		1D1591C34AD5BED636B06898 /* HyperKeyTap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79BCC858A42FEC5901581AC /* HyperKeyTap.swift */; };
@@ -409,6 +410,7 @@
 		964BE9F71D0D45A8468D1F47 /* ImageThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageThumbnail.swift; sourceTree = "<group>"; };
 		9970E8C7ADE0D645E9DF7EE7 /* KillProcessEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KillProcessEngine.swift; sourceTree = "<group>"; };
 		99AF8927AABC43F0F4697DEA /* TextReplacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementEngine.swift; sourceTree = "<group>"; };
+		9C652D385E897B412FCCE468 /* DashboardWeatherLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWeatherLocation.swift; sourceTree = "<group>"; };
 		9C94EBE4ECBE73CE017D8F24 /* CalculatorHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorHistoryStore.swift; sourceTree = "<group>"; };
 		9CEE076F5688F414675AC47E /* ConfirmationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmationCard.swift; sourceTree = "<group>"; };
 		9DF791D9740CBFE37A39760E /* SearchScopesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScopesCard.swift; sourceTree = "<group>"; };
@@ -763,6 +765,7 @@
 				E0D8017FF4F6F4F2F3C541DD /* DashboardMusicStore.swift */,
 				02AD8528C0DC90F5C89B8F76 /* DashboardWeatherConsentView.swift */,
 				E1A5104C40D9A6C6391AE462 /* DashboardWeatherEngine.swift */,
+				9C652D385E897B412FCCE468 /* DashboardWeatherLocation.swift */,
 				A7CDE08D2DEEAA6D2430D819 /* DashboardWeatherStore.swift */,
 				2FABAD3BE47CB4272128AAD7 /* DashboardWidgetsEngine.swift */,
 				85927C817E199488DB61F16D /* DashboardWidgetsPlugin.swift */,
@@ -1231,6 +1234,7 @@
 				09B7139FB21A6F8CD4D8EBD2 /* DashboardMusicStore.swift in Sources */,
 				B32EC335F029958C823E5A5E /* DashboardWeatherConsentView.swift in Sources */,
 				6F317CF7D762C41794F3A96C /* DashboardWeatherEngine.swift in Sources */,
+				1A397D93A68CBE63378292D1 /* DashboardWeatherLocation.swift in Sources */,
 				688C8EDEC59BCD200CB9F870 /* DashboardWeatherStore.swift in Sources */,
 				36246E0AA712FC57D048E1CB /* DashboardWidgetsEngine.swift in Sources */,
 				97076BD1FFA1DBFCECADCE5C /* DashboardWidgetsPlugin.swift in Sources */,

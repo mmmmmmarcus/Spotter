@@ -10,7 +10,6 @@ struct DashboardWidgetsSettingsView: View {
     @ObservedObject var music: DashboardMusicStore
 
     @State private var askingWeatherConsent = false
-    @State private var citySearch = ""
     @State private var refreshing = false
     @State private var refreshFailed = false
 
@@ -35,54 +34,29 @@ struct DashboardWidgetsSettingsView: View {
         }
     }
 
-    /// The clock and the weather complications are one face on one place, so choosing a city is the
-    /// only location control there is: it sets where the weather is read and hands the clock that
-    /// city's own zone. Until the question is answered the row offers the question instead, and the
-    /// clock runs on whatever zone it already had — nothing is contacted to keep the time.
+    /// The pane's opening section carries no header — a pane's first group is not named. The clock
+    /// and the weather complications are one face on one place, and that place is this Mac's own:
+    /// there is nothing to pick, so the row reports where the reading is taken and what the clock is
+    /// running on. Until the question is answered the row offers the question instead, and the clock
+    /// runs on whatever zone it already had — nothing is contacted to keep the time.
     private var clockAndWeatherCard: some View {
-        Section("Clock & Weather") {
-            SettingsRow(title: "Location", subtitle: locationStatus) {
-                if weather.isEnabled {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        if weather.isSearching { ProgressView().controlSize(.small) }
-                        TextField("Search a city", text: $citySearch)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 220)
-                            .onChange(of: citySearch) { _, query in weather.search(query) }
-                    }
-                } else {
-                    // Consent is asked once at first launch; this is the way back for someone who
-                    // declined it, and the only thing that can ever turn weather on.
-                    Button("Turn On Weather…") { askingWeatherConsent = true }
-                        .controlSize(.small)
-                }
-            }
-
+        Section {
             if weather.isEnabled {
-                // Results replace the list in place; picking one clears the field so it settles back.
-                ForEach(weather.searchResults) { result in
-                    SettingsRow(
-                        title: result.name,
-                        subtitle: result.detailLabel.isEmpty ? nil : result.detailLabel
-                    ) {
-                        // Whole-record, not id: a city saved before it carried a zone must stay
-                        // choosable, since re-picking it is what hands the clock that zone.
-                        Button(weather.city == result ? "Selected" : "Choose") {
-                            chooseCity(result)
-                        }
-                        .controlSize(.small)
-                        .disabled(weather.city == result)
-                    }
+                SettingsRow(
+                    title: "Location", subtitle: locationStatus, statusDot: locationStatusDot
+                ) {
+                    locationAction
                 }
 
                 SettingsRow(title: "Units") {
-                    Picker("", selection: unitBinding) {
+                    // No width of its own: the row's own trailing alignment is what places it, the
+                    // way every other control in a grouped `Form` row is placed.
+                    Picker("Units", selection: unitBinding) {
                         ForEach(WeatherUnit.allCases, id: \.self) { unit in
                             Text(unit.label).tag(unit)
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 220)
                 }
 
                 SettingsRow(title: "Conditions", subtitle: readingStatus) {
@@ -95,22 +69,34 @@ struct DashboardWidgetsSettingsView: View {
                         }
                     }
                     .controlSize(.small)
-                    .disabled(refreshing)
+                    // Nothing to update without a place: the Location row above states why, and a
+                    // button that could only fail is worse than one that is plainly unavailable.
+                    .disabled(
+                        refreshing || !DashboardWeatherEngine.isLocated(weather.locationState))
+                }
+            } else {
+                // Consent is asked once at first launch; this is the way back for someone who
+                // declined it, and the only thing that can ever turn weather on.
+                SettingsRow(title: "Weather", subtitle: locationStatus) {
+                    Button("Turn On Weather…") { askingWeatherConsent = true }
+                        .controlSize(.small)
                 }
             }
         }
     }
 
-    /// One act, both halves: the city is the weather's place and its own zone is the clock's, which
-    /// is what makes this one location rather than two kept in step by hand. Both writes are local —
-    /// whether anything is fetched stays the weather store's own `isEnabled` decision.
-    private func chooseCity(_ city: WeatherCity) {
-        weather.setCity(city)
-        if let identifier = DashboardWeatherEngine.clockTimeZoneIdentifier(for: city) {
-            store.setClockTimeZoneIdentifier(identifier)
+    /// A failure the user can act on gets the way to act on it; a policy-restricted Mac gets the
+    /// sentence alone, since there is nothing there for it to open.
+    @ViewBuilder
+    private var locationAction: some View {
+        if DashboardWeatherEngine.opensLocationSettings(for: weather.locationState) {
+            Button("Open Location Settings") { Permissions.openLocationSettings() }
+                .controlSize(.small)
+        } else if case .restricted = weather.locationState {
+            Text("Restricted")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        citySearch = ""
-        weather.clearSearch()
     }
 
     private var musicCard: some View {
@@ -144,21 +130,27 @@ struct DashboardWidgetsSettingsView: View {
     }
 
     private var locationStatus: String {
-        let summary = DashboardWidgetsEngine.locationSummary(
-            cityLabel: weather.isEnabled ? cityLabel : nil,
-            cityTimeZoneIdentifier: DashboardWeatherEngine.clockTimeZoneIdentifier(
-                for: weather.city),
+        guard weather.isEnabled else {
+            return DashboardWidgetsEngine.clockSummary(
+                clockTimeZoneIdentifier: store.preferences.clockTimeZoneIdentifier,
+                systemTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
+                + " · the clock keeps time offline; no service is contacted."
+        }
+        return DashboardWeatherEngine.locationSummary(
+            state: weather.locationState,
             clockTimeZoneIdentifier: store.preferences.clockTimeZoneIdentifier,
             systemTimeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
-        guard weather.isEnabled else {
-            return summary + " · the clock keeps time offline; no service is contacted."
-        }
-        return summary
     }
 
-    private var cityLabel: String {
-        let detail = weather.city.detailLabel
-        return detail.isEmpty ? weather.city.name : "\(weather.city.name), \(detail)"
+    /// Green once a fix is in, orange for every state that has no weather to show — the row's own
+    /// sentence says which.
+    private var locationStatusDot: Color? {
+        guard weather.isEnabled else { return nil }
+        switch weather.locationState {
+        case .located: return .green
+        case .waiting: return nil
+        case .denied, .restricted, .unavailable: return .orange
+        }
     }
 
     private var readingStatus: String {

@@ -22,32 +22,37 @@ enum WeatherConsentState: Equatable, Sendable {
     case granted
 }
 
-/// A place chosen from a search, or the fixed default below. Spotter never reads the Mac's location.
-struct WeatherCity: Codable, Equatable, Identifiable, Sendable {
-    let id: Int
-    let name: String
+/// What macOS allows, as a plain value — a Foundation mirror of CoreLocation's status, so the pure
+/// layer never sees a `CLLocationManager`.
+enum WeatherLocationAuthorization: String, Equatable, Sendable {
+    case notDetermined
+    case denied
+    case restricted
+    case authorized
+}
+
+/// Where the reading is taken: one coarse fix from Location Services, at the precision a city
+/// forecast needs and no finer. There is no manual city, so this is the only place weather has.
+struct WeatherPlace: Codable, Equatable, Sendable {
     let latitude: Double
     let longitude: Double
-    let country: String?
-    let region: String?
-    /// The city's own zone, as the geocoder named it — what makes one location serve the clock as
-    /// well as the weather. Optional on purpose: a city saved before the two shared a location
-    /// carries none, and that must leave the clock on the setting it already had.
-    let timeZoneIdentifier: String?
+    /// The zone Open-Meteo names for these coordinates, learned from the forecast it already answers
+    /// with `timezone=auto`. Nil until the first reading lands, which is what leaves an offline Mac
+    /// on the clock zone it already had rather than stripping it of one.
+    var timeZoneIdentifier: String? = nil
+}
 
-    /// "Guangzhou, Guangdong, China" — enough to tell same-named places apart in the picker.
-    var detailLabel: String {
-        [region, country].compactMap { $0?.nilIfBlank }.joined(separator: ", ")
-    }
-
-    /// Shown until the user picks their own. A fixed place, not a guess at where this Mac is —
-    /// deriving one from the locale or time zone would be location inference by another name.
-    /// The identifier is Open-Meteo's, so searching Tokyo marks this row as already selected.
-    /// It deliberately carries no time zone: the fallback stands in for the weather half only, and
-    /// a place the user never chose must never retime the clock.
-    static let `default` = WeatherCity(
-        id: 1_850_147, name: "Tokyo", latitude: 35.6895, longitude: 139.69171,
-        country: "Japan", region: "Tokyo", timeZoneIdentifier: nil)
+/// What Spotter may honestly say about where the weather is read. Removing manual entry removed the
+/// only recourse, so every failure names itself: none of them falls back to somewhere else's
+/// weather, which would be a wrong reading with no way to correct it.
+enum WeatherLocationState: Equatable, Sendable {
+    /// Permission is unanswered, or the first fix is still in flight.
+    case waiting
+    case located(WeatherPlace)
+    case denied
+    case restricted
+    /// Allowed, but no fix — Location Services off system-wide, or the request failed.
+    case unavailable
 }
 
 /// One rendered weather state: an SF Symbol and the short phrase beneath it.
@@ -57,17 +62,25 @@ struct WeatherCondition: Equatable, Sendable {
 }
 
 struct WeatherSnapshot: Codable, Equatable, Sendable {
-    let cityID: Int
-    let cityName: String
+    let latitude: Double
+    let longitude: Double
     /// Always Celsius on disk and in flight; the view converts for display.
     let temperatureCelsius: Double
     let weatherCode: Int
     let isDay: Bool
     let fetchedAt: Date
-    /// Today's low and high, in the city's own day. Optional on purpose: a file cached before the
-    /// daily fetch existed still decodes, and the provider may answer without a daily block.
+    /// Today's low and high, in the located place's own day. Optional on purpose: the provider may
+    /// answer without a daily block.
     var lowCelsius: Double?
     var highCelsius: Double?
+    /// The zone the forecast named for these coordinates — the clock's, and what lets a relaunch
+    /// keep the located zone without waiting on a fresh fix.
+    var timeZoneIdentifier: String?
+
+    var place: WeatherPlace {
+        WeatherPlace(
+            latitude: latitude, longitude: longitude, timeZoneIdentifier: timeZoneIdentifier)
+    }
 }
 
 enum DashboardWeatherEngine {
@@ -235,23 +248,132 @@ enum DashboardWeatherEngine {
         return (-low / span, (1 - low) / span)
     }
 
-    /// The clock time zone choosing this city sets, or nil when it names none Spotter can resolve —
-    /// an unusable or absent identifier must never overwrite a working clock setting. Reading a
-    /// city's own zone is not location inference: it is the place the user picked, not this Mac's.
-    static func clockTimeZoneIdentifier(for city: WeatherCity) -> String? {
-        guard let identifier = city.timeZoneIdentifier, TimeZone(identifier: identifier) != nil
+    /// The one state machine behind everything the card and the Settings row say: what macOS allows,
+    /// and whether a fix has landed. A refusal is never softened into a reading from somewhere else —
+    /// there is no city to fall back to any more, and a stale coordinate is not evidence of where
+    /// this Mac is now.
+    static func locationState(
+        authorization: WeatherLocationAuthorization, place: WeatherPlace?, hasFailedFix: Bool
+    ) -> WeatherLocationState {
+        switch authorization {
+        case .restricted: return .restricted
+        case .denied: return .denied
+        case .notDetermined: return .waiting
+        case .authorized:
+            guard let place else { return hasFailedFix ? .unavailable : .waiting }
+            return .located(place)
+        }
+    }
+
+    /// Only a located Mac has weather to draw, so this gates both the request and the complications.
+    static func isLocated(_ state: WeatherLocationState) -> Bool {
+        if case .located = state { return true }
+        return false
+    }
+
+    static func place(from state: WeatherLocationState) -> WeatherPlace? {
+        if case .located(let place) = state { return place }
+        return nil
+    }
+
+    /// The glyph the clock face wears in place of a condition when there is no location to read.
+    static let locationIssueSymbol = "location.slash"
+
+    /// What the card says when it cannot report weather at all — nil while there is nothing wrong to
+    /// report, so a face that simply hasn't been located yet stays a plain clock rather than an
+    /// alarm. Both the tooltip and the spoken label read this.
+    static func cardIssue(for state: WeatherLocationState) -> String? {
+        switch state {
+        case .located, .waiting: return nil
+        case .denied, .restricted, .unavailable: return locationStatusMessage(for: state)
+        }
+    }
+
+    /// The Settings row's own line. A located Mac states the coordinates it reads at, rounded to the
+    /// precision actually requested; every other state states the failure and where to fix it.
+    static func locationStatusMessage(for state: WeatherLocationState) -> String {
+        switch state {
+        case .waiting:
+            return "Locating this Mac…"
+        case .located(let place):
+            return "Current location · \(formattedCoordinates(place))"
+        case .denied:
+            return "Location unavailable — Spotter is not allowed to use this Mac's location. "
+                + "Allow it in System Settings ▸ Privacy & Security ▸ Location Services."
+        case .restricted:
+            return "Location unavailable — this Mac's policy blocks Location Services, so there is "
+                + "nothing to allow."
+        case .unavailable:
+            return "Location unavailable — Spotter is allowed to use this Mac's location but could "
+                + "not get a fix. Check that Location Services is on in System Settings ▸ Privacy "
+                + "& Security."
+        }
+    }
+
+    /// A restricted Mac has nothing for the button to open, so it is offered the sentence only.
+    static func opensLocationSettings(for state: WeatherLocationState) -> Bool {
+        switch state {
+        case .denied, .unavailable: return true
+        case .waiting, .located, .restricted: return false
+        }
+    }
+
+    /// The one location line, as the pane's opening section states it: where the weather is read,
+    /// and what the clock is running on. The clock half is always answered — a Mac that cannot be
+    /// located keeps its saved zone or the system's, never a blank face.
+    static func locationSummary(
+        state: WeatherLocationState, clockTimeZoneIdentifier: String?,
+        systemTimeZoneIdentifier: String
+    ) -> String {
+        let clock = DashboardWidgetsEngine.clockSummary(
+            clockTimeZoneIdentifier: clockTimeZoneIdentifier,
+            systemTimeZoneIdentifier: systemTimeZoneIdentifier)
+        return "\(locationStatusMessage(for: state)) · clock on \(clock)"
+    }
+
+    /// One decimal place, which is about 11 km — the honest way to show a fix that was deliberately
+    /// requested coarse, rather than printing digits the reading does not have.
+    static func formattedCoordinates(_ place: WeatherPlace) -> String {
+        let latitude = String(
+            format: "%.1f°%@", abs(place.latitude), place.latitude >= 0 ? "N" : "S")
+        let longitude = String(
+            format: "%.1f°%@", abs(place.longitude), place.longitude >= 0 ? "E" : "W")
+        return "\(latitude), \(longitude)"
+    }
+
+    /// Great-circle kilometres, for deciding whether a reading still belongs to where this Mac is.
+    static func distanceKilometers(from: WeatherPlace, to: WeatherPlace) -> Double {
+        let earthRadius = 6371.0
+        let radians = Double.pi / 180
+        let deltaLatitude = (to.latitude - from.latitude) * radians
+        let deltaLongitude = (to.longitude - from.longitude) * radians
+        let a =
+            pow(sin(deltaLatitude / 2), 2) + cos(from.latitude * radians)
+            * cos(to.latitude * radians) * pow(sin(deltaLongitude / 2), 2)
+        return 2 * earthRadius * atan2(sqrt(a), sqrt(max(0, 1 - a)))
+    }
+
+    /// How far a fix may drift before the cached reading stops being this Mac's weather. Wide enough
+    /// that the jitter of a coarse fix never throws a good reading away, tight enough that a flight
+    /// does.
+    static let placeChangeKilometers = 25.0
+
+    /// A reading taken somewhere the Mac no longer is must not caption the new place — the card
+    /// would then be exactly the wrong thing it can no longer be corrected from.
+    static func isSnapshot(_ snapshot: WeatherSnapshot, current place: WeatherPlace) -> Bool {
+        distanceKilometers(from: snapshot.place, to: place) <= placeChangeKilometers
+    }
+
+    /// The clock time zone the located place sets, or nil when it names none Spotter can resolve —
+    /// an unusable or absent identifier must never overwrite a working clock setting.
+    static func clockTimeZoneIdentifier(for place: WeatherPlace) -> String? {
+        guard let identifier = place.timeZoneIdentifier, TimeZone(identifier: identifier) != nil
         else { return nil }
         return identifier
     }
 
     static func resolvedUnit(from rawValue: String?) -> WeatherUnit {
         WeatherUnit(rawValue: rawValue ?? "") ?? .celsius
-    }
-
-    /// A snapshot for a city the user has since changed is stale beyond refreshing — the card must not
-    /// caption a new city with the previous city's reading.
-    static func isSnapshot(_ snapshot: WeatherSnapshot, current city: WeatherCity) -> Bool {
-        snapshot.cityID == city.id
     }
 
     static func forecastURL(latitude: Double, longitude: Double) -> URL? {
@@ -263,31 +385,12 @@ enum DashboardWeatherEngine {
             URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "forecast_days", value: "1"),
             URLQueryItem(name: "temperature_unit", value: "celsius"),
-            // `auto` rather than UTC so "today" is the city's own day — a UTC range would roll over
-            // mid-afternoon in Asia. It is derived from the coordinates already in this URL, so
-            // nothing further about this Mac leaves it.
+            // `auto` rather than UTC so "today" is the located place's own day — a UTC range would
+            // roll over mid-afternoon in Asia. It is derived from the coordinates already in this
+            // URL, so nothing further about this Mac leaves it, and its answer is what the clock
+            // then runs on.
             URLQueryItem(name: "timezone", value: "auto"),
         ]
         return components?.url
-    }
-
-    /// Nil for a blank query, so an empty search field can never become a request.
-    static func geocodingURL(query: String) -> URL? {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        var components = URLComponents(string: "https://geocoding-api.open-meteo.com/v1/search")
-        components?.queryItems = [
-            URLQueryItem(name: "name", value: trimmed),
-            URLQueryItem(name: "count", value: "8"),
-            URLQueryItem(name: "language", value: "en"),
-            URLQueryItem(name: "format", value: "json"),
-        ]
-        return components?.url
-    }
-}
-
-extension String {
-    fileprivate var nilIfBlank: String? {
-        trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
     }
 }

@@ -87,9 +87,7 @@ struct SettingsSyncTests {
                 widgetOrder: ["clock", "weather"],
                 calendarSourceIdentifier: "calendar-id",
                 includesAllDayEvents: false,
-                clockTimeZoneIdentifier: "Asia/Tokyo",
                 weatherEnabled: true,
-                weatherCity: Data("city".utf8),
                 weatherUnit: "celsius"))
     }
 
@@ -120,9 +118,7 @@ struct SettingsSyncTests {
                 widgetOrder: ["uptime"],
                 calendarSourceIdentifier: "legacy",
                 includesAllDayEvents: true,
-                clockTimeZoneIdentifier: "UTC",
                 weatherEnabled: false,
-                weatherCity: Data(),
                 weatherUnit: "fahrenheit"))
     }
 
@@ -161,7 +157,7 @@ struct SettingsSyncTests {
         precondition(decodedSettings.currencyRatesEnabled == true)
         precondition(decodedSettings.updateAutoCheckEnabled == true)
         precondition(decodedSettings.dashboardWidgets?.weatherEnabled == true)
-        precondition(decodedSettings.dashboardWidgets?.weatherCity == Data("city".utf8))
+        precondition(decodedSettings.dashboardWidgets?.weatherUnit == "celsius")
 
         let prefs = populatedPluginPrefs()
         let decodedPrefs = try! decode(SettingsBackupPluginPrefs.self, from: encode(prefs))

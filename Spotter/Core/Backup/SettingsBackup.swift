@@ -130,9 +130,7 @@ extension SettingsBackup {
                 widgetOrder: dashboard.widgetOrder.map(\DashboardWidgetKind.rawValue),
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier ?? "",
                 includesAllDayEvents: dashboard.includesAllDayEvents,
-                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier ?? "",
                 weatherEnabled: core.dashboardWeather.isEnabled,
-                weatherCity: core.dashboardWeather.encodedCity,
                 weatherUnit: core.dashboardWeather.unit.rawValue))
 
         let hk = core.hotKeys
@@ -447,11 +445,9 @@ extension SettingsBackup {
             count += core.dashboardWidgets.applyPreferences(
                 widgetOrderRawValues: dashboard.widgetOrder,
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
-                includesAllDayEvents: dashboard.includesAllDayEvents,
-                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
+                includesAllDayEvents: dashboard.includesAllDayEvents)
             count += core.dashboardWeather.applyPreferences(
-                enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
-                unitRawValue: dashboard.weatherUnit)
+                enabled: dashboard.weatherEnabled, unitRawValue: dashboard.weatherUnit)
         }
         return count
     }
@@ -588,11 +584,9 @@ extension SettingsBackup {
             count += core.dashboardWidgets.applyPreferences(
                 widgetOrderRawValues: dashboard.widgetOrder,
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier,
-                includesAllDayEvents: dashboard.includesAllDayEvents,
-                clockTimeZoneIdentifier: dashboard.clockTimeZoneIdentifier)
+                includesAllDayEvents: dashboard.includesAllDayEvents)
             count += core.dashboardWeather.applyPreferences(
-                enabled: dashboard.weatherEnabled, cityData: dashboard.weatherCity,
-                unitRawValue: dashboard.weatherUnit)
+                enabled: dashboard.weatherEnabled, unitRawValue: dashboard.weatherUnit)
         }
         // is a no-op either way.
         return count

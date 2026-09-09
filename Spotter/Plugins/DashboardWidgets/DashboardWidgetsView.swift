@@ -183,6 +183,22 @@ struct DashboardWidgetsView: View {
     /// three empty corners on the face while the first reading is still in flight.
     private var showsWeather: Bool { weather.isEnabled && weather.reading != nil }
 
+    /// Why there is no weather, when the reason is Spotter's to state: location refused, restricted
+    /// or unobtainable. Nil while nothing is wrong, so a face that is merely still locating stays a
+    /// plain clock. There is no city to type any more, so a failure that said nothing would leave the
+    /// user with no way to know why the corner is empty.
+    private var weatherIssue: String? {
+        guard weather.isEnabled else { return nil }
+        return DashboardWeatherEngine.cardIssue(for: weather.locationState)
+    }
+
+    /// The condition glyph's slot carries the failure instead, so the card itself says something is
+    /// wrong; the sentence is one hover or one VoiceOver read away.
+    private var clockConditionSymbol: String? {
+        if weatherIssue != nil { return DashboardWeatherEngine.locationIssueSymbol }
+        return showsWeather ? condition?.symbolName : nil
+    }
+
     /// The date's three parts, each in the clock's own time zone — a face abroad must not date
     /// itself from home. Uppercased so the curved corner labels read as bezel engraving.
     private func monthText(_ date: Date) -> String {
@@ -208,6 +224,8 @@ struct DashboardWidgetsView: View {
         if showsWeather {
             parts.append(temperatureText)
             if let condition { parts.append(condition.description) }
+        } else if let weatherIssue {
+            parts.append(weatherIssue)
         }
         return parts.joined(separator: ", ")
     }
@@ -434,11 +452,23 @@ struct DashboardWidgetsView: View {
     /// weather is on and a reading has landed, the temperature top-left with the condition glyph
     /// inside the dial above the six. A corner with nothing known stays empty rather than drawing a
     /// placeholder, so the clock alone is still a clock.
+    @ViewBuilder
     private func clockCard(now: Date) -> some View {
+        let face = clockFace(now: now)
+        // The card has room for a glyph, not a sentence; the sentence is what the pointer and
+        // VoiceOver get, and Settings ▸ Widgets carries it in full with the way to fix it.
+        if let weatherIssue {
+            face.help(weatherIssue)
+        } else {
+            face
+        }
+    }
+
+    private func clockFace(now: Date) -> some View {
         ZStack {
             AnalogClockFace(
                 timeZone: store.clockTimeZone,
-                conditionSymbol: showsWeather ? condition?.symbolName : nil,
+                conditionSymbol: clockConditionSymbol,
                 isTicking: core.isPaletteVisible)
                 .padding(Self.clockFaceInset)
             ClockComplicationRing(

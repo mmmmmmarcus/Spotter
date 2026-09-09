@@ -13,9 +13,11 @@ the rest are. Complications ride the bezel around it the way a watch face carrie
 split across three corners (month top-right, day bottom-left, weekday bottom-right), and once weather
 is on and a reading has landed the temperature takes the fourth, top-left, with the condition glyph
 inside the dial above the six. A corner with nothing known stays empty rather than drawing a
-placeholder, so a clock with weather off is still just a clock. Weather has no card of its own: it
-*is* that corner and that glyph, which is why the two share one **Clock & Weather** section and one
-location.
+placeholder, so a clock with a location it cannot read is still just a clock. Weather has no card of
+its own: it *is* that corner and that glyph, which is why the two share one place — this Mac's own —
+and one unnamed opening section in Settings. When there is no location to read, the condition slot
+carries `location.slash` instead of a condition, and the sentence saying why is one hover or one
+VoiceOver read away.
 
 The clock is also the one card that spends its whole 116-point square rather than keeping the
 uniform `md` margin the others do: the complications *are* its bezel, so that margin would only have
@@ -108,9 +110,13 @@ what is selected (Image Modification's Finder input uses the same reader).
 lines say — so the same harness covers it.
 
 Weather is a separate pair so the networked half stays isolated. `DashboardWeatherStore`, also owned
-by `AppCore`, owns consent, the chosen city, the unit, the cached reading and the refresh loop.
-`DashboardWeatherEngine.swift` stays Foundation-only and pure — it builds the request URLs and maps
-WMO weather codes to an SF Symbol and phrase — so the same harness covers it without app state.
+by `AppCore`, owns consent, the location fix, the unit, the cached reading and the refresh loop, and
+`DashboardWeatherLocation.swift` holds the only `CLLocationManager` in Spotter — its delegate methods
+stay `nonisolated` and only two `Double`s and an enum cross back onto the main actor.
+`DashboardWeatherEngine.swift` stays Foundation-only and pure — it resolves the location state and
+its wording, builds the request URL, measures how far a reading has travelled from the place it was
+taken at, and maps WMO weather codes to an SF Symbol and phrase — so the same harness covers it
+without app state or CoreLocation.
 
 The registry permits exactly one `launcherDashboard` owner. `RootPaletteView` injects that view into
 the launcher's existing scroll content only for an empty launcher query. Dashboard cards never join
@@ -247,61 +253,99 @@ request.
 decision, Sep 2026). That makes "asked" and "granted" two different persisted facts:
 `dashboard-widgets.weather-consent-asked` records that the question was put, and
 `dashboard-widgets.weather-enabled` records the answer being yes. A decline sets the first and not the
-second — weather stays off, the question is never asked again, and Settings ▸ Widgets keeps a
-**Turn On Weather…** button that raises the same dialog for someone who changes their mind. There is
-no way back off: the pure `DashboardWeatherEngine.consentState(hasBeenAsked:isGranted:)` and
-`shouldPresentConsent(...)` hold the one-question rule, and `Tools/dashboard-widgets-test.swift`
-pins it. A grant restored from a trusted settings file counts as answered without a dialog, since
-trusting the file is itself the consent act; a `false` in such a file is neither a revocation nor an
-answer, so the receiving Mac still gets asked. `AppCore` presents it from
-`presentWeatherConsentIfNeeded()` — after the first-run wizard on a fresh Mac, and at
-`start()` for a Mac already past it.
+second — weather stays off, the question is never asked again, no location is ever requested, and
+Settings ▸ Widgets keeps a **Turn On Weather…** button that raises the same dialog for someone who
+changes their mind. There is no way back off: the pure
+`DashboardWeatherEngine.consentState(hasBeenAsked:isGranted:)` and `shouldPresentConsent(...)` hold
+the one-question rule, and `Tools/dashboard-widgets-test.swift` pins it. A grant restored from a
+trusted settings file counts as answered without a dialog, since trusting the file is itself the
+consent act; a `false` in such a file is neither a revocation nor an answer, so the receiving Mac
+still gets asked. `AppCore` presents it from `presentWeatherConsentIfNeeded()` — after the first-run
+wizard on a fresh Mac, and at `start()` for a Mac already past it.
 
-Spotter never reads Location Services. Until the user picks a city, the card uses
-`WeatherCity.default` — a fixed place (Tokyo, Japan), deliberately a constant rather than something
-derived from the locale or time zone, which would be location inference by another name. The city
-search is itself gated: typing into the field before consent is refused rather than quietly
-geocoded. Only the current city's coordinates leave the machine.
+### The location is the Mac's own
 
-### One location, and why sharing it doesn't weaken the gate
+**Weather reads this Mac's location, and there is no city to type** (owner decision, Sep 2026,
+reversing the fixed-city arrangement that preceded it). `WeatherLocationProvider` — the only place in
+Spotter that touches CoreLocation — asks for **one coarse fix**: `kCLLocationAccuracyReduced`, about
+a few kilometres, with `NSLocationDefaultAccuracyReduced` in `Info.plist` so macOS never even offers
+the precise kind. A forecast is a property of a city, so a street address would be data Spotter has
+no use for and no business holding. `requestLocation()` is a single reading rather than a
+subscription: nothing monitors where the Mac goes between refreshes, and a fresh fix is asked for
+only alongside a refresh that was happening anyway (every 30 minutes while the dashboard is
+visible, or on **Update Now**).
 
-The clock and the weather complications run on **one place** (owner request, Sep 2026): choosing a
-city sets the weather's coordinates *and* the clock's time zone, in one act, from the `timezone` the
-geocoder already returns with the result. `WeatherCity.timeZoneIdentifier` carries it, and
-`DashboardWeatherEngine.clockTimeZoneIdentifier(for:)` hands it over only after `TimeZone` accepts
-it, so an unusable or absent identifier can never blank a working clock setting. Reading the zone of
-a city the user picked is not location inference — it is their choice, not this Mac's; the fixed
-fallback city deliberately carries **no** zone, so a place nobody chose can never retime the clock.
+**Spotter's question comes first, macOS's second.** The consent dialog is Spotter's own and is raised
+at first launch; only an accepted dialog creates the location provider, so a decline never produces a
+system location prompt at all. Accepting it raises macOS's prompt next. The two grants are
+independent, and the honest outcomes are:
 
-Sharing runs one way only. Choosing a city writes both halves; nothing about the clock ever reaches
-a city or sends anything. Setting a location performs no request by itself: `setCity` writes the city
-and calls `start()`, which returns immediately without consent. Every guard in
-`DashboardWeatherStore` is unchanged — the init read, the pump, the search, and `fetchAndStore`
-re-checking `isEnabled` on both sides of the `await` — and a fresh install is still off, since the
-consent flag defaults to false.
+| Spotter's dialog | macOS's location prompt | What happens |
+| --- | --- | --- |
+| Declined | never raised | Weather stays off; the clock keeps its zone. Settings offers **Turn On Weather…**. |
+| Accepted | Allowed | The fix arrives, the forecast lands, the clock takes the located zone. |
+| Accepted | Denied | Weather is on and permanent, but has no place: no request is ever made, the card wears `location.slash`, and both the card and the Settings row say **Location unavailable** with the path to System Settings. |
 
-**Choosing a city is now the only location control** (owner decision, Sep 2026): the separate clock
-time-zone picker is gone, and the clock's zone is whatever the chosen city named. With weather
-permanently on after consent, the city is always reachable, so no setting is stranded behind the
-network gate. **A clock still works before the question is answered**: `store.clockTimeZone` resolves
+`DashboardWeatherEngine.locationState(authorization:place:hasFailedFix:)` is the whole state machine,
+pure and pinned by the harness:
+
+| State | Card | Settings row |
+| --- | --- | --- |
+| `waiting` — permission unanswered, or the first fix in flight | a plain clock, no complication | "Locating this Mac…" |
+| `located` | temperature top-left, condition glyph in the dial | "Current location · 52.5°N, 13.4°E · clock on Europe/Berlin", green dot |
+| `denied` | `location.slash` in the condition slot, tooltip and spoken label carry the sentence | "Location unavailable — Spotter is not allowed to use this Mac's location. Allow it in System Settings ▸ Privacy & Security ▸ Location Services.", orange dot, **Open Location Settings** |
+| `restricted` | same glyph and sentence | "Location unavailable — this Mac's policy blocks Location Services, so there is nothing to allow." No button: there is nothing for it to open. |
+| `unavailable` — allowed, but no fix | same glyph and sentence | "Location unavailable — Spotter is allowed to use this Mac's location but could not get a fix. Check that Location Services is on in System Settings ▸ Privacy & Security." **Open Location Settings** |
+
+**Nothing falls back to somewhere else's weather.** `WeatherCity` is gone; there is no default place
+and no cached coordinate standing in for a refusal, because showing one city's temperature to
+somebody in another — with the manual entry that used to fix it removed — is the failure this
+arrangement exists to avoid. A denial or a restriction also drops the cached reading, from memory and
+from disk: a reading may only be attributed to a place Spotter can still confirm. The coordinates are
+rounded to one decimal (about 11 km) wherever they are shown, which is the precision actually
+requested rather than digits the fix does not have.
+
+### The clock follows the located place
+
+The forecast is asked with `timezone=auto`, so its answer names the zone of the coordinates already
+in the request — that identifier is the clock's, at no extra request and with nothing further about
+this Mac leaving it. `DashboardWeatherEngine.clockTimeZoneIdentifier(for:)` hands it over only after
+`TimeZone` accepts it, and `AppCore` wires that to `DashboardWidgetsStore.setClockTimeZoneIdentifier`
+— the one wiring point, so the weather store never reaches into the widget preferences itself.
+
+**The clock is never blank.** Until a forecast has named a zone — an offline Mac, a refused location,
+a Mac still locating — `store.clockTimeZone` resolves
 `DashboardWidgetsEngine.resolvedTimeZone(identifier:fallback:)` over the saved
-`dashboard-widgets.clock-time-zone`, falling back to the system zone, so a Mac that declined — or has
-not been asked yet — keeps the zone it already had rather than a blank face. A city saved before the
-two shared a location carries no zone (the field is optional, so old JSON decodes with nil), so the
-clock keeps its own setting and the Location line says so — "Berlin, Germany for the weather · clock
-on Europe/Paris" — until the next city is chosen, at which point the two become one place.
-`DashboardWidgetsEngine.locationSummary` never claims a sharing that isn't in effect. Nothing
-migrates on disk: `dashboard-widgets.clock-time-zone`, `dashboard-widgets.weather-city` and
-`dashboard-widgets.weather-enabled` keep their names and meanings, and the extra key inside the
-encoded city is ignored by an older Spotter reading a newer backup. Requests go out on a private ephemeral `URLSession` with
-`urlCache = nil`, never `URLSession.shared`, so a cacheable response cannot leave a second copy in
-the shared on-disk `URLCache` that opting out would not delete.
+`dashboard-widgets.clock-time-zone`, falling back to the system zone. That saved value is only ever
+written by this Mac's own fixes, so an unlocatable Mac shows its own last known zone or the system's
+and never another machine's. Sharing still runs one way only: the location sets the clock, and
+nothing about the clock ever reaches the location or sends anything.
 
-The reading refreshes every 30 minutes while the dashboard is visible, backing off to a shorter retry
-only after a failure, and the loop does not run without both consent and a city. The latest snapshot
-is cached in a bundle-scoped `weather.json` so a relaunch shows the last reading instead of an empty
-card. Consent, city and unit travel in the trusted settings backup/sync file — restoring one may
-switch the feature on, which is itself the consent act.
+### What is persisted, and what travels
+
+Everything the store keeps is scoped by `Bundle.main.bundleIdentifier`: the consent flags and the
+unit under `dashboard-widgets.*` in `UserDefaults`, the clock zone under
+`dashboard-widgets.clock-time-zone`, and the reading itself — with the coordinates and zone it was
+taken at — in a bundle-scoped `weather.json`, so a relaunch shows the last reading and keeps the
+located clock instead of an empty card. The old `dashboard-widgets.weather-city` key is unread.
+
+**The located place does not ride the settings snapshot, and neither does the clock zone derived from
+it.** Consent and unit still do — restoring one may switch the feature on, which is itself the consent
+act — but a coordinate describes the Mac it was measured on, exactly the way a file path or a palette
+position does. Importing one would point a second Mac at the first Mac's city, and with manual entry
+gone there would be nothing to correct it with; each Mac locates itself instead, and a Mac that
+cannot falls back to its *own* saved zone. An older file's `weatherCity` and `clockTimeZoneIdentifier`
+are simply unread.
+
+A snapshot taken more than `DashboardWeatherEngine.placeChangeKilometers` (25 km) from the current fix
+is discarded rather than refreshed — wide enough that a coarse fix's own jitter never throws a good
+reading away, tight enough that a flight does. `fetchAndStore` re-checks both consent and the place on
+each side of the `await`, so a response that lands after the Mac has moved is dropped rather than
+captioning the new place with the old one's weather. Requests go out on a private ephemeral
+`URLSession` with `urlCache = nil`, never `URLSession.shared`, so a cacheable response cannot leave a
+second copy in the shared on-disk `URLCache` that nothing else would delete. The reading refreshes
+every 30 minutes while the dashboard is visible, backing off to a shorter retry after a failure, and
+the loop does not run without both consent and a place.
 
 ## File Info and the Finder
 
@@ -327,21 +371,23 @@ always the same selection, and clearing first would flash the card away and back
 ## Settings and lifecycle
 
 Widgets is an always-available system feature placed under Settings → System, and the whole strip is
-configured on **one page** — three sections, one for each card that has something to decide: **Clock
-& Weather** (one merged Location control, units and the last
-reading), **Music** (what is playing) and **Calendar** (a pointer to the
-Calendar plugin, which owns the real preferences). Device Battery and File Info have **no section**:
+configured on **one page** — three sections, one for each card that has something to decide: the
+opening **unnamed** section for the clock and weather (where the reading is taken, units and the
+last reading), **Music** (what is playing) and **Calendar** (a pointer to the Calendar plugin, which
+owns the real preferences). A pane's first group is not named, which is why that section carries no
+header. Device Battery and File Info have **no section**:
 they are text-only cards with nothing to configure, and their privacy posture is unchanged by the
 removal — the battery read still needs no gate, and File Info's gate is still macOS's own Automation
 prompt (owner decision, Sep 2026). There is no Show list, no pane of its own for any card and no
 arrangement list: every card shows, and order belongs to the palette.
 
-The Clock & Weather section is one row: **Location**. Once consent has been granted it is a city
-search whose result sets the weather's coordinates and the clock's zone in one act; before that it is
-a **Turn On Weather…** button raising the same dialog the first launch did. There is no Turn Off
-Weather and no time-zone picker (owner decision, Sep 2026), and the Music section no longer carries an
-Automation Permission row — the Finder and Music reads and macOS's own Automation prompt are
-unchanged, only the settings row is gone.
+The opening section leads with **Location**, which reports rather than asks: the fix this Mac is
+read at, or the failure and what to do about it, with **Open Location Settings** where there is
+something to open. Before consent that row is a **Turn On Weather…** button raising the same dialog
+the first launch did. There is no Turn Off Weather, no city field and no time-zone picker (owner
+decision, Sep 2026), and the Music section no longer carries an Automation Permission row — the
+Finder and Music reads and macOS's own Automation prompt are unchanged, only the settings row is
+gone.
 
 Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
 identifiers for removed widgets are ignored. The permission overview exposes Calendar and

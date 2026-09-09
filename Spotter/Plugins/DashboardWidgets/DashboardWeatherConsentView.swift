@@ -12,12 +12,14 @@ struct WeatherConsentContent: View {
                 .font(.headline)
 
             Text(
-                "Spotter asks \(DashboardWeatherStore.provider) for the current conditions of the "
-                    + "city you choose, every 30 minutes while Spotter is running, and keeps the "
-                    + "latest reading on your Mac. Searching sends what you type in the city field. "
-                    + "No account, no identifiers, and your Mac's location is never read. The city "
-                    + "you pick also sets the clock's time zone, which nothing is contacted for. "
-                    + "Spotter asks this once — say no and the clock simply keeps the time."
+                "Spotter reads this Mac's approximate location — one coarse fix, accurate to a few "
+                    + "kilometres, never a precise one — and asks \(DashboardWeatherStore.provider) "
+                    + "for the current conditions there, every 30 minutes while Spotter is running. "
+                    + "Only those coordinates leave your Mac: no account, no identifiers, and the "
+                    + "latest reading is kept here. The forecast also names that place's time zone, "
+                    + "which is what the clock then runs on. macOS will ask for permission to use "
+                    + "your location next; say no to either and Spotter shows no weather at all — "
+                    + "there is no city to type instead. Spotter asks this once."
             )
             .font(.callout)
             .foregroundStyle(.secondary)

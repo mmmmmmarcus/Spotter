@@ -84,7 +84,7 @@ final class DashboardWidgetsStore: ObservableObject {
     @discardableResult
     func applyPreferences(
         widgetOrderRawValues: [String]?, calendarSourceIdentifier: String?,
-        includesAllDayEvents: Bool?, clockTimeZoneIdentifier: String?
+        includesAllDayEvents: Bool?
     ) -> Int {
         var updated = preferences
         var count = 0
@@ -98,11 +98,6 @@ final class DashboardWidgetsStore: ObservableObject {
         }
         if let includesAllDayEvents {
             updated.includesAllDayEvents = includesAllDayEvents
-            count += 1
-        }
-        if let clockTimeZoneIdentifier {
-            updated.clockTimeZoneIdentifier = TimeZone(identifier: clockTimeZoneIdentifier) == nil
-                ? nil : clockTimeZoneIdentifier
             count += 1
         }
         updatePreferences(updated)

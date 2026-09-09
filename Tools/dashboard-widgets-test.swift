@@ -84,33 +84,157 @@ struct DashboardWidgetsTests {
             Set(DashboardWidgetsEngine.reorder(order, moving: .nextEvent, to: 2)) == Set(order),
             "reordering should never add or drop a widget")
 
-        // One shared location: a chosen city carries the zone the clock keeps.
-        let berlin = city("Berlin", zone: "Europe/Berlin")
+        // One place, and it is this Mac's own: the forecast names the zone the clock then keeps.
+        let located = WeatherPlace(
+            latitude: 52.52, longitude: 13.405, timeZoneIdentifier: "Europe/Berlin")
         check(
-            DashboardWeatherEngine.clockTimeZoneIdentifier(for: berlin) == "Europe/Berlin",
-            "a chosen city should hand the clock its own zone")
+            DashboardWeatherEngine.clockTimeZoneIdentifier(for: located) == "Europe/Berlin",
+            "a located place should hand the clock the zone the forecast named")
         check(
-            DashboardWeatherEngine.clockTimeZoneIdentifier(for: city("Nowhere", zone: "Mars/Olympus"))
-                == nil,
+            DashboardWeatherEngine.clockTimeZoneIdentifier(
+                for: WeatherPlace(
+                    latitude: 0, longitude: 0, timeZoneIdentifier: "Mars/Olympus")) == nil,
             "an unresolvable zone should never overwrite the clock's setting")
         check(
-            DashboardWeatherEngine.clockTimeZoneIdentifier(for: city("Old", zone: nil)) == nil,
-            "a city saved before the two shared a location names no zone")
+            DashboardWeatherEngine.clockTimeZoneIdentifier(
+                for: WeatherPlace(latitude: 52.52, longitude: 13.405)) == nil,
+            "a fix with no forecast yet names no zone, so the clock keeps the one it had")
+
+        // Resolving a place: what macOS allows, and whether a fix has landed.
         check(
-            DashboardWeatherEngine.clockTimeZoneIdentifier(for: .default) == nil,
-            "the fixed fallback city is a weather stand-in and must never retime the clock")
+            DashboardWeatherEngine.locationState(
+                authorization: .authorized, place: located, hasFailedFix: false)
+                == .located(located),
+            "an allowed Mac with a fix is located")
         check(
-            DashboardWidgetsEngine.clockFollowsCity(
-                cityTimeZoneIdentifier: "Europe/Berlin", clockTimeZoneIdentifier: "Europe/Berlin"),
-            "a clock set to the city's zone is following the city")
+            DashboardWeatherEngine.locationState(
+                authorization: .notDetermined, place: nil, hasFailedFix: false) == .waiting,
+            "an unanswered permission is still waiting, not a failure")
         check(
-            !DashboardWidgetsEngine.clockFollowsCity(
-                cityTimeZoneIdentifier: nil, clockTimeZoneIdentifier: "Europe/Berlin"),
-            "a city with no zone leaves the clock on its own setting")
+            DashboardWeatherEngine.locationState(
+                authorization: .authorized, place: nil, hasFailedFix: false) == .waiting,
+            "an allowed Mac whose first fix is in flight is waiting")
         check(
-            !DashboardWidgetsEngine.clockFollowsCity(
-                cityTimeZoneIdentifier: "Europe/Berlin", clockTimeZoneIdentifier: nil),
-            "a clock on System Default is not following a city")
+            DashboardWeatherEngine.locationState(
+                authorization: .authorized, place: nil, hasFailedFix: true) == .unavailable,
+            "allowed but unable to get a fix is unavailable, not waiting forever")
+        check(
+            DashboardWeatherEngine.locationState(
+                authorization: .denied, place: located, hasFailedFix: false) == .denied,
+            "a refused grant is a refusal even with a place cached from before it")
+        check(
+            DashboardWeatherEngine.locationState(
+                authorization: .restricted, place: located, hasFailedFix: false) == .restricted,
+            "a policy-restricted Mac reports the restriction rather than a stale place")
+        check(
+            DashboardWeatherEngine.isLocated(
+                DashboardWeatherEngine.locationState(
+                    authorization: .authorized, place: located, hasFailedFix: false)),
+            "only a located Mac may draw a reading")
+        for state in [WeatherLocationState.waiting, .denied, .restricted, .unavailable] {
+            check(
+                !DashboardWeatherEngine.isLocated(state)
+                    && DashboardWeatherEngine.place(from: state) == nil,
+                "no place means no request and nothing drawn: \(state)")
+        }
+
+        // Every failure says so, because removing manual entry removed the only recourse.
+        check(
+            DashboardWeatherEngine.cardIssue(
+                for: .located(located)) == nil
+                && DashboardWeatherEngine.cardIssue(for: .waiting) == nil,
+            "a working or still-locating card says nothing rather than crying wolf")
+        for state in [WeatherLocationState.denied, .restricted, .unavailable] {
+            let issue = DashboardWeatherEngine.cardIssue(for: state)
+            check(
+                issue?.hasPrefix("Location unavailable") == true,
+                "every failure names itself on the card: \(state)")
+            check(
+                issue == DashboardWeatherEngine.locationStatusMessage(for: state),
+                "the card and the Settings row state the same failure: \(state)")
+        }
+        check(
+            DashboardWeatherEngine.locationStatusMessage(for: .denied)
+                .contains("System Settings ▸ Privacy & Security ▸ Location Services"),
+            "a refusal names the one place it can be undone")
+        check(
+            DashboardWeatherEngine.opensLocationSettings(for: .denied)
+                && DashboardWeatherEngine.opensLocationSettings(for: .unavailable),
+            "a failure the user can act on offers the way to act on it")
+        check(
+            !DashboardWeatherEngine.opensLocationSettings(for: .restricted),
+            "a restricted Mac has nothing to open, so it is offered no button")
+        check(
+            !DashboardWeatherEngine.opensLocationSettings(for: .located(located))
+                && !DashboardWeatherEngine.opensLocationSettings(for: .waiting),
+            "a working card offers no fix-it for a problem it doesn't have")
+        check(
+            DashboardWeatherEngine.locationStatusMessage(for: .located(located))
+                == "Current location · 52.5°N, 13.4°E",
+            "a located Mac states the fix at the precision it actually asked for")
+        check(
+            DashboardWeatherEngine.formattedCoordinates(
+                WeatherPlace(latitude: -33.87, longitude: -151.21)) == "33.9°S, 151.2°W",
+            "hemispheres read as letters rather than a minus sign")
+
+        // The one location line: where the weather is read, and what the clock runs on.
+        check(
+            DashboardWeatherEngine.locationSummary(
+                state: .located(located), clockTimeZoneIdentifier: "Europe/Berlin",
+                systemTimeZoneIdentifier: "Europe/Paris")
+                == "Current location · 52.5°N, 13.4°E · clock on Europe/Berlin",
+            "one located place should read as one line")
+        check(
+            DashboardWeatherEngine.locationSummary(
+                state: .denied, clockTimeZoneIdentifier: nil,
+                systemTimeZoneIdentifier: "Europe/Paris")
+                .hasSuffix("· clock on System Default (Europe/Paris)"),
+            "a Mac with no weather still says what its clock is running on")
+        check(
+            DashboardWidgetsEngine.clockSummary(
+                clockTimeZoneIdentifier: "America/New_York",
+                systemTimeZoneIdentifier: "Europe/Paris") == "America/New York",
+            "a saved zone reads as words rather than an identifier")
+        check(
+            DashboardWidgetsEngine.clockSummary(
+                clockTimeZoneIdentifier: nil, systemTimeZoneIdentifier: "Europe/Paris")
+                == "System Default (Europe/Paris)",
+            "a clock with no saved zone names the system's rather than nothing")
+
+        // A reading belongs to the place it was taken at, and to nowhere else.
+        let berlinReading = reading(latitude: 52.52, longitude: 13.405)
+        check(
+            DashboardWeatherEngine.isSnapshot(
+                berlinReading, current: WeatherPlace(latitude: 52.53, longitude: 13.41)),
+            "a coarse fix's own jitter must not throw a good reading away")
+        check(
+            !DashboardWeatherEngine.isSnapshot(
+                berlinReading, current: WeatherPlace(latitude: 48.856, longitude: 2.352)),
+            "a reading from another city must never caption where the Mac now is")
+        check(
+            near(
+                DashboardWeatherEngine.distanceKilometers(
+                    from: WeatherPlace(latitude: 52.52, longitude: 13.405),
+                    to: WeatherPlace(latitude: 52.52, longitude: 13.405)), 0),
+            "a place is no distance from itself")
+        check(
+            abs(
+                DashboardWeatherEngine.distanceKilometers(
+                    from: WeatherPlace(latitude: 52.52, longitude: 13.405),
+                    to: WeatherPlace(latitude: 48.856, longitude: 2.352)) - 878) < 15,
+            "Berlin to Paris should measure about 878 km")
+        check(
+            berlinReading.place.timeZoneIdentifier == "Europe/Berlin",
+            "a cached reading carries the zone forward, so a relaunch keeps the located clock")
+
+        // Only the coordinates the forecast is for leave the Mac.
+        let url = DashboardWeatherEngine.forecastURL(latitude: 52.52, longitude: 13.405)?
+            .absoluteString ?? ""
+        check(url.contains("latitude=52.52") && url.contains("longitude=13.405"), "the request carries the fix")
+        check(
+            url.contains("timezone=auto"),
+            "the forecast asks for the located place's own day, which is also the clock's zone")
+
         // Weather is asked exactly once, and "asked" is not "granted".
         check(
             DashboardWeatherEngine.consentState(hasBeenAsked: false, isGranted: false)
@@ -185,31 +309,6 @@ struct DashboardWidgetsTests {
                 after: Date(timeIntervalSinceReferenceDate: -30))
                 == Date(timeIntervalSinceReferenceDate: 0),
             "a date before the reference epoch still rounds forward, never back")
-        check(
-            DashboardWidgetsEngine.locationSummary(
-                cityLabel: nil, cityTimeZoneIdentifier: nil, clockTimeZoneIdentifier: nil,
-                systemTimeZoneIdentifier: "Europe/Paris") == "System Default (Europe/Paris)",
-            "with no city the summary is the clock's own zone")
-        check(
-            DashboardWidgetsEngine.locationSummary(
-                cityLabel: nil, cityTimeZoneIdentifier: nil,
-                clockTimeZoneIdentifier: "America/New_York",
-                systemTimeZoneIdentifier: "Europe/Paris") == "America/New York",
-            "a picked zone reads as words rather than an identifier")
-        check(
-            DashboardWidgetsEngine.locationSummary(
-                cityLabel: "Berlin, Germany", cityTimeZoneIdentifier: "Europe/Berlin",
-                clockTimeZoneIdentifier: "Europe/Berlin",
-                systemTimeZoneIdentifier: "Europe/Paris") == "Berlin, Germany · Europe/Berlin",
-            "one location serving both should read as one line")
-        check(
-            DashboardWidgetsEngine.locationSummary(
-                cityLabel: "Berlin, Germany", cityTimeZoneIdentifier: nil,
-                clockTimeZoneIdentifier: "Europe/Paris",
-                systemTimeZoneIdentifier: "Europe/Paris")
-                == "Berlin, Germany for the weather · clock on Europe/Paris",
-            "a city the clock does not follow must not claim to be the clock's location")
-
         // File Info: what the square says about a Finder selection.
         check(DashboardFileInfoSnapshot().isEmpty, "no selection should read as empty")
         // The empty card draws its mark alone, so these lines are spoken rather than drawn — the
@@ -381,10 +480,11 @@ struct DashboardWidgetsTests {
             childCount: children)
     }
 
-    private static func city(_ name: String, zone: String?) -> WeatherCity {
-        WeatherCity(
-            id: name.hashValue, name: name, latitude: 0, longitude: 0, country: nil, region: nil,
-            timeZoneIdentifier: zone)
+    private static func reading(latitude: Double, longitude: Double) -> WeatherSnapshot {
+        WeatherSnapshot(
+            latitude: latitude, longitude: longitude, temperatureCelsius: 14, weatherCode: 3,
+            isDay: true, fetchedAt: Date(timeIntervalSinceReferenceDate: 1_000_000_000),
+            lowCelsius: 9, highCelsius: 18, timeZoneIdentifier: "Europe/Berlin")
     }
 
     private static func near(_ value: Double, _ expected: Double) -> Bool {

@@ -83,7 +83,7 @@ Restoring one of these *is* the consent act — the file is trusted explicitly b
 | Translate target languages | `settings.googleTranslationTargets` |
 | Daily update check consent | `settings.updateAutoCheckEnabled` |
 | Currency-conversion consent | `settings.currencyRatesEnabled` |
-| Weather consent, city and unit | `settings.dashboardWidgets.weatherEnabled`, `.weatherCity`, `.weatherUnit` |
+| Weather consent and unit | `settings.dashboardWidgets.weatherEnabled`, `.weatherUnit` |
 
 A **"have we asked yet" marker never travels**, only the answer. A grant that arrives in a trusted
 file counts as answered, so the receiving Mac never re-prompts for a feature that is already on; but
@@ -95,7 +95,7 @@ derive "answered" from the restored grant.
 
 | Setting | Field |
 | --- | --- |
-| Widget strip order, calendar source, all-day events, clock time zone | `settings.dashboardWidgets.widgetOrder`, `.calendarSourceIdentifier`, `.includesAllDayEvents`, `.clockTimeZoneIdentifier` |
+| Widget strip order, calendar source, all-day events | `settings.dashboardWidgets.widgetOrder`, `.calendarSourceIdentifier`, `.includesAllDayEvents` |
 | Change Case: source, primary action, case/punctuation preservation, exceptions, affixes, pinned, recent, disabled | `pluginPrefs.changeCase.*` |
 | Kill Process: sort, grouping, search fields, prioritization, PID/path columns, refresh interval | `pluginPrefs.killProcess.*` |
 | Image Modification: output location, format | `pluginPrefs.imageModification.*` |
@@ -134,6 +134,7 @@ None of this travels, and each has its own reason.
 | `note.folder-sync.folder-path`, `note.folder-sync.adoption-pending` | the Notes folder is the other synchronization path, and choosing it is its own consent act. Adoption runs once per Mac. |
 | Note content and `note.selected-id` | `NoteFolderSyncManager` owns per-Note replication through that folder; typing must never rewrite the larger Settings file, and an incoming snapshot must never replace Notes. Manual backups still include them. |
 | `dashboard-widgets.uptime-day`, `-keys`, `-clicks`, `-session-start` | daily key/click tallies are a measurement of *this* Mac, not a setting. The consent flag does sync. |
+| The located weather place, and `dashboard-widgets.clock-time-zone` derived from it | a coordinate describes the Mac it was measured on. With manual city entry gone there would be nothing to correct an imported one with, so each Mac locates itself and an unlocatable one keeps its *own* saved zone. Consent and unit do sync. |
 | `update.last-check` | when this Mac last asked. Merging it would either suppress a due check or force a redundant one. |
 | `background-tasks.owner-id` | identifies rows this process owns, so a synced row is never mistaken for work running here. |
 | macOS privacy grants — Accessibility, Input Monitoring, Screen Recording, Automation, Full Disk Access | owned by `tccd` and keyed to this Mac and this signed bundle. Spotter cannot write them, and a "granted" flag that travelled would be a lie. |

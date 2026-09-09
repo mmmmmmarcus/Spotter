@@ -28,6 +28,12 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Spotter uses Apple Events to read what you have selected in the Finder, when you run a command that controls another app, or when you explicitly send a launcher query to Terminal.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Spotter uses your approximate location to show the current weather on the launcher's clock. It takes one coarse fix, sends only those coordinates to Open-Meteo, and keeps no history of where you have been.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Spotter uses your approximate location to show the current weather on the launcher's clock. It takes one coarse fix, sends only those coordinates to Open-Meteo, and keeps no history of where you have been.</string>
+	<key>NSLocationDefaultAccuracyReduced</key>
+	<true/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Spotter uses calendar access to show your next event and event days in Widgets.</string>
 	<key>NSHumanReadableCopyright</key>

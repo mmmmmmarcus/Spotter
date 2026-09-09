@@ -13,11 +13,13 @@ struct SettingsBackupData: Codable, Sendable {
         var widgetOrder: [String]?
         var calendarSourceIdentifier: String?
         var includesAllDayEvents: Bool?
-        var clockTimeZoneIdentifier: String?
         // Weather consent travels with the trusted file: restoring one is itself the consent act.
         var weatherEnabled: Bool?
-        var weatherCity: Data?
         var weatherUnit: String?
+        // Where the weather is read, and the clock zone derived from it, deliberately do not: both
+        // describe the Mac they were measured on, and with no manual control left, importing one
+        // would strand the receiving Mac on another Mac's place with nothing to correct it with.
+        // An older file's `weatherCity` / `clockTimeZoneIdentifier` are simply unread.
         /// Consent to count input, from before Uptime became a plugin of its own. Read for
         /// files written then; new files carry it in `SettingsBackupPluginPrefs.Uptime` instead.
     }

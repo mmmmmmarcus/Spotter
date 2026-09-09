@@ -391,6 +391,11 @@ final class AppCore: ObservableObject {
         // Terminate through NSApp so applicationWillTerminate still runs (Hyper Key remap cleanup) before the relaunch helper brings the new build up.
         updates.terminateForRelaunch = { NSApp.terminate(nil) }
         updates.start()
+        // One place, both halves: the located coordinates are where the weather is read, and the
+        // zone the forecast names for them is what the clock runs on.
+        dashboardWeather.onResolveTimeZone = { [weak self] identifier in
+            self?.dashboardWidgets.setClockTimeZoneIdentifier(identifier)
+        }
         // A no-op until the weather question has been answered with a yes.
         dashboardWeather.start()
         uptime.start()

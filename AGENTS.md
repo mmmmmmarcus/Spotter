@@ -190,14 +190,23 @@ Never break these without an explicit task to do so.
   rather than inventing a second shape. The Translate plugin's Google Translation path follows that
   consent shape; its API key and target list are included in the trusted v3 backup/sync snapshot.
   `Plugins/DashboardWidgets/DashboardWeatherStore.swift` follows it too: the clock face's weather
-  complications (one reading and one request) ship off, both the
-  forecast fetch and the city search are refused without consent, and its
-  enable state *is* consent — never the Mac's location, which Spotter never reads. The forecast
-  request asks for the city's own day (`timezone=auto`), which is derived from the coordinates it
-  already carries; don't widen it to anything the chosen city doesn't already imply. An unset city
-  resolves to the fixed `WeatherCity.default` (Tokyo) rather than to a nil that hides the reading; keep
-  that default a constant, since deriving one from the locale or time zone would be location
-  inference by another name. **Weather is asked once, at first launch, and once granted it is
+  complications (one reading and one request) ship off, the forecast fetch is refused without
+  consent, and its enable state *is* consent. **The place is the Mac's own** (owner decision, Sep
+  2026, reversing the chosen city that preceded it): `DashboardWeatherLocation.swift` holds the only
+  `CLLocationManager` in Spotter and takes **one coarse fix** — `kCLLocationAccuracyReduced`, with
+  `NSLocationDefaultAccuracyReduced` in `Info.plist` so macOS never offers the precise kind, and
+  `requestLocation()` rather than a subscription. A forecast is a property of a city, so never ask for
+  a finer fix, never monitor between refreshes, and keep CoreLocation out of the pure engines — they
+  see a coordinate, never a manager. Spotter's dialog comes first and macOS's location prompt second:
+  a decline creates no location manager and raises no system prompt at all. The forecast request asks
+  for the located place's own day (`timezone=auto`), which is derived from the coordinates it already
+  carries; don't widen it to anything the fix doesn't already imply, and take the clock's zone from
+  that same answer rather than a second request. **There is no fallback place and no manual entry**:
+  a denied, restricted or unobtainable fix must *say so* — on the card and in the Settings row, with
+  the path to System Settings ▸ Privacy — and must never show another place's weather as though it
+  were the user's, which with no city field left would be a wrong reading nobody could correct.
+  `DashboardWeatherEngine.locationState` holds those states as pure logic and
+  `Tools/dashboard-widgets-test.swift` pins them. **Weather is asked once, at first launch, and once granted it is
   permanently on** (owner decision, Sep 2026) — the one exception to "a networked feature must be
   withdrawable", and it is not a licence to build a second one. Everything else about the gate
   stands: no request before consent, a dialog that still names Open-Meteo, the 30-minute cadence and
@@ -207,13 +216,15 @@ Never break these without an explicit task to do so.
   `dashboard-widgets.weather-enabled`): a decline records the answer and leaves weather off, is never
   asked again on a later launch, and leaves Settings ▸ Widgets a way to grant it later. There is no
   off switch; `DashboardWeatherEngine.consentState`/`shouldPresentConsent` hold that rule as pure
-  logic and `Tools/dashboard-widgets-test.swift` pins it. The Clock shares that city, and the sharing
-  runs **one way only** — choosing a city sets the clock's zone, but setting a zone reaches no city
-  and sends nothing. **Choosing a city is the only location control**: there is no separate time-zone
-  picker, and a Mac that has not answered the dialog still gets a working clock from its saved zone
-  or the system's, never a blank face. Do not make the complications draw without consent. Its
-  consent flag, city and unit ride in the trusted v3 snapshot; a snapshot carrying `false` grants
-  nothing and is not an answer, so the receiving Mac is still asked.
+  logic and `Tools/dashboard-widgets-test.swift` pins it. The Clock follows that located place, and the sharing
+  runs **one way only** — the fix sets the clock's zone, but setting a zone reaches no location and
+  sends nothing. **There is no location control at all**: no city field and no time-zone picker, and
+  a Mac that has not answered the dialog, or cannot be located, still gets a working clock from its
+  own saved zone or the system's, never a blank face. Do not make the complications draw without
+  consent. Its consent flag and unit ride in the trusted v3 snapshot; the located place and the clock
+  zone derived from it stay device-local, since a coordinate from another Mac is the same class of
+  mistake as a file path from another Mac. A snapshot carrying `false` grants nothing and is not an
+  answer, so the receiving Mac is still asked.
   `Plugins/Uptime/UptimeStore.swift` is deliberately **always on, with no switch and no consent
   dialog** (owner decision, Sep 2026), and what makes that defensible is how little it takes rather
   than a gate: the counters must stay counters — key or click and an autorepeat flag are the only
@@ -303,8 +314,10 @@ Never break these without an explicit task to do so.
   superseding both the per-card panes and the Arrangement pane that briefly replaced them): a
   section per card that has something to configure, no pane of its own for any card. A card with
   nothing to set gets no section at all (Device Battery and File Info, owner decision, Sep 2026),
-  and cards that share a setting share one section — Clock and Weather share **one merged Location
-  control**, with no time-zone picker and no way to turn weather off; the Music section carries no
+  and cards that share a setting share one section — Clock and Weather share the pane's opening
+  section, which like every pane's first group carries **no header**; it reports the located place
+  rather than offering one, with no city field, no time-zone picker and no way to turn weather off;
+  the Music section carries no
   Automation Permission row either (owner decision, Sep 2026 — the Finder and Music reads and macOS's
   own Automation prompt are unchanged, only the row is gone). **Order is set by dragging the cards in the
   palette**, which is the thing being arranged — do not reintroduce a list of names for it. Strip
