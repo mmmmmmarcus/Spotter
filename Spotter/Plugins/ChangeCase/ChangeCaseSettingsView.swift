@@ -28,13 +28,22 @@ struct ChangeCaseSettingsView: View {
             }
             Section("Casing Rules") {
                 SettingsRow(title: "Exceptions") {
-                    TextField("iOS, macOS", text: $exceptions).frame(width: 220)
+                    TextField("Exceptions", text: $exceptions, prompt: Text("iOS, macOS"))
+                        .labelsHidden()
+                        .accessibilityLabel("Exceptions")
+                        .frame(width: 220)
                 }
                 SettingsRow(title: "Prefix Characters") {
-                    TextField("Optional", text: $prefix).frame(width: 160)
+                    TextField("Prefix Characters", text: $prefix, prompt: Text("Optional"))
+                        .labelsHidden()
+                        .accessibilityLabel("Prefix Characters")
+                        .frame(width: 160)
                 }
                 SettingsRow(title: "Suffix Characters") {
-                    TextField("Optional", text: $suffix).frame(width: 160)
+                    TextField("Suffix Characters", text: $suffix, prompt: Text("Optional"))
+                        .labelsHidden()
+                        .accessibilityLabel("Suffix Characters")
+                        .frame(width: 160)
                 }
             }
             Section("Cases") {

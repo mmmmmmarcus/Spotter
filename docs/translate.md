@@ -110,3 +110,5 @@ Translate shares `AppCore`'s `SelectedTextCapture` with Search and AI Chat; see
 `TranslateResults.snapshot` defaults `hasAPIKey` to `false`, so a caller that forgets to pass it
 renders the blocked page rather than a live one. Clearing the key cancels the active request, empties
 the memo and clears the in-memory result, and both commands then refuse rather than translating.
+
+The Settings API-key field has a hidden label and an in-field example prompt; the provider disclosure and key persistence behavior are unchanged.

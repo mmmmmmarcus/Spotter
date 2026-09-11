@@ -608,3 +608,20 @@ The calculator's inline `CalculatorCard` reuses this card language (`cardFill` +
 - **New tokens go in `Theme`**, referenced everywhere. No magic numbers in views.
 - **Keep the shared grammar shared.** If you change row insets, the `fill` precedence, section-header style, or keycap style, change it for _all_ lists — divergence is the bug, not the feature.
 - **Build & verify** with the real toolchain (see [`development.md`](development.md)); a design change that doesn't compile under Swift 6 mode isn't done.
+
+### Settings audit fixes
+
+The sidebar search filters registered pages by their name, summary and shipped option keywords;
+it never indexes credentials or user content. Selecting a result clears the filter. General opens
+with everyday preferences instead of search paths and ranking reset. The application menu exposes
+Settings… with Command-comma even when the status item is hidden.
+
+Rows with multiple controls opt into `SettingsRow.containsMultipleControls`, which preserves each
+control as an accessible child instead of combining them into a `LabeledContent` value. These
+controls carry explicit accessible names. Text and secure fields inside labelled rows hide their
+own label and use `prompt` for examples, so a populated field never displays a second sample value.
+
+Permissions includes Location using the existing weather authorization publisher; opening this
+page does not create a location manager or request a fix. Backup explicitly discloses manual versus
+automatic coverage, credentials and device-local exclusions, with a route to Notes Settings.
+These disclosures are part of the data-handling exceptions to the usual concise settings copy.

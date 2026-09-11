@@ -50,6 +50,17 @@ struct CalendarScheduleSettingsView: View {
                     }
                 }
 
+                if store.calendarAccess == .fullAccess, selectedAccountUnavailable {
+                    SettingsCallout(
+                        title: "Saved account unavailable",
+                        message: "This account is unavailable on this Mac. Events from all accounts are shown until you choose an available account.",
+                        tint: .orange
+                    ) {
+                        Button("Use All Accounts") { store.setCalendarSourceIdentifier("") }
+                            .controlSize(.small)
+                    }
+                }
+
                 SettingsRow(title: "All-Day Events") {
                     Toggle("", isOn: includesAllDayEventsBinding)
                         .labelsHidden()
@@ -71,6 +82,11 @@ struct CalendarScheduleSettingsView: View {
         case .writeOnly:
             return "Write-only access cannot show events; grant full access to continue."
         }
+    }
+
+    private var selectedAccountUnavailable: Bool {
+        guard let selected = store.preferences.calendarSourceIdentifier else { return false }
+        return !store.calendarAccounts.contains { $0.id == selected }
     }
 
     private var calendarSourceBinding: Binding<String> {

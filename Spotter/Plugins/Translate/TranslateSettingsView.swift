@@ -26,7 +26,9 @@ struct TranslateSettingsView: View {
                         + "text it has already translated into the same languages. Stored in "
                         + "bundle-scoped preferences and included in trusted sync or backup files."
                 ) {
-                    SecureField("Google Cloud API key", text: $apiKeyDraft)
+                    SecureField("API Key", text: $apiKeyDraft, prompt: Text("Google Cloud API key"))
+                        .labelsHidden()
+                        .accessibilityLabel("API Key")
                         .textFieldStyle(.roundedBorder)
                         .font(.body.monospaced())
                         .frame(width: 260)

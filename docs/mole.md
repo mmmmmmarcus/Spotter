@@ -178,3 +178,5 @@ since Mole redraws lines in place) and then reads the structure:
 
 `mole purge` prints `✓ [DRY RUN] <path>, <size>`; the size is taken from the **last** comma, because
 project paths contain commas.
+
+The binary-path settings field uses an in-field prompt instead of rendering the example path as a second trailing label.

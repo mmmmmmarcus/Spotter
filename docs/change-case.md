@@ -21,3 +21,5 @@ Copy/Paste actions. Each transformation also has a direct launcher/global-shortc
 secondary commands ship hidden to keep launcher search compact, but users can reveal or bind them in
 System → Shortcuts. Settings control source, primary action, casing/punctuation preservation,
 title/sentence exceptions, retained prefix/suffix characters and enabled transformations.
+
+Casing-rule fields use hidden control labels with explicit example prompts, preserving independent accessible inputs inside the grouped form.

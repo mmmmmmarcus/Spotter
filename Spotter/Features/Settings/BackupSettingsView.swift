@@ -6,7 +6,11 @@ struct BackupSettingsView: View {
     var body: some View {
         SettingsPane(title: "Backup") {
             Section("Sync") {
-                SettingsRow(title: "Export & Import") {
+                SettingsRow(
+                    title: "Export & Import",
+                    subtitle: "Manual backups include Notes, settings, shortcuts, API keys and private content such as clipboard history and AI chats.",
+                    containsMultipleControls: true
+                ) {
                     HStack(spacing: Theme.Spacing.md) {
                         Button("Export…") { BackupActions.exportSettings() }
                             .controlSize(.small)
@@ -31,6 +35,21 @@ struct BackupSettingsView: View {
                         .controlSize(.small)
                         .disabled(settingsSync.fileURL == nil || settingsSync.isWorking)
                 }
+            }
+            Section("Backup & Sync Contents") {
+                SettingsCallout(
+                    title: "Keep backup and sync files private",
+                    message: "Both contain API keys, network-service consent and private content in readable JSON. Importing a trusted file can replace existing settings and content.")
+                SettingsRow(
+                    title: "Notes Sync",
+                    subtitle: "Automatic Settings Sync excludes Note content. Notes sync separately through your chosen Markdown folder. Manual backups include Notes for recovery."
+                ) {
+                    Button("Open Notes Settings") { AppCore.shared.showSettings(plugin: .note) }
+                        .controlSize(.small)
+                }
+                SettingsCallout(
+                    title: "Stays on this Mac",
+                    message: "System privacy grants, sync-folder paths, current location and daily activity counts are not included.")
             }
         }
     }

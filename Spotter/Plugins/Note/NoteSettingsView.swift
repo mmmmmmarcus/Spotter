@@ -16,7 +16,7 @@ struct NoteSettingsView: View {
             }
 
             Section("Sync") {
-                SettingsRow(title: "Notes Folder", subtitle: folderSubtitle) {
+                SettingsRow(title: "Notes Folder", subtitle: folderSubtitle, containsMultipleControls: true) {
                     HStack(spacing: Theme.Spacing.md) {
                         if sync.isEnabled {
                             Button("Stop Syncing") { sync.disconnect() }

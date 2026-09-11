@@ -67,6 +67,7 @@ struct SettingsRow<Trailing: View>: View {
     var subtitle: String? = nil
     /// Optional state indicator rendered after the title (green = active, orange = attention).
     var statusDot: Color? = nil
+    var containsMultipleControls = false
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
@@ -85,7 +86,21 @@ struct SettingsRow<Trailing: View>: View {
         }
     }
 
+    @ViewBuilder
     private var labeled: some View {
+        if containsMultipleControls {
+            HStack(spacing: Theme.Spacing.lg) {
+                Text(title)
+                Spacer(minLength: Theme.Spacing.xl)
+                trailing
+            }
+            .accessibilityElement(children: .contain)
+        } else {
+            singleControlRow
+        }
+    }
+
+    private var singleControlRow: some View {
         LabeledContent {
             trailing
         } label: {

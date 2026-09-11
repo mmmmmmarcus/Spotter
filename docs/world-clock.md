@@ -81,3 +81,5 @@ rows hold no state: `AppCore` re-reads the live query to resolve the row an acti
 The plugin Settings pane searches the macOS city catalog, adds or removes cities and restores the
 three defaults. Leaving the screen stops its visible-only clock task and exits an active World Clock
 palette screen.
+
+The Settings city search shows an explicit empty result with Clear Search when no unsaved city matches, including when all matching cities are already saved.

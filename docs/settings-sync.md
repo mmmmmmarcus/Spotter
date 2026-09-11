@@ -204,3 +204,5 @@ Connecting a file requires an explicit trust alert because future changes are ap
 Fresh installs still default every network feature to off; trusting a sync file or manually importing
 a backup is the consent act that may restore its saved toggles and keys. Requests continue to re-check
 their owning consent flag around every network call and use private cacheless sessions.
+
+Settings-originated export, import and folder pickers are attached sheets. Cancelling restores the originating window, including when a floating Note is open. Palette-originated operations retain their modal fallback. Backup explains the content scope and links directly to Notes Settings.

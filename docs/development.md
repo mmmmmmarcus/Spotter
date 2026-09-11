@@ -449,3 +449,14 @@ Pages at `https://mmmmmmarcus.github.io/Spotter/` on every push to `main` that t
 ```sh
 cd website && npm install && npm run dev     # local preview
 ```
+
+### Settings search regression
+
+`SettingsSearch` is Foundation-only and indexes shipped labels, not saved user content.
+
+```sh
+swiftc -swift-version 6 Spotter/Features/Settings/SettingsSearch.swift Tools/settings-search-test.swift -o /tmp/spotter-settings-search-test
+/tmp/spotter-settings-search-test
+```
+
+The harness is also included in `scripts/test-all.sh`.

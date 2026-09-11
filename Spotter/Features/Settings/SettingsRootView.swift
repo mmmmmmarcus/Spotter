@@ -58,6 +58,8 @@ enum SettingsDestination: Hashable {
 struct SettingsRootView: View {
     @EnvironmentObject private var plugins: PluginRegistry
     @State private var destination: SettingsDestination
+    @State private var searchQuery = ""
+    @FocusState private var searchFocused: Bool
 
     init(initialDestination: SettingsDestination = .system(.general)) {
         _destination = State(initialValue: initialDestination)
@@ -88,48 +90,77 @@ struct SettingsRootView: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .spotterSelectSettingsDestination)
         ) { note in
-            if let target = note.object as? SettingsDestination { destination = target }
+            if let target = note.object as? SettingsDestination {
+                searchQuery = ""
+                destination = target
+            }
         }
     }
 
     private var sidebar: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
-                sidebarHeader("System")
-                ForEach(SettingsTab.systemTabs) { item in
-                    sidebarRow(
-                        title: item.title, systemImage: item.systemImage, tint: item.tint,
-                        destination: .system(item))
-                }
-
-                ForEach(plugins.systemFeatures) { feature in
-                    sidebarRow(
-                        title: feature.name,
-                        systemImage: feature.systemImage,
-                        tint: feature.tint.color,
-                        destination: .plugin(feature.id))
-                }
-
-                sidebarHeader("Plugins")
-                    .padding(.top, Theme.Spacing.md)
-                ForEach(sortedPlugins) { plugin in
-                    sidebarRow(
-                        title: plugin.name,
-                        systemImage: plugin.systemImage,
-                        tint: plugin.tint.color,
-                        destination: .plugin(plugin.id))
-                }
-
-                sidebarHeader("Spotter")
-                    .padding(.top, Theme.Spacing.md)
-                ForEach(SettingsTab.spotterTabs) { item in
-                    sidebarRow(
-                        title: item.title, systemImage: item.systemImage, tint: item.tint,
-                        destination: .system(item))
+        VStack(spacing: Theme.Spacing.md) {
+            HStack(spacing: Theme.Spacing.xs) {
+                TextField("Search Settings", text: $searchQuery, prompt: Text("Search Settings"))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Search Settings")
+                    .focused($searchFocused)
+                if !searchQuery.isEmpty {
+                    Button {
+                        searchQuery = ""
+                        searchFocused = true
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear settings search")
                 }
             }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
+                    if !hasSearchResults {
+                        Text("No settings found")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(Theme.Spacing.md)
+                    }
+                    if SettingsTab.systemTabs.contains(where: matches)
+                        || plugins.systemFeatures.contains(where: matches)
+                    {
+                        sidebarHeader("System")
+                        ForEach(SettingsTab.systemTabs.filter(matches)) { item in
+                            sidebarRow(
+                                title: item.title, systemImage: item.systemImage, tint: item.tint,
+                                destination: .system(item))
+                        }
+                        ForEach(plugins.systemFeatures.filter(matches)) { feature in
+                            sidebarRow(
+                                title: feature.name, systemImage: feature.systemImage,
+                                tint: feature.tint.color, destination: .plugin(feature.id))
+                        }
+                    }
+                    if sortedPlugins.contains(where: matches) {
+                        sidebarHeader("Plugins")
+                            .padding(.top, Theme.Spacing.md)
+                        ForEach(sortedPlugins.filter(matches)) { plugin in
+                            sidebarRow(
+                                title: plugin.name, systemImage: plugin.systemImage,
+                                tint: plugin.tint.color, destination: .plugin(plugin.id))
+                        }
+                    }
+                    if SettingsTab.spotterTabs.contains(where: matches) {
+                        sidebarHeader("Spotter")
+                            .padding(.top, Theme.Spacing.md)
+                        ForEach(SettingsTab.spotterTabs.filter(matches)) { item in
+                            sidebarRow(
+                                title: item.title, systemImage: item.systemImage, tint: item.tint,
+                                destination: .system(item))
+                        }
+                    }
+                }
+            }
+            .overlayScroller()
         }
-        .overlayScroller()
         .padding(.top, Theme.Spacing.md)
         .padding(.horizontal, Theme.Spacing.md)
         .frame(width: Theme.Size.settingsSidebar)
@@ -143,6 +174,19 @@ struct SettingsRootView: View {
             }
             .ignoresSafeArea()
         )
+    }
+
+    private func matches(_ tab: SettingsTab) -> Bool {
+        SettingsSearch.matches(searchQuery, title: tab.title, key: tab.rawValue)
+    }
+
+    private func matches(_ plugin: PluginMetadata) -> Bool {
+        SettingsSearch.matches(searchQuery, title: plugin.name, summary: plugin.summary, key: plugin.id.rawValue)
+    }
+
+    private var hasSearchResults: Bool {
+        SettingsTab.allCases.contains(where: matches)
+            || (plugins.systemFeatures + sortedPlugins).contains(where: matches)
     }
 
     private var sortedPlugins: [PluginMetadata] {
@@ -170,7 +214,11 @@ struct SettingsRootView: View {
             systemImage: systemImage,
             tint: tint,
             isSelected: destination == target
-        ) { destination = target }
+        ) {
+            destination = target
+            searchQuery = ""
+            searchFocused = false
+        }
     }
 }
 

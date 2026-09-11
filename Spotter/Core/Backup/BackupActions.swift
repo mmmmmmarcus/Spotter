@@ -11,16 +11,17 @@ enum BackupActions {
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "Spotter-Settings-\(dateStamp()).json"
         panel.canCreateDirectories = true
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task {
-            do {
-                let data = try await SettingsBackup.gather().encodedOffMain()
-                try await Task.detached(priority: .utility) {
-                    try data.write(to: url, options: .atomic)
-                }.value
-            } catch {
-                present(title: "Export Failed", message: error.localizedDescription, style: .warning)
+        presentPanel(panel) { url in
+            guard let url else { return }
+            Task {
+                do {
+                    let data = try await SettingsBackup.gather().encodedOffMain()
+                    try await Task.detached(priority: .utility) {
+                        try data.write(to: url, options: .atomic)
+                    }.value
+                } catch {
+                    present(title: "Export Failed", message: error.localizedDescription, style: .warning)
+                }
             }
         }
     }
@@ -29,19 +30,20 @@ enum BackupActions {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task {
-            do {
-                let data = try await Task.detached(priority: .utility) { try Data(contentsOf: url) }
-                    .value
-                let backup = try await SettingsBackup.decodedOffMain(data)
-                guard confirmSettingsImport(backup) else { return }
-                present(
-                    title: "Settings Imported",
-                    message: summaryText(await backup.apply()), style: .informational)
-            } catch {
-                present(title: "Import Failed", message: error.localizedDescription, style: .warning)
+        presentPanel(panel) { url in
+            guard let url else { return }
+            Task {
+                do {
+                    let data = try await Task.detached(priority: .utility) { try Data(contentsOf: url) }
+                        .value
+                    let backup = try await SettingsBackup.decodedOffMain(data)
+                    guard confirmSettingsImport(backup) else { return }
+                    present(
+                        title: "Settings Imported",
+                        message: summaryText(await backup.apply()), style: .informational)
+                } catch {
+                    present(title: "Import Failed", message: error.localizedDescription, style: .warning)
+                }
             }
         }
     }
@@ -59,11 +61,10 @@ enum BackupActions {
         panel.message =
             "Choose a folder for \(SettingsSyncManager.fileName). Put it in iCloud Drive to keep "
             + "Spotter settings synchronized across Macs."
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url,
-            confirmAutomaticSync()
-        else { return }
-        AppCore.shared.settingsSync.connect(toFolder: url)
+        presentPanel(panel) { url in
+            guard let url, confirmAutomaticSync() else { return }
+            AppCore.shared.settingsSync.connect(toFolder: url)
+        }
     }
 
     /// Choosing the folder is the consent act, exactly as choosing one is for Settings Sync:
@@ -77,9 +78,28 @@ enum BackupActions {
         panel.prompt = "Choose"
         panel.message =
             "Choose a folder for your Notes. Put it in iCloud Drive to share them between Macs."
+        presentPanel(panel) { url in
+            guard let url else { return }
+            AppCore.shared.noteFolderSync.connect(to: url)
+        }
+    }
+
+    // Keep a Settings-originated picker attached to its window, even when a floating Note is open.
+    private static func presentPanel(
+        _ panel: NSSavePanel, completion: @escaping @MainActor (URL?) -> Void
+    ) {
+        let origin = NSApp.keyWindow
         NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        AppCore.shared.noteFolderSync.connect(to: url)
+        if let origin, !(origin is NSPanel) {
+            panel.beginSheetModal(for: origin) { response in
+                if origin.isVisible { origin.makeKeyAndOrderFront(nil) }
+                completion(response == .OK ? panel.url : nil)
+            }
+        } else {
+            let response = panel.runModal()
+            if let origin, origin.isVisible { origin.makeKeyAndOrderFront(nil) }
+            completion(response == .OK ? panel.url : nil)
+        }
     }
 
     // MARK: - Helpers

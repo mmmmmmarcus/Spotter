@@ -29,6 +29,7 @@ TESTS=(
     note-editor
     text-replacement
     settings-sync
+    settings-search
     update
     window-command
     background-task
@@ -67,6 +68,10 @@ run_harness() {
     local output="$2"
 
     case "$name" in
+        settings-search)
+            swiftc -swift-version 6 Spotter/Features/Settings/SettingsSearch.swift \
+                Tools/settings-search-test.swift -o "$output" && "$output"
+            ;;
         app-identity-migration)
             swiftc -swift-version 6 Spotter/Core/AppIdentityMigration.swift \
                 Tools/app-identity-migration-test.swift -o "$output" && "$output"

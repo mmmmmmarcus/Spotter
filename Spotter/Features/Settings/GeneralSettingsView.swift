@@ -39,17 +39,60 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "General") {
-            Section("Search") {
-                SettingsRow(title: "Learned ranking") {
-                    Button("Reset…", role: .destructive) {
-                        confirmingRankingReset = true
+            Section("General") {
+                SettingsRow(title: "Run in Terminal uses") {
+                    Picker("", selection: $settings.preferredTerminal) {
+                        ForEach(installedTerminals, id: \.self) { terminal in
+                            Text(terminal.displayName).tag(terminal)
+                        }
                     }
-                    .controlSize(.small)
-                    .disabled(launcherRanking.isEmpty)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                SettingsRow(title: "Launch at login") {
+                    Toggle("", isOn: $settings.launchAtLogin)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsRow(title: "Show in menu bar") {
+                    Toggle("", isOn: $showInMenuBar)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsRow(title: "Show in Dock") {
+                    Toggle("", isOn: $settings.showInDock)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsRow(title: "Remember Window Position") {
+                    Toggle("", isOn: $settings.remembersPalettePosition)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsRow(title: "Lock Input Method to English") {
+                    Toggle("", isOn: $settings.lockInputToEnglish)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                SettingsRow(title: "Pop to Root Search") {
+                    Picker("", selection: $settings.popToRootTimeout) {
+                        ForEach(PopToRootTimeout.allCases) { timeout in
+                            Text(timeout.title).tag(timeout)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                SettingsRow(title: "Welcome Guide") {
+                    Button("Show…") { AppCore.shared.showOnboarding() }
+                        .controlSize(.small)
                 }
             }
-
-            SearchScopesSection()
 
             Section("Hyper Key") {
                 SettingsRow(
@@ -126,7 +169,7 @@ struct GeneralSettingsView: View {
                 ForEach(
                     Array(settings.launcherSectionOrder.enumerated()), id: \.element
                 ) { index, section in
-                    SettingsRow(title: section.title) {
+                    SettingsRow(title: section.title, containsMultipleControls: true) {
                         HStack(spacing: Theme.Spacing.md) {
                             Button {
                                 settings.moveLauncherSection(section, delta: -1)
@@ -136,6 +179,7 @@ struct GeneralSettingsView: View {
                             .buttonStyle(.borderless)
                             .disabled(index == 0)
                             .help("Move Up")
+                            .accessibilityLabel("Move \(section.title) up")
                             Button {
                                 settings.moveLauncherSection(section, delta: 1)
                             } label: {
@@ -144,8 +188,9 @@ struct GeneralSettingsView: View {
                             .buttonStyle(.borderless)
                             .disabled(index == settings.launcherSectionOrder.count - 1)
                             .help("Move Down")
+                            .accessibilityLabel("Move \(section.title) down")
                             Toggle(
-                                "",
+                                "Show \(section.title)",
                                 isOn: Binding(
                                     get: { !settings.launcherHiddenSections.contains(section) },
                                     set: { shown in
@@ -164,60 +209,17 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Section("General") {
-                SettingsRow(title: "Run in Terminal uses") {
-                    Picker("", selection: $settings.preferredTerminal) {
-                        ForEach(installedTerminals, id: \.self) { terminal in
-                            Text(terminal.displayName).tag(terminal)
-                        }
+            Section("Search") {
+                SettingsRow(title: "Learned ranking") {
+                    Button("Reset…", role: .destructive) {
+                        confirmingRankingReset = true
                     }
-                    .labelsHidden()
-                    .fixedSize()
-                }
-                SettingsRow(title: "Launch at login") {
-                    Toggle("", isOn: $settings.launchAtLogin)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-                SettingsRow(title: "Show in menu bar") {
-                    Toggle("", isOn: $showInMenuBar)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-                SettingsRow(title: "Show in Dock") {
-                    Toggle("", isOn: $settings.showInDock)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-                SettingsRow(title: "Remember Window Position") {
-                    Toggle("", isOn: $settings.remembersPalettePosition)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-                SettingsRow(title: "Lock Input Method to English") {
-                    Toggle("", isOn: $settings.lockInputToEnglish)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-                SettingsRow(title: "Pop to Root Search") {
-                    Picker("", selection: $settings.popToRootTimeout) {
-                        ForEach(PopToRootTimeout.allCases) { timeout in
-                            Text(timeout.title).tag(timeout)
-                        }
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-                }
-                SettingsRow(title: "Welcome Guide") {
-                    Button("Show…") { AppCore.shared.showOnboarding() }
-                        .controlSize(.small)
+                    .controlSize(.small)
+                    .disabled(launcherRanking.isEmpty)
                 }
             }
+
+            SearchScopesSection()
 
             UpdatesSettingsSection()
         }

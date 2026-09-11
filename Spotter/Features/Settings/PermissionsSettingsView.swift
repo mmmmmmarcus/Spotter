@@ -8,6 +8,7 @@ import SwiftUI
 /// grant actually lives.
 struct PermissionsSettingsView: View {
     @ObservedObject private var dashboard = AppCore.shared.dashboardWidgets
+    @ObservedObject private var weather = AppCore.shared.dashboardWeather
     @State private var accessibilityTrusted = Permissions.isAccessibilityTrusted()
     @State private var screenRecordingAllowed = Permissions.isScreenRecordingAllowed()
     private let refreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -33,6 +34,13 @@ struct PermissionsSettingsView: View {
 
                 SettingsRow(title: "Calendar Events") {
                     calendarControl
+                }
+
+                SettingsRow(title: "Location", containsMultipleControls: true) {
+                    locationControl
+                    Button("Open Settings…") { Permissions.openLocationSettings() }
+                        .controlSize(.small)
+                        .accessibilityLabel("Open Location Services Settings")
                 }
 
                 SettingsRow(title: "Screen Recording") {
@@ -61,6 +69,26 @@ struct PermissionsSettingsView: View {
                 screenRecordingAllowed = recordingAllowed
             }
             dashboard.refreshCalendarAuthorization()
+        }
+    }
+
+    @ViewBuilder
+    private var locationControl: some View {
+        if !weather.isEnabled {
+            Text("Not in use")
+                .foregroundStyle(.secondary)
+        } else {
+            switch weather.authorization {
+            case .authorized:
+                grantedBadge
+            case .denied:
+                statusBadge("Denied", symbol: "xmark.circle.fill", color: .orange)
+            case .restricted:
+                statusBadge("Restricted", symbol: "lock.circle.fill", color: .orange)
+            case .notDetermined:
+                Text("Not requested")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

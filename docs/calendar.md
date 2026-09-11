@@ -52,3 +52,5 @@ picker, all-day toggle — moved here from the Widgets page, which now points at
 My Schedule binding is recorded in Settings ▸ Shortcuts with every other launcher command. Leaving the screen returns an
 active schedule screen to the launcher; the widget card keeps showing, since widgets have no off
 switch.
+
+An unavailable saved account remains selected until the user changes it. Settings explains the existing all-accounts fallback and offers Use All Accounts to clear the stale filter explicitly.

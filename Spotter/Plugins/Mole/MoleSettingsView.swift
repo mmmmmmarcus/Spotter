@@ -19,7 +19,9 @@ struct MoleSettingsView: View {
                     subtitle: mole.binaryPath.map { "Using \($0)" }
                         ?? "Searched Homebrew's usual locations and found nothing."
                 ) {
-                    TextField("/opt/homebrew/bin/mole", text: $pathDraft)
+                    TextField("Binary Path", text: $pathDraft, prompt: Text("/opt/homebrew/bin/mole"))
+                        .labelsHidden()
+                        .accessibilityLabel("Binary Path")
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 240)
                         .onSubmit { mole.setBinaryPathOverride(pathDraft) }

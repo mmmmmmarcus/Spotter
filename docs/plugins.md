@@ -349,3 +349,5 @@ Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](
 [Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
 [Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md),
 and [File Search](file-search.md).
+
+Settings search derives destinations from the existing registry and matches shipped option keywords without indexing user content. Multi-control settings rows preserve independent accessibility children; explicit field prompts avoid duplicate native Form labels.

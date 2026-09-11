@@ -26,6 +26,10 @@ struct SpotterApp: App {
                 .keyboardShortcut("q")
         }
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { AppCore.shared.showSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
             CommandGroup(after: .appInfo) {
                 Button("Capture Screenshot") {
                     AppCore.shared.plugins.perform(.captureScreenshot)

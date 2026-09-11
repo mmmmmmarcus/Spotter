@@ -30,10 +30,22 @@ struct WorldClockSettingsView: View {
                 }
 
                 SettingsRow(title: "Add City") {
-                    TextField("London", text: $cityQuery)
+                    TextField("Add City", text: $cityQuery, prompt: Text("London"))
+                        .labelsHidden()
+                        .accessibilityLabel("Add City")
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 210)
                         .onSubmit(addFirstSuggestion)
+                }
+
+                if !cityQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, suggestions.isEmpty {
+                    SettingsRow(
+                        title: "No cities to add",
+                        subtitle: "No unsaved city matches this search. Try another name or check the saved cities above."
+                    ) {
+                        Button("Clear Search") { cityQuery = "" }
+                            .controlSize(.small)
+                    }
                 }
 
                 ForEach(suggestions) { city in
