@@ -1,5 +1,6 @@
-// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
+// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
 import Foundation
+import CoreGraphics
 
 @main
 struct AIChatTests {
@@ -14,6 +15,35 @@ struct AIChatTests {
                 print("FAIL  \(message)")
             }
         }
+
+        let textLine = CGRect(x: 20, y: 2, width: 200, height: 18)
+        let marker = CGRect(x: 0, y: 0, width: 10, height: 22)
+        let nextLine = CGRect(x: 20, y: 24, width: 200, height: 18)
+        check("mixed fonts and list markers reveal as one row",
+            AIChatLineLayout.tops(for: [textLine, marker, nextLine]) == [0, 24])
+        check("table columns share visual rows regardless of enumeration order",
+            AIChatLineLayout.tops(for: [nextLine.offsetBy(dx: 220, dy: 0), textLine, nextLine]) == [2, 24])
+        check("touching lines remain distinct",
+            AIChatLineLayout.tops(for: [textLine, textLine.offsetBy(dx: 0, dy: 18)]) == [2, 20])
+        check("empty geometry creates no reveal rows", AIChatLineLayout.tops(for: [.zero]).isEmpty)
+
+        func stream(_ input: String) throws -> String {
+            var parser = OpenRouterStream()
+            var result = ""
+            for byte in input.utf8 { result += try parser.feed(byte) ?? "" }
+            try parser.finish()
+            return result
+        }
+        let first = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好\"}}]}\r\n\r\n"
+        let last = "data: {\"choices\":[{\"delta\":{\"content\":\"🙂\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+        check("SSE byte boundaries preserve Chinese and emoji", (try? stream(first + last)) == "你好🙂")
+        check("SSE comments and empty usage do not create text", (try? stream(": keepalive\n\ndata: {\"choices\":[]}\n\n" + first + last)) == "你好🙂")
+        check("SSE requires completion marker", (try? stream(first)) == nil)
+        check("SSE rejects malformed data", (try? stream("data: broken\n\n")) == nil)
+        check("SSE reports provider failure after content", (try? stream(first + "data: {\"error\":{\"message\":\"Disconnected\"}}\n\n")) == nil)
+        check("SSE joins multiline event data", (try? stream("data: {\"choices\":\n" + "data: [{\"delta\":{\"content\":\"hello\"}}]}\n\ndata: [DONE]\n\n")) == "hello")
+        check("SSE ignores role-only chunks", (try? stream("data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n" + last)) == "🙂")
+        check("SSE rejects oversized frames", (try? stream("data: " + String(repeating: "a", count: 1_048_577))) == nil)
 
         func message(_ role: AIChatMessage.Role, _ text: String) -> AIChatMessage {
             AIChatMessage(role: role, text: text)

@@ -206,3 +206,5 @@ a backup is the consent act that may restore its saved toggles and keys. Request
 their owning consent flag around every network call and use private cacheless sessions.
 
 Settings-originated export, import and folder pickers are attached sheets. Cancelling restores the originating window, including when a floating Note is open. Palette-originated operations retain their modal fallback. Backup explains the content scope and links directly to Notes Settings.
+
+AI Chat streaming drafts are process-local. Automatic sync observes committed sessions and selected session changes, not token-level view updates.

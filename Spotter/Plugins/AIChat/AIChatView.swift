@@ -5,6 +5,8 @@ import SwiftUI
 struct AIChatView: View {
     @ObservedObject var chat: AIChatStore
     let scroll: ScrollIntent
+    @State private var followsBottom = true
+    @State private var isUserScrolling = false
 
     /// Anchor row pinned under the newest content so replies land scrolled into view.
     private static let bottomAnchor = "ai-chat-bottom"
@@ -61,11 +63,11 @@ struct AIChatView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     ForEach(chat.messages) { message in
-                        AIChatRow(message: message)
+                        AIChatRow(message: message, isStreaming: message.id == chat.streamingReply?.id)
                     }
                     if chat.phase == .waiting {
                         AIChatStatusRow(
-                            symbol: "ellipsis", text: AIChatEngine.waitingStatus, pulses: true)
+                            symbol: "ellipsis", text: chat.streamingReply == nil ? AIChatEngine.waitingStatus : "Generating…", pulses: true)
                     }
                     if case .failed(let reason) = chat.phase {
                         AIChatStatusRow(
@@ -82,6 +84,17 @@ struct AIChatView: View {
             .edgeDissolve()
             .thinScrollbar()
             .defaultScrollAnchor(.bottom)
+            .onScrollPhaseChange { _, phase in
+                isUserScrolling = phase == .tracking || phase == .interacting || phase == .decelerating
+            }
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height - geometry.visibleRect.maxY < 60
+            } action: { _, nearBottom in
+                if isUserScrolling || nearBottom { followsBottom = nearBottom }
+            }
+            .onChange(of: chat.streamingReply?.text) {
+                if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+            }
             // Follow the conversation: a sent turn and its landing reply both pin to the bottom.
             .onChange(of: chat.messages.count) {
                 withAnimation(.easeOut(duration: Theme.Animation.quick)) {
@@ -89,7 +102,7 @@ struct AIChatView: View {
                 }
             }
             .onChange(of: chat.phase) {
-                proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
+                if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
         }
     }
@@ -138,6 +151,7 @@ private struct AIChatHistoryRow: View {
 
 private struct AIChatRow: View {
     let message: AIChatMessage
+    let isStreaming: Bool
 
     var body: some View {
         // Messenger grammar: the user's turns are right-aligned bubbles, the assistant's replies
@@ -159,7 +173,7 @@ private struct AIChatRow: View {
             .padding(.horizontal, Theme.Spacing.md)
         } else {
             // Models answer in Markdown whether or not they are asked to; rendered, not raw.
-            AIChatMarkdownText(text: message.text)
+            AIChatMarkdownText(text: message.text, isStreaming: isStreaming)
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.vertical, Theme.Spacing.sm)
         }

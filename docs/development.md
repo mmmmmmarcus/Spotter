@@ -238,9 +238,10 @@ swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
-    Spotter/Plugins/AIChat/AIChatMarkdown.swift \
+    Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift \
     Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
-    Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
+    Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift \
+    Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
     -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + Markdown blocks + ChatGPT web URL + model catalog
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
@@ -460,3 +461,5 @@ swiftc -swift-version 6 Spotter/Features/Settings/SettingsSearch.swift Tools/set
 ```
 
 The harness is also included in `scripts/test-all.sh`.
+
+The AI Chat harness additionally compiles `Spotter/Core/OpenRouterStream.swift` and covers SSE framing, Unicode, provider errors, truncation and size bounds.

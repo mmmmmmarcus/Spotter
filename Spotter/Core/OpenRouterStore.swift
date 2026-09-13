@@ -207,13 +207,13 @@ final class OpenRouterStore: ObservableObject {
     /// sees today's models.
     private nonisolated static let catalogFreshness: TimeInterval = 15 * 60
 
-    /// One chat completion against the given model, any number of turns. The key is re-checked on both sides of the request: it can be cleared from Settings while a reply is in flight, and a late response must not be surfaced.
+    // Re-check the exact key before every delivery so a replaced credential cannot receive late output.
     func chat(
-        messages: [(role: String, content: String)], model: String, webSearch: Bool = false
-    ) async throws -> String {
+        messages: [(role: String, content: String)], model: String, webSearch: Bool = false,
+        onDelta: @escaping @MainActor @Sendable (String) -> Void
+    ) async throws {
         guard isReady else { throw OpenRouterError.notConfigured }
-        // Capped: OpenRouter reserves credits for the whole completion window up front, so an
-        // uncapped request 402s on a small balance even when the actual reply would cost cents.
+        let requestKey = apiKey
         let body = ChatRequest(
             model: model,
             messages: messages.map { .init(role: $0.role, content: $0.content) },
@@ -221,38 +221,57 @@ final class OpenRouterStore: ObservableObject {
             plugins: webSearch ? [.init(id: "web", max_results: 5)] : nil)
         var request = URLRequest(url: Self.chatEndpoint, timeoutInterval: 60)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(requestKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONEncoder().encode(body)
-
-        do {
-            let (data, response) = try await Self.session.data(for: request)
+        try await Self.consumeStream(request) { [weak self] delta in
             try Task.checkCancellation()
-            guard isReady else { throw OpenRouterError.notConfigured }
-            guard let http = response as? HTTPURLResponse else { throw OpenRouterError.badResponse }
-            switch http.statusCode {
-            case 200:
-                break
-            case 401, 403:
-                throw OpenRouterError.unauthorized
-            default:
-                throw OpenRouterError.http(
-                    http.statusCode, detail: Self.errorDetail(in: data))
-            }
-            guard
-                let reply = try? JSONDecoder().decode(ChatResponse.self, from: data),
-                let content = reply.choices.first?.message.content, !content.isEmpty
-            else { throw OpenRouterError.badResponse }
-            return content
-        } catch let error as CancellationError {
-            throw error
-        } catch {
-            AppLog.error(
-                "openrouter",
-                "chat(model: \(model), turns: \(messages.count)) failed: "
-                    + ((error as? OpenRouterError)?.errorDescription ?? error.localizedDescription))
-            throw error
+            guard let self else { throw OpenRouterError.notConfigured }
+            try await self.deliver(delta, for: requestKey, to: onDelta)
         }
+        try Task.checkCancellation()
+        guard acceptsReply(for: requestKey) else { throw OpenRouterError.notConfigured }
+    }
+
+    private func deliver(_ delta: String, for key: String, to callback: @MainActor (String) -> Void) throws {
+        try Task.checkCancellation()
+        guard acceptsReply(for: key) else { throw OpenRouterError.notConfigured }
+        callback(delta)
+    }
+
+    private func acceptsReply(for key: String) -> Bool { isReady && apiKey == key }
+
+    private nonisolated static func consumeStream(
+        _ request: URLRequest, onDelta: @escaping @Sendable (String) async throws -> Void
+    ) async throws {
+        let (bytes, response) = try await session.bytes(for: request)
+        defer { bytes.task.cancel() }
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse else { throw OpenRouterError.badResponse }
+        if http.statusCode != 200 {
+            var data = Data()
+            for try await byte in bytes {
+                try Task.checkCancellation()
+                data.append(byte)
+                if data.count >= 65_536 { break }
+            }
+            if http.statusCode == 401 || http.statusCode == 403 { throw OpenRouterError.unauthorized }
+            throw OpenRouterError.http(http.statusCode, detail: errorDetail(in: data))
+        }
+        var parser = OpenRouterStream()
+        var count = 0
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            if let delta = try parser.feed(byte), !delta.isEmpty {
+                count += delta.utf8.count
+                guard count <= 2_097_152 else { throw OpenRouterStream.Failure.oversized }
+                try await onDelta(delta)
+            }
+            if parser.done { break }
+        }
+        try parser.finish()
+        guard count > 0 else { throw OpenRouterError.badResponse }
     }
 
     /// Plenty for palette answers, tiny next to any model's window — the cap exists for the credit
@@ -289,18 +308,9 @@ final class OpenRouterStore: ObservableObject {
         let model: String
         let messages: [Message]
         let max_tokens: Int
+        let stream = true
         // Synthesized Codable omits a nil optional, so non-search requests stay byte-identical.
         let plugins: [Plugin]?
-    }
-
-    private struct ChatResponse: Decodable {
-        struct Choice: Decodable {
-            struct Message: Decodable {
-                let content: String?
-            }
-            let message: Message
-        }
-        let choices: [Choice]
     }
 
     private struct KeyInfo: Decodable {

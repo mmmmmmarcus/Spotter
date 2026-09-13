@@ -9,6 +9,10 @@ final class AIChatStore: ObservableObject {
     @Published private(set) var requests = AIChatRequestLedger()
     private let openRouter: OpenRouterStore
     private var task: Task<Void, Never>?
+    @Published private(set) var streamingReply: AIChatMessage?
+    private var pendingReply = ""
+    private var replyID = UUID()
+    private var revealTask: Task<Void, Never>?
     private var backgroundTaskID: UUID?
     /// The session ID rides along so the launcher row can offer a way back into that conversation,
     /// and so a reply that lands while the user is already reading it needs no row at all.
@@ -30,7 +34,10 @@ final class AIChatStore: ObservableObject {
         sessions.first { $0.id == currentID } ?? sessions[0]
     }
 
-    var messages: [AIChatMessage] { current.messages }
+    var messages: [AIChatMessage] {
+        guard waitingSessionID == currentID, let streamingReply else { return current.messages }
+        return current.messages + [streamingReply]
+    }
 
     var phase: AIChatPhase { requests.phase(for: currentID) }
 
@@ -112,6 +119,11 @@ final class AIChatStore: ObservableObject {
         let sessionPrompt = current.systemPrompt
         let requestModel = model ?? openRouter.chatModel
         let requestWebSearch = webSearch ?? openRouter.chatWebSearch
+        pendingReply = ""
+        streamingReply = nil
+        replyID = UUID()
+        revealTask?.cancel()
+        revealTask = nil
         task = Task { [weak self] in
             guard let self else { return }
             do {
@@ -121,10 +133,15 @@ final class AIChatStore: ObservableObject {
                 let turns =
                     [(role: "system", content: systemPrompt)]
                     + window.map { (role: $0.role.rawValue, content: $0.text) }
-                let reply = try await self.openRouter.chat(
-                    messages: turns, model: requestModel, webSearch: requestWebSearch)
+                try await self.openRouter.chat(
+                    messages: turns, model: requestModel, webSearch: requestWebSearch
+                ) { [weak self] delta in
+                    guard !Task.isCancelled, let self, self.waitingSessionID == sessionID else { return }
+                    self.pendingReply += delta
+                    if self.streamingReply == nil { self.publishReveal() }
+                    self.startReveal(for: sessionID)
+                }
                 guard !Task.isCancelled else { return }
-                self.append(AIChatMessage(role: .assistant, text: reply), to: sessionID)
                 self.finishRequest(for: sessionID, failure: nil)
             } catch is CancellationError {
             } catch {
@@ -157,6 +174,7 @@ final class AIChatStore: ObservableObject {
     /// Stops the in-flight request; the sent turn stays so the user can see what went unanswered.
     func stop() {
         task?.cancel()
+        if let sessionID = waitingSessionID { commitStream(to: sessionID) }
         task = nil
         if let backgroundTaskID { onRequestCancelled?(backgroundTaskID) }
         backgroundTaskID = nil
@@ -168,7 +186,37 @@ final class AIChatStore: ObservableObject {
         sessions[index].messages.append(message)
     }
 
+    private func publishReveal() {
+        streamingReply = AIChatMessage(id: replyID, role: .assistant, text: pendingReply)
+    }
+
+    private func startReveal(for sessionID: UUID) {
+        guard revealTask == nil else { return }
+        let expectedReply = replyID
+        revealTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(33)) }
+            catch { return }
+            guard !Task.isCancelled, let self,
+                self.waitingSessionID == sessionID, self.replyID == expectedReply else { return }
+            self.publishReveal()
+            self.revealTask = nil
+        }
+    }
+
+    // Persist once on completion, failure or Stop; token updates never rewrite the settings-sync file.
+    private func commitStream(to sessionID: UUID) {
+        revealTask?.cancel()
+        revealTask = nil
+        if !pendingReply.isEmpty {
+            append(AIChatMessage(id: replyID, role: .assistant, text: pendingReply), to: sessionID)
+        }
+        pendingReply = ""
+        streamingReply = nil
+    }
+
     private func finishRequest(for sessionID: UUID, failure: String?) {
+        guard waitingSessionID == sessionID else { return }
+        commitStream(to: sessionID)
         guard requests.finish(sessionID: sessionID, failure: failure) else { return }
         task = nil
         guard let backgroundTaskID else { return }

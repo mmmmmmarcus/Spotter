@@ -228,3 +228,7 @@ only to OpenRouter under the user's own key. The ChatGPT handoff does not call a
 Spotter; it opens the encoded prompt in the default
 browser, where the URL may be retained by normal browser history and ChatGPT processes it under the
 browser's signed-in account.
+
+AI Chat and AI commands request OpenRouter SSE streaming. A stable assistant message reveals complete visual lines; a transient draft is committed once on completion, Stop, or failure, preserving partial text. Session changes never redirect an active reply. SSE framing handles UTF-8, comments, multiline data, usage frames and provider errors; EOF without [DONE] is a failure. Transport is cancelled on Stop and late delivery checks the exact request key.
+
+The Markdown renderer measures actual SwiftUI text lines at the current width. Completed lines fade in over 120 ms; the unfinished last line waits for the next line or completion. Bursts are paced within 120 ms rather than building a long animation queue. Completion, Stop and failure immediately show all received text. Reduce Motion disables the fades.

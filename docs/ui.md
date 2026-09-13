@@ -625,3 +625,7 @@ Permissions includes Location using the existing weather authorization publisher
 page does not create a location manager or request a fix. Backup explicitly discloses manual versus
 automatic coverage, credentials and device-local exclusions, with a route to Notes Settings.
 These disclosures are part of the data-handling exceptions to the usual concise settings copy.
+
+AI Chat publishes streaming draft text at most every 33 ms. The same assistant row grows while generating; scrolling follows it only while near the bottom. Completed or stopped replies use the existing Markdown renderer.
+
+The Markdown renderer measures actual SwiftUI text lines at the current width. Completed lines fade in over 120 ms; the unfinished last line waits for the next line or completion. Bursts are paced within 120 ms rather than building a long animation queue. Completion, Stop and failure immediately show all received text. Reduce Motion disables the fades.

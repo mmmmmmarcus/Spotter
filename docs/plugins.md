@@ -351,3 +351,7 @@ Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](
 and [File Search](file-search.md).
 
 Settings search derives destinations from the existing registry and matches shipped option keywords without indexing user content. Multi-control settings rows preserve independent accessibility children; explicit field prompts avoid duplicate native Form labels.
+
+AI Chat and all AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures.
+
+AI Chat reveals completed visual lines using SwiftUI text layout, with brief fades and bounded burst pacing; animation changes neither received content nor persistence.

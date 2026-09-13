@@ -4,6 +4,7 @@ import SwiftUI
 /// handles the inline spans inside each one.
 struct AIChatMarkdownText: View {
     let text: String
+    var isStreaming = false
 
     private var blocks: [AIChatMarkdownBlock] { AIChatMarkdown.blocks(in: text) }
 
@@ -14,6 +15,7 @@ struct AIChatMarkdownText: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(AIChatLineReveal(isStreaming: isStreaming))
     }
 }
 
