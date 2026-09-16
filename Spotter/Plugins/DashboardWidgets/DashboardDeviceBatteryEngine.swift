@@ -68,6 +68,14 @@ enum DeviceBatterySlot: Equatable, Identifiable, Sendable {
 }
 
 enum DashboardDeviceBatteryEngine {
+    static func filtered(_ devices: [DeviceBattery], query: String) -> [DeviceBattery] {
+        let terms = query.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        return ordered(devices).filter { device in
+            let searchable = "\(device.productName) \(label(for: device)) \(device.kind.noun)"
+            return terms.allSatisfy { searchable.localizedStandardContains($0) }
+        }
+    }
+
     /// Under this the card turns its headline red. Matches where macOS itself starts warning.
     static let lowThreshold = 20
 

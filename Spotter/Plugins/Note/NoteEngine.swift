@@ -68,6 +68,8 @@ struct SpotterNote: Codable, Equatable, Identifiable, Sendable {
     }
 
     var title: String { NoteEngine.title(in: content) }
+    var titleEmoji: String? { NoteEngine.titleEmoji(in: content) }
+    var titleWithoutEmoji: String { NoteEngine.titleWithoutEmoji(in: content) }
     var excerpt: String { NoteEngine.excerpt(in: content) }
 }
 
@@ -148,10 +150,70 @@ struct NoteBlockSpan: Equatable, Sendable {
 }
 
 enum NoteEngine {
+    static let requiredTitlePrefix = "# "
+
+    /// Every Note is a Markdown document whose first line is its title. Existing documents keep
+    /// their visible first-line title while gaining the required H1 marker; blank drafts stay blank.
+    static func enforcingLeadingH1(in markdown: String) -> String {
+        if markdown.hasPrefix(requiredTitlePrefix) { return markdown }
+        if markdown.hasPrefix("#\t") {
+            return requiredTitlePrefix + markdown.dropFirst(2)
+        }
+
+        let firstBreak = markdown.firstIndex(of: "\n")
+        let firstLine = firstBreak.map { String(markdown[..<$0]) } ?? markdown
+        let cleaned = stripMarkup(firstLine).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            return markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? requiredTitlePrefix
+                : requiredTitlePrefix + "Untitled Note\n\n" + markdown
+        }
+        let remainder = firstBreak.map { String(markdown[$0...]) } ?? ""
+        return requiredTitlePrefix + cleaned + remainder
+    }
+
+    static func isEmptyDraft(_ markdown: String) -> Bool {
+        let normalized = enforcingLeadingH1(in: markdown)
+        guard normalized.hasPrefix(requiredTitlePrefix) else { return false }
+        return normalized.dropFirst(requiredTitlePrefix.count)
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// A morphable title is specifically the first line's H1 body; plain first lines and H2–H6
+    /// remain ordinary editor content.
+    static func leadingH1Title(in markdown: String) -> String? {
+        let firstLine = markdown.components(separatedBy: .newlines).first ?? ""
+        guard firstLine.hasPrefix("# ") || firstLine.hasPrefix("#\t") else { return nil }
+        let body = String(firstLine.dropFirst(2))
+        let cleaned = stripMarkup(body).trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
     static func title(in markdown: String) -> String {
         let firstLine = markdown.components(separatedBy: .newlines).first ?? ""
         let cleaned = stripMarkup(firstLine)
         return cleaned.isEmpty ? "Untitled Note" : String(cleaned.prefix(80))
+    }
+
+    static func titleEmoji(in markdown: String) -> String? {
+        title(in: markdown).first(where: isEmoji).map(String.init)
+    }
+
+    static func titleWithoutEmoji(in markdown: String) -> String {
+        let fullTitle = title(in: markdown)
+        guard let index = fullTitle.firstIndex(where: isEmoji) else { return fullTitle }
+        var label = fullTitle
+        label.remove(at: index)
+        let cleaned = label.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        return cleaned.isEmpty ? fullTitle : cleaned
+    }
+
+    private static func isEmoji(_ character: Character) -> Bool {
+        let scalars = character.unicodeScalars
+        return scalars.contains { scalar in
+            scalar.properties.isEmojiPresentation || scalar.value == 0xFE0F
+                || scalar.value == 0x20E3
+        }
     }
 
     static func editorLineCount(in markdown: String, minimum: Int = 3, maximum: Int = 20) -> Int {

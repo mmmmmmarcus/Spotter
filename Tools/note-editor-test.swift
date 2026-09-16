@@ -30,13 +30,45 @@ struct NoteEditorTests {
 
     static func main() {
         _ = NSApplication.shared
-        for (source, caret) in [("中文正文", 4), ("- 第一项\n- 第二项", 5), ("**粗体**", 4)] {
+        for (source, caret) in [("# 中文正文", 6), ("# 清单\n- 第一项\n- 第二项", 10), ("# **粗体**", 6)] {
             compositionSurvivesRefresh(source, caret: caret)
         }
+        titlePrefixIsProtected()
+        chineseTitleComposition()
         documentSwitch()
         externalUpdate()
         print("\(checks - failures)/\(checks) passed")
         if failures > 0 { exit(1) }
+    }
+
+    static func titlePrefixIsProtected() {
+        let document = Document("# 标题\n正文")
+        let editor = document.editor
+        let coordinator = editor.makeCoordinator()
+        let scroll = editor.makeScrollView(coordinator: coordinator)
+        let view = scroll.documentView as! NSTextView
+        view.setSelectedRange(NSRange(location: 0, length: (view.string as NSString).length))
+        view.insertText("新标题", replacementRange: view.selectedRange())
+        expect(view.string == "# 新标题", "replacing the document preserves the required H1 marker")
+        expect(document.text == "# 新标题", "protected replacement reaches the binding")
+    }
+
+    static func chineseTitleComposition() {
+        let document = Document(NoteEngine.requiredTitlePrefix)
+        let editor = document.editor
+        let coordinator = editor.makeCoordinator()
+        let scroll = editor.makeScrollView(coordinator: coordinator)
+        let view = scroll.documentView as! NSTextView
+        view.setSelectedRange(NSRange(location: 2, length: 0))
+        let unspecified = NSRange(location: NSNotFound, length: 0)
+        view.setMarkedText(
+            "biaoti", selectedRange: NSRange(location: 6, length: 0),
+            replacementRange: unspecified)
+        coordinator.update(from: document.editor)
+        expect(view.hasMarkedText(), "title refresh preserves the Chinese input composition")
+        view.insertText("标题", replacementRange: unspecified)
+        expect(view.string == "# 标题", "Chinese title commit keeps the H1 marker")
+        expect(document.text == "# 标题", "Chinese title commit reaches the binding")
     }
 
     static func compositionSurvivesRefresh(_ source: String, caret: Int) {

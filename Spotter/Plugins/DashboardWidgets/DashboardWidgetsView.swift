@@ -11,16 +11,6 @@ struct DashboardWidgetsView: View {
     /// The music card shows its controls only under the pointer; the cover is the card at rest.
     @State private var isHoveringMusic = false
 
-    /// Every card shows; the only card that withholds itself is the one that would otherwise be an
-    /// empty square claiming a reading it doesn't have — a Mac with nothing connected that reports a
-    /// battery level is the normal case. File Info is deliberately *not* conditioned on there being a
-    /// selection: it has a resting state, so it holds its place instead of shuffling the strip every
-    /// time the Finder loses focus.
-    private func isVisible(_ kind: DashboardWidgetKind) -> Bool {
-        guard kind == .deviceBattery else { return true }
-        return !battery.devices.isEmpty
-    }
-
     /// Live-reorder state: hold a card briefly and it lifts and follows the pointer while the other
     /// cards slide out of its way, home-screen style. `liveOrder` is the working order for the
     /// gesture's duration; the store is written once, on release.
@@ -34,7 +24,7 @@ struct DashboardWidgetsView: View {
 
     @ViewBuilder
     var body: some View {
-        let visible = store.orderedWidgets.filter(isVisible)
+        let visible = store.orderedWidgets
         if !visible.isEmpty {
             TimelineView(DashboardStripSchedule(isRunning: core.isPaletteVisible)) { context in
                 strip(visible: visible, now: context.date)
@@ -343,7 +333,23 @@ struct DashboardWidgetsView: View {
     /// The grid is always four slots ranged from the top-left corner, empty rings included: a device
     /// then keeps its place as others connect and disconnect, instead of the whole card re-centring
     /// and every ring changing size under the same reading.
+    @ViewBuilder
     private func batteryCard() -> some View {
+        if battery.devices.isEmpty {
+            Image(systemName: "battery.100percent")
+                .font(.system(size: 34))
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .frame(
+                    width: Theme.Size.launcherDashboardHeight,
+                    height: Theme.Size.launcherDashboardHeight)
+                .dashboardCardSurface()
+                .accessibilityLabel(DashboardDeviceBatteryEngine.accessibilityLabel(for: []))
+        } else {
+            batteryGauges()
+        }
+    }
+
+    private func batteryGauges() -> some View {
         let slots = DashboardDeviceBatteryEngine.gaugeSlots(
             for: battery.devices, limit: DashboardDeviceBatteryEngine.gaugeSlotLimit)
         let interior = Theme.Size.launcherDashboardHeight - 2 * Theme.Spacing.lg

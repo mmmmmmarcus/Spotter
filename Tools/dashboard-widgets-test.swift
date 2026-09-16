@@ -445,6 +445,17 @@ struct DashboardWidgetsTests {
         check(
             merged.first?.kind == .headphones,
             "the merged list should stay ordered lowest-first")
+        check(
+            DashboardDeviceBatteryEngine.filtered(merged, query: "keyboard").map(\.kind)
+                == [.keyboard],
+            "the Battery screen should filter by device type")
+        check(
+            DashboardDeviceBatteryEngine.filtered(merged, query: "magic mouse").map(\.id)
+                == [hidMouse.id],
+            "the Battery screen should match every search term against a device")
+        check(
+            DashboardDeviceBatteryEngine.filtered(merged, query: "unknown").isEmpty,
+            "an unmatched Battery screen query should return no rows")
 
         check(DashboardFileInfoSummary.size(bytes: 512).contains("512"), "bytes should stay bytes")
         check(DashboardFileInfoSummary.size(bytes: 1_000).contains("KB"), "kilobytes are file-style")

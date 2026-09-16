@@ -80,11 +80,12 @@ final class NoteStore: ObservableObject {
             || defaults.bool(forKey: Self.autoWindowSizingKey)
 
         let archive = Self.load(from: resolvedURL)
-        let loaded = archive.notes.sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
+        let loaded = Self.enforcingTitles(in: archive.notes)
+            .sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
         tombstones = Dictionary(
             uniqueKeysWithValues: (archive.tombstones ?? []).map { ($0.id, $0) })
         if loaded.isEmpty {
-            let initial = SpotterNote(createdAt: now())
+            let initial = SpotterNote(content: NoteEngine.requiredTitlePrefix, createdAt: now())
             notes = [initial]
             selectedID = initial.id
         } else {
@@ -109,9 +110,9 @@ final class NoteStore: ObservableObject {
     }
 
     @discardableResult
-    func createNote(content: String = "") -> UUID {
+    func createNote(content: String = NoteEngine.requiredTitlePrefix) -> UUID {
         let date = now()
-        let note = SpotterNote(content: content, createdAt: date)
+        let note = SpotterNote(content: NoteEngine.enforcingLeadingH1(in: content), createdAt: date)
         notes.insert(note, at: 0)
         tombstones.removeValue(forKey: note.id)
         selectedID = note.id
@@ -159,6 +160,7 @@ final class NoteStore: ObservableObject {
     }
 
     func updateSelectedContent(_ content: String) {
+        let content = NoteEngine.enforcingLeadingH1(in: content)
         guard let selectedID, let index = notes.firstIndex(where: { $0.id == selectedID }),
             notes[index].content != content
         else { return }
@@ -188,9 +190,7 @@ final class NoteStore: ObservableObject {
 
     @discardableResult
     func deleteEmptyNotes() -> Int {
-        let emptyNotes = notes.filter {
-            $0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        let emptyNotes = notes.filter { NoteEngine.isEmptyDraft($0.content) }
         guard !emptyNotes.isEmpty else { return 0 }
         let emptyIDs = Set(emptyNotes.map(\.id))
         let deletedAt = now()
@@ -213,7 +213,8 @@ final class NoteStore: ObservableObject {
             tombstones[note.id] = NoteTombstone(id: note.id, deletedAt: now())
         }
         for id in incomingIDs { tombstones.removeValue(forKey: id) }
-        notes = newNotes.sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
+        notes = Self.enforcingTitles(in: newNotes)
+            .sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
         selectedID = notes.contains(where: { $0.id == newSelectedID })
             ? newSelectedID : notes.first?.id
         scheduleSave(immediately: true)
@@ -232,7 +233,7 @@ final class NoteStore: ObservableObject {
     func applyRemoteSnapshot(_ remote: NoteSyncSnapshot) {
         let merged = NoteSyncMerge.merging(syncSnapshot, with: remote)
         let oldSelection = selectedID
-        notes = merged.notes
+        notes = Self.enforcingTitles(in: merged.notes)
         tombstones = merged.tombstonesByID
         selectedID = notes.contains(where: { $0.id == oldSelection }) ? oldSelection : notes.first?.id
         scheduleSave(immediately: true)
@@ -294,6 +295,14 @@ final class NoteStore: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
         return (try? decoder.decode(NoteArchive.self, from: data))
             ?? NoteArchive(version: 2, notes: [], tombstones: [])
+    }
+
+    private static func enforcingTitles(in notes: [SpotterNote]) -> [SpotterNote] {
+        notes.map { note in
+            var note = note
+            note.content = NoteEngine.enforcingLeadingH1(in: note.content)
+            return note
+        }
     }
 
     private static func defaultFileURL() -> URL {

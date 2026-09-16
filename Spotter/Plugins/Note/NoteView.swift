@@ -8,8 +8,13 @@ struct NoteView: View {
     @State private var query = ""
     @State private var showsNoteList = false
     @State private var editorHeight: CGFloat
-    @State private var placeholderStamp = Date()
+    @State private var trackedNoteID: UUID?
+    @State private var previousH1Title: String?
+    @State private var morphTitle: String?
+    @State private var isMorphingTitle = false
+    @State private var morphGeneration = UUID()
     @FocusState private var searchIsFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         store: NoteStore, resizeHeight: @escaping (CGFloat, Bool) -> Void,
@@ -21,6 +26,9 @@ struct NoteView: View {
         _editorHeight = State(
             initialValue: NoteEditorMetrics.estimatedEditorHeight(
                 for: store.selectedNote?.content ?? ""))
+        _previousH1Title = State(
+            initialValue: NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? ""))
+        _trackedNoteID = State(initialValue: store.selectedID)
     }
 
     private var visibleNotes: [SpotterNote] { store.filteredNotes(query: query) }
@@ -50,9 +58,14 @@ struct NoteView: View {
             .animation(.easeOut(duration: Theme.Animation.quick), value: showsNoteList)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { placeholderStamp = Date() }
         .onDisappear { store.deleteEmptyNotes() }
-        .onChange(of: store.selectedID) { placeholderStamp = Date() }
+        .onChange(of: store.selectedID) {
+            transitionH1Title()
+        }
+        .onChange(of: store.selectedNote?.content) {
+            guard trackedNoteID == store.selectedID else { return }
+            previousH1Title = NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? "")
+        }
         .ignoresSafeArea(edges: .top)
         .onChange(of: store.autoWindowSizing) { if store.autoWindowSizing { fitWindow() } }
         .background(noteSurface)
@@ -132,28 +145,36 @@ struct NoteView: View {
     private var editorContent: some View {
         VStack(spacing: 0) {
             if let note = store.selectedNote {
-                ZStack(alignment: .topLeading) {
-                    NoteMarkdownEditor(
-                        text: selectedContent,
-                        noteID: note.id,
-                        tint: note.tint,
-                        autoSizes: store.autoWindowSizing,
-                        onContentHeightChange: updateEditorHeight,
-                        onNavigate: navigate)
-                    if note.content.isEmpty {
-                        // An empty note opens on the moment it was opened — a date line is usually
-                        // the first thing typed anyway, and it beats a nag to start writing.
-                        Text(placeholderStamp.formatted(date: .long, time: .shortened))
-                            .font(.body)
+                NoteMarkdownEditor(
+                    text: selectedContent,
+                    noteID: note.id,
+                    tint: note.tint,
+                    autoSizes: store.autoWindowSizing,
+                    reduceMotion: reduceMotion,
+                    hidesLeadingH1: isMorphingTitle,
+                    onContentHeightChange: updateEditorHeight,
+                    onNavigate: navigate)
+                // A hand-sized window owns its own height, so the editor fills it rather than
+                // leaving dead space below the text that no click can reach.
+                .frame(height: store.autoWindowSizing ? editorHeight : nil)
+                .frame(maxHeight: store.autoWindowSizing ? nil : .infinity)
+                .overlay(alignment: .topLeading) {
+                    if isMorphingTitle, let morphTitle {
+                        Text(morphTitle)
+                            .font(.largeTitle)
+                            .contentTransition(.interpolate)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(Theme.Spacing.xxl)
+                            .allowsHitTesting(false)
+                    } else if NoteEngine.leadingH1Title(in: note.content) == nil {
+                        Text("Title")
+                            .font(.largeTitle)
                             .foregroundStyle(.tertiary)
                             .padding(Theme.Spacing.xxl)
                             .allowsHitTesting(false)
                     }
                 }
-                // A hand-sized window owns its own height, so the editor fills it rather than
-                // leaving dead space below the text that no click can reach.
-                .frame(height: store.autoWindowSizing ? editorHeight : nil)
-                .frame(maxHeight: store.autoWindowSizing ? nil : .infinity)
             } else {
                 ContentUnavailableView {
                     Label("No Notes", systemImage: "note.text")
@@ -229,7 +250,8 @@ struct NoteView: View {
     private func createNote() {
         query = ""
         store.createNote()
-        editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: "")
+        editorHeight = NoteEditorMetrics.estimatedEditorHeight(
+            for: NoteEngine.requiredTitlePrefix)
         closeNoteList()
     }
 
@@ -248,6 +270,31 @@ struct NoteView: View {
         guard let note = store.selectAdjacent(direction) else { return }
         editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
         fitWindow()
+    }
+
+    private func transitionH1Title() {
+        let nextTitle = NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? "")
+        let oldTitle = previousH1Title
+        trackedNoteID = store.selectedID
+        previousH1Title = nextTitle
+        morphGeneration = UUID()
+        let generation = morphGeneration
+        guard !reduceMotion, let oldTitle, let nextTitle else {
+            isMorphingTitle = false
+            morphTitle = nil
+            return
+        }
+        morphTitle = oldTitle
+        isMorphingTitle = true
+        DispatchQueue.main.async {
+            guard morphGeneration == generation else { return }
+            withAnimation(.easeOut(duration: 0.16)) { morphTitle = nextTitle }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                guard morphGeneration == generation else { return }
+                isMorphingTitle = false
+                morphTitle = nil
+            }
+        }
     }
 
     private func updateEditorHeight(_ height: CGFloat) {
@@ -313,21 +360,32 @@ private struct NoteListRow: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
             Button(action: select) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        if let tint = note.tint {
-                            Circle()
-                                .fill(Theme.Colors.noteTintAccent(tint))
-                                .frame(width: Theme.Size.noteTintDot, height: Theme.Size.noteTintDot)
+                HStack(spacing: Theme.Spacing.md) {
+                    if let emoji = note.titleEmoji {
+                        Text(emoji)
+                            .font(.title2)
+                            .frame(width: Theme.Size.settingsRowIcon)
+                            .accessibilityHidden(true)
+                    }
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                        HStack(spacing: Theme.Spacing.sm) {
+                            if let tint = note.tint {
+                                Circle()
+                                    .fill(Theme.Colors.noteTintAccent(tint))
+                                    .frame(
+                                        width: Theme.Size.noteTintDot,
+                                        height: Theme.Size.noteTintDot)
+                            }
+                            Text(note.titleWithoutEmoji)
+                                .font(.headline)
+                                .lineLimit(1)
                         }
-                        Text(note.title)
-                            .font(.headline)
+                        Text(metadata)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    Text(metadata)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())

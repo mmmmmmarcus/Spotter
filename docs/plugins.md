@@ -355,3 +355,10 @@ Settings search derives destinations from the existing registry and matches ship
 AI Chat and all AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures.
 
 AI Chat reveals completed visual lines using SwiftUI text layout, with brief fades and bounded burst pacing; animation changes neither received content nor persistence.
+
+Device Battery keeps its position when no devices report a battery. Its empty card shows a centered
+`battery.100percent` symbol at 34 points in `textSecondary`, matching the Music and File Info resting
+marks. The symbol is a placeholder, not a charge reading; accessibility says “No device batteries”.
+
+Widgets also registers the `Battery` launcher command and a shared palette screen that lists every
+reported peripheral with its charge percentage and charging state.

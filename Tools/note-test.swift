@@ -16,6 +16,24 @@ struct NoteTests {
         }
 
         check("heading title", "Meeting Notes", NoteEngine.title(in: "# Meeting Notes\nAgenda"))
+        check("H1 title can morph", "会议记录", NoteEngine.leadingH1Title(in: "# 会议记录\n正文"))
+        check("plain first line does not morph", nil, NoteEngine.leadingH1Title(in: "会议记录\n正文"))
+        check("H2 does not morph", nil, NoteEngine.leadingH1Title(in: "## 会议记录\n正文"))
+        check("empty H1 does not morph", nil, NoteEngine.leadingH1Title(in: "# \n正文"))
+        check("empty note gains an H1", "# ", NoteEngine.enforcingLeadingH1(in: ""))
+        check(
+            "plain title is promoted to H1", "# Meeting Notes\nAgenda",
+            NoteEngine.enforcingLeadingH1(in: "Meeting Notes\nAgenda"))
+        check(
+            "existing H1 is unchanged", "# Meeting Notes\nAgenda",
+            NoteEngine.enforcingLeadingH1(in: "# Meeting Notes\nAgenda"))
+        check("bare H1 is an empty draft", true, NoteEngine.isEmptyDraft("# \n\t"))
+        check("titled H1 is not an empty draft", false, NoteEngine.isEmptyDraft("# Meeting"))
+        check("title exposes its first Emoji", "📝", NoteEngine.titleEmoji(in: "# 周会 📝 ✅"))
+        check("Emoji is removed from its list label", "周会 ✅", NoteEngine.titleWithoutEmoji(in: "# 周会 📝 ✅"))
+        check("a family stays one Emoji icon", "👨‍👩‍👧‍👦", NoteEngine.titleEmoji(in: "# 👨‍👩‍👧‍👦 Family"))
+        check("a digit is not an Emoji icon", nil, NoteEngine.titleEmoji(in: "# Sprint 1"))
+        check("a flag stays one Emoji icon", "🇨🇳", NoteEngine.titleEmoji(in: "# 🇨🇳 行程"))
         check("todo title", "Ship the plugin", NoteEngine.title(in: "- [ ] Ship the plugin"))
         check("empty title", "Untitled Note", NoteEngine.title(in: " \n\t"))
         check(
@@ -217,6 +235,7 @@ struct NoteTests {
         let secondID = reopened.createNote(content: "Second")
         await reopened.flush()
         check("create selects", secondID, reopened.selectedID)
+        check("create promotes the title", "# Second", reopened.selectedNote?.content)
         let previousNote = reopened.selectAdjacent(.previous)
         check("previous note wraps backward through note order", "# Persisted\nBody", previousNote?.content)
         let nextNote = reopened.selectAdjacent(.next)

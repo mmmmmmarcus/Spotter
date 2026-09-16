@@ -27,6 +27,9 @@ final class DashboardDeviceBatteryStore: ObservableObject {
     /// Every HID peripheral that reports a level hangs off one of these, whatever the transport.
     private nonisolated static let serviceClass = "AppleDeviceManagementHIDEventService"
 
+    enum Reader: Hashable { case dashboard, list }
+    private var readers: Set<Reader> = []
+
     private var refreshTask: Task<Void, Never>?
     private var hidDevices: [DeviceBattery] = []
     private var bluetoothDevices: [DeviceBattery] = []
@@ -35,7 +38,8 @@ final class DashboardDeviceBatteryStore: ObservableObject {
 
     /// Driven by the dashboard's appearance, like `DashboardWidgetsStore` — the palette is the only
     /// place these levels are drawn, so nothing polls while it is closed.
-    func start() {
+    func start(reader: Reader = .dashboard) {
+        readers.insert(reader)
         guard refreshTask == nil else { return }
         refresh()
         refreshTask = Task { [weak self] in
@@ -50,7 +54,9 @@ final class DashboardDeviceBatteryStore: ObservableObject {
         }
     }
 
-    func stop() {
+    func stop(reader: Reader = .dashboard) {
+        readers.remove(reader)
+        guard readers.isEmpty else { return }
         refreshTask?.cancel()
         refreshTask = nil
         bluetoothTask?.cancel()

@@ -76,10 +76,9 @@ and a name is a worse handle than the card. Dashboard cards are the launcher's o
 rows, which is what makes a drag here unambiguous — it can never be confused with picking a result.
 A card dropped onto a neighbour takes that neighbour's index in the order.
 
-Device Battery is the one card that withholds itself, because with nothing connected reporting a
-level an empty square would claim a reading it doesn't have; every other card either has something to
-say or a resting state to say it in. A feature whose visibility would be a consent act does not
-belong in the strip at all — that is why Uptime became [a plugin of its own](uptime.md).
+Every card keeps its place, including Device Battery when nothing reports a level: it shows a
+centered `battery.100percent` resting mark. A feature whose visibility would be a consent act does
+not belong in the strip at all — that is why Uptime became [a plugin of its own](uptime.md).
 
 ## Architecture
 
@@ -97,9 +96,15 @@ one line and resolves the card's subtitle and resting lines for `Tools/dashboard
 
 Device battery is another pair, isolated for the opposite reason — the half that reads IOKit is the
 only part that isn't portable. `DashboardDeviceBatteryStore`, owned by `AppCore`, owns the registry
-scan and the visible-only refresh loop. `DashboardDeviceBatteryEngine.swift` stays Foundation-only
+scan and its reader-owned refresh loop. Both the dashboard card and the Battery palette screen hold
+a reader while visible, so closing either surface cannot stop refreshes needed by the other.
+`DashboardDeviceBatteryEngine.swift` stays Foundation-only
 and pure: it resolves a device's category from its product name, clamps the level, orders the
-devices and builds the card's lines.
+devices, filters the palette list and builds the card's lines.
+
+The `Battery` launcher command opens the shared plugin palette list. It shows every reported device,
+its type, charge percentage and charging state, and filters by device name or type. Selecting a row
+copies that reading; Actions can refresh the scan. An empty scan remains an explicit empty state.
 
 File Info is a third pair for the same reason as the others — the half that shells out to the Finder
 stays isolated. `DashboardFileInfoStore`, owned by `AppCore`, holds the last snapshot and discards a
@@ -231,10 +236,8 @@ no entitlement and no permission to explain. IOBluetooth and CoreBluetooth remai
 require `NSBluetoothAlwaysUsageDescription` and prompt for Bluetooth access process-wide, a system
 permission for one card. Nothing is persisted and nothing leaves the machine.
 
-The card is hidden whenever nothing connected reports a level, since an empty square would imply a
-reading it doesn't have — a Mac with only a built-in keyboard is the normal case, not a fault. That
-hiding is why the scan also runs from `AppCore.showPalette`: the card's own poll lives with the card,
-so with the card unrendered nothing else would notice a device that has since connected. The registry
+With no reported levels, the card keeps its position and shows its battery symbol without a
+percentage. The scan also runs from `AppCore.showPalette` to refresh readings on each summon. The registry
 scan is a handful of property reads, measured at ~0.03 ms, so it runs synchronously on the main
 actor; while the card is on screen it repeats once a minute, which is as fast as a whole percent
 moves. The Bluetooth read is a ~0.2 s subprocess, so it runs off the main actor, re-publishes when it
@@ -413,3 +416,7 @@ face's own timeline, and nothing else on the strip moves faster than a day (the 
 wall-clock minute (the event line). The face is drawn as two canvases for the same reason — the tick
 ring and its four numerals are still, so resolving that type once instead of four `Text` resolutions
 per frame is over half the cost of the sweep.
+
+Device Battery keeps its position when no devices report a battery. Its empty card shows a centered
+`battery.100percent` symbol at 34 points in `textSecondary`, matching the Music and File Info resting
+marks. The symbol is a placeholder, not a charge reading; accessibility says “No device batteries”.

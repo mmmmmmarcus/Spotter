@@ -14,8 +14,9 @@ The plugin registers two launcher commands and two independently bindable global
 - **Open Notes** focuses the last selected note, and is a toggle: pressing it again closes the
   window. The window floats over everything, so the shortcut that summoned it is the obvious way to
   put it away.
-- **New Note** creates an empty note and focuses it immediately. It always opens, never toggles,
-  since it has a new note to show.
+- **New Note** creates a `# ` H1 draft, puts the caret after the protected marker and focuses it
+  immediately. Return is refused until the title has text. It always opens, never toggles, since it
+  has a new note to show.
 
 Both routes call `AppCore.openNotes`, which dismisses the launcher when
 needed and opens the shared `AuxWindowController` workspace. The translucent window opts into
@@ -30,13 +31,13 @@ buttons: ⌘N and ⌘L keep their shortcuts (hidden buttons carry them) and clic
 dots opens the list — a control that duplicates a shortcut and a click target both would be chrome.
 Minimize and zoom controls are hidden. Nothing separates that row from
 the editor — the window is one continuous surface, so a rule under the title would be the only hard
-edge on it. An empty note shows the current date and time in place of a prompt to start writing: it
-is what most notes open with anyway. The workspace opens as a
+edge on it. An empty title shows a large `Title` placeholder. The workspace opens as a
 440-point-wide editor with four matching 20-point continuous corners.
-The centered toolbar carries page dots rather than a title — the title is already the first line of
-the note directly beneath it, so what the header can add is *where in the stack you are*. One dot per
-note in list order, the current one larger, each wearing its note's own tint; past nine notes the
-strip slides around the current one. Clicking anywhere on it opens the notes list. The right side
+The centered toolbar carries page markers rather than a title — the title is already the first line
+of the note directly beneath it, so what the header can add is *where in the stack you are*. A Note
+whose title contains an Emoji uses its first complete Emoji as the marker and as its list icon; the
+list label omits that first Emoji. Other Notes keep their tint-aware dots. Past nine Notes the strip
+slides around the current one. Clicking anywhere on it opens the notes list. The right side
 holds only the color control. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting
 a row returns to the single-note editor. The card holds its search field and the rows and nothing
@@ -78,6 +79,12 @@ Closing the window flushes the latest in-memory snapshot.
 
 While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
 next one. Navigation follows the same newest-first order as the notes list and wraps at either end.
+The new editor content fades in over 160 ms when the selected Note changes; it has no directional
+movement, and Reduce Motion makes the switch immediate. The toolbar stays fixed during the fade.
+When both Notes begin with a non-empty `# ` H1, that heading temporarily moves into a SwiftUI text
+overlay and uses Apple's built-in `ContentTransition.interpolate`; the body keeps its normal fade.
+The overlay sits outside the editor's sizing tree, so it cannot affect the measured content or the
+window height. Imported legacy Notes promote their old first line to the required H1.
 
 ## Model and persistence
 

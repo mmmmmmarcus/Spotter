@@ -163,6 +163,7 @@
 		A1F4D1C65D235F6A73EF5747 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F3DB0D82605F0450E69E57 /* LaunchAtLogin.swift */; };
 		A29E8F13A7572E2BA55592F0 /* PanelHosting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412E1AB968D25513BCF543AA /* PanelHosting.swift */; };
 		A2D98D8FC39DAD089215A124 /* ClipboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17AE76ADC7A9EC2466F6587 /* ClipboardView.swift */; };
+		A2DA03A9E867D0F11A5E9E63 /* DashboardBatteryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 553E85E96B6C6E6C84D1A9AE /* DashboardBatteryScreen.swift */; };
 		A39D05C2AD356E8C909F2FCF /* NotePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0585A83889766AB5682CD10C /* NotePlugin.swift */; };
 		A4335E03E8348FBE0873B90A /* SearchScopesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF791D9740CBFE37A39760E /* SearchScopesCard.swift */; };
 		A612A1A1ED5D021387F6F198 /* SelectionToolsTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10E544C780380D882E6910C /* SelectionToolsTypes.swift */; };
@@ -346,6 +347,7 @@
 		52F1BEC5DCAE51044D8182BC /* SettingsPaneScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPaneScanner.swift; sourceTree = "<group>"; };
 		53812463933BC7F47104B76B /* BackgroundTaskStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskStore.swift; sourceTree = "<group>"; };
 		551A8750E5B25DE0B4EE7249 /* Spotter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		553E85E96B6C6E6C84D1A9AE /* DashboardBatteryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardBatteryScreen.swift; sourceTree = "<group>"; };
 		56201F9C4C6488AC1DBBE4F3 /* SystemCommandsIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCommandsIntegration.swift; sourceTree = "<group>"; };
 		56E99754BAF150F94F52D70F /* CalcDateTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcDateTime.swift; sourceTree = "<group>"; };
 		57366E92C0F281C3E8C74812 /* WindowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayout.swift; sourceTree = "<group>"; };
@@ -756,6 +758,7 @@
 		841A200113BD0473AE302EF2 /* DashboardWidgets */ = {
 			isa = PBXGroup;
 			children = (
+				553E85E96B6C6E6C84D1A9AE /* DashboardBatteryScreen.swift */,
 				4637BB0C57CB0E954EA3ABB5 /* DashboardDeviceBatteryEngine.swift */,
 				FAC786AEC06A1589BDBAA79F /* DashboardDeviceBatteryStore.swift */,
 				66D307F9AC38669408250AC2 /* DashboardFileInfoEngine.swift */,
@@ -1227,6 +1230,7 @@
 				47A4F4B3A29972F313691960 /* CurrencyRateStore.swift in Sources */,
 				13A0645369C0B5377D7251D3 /* CustomCommand.swift in Sources */,
 				E591CD83E6A221D17006D15F /* CustomCommandsSettingsView.swift in Sources */,
+				A2DA03A9E867D0F11A5E9E63 /* DashboardBatteryScreen.swift in Sources */,
 				58D500916E6096E589DD4624 /* DashboardDeviceBatteryEngine.swift in Sources */,
 				F78FEFEBAB29A0A705CA9E25 /* DashboardDeviceBatteryStore.swift in Sources */,
 				30DAD6B1D55C30B05EB3D5A0 /* DashboardFileInfoEngine.swift in Sources */,
@@ -1466,7 +1470,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.5;
+				MARKETING_VERSION = 1.6.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1538,7 +1542,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.5;
+				MARKETING_VERSION = 1.6.6;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

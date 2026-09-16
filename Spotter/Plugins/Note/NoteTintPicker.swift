@@ -133,9 +133,8 @@ struct NoteTintPanel: View {
     }
 }
 
-/// The toolbar's page dots: one per note, newest first, the current one filled. It replaces the note
-/// title because the title is already the first line of the note directly under it — what the header
-/// can say that the page cannot is *where in the stack you are*. The whole strip opens the list.
+/// The toolbar's page markers: an Emoji from the title when it has one, otherwise the original dot.
+/// They run newest first and the whole strip opens the list.
 struct NotePagination: View {
     let notes: [SpotterNote]
     let selectedID: UUID?
@@ -149,11 +148,7 @@ struct NotePagination: View {
             HStack(spacing: Theme.Spacing.sm) {
                 ForEach(window, id: \.id) { note in
                     let isSelected = note.id == selectedID
-                    Circle()
-                        .fill(color(for: note, isSelected: isSelected))
-                        .frame(
-                            width: isSelected ? Theme.Size.noteDotSelected : Theme.Size.noteDot,
-                            height: isSelected ? Theme.Size.noteDotSelected : Theme.Size.noteDot)
+                    marker(for: note, isSelected: isSelected)
                 }
             }
             .frame(height: Theme.Size.settingsRowIcon)
@@ -161,6 +156,24 @@ struct NotePagination: View {
         }
         .buttonStyle(.plain)
         .help("Show Notes List")
+    }
+
+    @ViewBuilder
+    private func marker(for note: SpotterNote, isSelected: Bool) -> some View {
+        if let emoji = note.titleEmoji {
+            Text(emoji)
+                .font(.system(size: isSelected ? 16 : 13))
+                .opacity(isSelected ? 1 : 0.48)
+                .frame(width: 16, height: Theme.Size.settingsRowIcon)
+                .accessibilityLabel(note.title)
+        } else {
+            Circle()
+                .fill(color(for: note, isSelected: isSelected))
+                .frame(
+                    width: isSelected ? Theme.Size.noteDotSelected : Theme.Size.noteDot,
+                    height: isSelected ? Theme.Size.noteDotSelected : Theme.Size.noteDot)
+                .accessibilityLabel(note.title)
+        }
     }
 
     private func color(for note: SpotterNote, isSelected: Bool) -> Color {

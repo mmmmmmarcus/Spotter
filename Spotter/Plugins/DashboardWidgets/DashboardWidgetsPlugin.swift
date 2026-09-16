@@ -1,5 +1,10 @@
 import SwiftUI
 
+extension PluginActionKey {
+    static let openBattery = standard(
+        pluginID: .dashboardWidgets, actionID: "battery", title: "Battery")
+}
+
 @MainActor
 enum DashboardWidgetsPlugin {
     static func registration(core: AppCore) -> PluginRegistration {
@@ -16,6 +21,18 @@ enum DashboardWidgetsPlugin {
             // Automation covers both cards that ask another app a question: File Info asking
             // the Finder what is selected, and Music asking Music what is playing.
             permissions: [.calendar, .automation],
+            shortcutActions: [
+                PluginActionRegistration(key: .openBattery) { [weak core] in
+                    core?.showPalette(mode: .plugin(.dashboardWidgets))
+                }
+            ],
+            launcherCommands: [
+                PluginCommandRegistration(
+                    id: "command:battery", name: "Battery", systemImage: "battery.100percent",
+                    actionKey: .openBattery
+                ) { [weak core] in core?.showPalette(mode: .plugin(.dashboardWidgets)) }
+            ],
+            paletteScreen: DashboardBatteryScreen.registration(core: core),
             launcherDashboard: PluginLauncherDashboardRegistration {
                 AnyView(
                     DashboardWidgetsView(

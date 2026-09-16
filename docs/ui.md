@@ -593,9 +593,13 @@ rendered replies use, so a code block reads the same in both surfaces. Notes has
 input, formatting buttons, preview mode or bottom status row; persistence remains automatic.
 Typing-driven height changes are immediate and top-anchored, while the overlay scroller stays absent
 until the twenty-line viewport actually overflows, keeping both text and scrollbar stable during
-growth. Explicit list transitions retain live-frame animation. Its Settings pane owns a background-
+growth. Switching Notes fades in only the editor content over 160 ms, leaving the toolbar fixed and
+respecting Reduce Motion. Explicit list transitions retain live-frame animation. Its Settings pane owns a background-
 only transparency slider plus the consent, status and manual action for private CloudKit sync; Note
 content never enters automatic Settings Sync or the global Backup pane.
+If both documents start with a `# ` H1, the heading uses SwiftUI's built-in interpolated content
+transition while the AppKit editor temporarily withholds that same glyph run. This overlay changes
+only drawing; TextKit remains responsible for line height and auto-sizing throughout.
 
 The calculator's inline `CalculatorCard` reuses this card language (`cardFill` + `cardStroke`) rather than the row language, since it's a highlighted answer, not a list item. A value answer is normally a **two-column** layout: a source column (input echo) and a target column (result), separated by a centered `arrow.right` glyph (no divider line). A plugin result may add one companion column; World Clock uses it for the local system time after the requested city's time. Each column optionally carries a word-name **badge pill** beneath its value (`keyCap` font, `controlSurface` fill, `keyCap` radius) — `Expression`→`Result` for scalar arithmetic, unit or currency names for typed results (`Expression`→`Kilograms`), and moment labels for a date/time calc (`12:18 AM`→`9:00 AM`, `Friday, 24 July`→`Friday, 9 April, 2027`). A trailing operator keeps the last complete result and its badge visible while the next operand is being typed.
 
@@ -629,3 +633,10 @@ These disclosures are part of the data-handling exceptions to the usual concise 
 AI Chat publishes streaming draft text at most every 33 ms. The same assistant row grows while generating; scrolling follows it only while near the bottom. Completed or stopped replies use the existing Markdown renderer.
 
 The Markdown renderer measures actual SwiftUI text lines at the current width. Completed lines fade in over 120 ms; the unfinished last line waits for the next line or completion. Bursts are paced within 120 ms rather than building a long animation queue. Completion, Stop and failure immediately show all received text. Reduce Motion disables the fades.
+
+Device Battery keeps its position when no devices report a battery. Its empty card shows a centered
+`battery.100percent` symbol at 34 points in `textSecondary`, matching the Music and File Info resting
+marks. The symbol is a placeholder, not a charge reading; accessibility says “No device batteries”.
+
+The `Battery` launcher command enters a standard plugin palette list. Rows use the device symbol and
+name on the left, type and charging state underneath, and the percentage as a trailing accessory.

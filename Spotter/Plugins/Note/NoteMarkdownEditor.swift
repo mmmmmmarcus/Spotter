@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 @MainActor
@@ -86,6 +87,8 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     let tint: NoteTint?
     /// Whether the window grows with the text; when it does not, the editor scrolls inside it.
     let autoSizes: Bool
+    var reduceMotion = false
+    var hidesLeadingH1 = false
     let onContentHeightChange: (CGFloat) -> Void
     let onNavigate: (NoteNavigationDirection) -> Void
 
@@ -167,6 +170,10 @@ struct NoteMarkdownEditor: NSViewRepresentable {
 
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
+            if textView.string == NoteEngine.requiredTitlePrefix {
+                textView.setSelectedRange(
+                    NSRange(location: NoteEngine.requiredTitlePrefix.utf16.count, length: 0))
+            }
             coordinator.reportContentHeight()
         }
         return scrollView
@@ -189,6 +196,8 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private var codeRanges: [NSRange] = []
         private var isHighlighting = false
         private var taskMarkers: [(range: NSRange, state: NSRange, isDone: Bool)] = []
+        private var fadeGeneration = 0
+        private var needsTitleVisibilityRefresh = false
 
         /// The plain slate every pass starts from, and the attributes typing inherits.
         static let baseAttributes: [NSAttributedString.Key: Any] = [
@@ -203,9 +212,11 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         func update(from incoming: NoteMarkdownEditor) {
             let noteChanged = parent.noteID != incoming.noteID
             let tintChanged = parent.tint != incoming.tint
+            let titleVisibilityChanged = parent.hidesLeadingH1 != incoming.hidesLeadingH1
             parent = incoming
             guard let textView else { return }
             if tintChanged { applyTint() }
+            if titleVisibilityChanged { needsTitleVisibilityRefresh = true }
             // Marked-text updates need not publish textDidChange; the binding is stale until commit.
             guard noteChanged || !textView.hasMarkedText() else { return }
             if noteChanged || textView.string != incoming.text {
@@ -216,8 +227,32 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 textView.setSelectedRange(
                     NSRange(location: min(selection.location, (incoming.text as NSString).length), length: 0))
                 highlight()
+                needsTitleVisibilityRefresh = false
+            } else if needsTitleVisibilityRefresh {
+                highlight()
+                needsTitleVisibilityRefresh = false
             }
             reportContentHeight()
+            if noteChanged { fadeIn(scrollView: textView.enclosingScrollView) }
+        }
+
+        /// AppKit owns the fade so it never enters SwiftUI's sizing proposal for the editor.
+        private func fadeIn(scrollView: NSScrollView?) {
+            guard let scrollView else { return }
+            fadeGeneration += 1
+            let generation = fadeGeneration
+            guard !parent.reduceMotion else { scrollView.alphaValue = 1; return }
+            scrollView.alphaValue = 0
+            // Commit the transparent frame first; otherwise AppKit coalesces both values and draws
+            // only the final opaque state, making the animation appear to be missing.
+            DispatchQueue.main.async { [weak self, weak scrollView] in
+                guard let self, self.fadeGeneration == generation, let scrollView else { return }
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.16
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    scrollView.animator().alphaValue = 1
+                }
+            }
         }
 
         /// The caret and selection wear the note's own color: the tint is the note's identity, and
@@ -255,6 +290,18 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             _ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange,
             replacementString: String?
         ) -> Bool {
+            let titlePrefixLength = NoteEngine.requiredTitlePrefix.utf16.count
+            if affectedCharRange.location < titlePrefixLength,
+                replacementString?.hasPrefix(NoteEngine.requiredTitlePrefix) != true
+            {
+                guard !textView.hasMarkedText() else { return false }
+                let editableEnd = max(NSMaxRange(affectedCharRange), titlePrefixLength)
+                let editableRange = NSRange(
+                    location: titlePrefixLength, length: editableEnd - titlePrefixLength)
+                textView.setSelectedRange(editableRange)
+                textView.insertText(replacementString ?? "", replacementRange: editableRange)
+                return false
+            }
             // An input method inserts its uncommitted composition through this same callback, so the
             // pinyin on its way to a Chinese character would otherwise be read as typing: a rule
             // firing there rewrites text the user has not chosen yet and drops the composition.
@@ -267,7 +314,15 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             if applyRuleInputRule(in: textView, at: affectedCharRange, inserting: typed) {
                 return false
             }
-            if typed == "\n" { return insertNewline(in: textView, at: affectedCharRange) }
+            if typed == "\n" {
+                let firstLine = textView.string.components(separatedBy: .newlines).first ?? ""
+                if affectedCharRange.location <= (firstLine as NSString).length,
+                    NoteEngine.leadingH1Title(in: textView.string) == nil {
+                    NSSound.beep()
+                    return false
+                }
+                return insertNewline(in: textView, at: affectedCharRange)
+            }
             if NoteEngine.isArithmeticEquals(typed) {
                 return evaluateArithmetic(in: textView, at: affectedCharRange, inserting: typed)
             }
@@ -591,6 +646,10 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                     }
                 let font = NSFont.preferredFont(forTextStyle: style)
                 storage.addAttribute(.font, value: font, range: match.range)
+                if parent.hidesLeadingH1, match.range.location == 0, marker.count == 1 {
+                    storage.addAttribute(
+                        .foregroundColor, value: NSColor.clear, range: match.range(at: 2))
+                }
                 let selection = textView.selectedRange()
                 if selection.length == 0, selection.location >= match.range.location,
                     selection.location <= NSMaxRange(match.range)
