@@ -140,8 +140,8 @@ struct NotePagination: View {
     let selectedID: UUID?
     let open: () -> Void
 
-    /// Past this many the dots stop being countable, so the strip slides around the current note.
-    private static let visibleDots = 9
+    /// Seven full Emoji slots fit the toolbar's centered 216-point lane without clipping.
+    private static let visibleMarkers = 7
 
     var body: some View {
         Button(action: open) {
@@ -151,7 +151,7 @@ struct NotePagination: View {
                     marker(for: note, isSelected: isSelected)
                 }
             }
-            .frame(height: Theme.Size.settingsRowIcon)
+            .frame(height: Theme.Size.noteEmojiMarker)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -162,9 +162,12 @@ struct NotePagination: View {
     private func marker(for note: SpotterNote, isSelected: Bool) -> some View {
         if let emoji = note.titleEmoji {
             Text(emoji)
-                .font(.system(size: isSelected ? 16 : 13))
+                .font(.system(size: isSelected ? 18 : 15))
                 .opacity(isSelected ? 1 : 0.48)
-                .frame(width: 16, height: Theme.Size.settingsRowIcon)
+                .fixedSize()
+                .frame(
+                    minWidth: Theme.Size.noteEmojiMarker,
+                    minHeight: Theme.Size.noteEmojiMarker)
                 .accessibilityLabel(note.title)
         } else {
             Circle()
@@ -186,10 +189,10 @@ struct NotePagination: View {
 
     /// The dots around the current note, so a long stack still shows where the caret is in it.
     private var window: [SpotterNote] {
-        guard notes.count > Self.visibleDots else { return notes }
+        guard notes.count > Self.visibleMarkers else { return notes }
         let current = notes.firstIndex { $0.id == selectedID } ?? 0
         let start = min(
-            max(current - Self.visibleDots / 2, 0), notes.count - Self.visibleDots)
-        return Array(notes[start..<(start + Self.visibleDots)])
+            max(current - Self.visibleMarkers / 2, 0), notes.count - Self.visibleMarkers)
+        return Array(notes[start..<(start + Self.visibleMarkers)])
     }
 }

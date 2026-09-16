@@ -36,8 +36,10 @@ edge on it. An empty title shows a large `Title` placeholder. The workspace open
 The centered toolbar carries page markers rather than a title — the title is already the first line
 of the note directly beneath it, so what the header can add is *where in the stack you are*. A Note
 whose title contains an Emoji uses its first complete Emoji as the marker and as its list icon; the
-list label omits that first Emoji. Other Notes keep their tint-aware dots. Past nine Notes the strip
-slides around the current one. Clicking anywhere on it opens the notes list. The right side
+list label omits that first Emoji. Other Notes keep their tint-aware dots. Emoji markers use
+bearing-safe 24-point slots, and past seven Notes the strip slides around the current one so Apple
+Color Emoji never gets clipped by the centered toolbar lane. Clicking
+anywhere on it opens the notes list. The right side
 holds only the color control. The list starts hidden and opens as an inset material card
 over the editor, temporarily growing the window vertically rather than changing its width. Selecting
 a row returns to the single-note editor. The card holds its search field and the rows and nothing

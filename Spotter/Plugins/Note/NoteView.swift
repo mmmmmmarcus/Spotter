@@ -364,7 +364,10 @@ private struct NoteListRow: View {
                     if let emoji = note.titleEmoji {
                         Text(emoji)
                             .font(.title2)
-                            .frame(width: Theme.Size.settingsRowIcon)
+                            .fixedSize()
+                            .frame(
+                                minWidth: Theme.Size.noteEmojiIcon,
+                                minHeight: Theme.Size.noteEmojiIcon)
                             .accessibilityHidden(true)
                     }
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {

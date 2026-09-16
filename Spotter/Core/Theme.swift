@@ -120,6 +120,9 @@ enum Theme {
         static let noteTintToolbarSwatch: CGFloat = 14
         /// The tint dot beside a title in the notes list.
         static let noteTintDot: CGFloat = 8
+        /// Emoji need their own bearing-safe boxes; Apple Color Emoji exceeds a text glyph's advance.
+        static let noteEmojiIcon: CGFloat = 28
+        static let noteEmojiMarker: CGFloat = 24
         static let noteTintPanelWidth: CGFloat = 190
         /// The toolbar's page dots: one per note, the current one larger.
         static let noteDot: CGFloat = 5
