@@ -129,6 +129,9 @@ struct RootPaletteView: View {
         return plugins.paletteSnapshot(for: id, query: vm.query)
     }
     private var pluginResults: [PluginPaletteItem] { pluginSnapshot?.items ?? [] }
+    private var aiChatHistorySessions: [AIChatSession] {
+        core.aiChat.showsHistory ? core.aiChat.historySessions : []
+    }
 
     /// Calculator stays available as core functionality; currency syntax is gated by its plugin.
     private var calcResult: CalcResult? {
@@ -174,7 +177,7 @@ struct RootPaletteView: View {
         case .clipboard: return clipResults.count
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
-        case .aiChat: return 0
+        case .aiChat: return aiChatHistorySessions.count
         case .updates: return 0
         case .plugin: return pluginResults.count
         }
@@ -356,6 +359,7 @@ struct RootPaletteView: View {
         let emojis = emojiSections.flatMap(\.entries)
         let plugin = activePluginID.flatMap { plugins.paletteSnapshot(for: $0, query: vm.query) }
         let pluginItems = plugin?.items ?? []
+        let chatSessions = vm.mode == .aiChat ? aiChatHistorySessions : []
         let dashboard = vm.mode == .launcher && isQueryEmpty
             ? plugins.launcherDashboardView() : nil
         // Newest stored clip + the reorder token: the pair changes only when the store mutates, never when a query filters the list.
@@ -369,7 +373,7 @@ struct RootPaletteView: View {
         // Only the active mode is non-empty.
         let count =
             apps.count + fallbacks.count + taskOffset + inlineOffset + clips.count + hist.count
-            + emojis.count
+            + emojis.count + chatSessions.count
             + pluginItems.count
         let sel = count == 0 ? 0 : min(max(vm.selection, 0), count - 1)
         let selectedTask = tasks.indices.contains(sel) ? tasks[sel] : nil
@@ -382,10 +386,12 @@ struct RootPaletteView: View {
         let selectedFallback = fallbacks.indices.contains(fallbackIndex)
             ? fallbacks[fallbackIndex] : nil
         let selectedPlugin = pluginItems.indices.contains(sel) ? pluginItems[sel] : nil
+        let selectedChatSession = chatSessions.indices.contains(sel) ? chatSessions[sel] : nil
         // Derive the footer label from the already-resolved selection so `bottomBar` doesn't re-run `appResults` (its filter/sort aren't memoized). The primary/Actions group is hidden when there's nothing to act on: no results in any mode, or an error calc card (selectable but action-less).
         let pillLabel = actionPillLabel(
             selectedTask: selectedTask, selectedApp: selectedApp, selectedPlugin: selectedPlugin,
-            selectedFallback: selectedFallback, inlineActionTitle: inlineActionTitle)
+            selectedFallback: selectedFallback, selectedChatSession: selectedChatSession,
+            inlineActionTitle: inlineActionTitle)
         // A task row earns a ↵ pill only when Return has somewhere to go; live work that can merely
         // be called off shows the Actions button alone, so ↵ never stops anything by reflex.
         let taskPrimary = selectedTask.map { $0.isDismissible || backgroundTasks.canOpen(id: $0.id) }
@@ -401,7 +407,8 @@ struct RootPaletteView: View {
 
         let layout = paletteLayout(
             apps: apps, tasks: tasks, clips: clips, hist: hist, emojiSections: emojiSections,
-            inline: inline, fallbacks: fallbacks, plugin: plugin, dashboard: dashboard,
+            chatSessions: chatSessions, inline: inline, fallbacks: fallbacks, plugin: plugin,
+            dashboard: dashboard,
             selection: sel,
             sections: browse?.sections, usage: browse?.usage ?? [:], pillLabel: pillLabel,
             showPrimaryAction: showPrimaryAction, showActionGroup: showActionGroup,
@@ -417,7 +424,8 @@ struct RootPaletteView: View {
     private func paletteLayout(
         apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
         hist: [CalcHistoryEntry],
-        emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
+        emojiSections: [EmojiGridSection], chatSessions: [AIChatSession],
+        inline: PaletteInlineResult?,
         fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
         selection: Int, sections: [LauncherSectionSlice]?, usage: [String: String],
@@ -431,7 +439,8 @@ struct RootPaletteView: View {
             } else {
                 content(
                     apps: apps, tasks: tasks, clips: clips, hist: hist,
-                    emojiSections: emojiSections, inline: inline, fallbacks: fallbacks, plugin: plugin,
+                    emojiSections: emojiSections, chatSessions: chatSessions, inline: inline,
+                    fallbacks: fallbacks, plugin: plugin,
                     dashboard: dashboard, selection: selection,
                     sections: sections, usage: usage
                 )
@@ -919,7 +928,8 @@ struct RootPaletteView: View {
     private func content(
         apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
         hist: [CalcHistoryEntry],
-        emojiSections: [EmojiGridSection], inline: PaletteInlineResult?,
+        emojiSections: [EmojiGridSection], chatSessions: [AIChatSession],
+        inline: PaletteInlineResult?,
         fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
         selection: Int, sections: [LauncherSectionSlice]?, usage: [String: String]
@@ -1036,7 +1046,13 @@ struct RootPaletteView: View {
                 )
             }
         case .aiChat:
-            AIChatView(chat: core.aiChat, scroll: scroll)
+            let selected = chatSessions.indices.contains(selection) ? chatSessions[selection] : nil
+            AIChatView(
+                chat: core.aiChat, selectedID: selected?.id, scroll: scroll,
+                onActivate: { session in
+                    if let index = chatSessions.firstIndex(of: session) { vm.selection = index }
+                    core.aiChat.switchTo(session.id)
+                })
         case .updates:
             UpdatePaletteView()
         case .emoji:
@@ -1152,13 +1168,19 @@ struct RootPaletteView: View {
     private func actionPillLabel(
         selectedTask: BackgroundTaskItem?, selectedApp: AppEntry?,
         selectedPlugin: PluginPaletteItem?, selectedFallback: LauncherFallback?,
-        inlineActionTitle: String?
+        selectedChatSession: AIChatSession?, inlineActionTitle: String?
     ) -> String {
         switch vm.mode {
         case .clipboard, .emoji:
             return vm.pasteTarget?.pasteTitle ?? "Paste"
         case .aiChat:
-            return core.aiChat.isWaiting ? AIChatEngine.waitingStatus : "Send"
+            if core.aiChat.isWaiting { return AIChatEngine.waitingStatus }
+            if vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                selectedChatSession != nil
+            {
+                return "Open Conversation"
+            }
+            return "Send"
         case .updates:
             return updatePrimaryActionTitle ?? "Check Again"
         case .calculatorHistory:
@@ -1443,7 +1465,13 @@ struct RootPaletteView: View {
             guard emojiResults.indices.contains(selection) else { return }
             core.pasteEmoji(emojiResults[selection])
         case .aiChat:
-            sendChatMessage()
+            let draft = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !draft.isEmpty {
+                sendChatMessage()
+                return
+            }
+            guard aiChatHistorySessions.indices.contains(selection) else { return }
+            core.aiChat.switchTo(aiChatHistorySessions[selection].id)
         case .updates:
             core.performUpdatePrimaryAction()
         case .plugin(let id):

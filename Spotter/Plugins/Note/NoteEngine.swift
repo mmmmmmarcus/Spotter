@@ -216,13 +216,6 @@ enum NoteEngine {
         }
     }
 
-    static func editorLineCount(in markdown: String, minimum: Int = 3, maximum: Int = 20) -> Int {
-        let logicalLines = markdown.reduce(into: 1) { count, character in
-            if character == "\n" { count += 1 }
-        }
-        return min(max(logicalLines, minimum), maximum)
-    }
-
     static func listContinuation(after line: String) -> NoteListContinuation? {
         let indentation = String(line.prefix(while: { $0 == " " || $0 == "\t" }))
         let body = String(line.dropFirst(indentation.count))

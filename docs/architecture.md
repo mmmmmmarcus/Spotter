@@ -78,9 +78,8 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
 - **Plugin workspaces** — the same `AuxWindowController`, reached only through
   `AppCore.showPluginWindow`. A plugin owns the hosted view and feature manager, while `AppCore`
   retains sole window ownership. The helper can opt a
-  workspace into transparency, resizing and floating window level. Notes uses all three and requests
-  content-driven height changes through `AppCore`, including its temporary list expansion, leaving
-  frame ownership and activation routing centralized.
+  workspace into transparency, resizing and floating window level. Notes uses all three, saves its
+  AppKit frame under the bundle identifier and leaves every size change to the user's window drag.
 - **Command HUD** — a second borderless panel (`Core/CommandHUD.swift`), owned directly by `AppCore`,
   that briefly confirms otherwise-invisible command results ("Trash Emptied"). Non-activating and
   mouse-ignoring by design: the command just acted on the app the user came from, and taking focus

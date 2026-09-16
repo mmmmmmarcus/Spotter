@@ -49,6 +49,16 @@ struct AIChatTests {
             AIChatMessage(role: role, text: text)
         }
 
+        let olderSession = AIChatSession(
+            messages: [message(.user, "Older")], startedAt: Date(timeIntervalSince1970: 1))
+        let blankSession = AIChatSession(startedAt: Date(timeIntervalSince1970: 3))
+        let newerSession = AIChatSession(
+            messages: [message(.user, "Newer")], startedAt: Date(timeIntervalSince1970: 2))
+        check(
+            "history excludes blank sessions and orders newest first",
+            AIChatEngine.historySessions([olderSession, blankSession, newerSession]).map(\.id)
+                == [newerSession.id, olderSession.id])
+
         check("empty transcript stays empty", AIChatEngine.transcriptWindow([]).isEmpty)
 
         let short = [

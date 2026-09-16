@@ -591,15 +591,15 @@ behind the text by `NoteLayoutManager`: a
 blockquote, and a `separator` hairline across a horizontal rule. Those are the same tokens AI Chat's
 rendered replies use, so a code block reads the same in both surfaces. Notes has no separate title
 input, formatting buttons, preview mode or bottom status row; persistence remains automatic.
-Typing-driven height changes are immediate and top-anchored, while the overlay scroller stays absent
-until the twenty-line viewport actually overflows, keeping both text and scrollbar stable during
-growth. Switching Notes fades in only the editor content over 160 ms, leaving the toolbar fixed and
-respecting Reduce Motion. Explicit list transitions retain live-frame animation. Its Settings pane owns a background-
+The Note window keeps the frame the user dragged and never changes size for typing, navigation or
+the notes list. The native overlay scroller appears only when content exceeds that user-sized
+viewport. Switching Notes fades in only the editor content over 160 ms, leaving the toolbar fixed and
+respecting Reduce Motion. The notes list animates inside that frame. Its Settings pane owns a background-
 only transparency slider plus the consent, status and manual action for private CloudKit sync; Note
 content never enters automatic Settings Sync or the global Backup pane.
 If both documents start with a `# ` H1, the heading uses SwiftUI's built-in interpolated content
 transition while the AppKit editor temporarily withholds that same glyph run. This overlay changes
-only drawing; TextKit remains responsible for line height and auto-sizing throughout.
+only drawing; TextKit remains responsible for layout inside the fixed window frame.
 
 The calculator's inline `CalculatorCard` reuses this card language (`cardFill` + `cardStroke`) rather than the row language, since it's a highlighted answer, not a list item. A value answer is normally a **two-column** layout: a source column (input echo) and a target column (result), separated by a centered `arrow.right` glyph (no divider line). A plugin result may add one companion column; World Clock uses it for the local system time after the requested city's time. Each column optionally carries a word-name **badge pill** beneath its value (`keyCap` font, `controlSurface` fill, `keyCap` radius) — `Expression`→`Result` for scalar arithmetic, unit or currency names for typed results (`Expression`→`Kilograms`), and moment labels for a date/time calc (`12:18 AM`→`9:00 AM`, `Friday, 24 July`→`Friday, 9 April, 2027`). A trailing operator keeps the last complete result and its badge visible while the next operand is being typed.
 

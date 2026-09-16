@@ -88,7 +88,8 @@ struct SettingsSyncTests {
                 calendarSourceIdentifier: "calendar-id",
                 includesAllDayEvents: false,
                 weatherEnabled: true,
-                weatherUnit: "celsius"))
+                weatherUnit: "celsius"),
+            settingsSyncMigrations: ["legacy-bundle.translate-shortcuts.v1"])
     }
 
     private static func populatedPluginPrefs() -> SettingsBackupPluginPrefs {
@@ -178,7 +179,7 @@ struct SettingsSyncTests {
     /// A v3 file written before a field existed must decode, and that field must read as "unset" —
     /// which is what makes the apply path leave this Mac's own value alone rather than resetting it.
     private static func testOlderFileLeavesNewFieldsUnset() {
-        let newFields = ["currencyRatesEnabled"]
+        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations"]
         var object = jsonObject(encode(populatedSettings()))
         for field in newFields {
             precondition(object[field] != nil, "\(field) is missing from the fixture")
@@ -187,6 +188,7 @@ struct SettingsSyncTests {
         let older = try! JSONSerialization.data(withJSONObject: object)
         let decoded = try! decode(SettingsBackupData.self, from: older)
         precondition(decoded.currencyRatesEnabled == nil)
+        precondition(decoded.settingsSyncMigrations == nil)
         // Everything the older file did carry is still there.
         precondition(decoded.openRouterAPIKey == "sk-or-test-key")
         precondition(decoded.googleTranslationTargets == ["ja", "fr", "de"])

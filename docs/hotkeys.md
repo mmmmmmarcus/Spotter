@@ -116,6 +116,12 @@ Hyper + T stays bound to the action it was recorded for. They intentionally ship
 record Hyper + S/T in Settings → Shortcuts, using the same recorder, conflict detection and Carbon
 registration as every other plugin action.
 
+The `com.spotter.app1` identity migration has a bounded second pass for those two Translate keys.
+Some Macs had already recorded the original migration marker before their legacy domain received the
+binding; the repair copies only a missing Translate shortcut, never overwrites a current value, and
+keeps it through authoritative Settings Sync reloads from older writers. Current snapshots carry a
+migration marker, so deliberately unbinding it in a current build remains authoritative.
+
 ## The Shortcuts pane is one table
 
 `Features/Settings/ShortcutsSettingsView.swift` is the one Settings pane that is not a

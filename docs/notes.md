@@ -40,20 +40,19 @@ list label omits that first Emoji. Other Notes keep their tint-aware dots. Emoji
 bearing-safe 24-point slots, and past seven Notes the strip slides around the current one so Apple
 Color Emoji never gets clipped by the centered toolbar lane. Clicking
 anywhere on it opens the notes list. The right side
-holds only the color control. The list starts hidden and opens as an inset material card
-over the editor, temporarily growing the window vertically rather than changing its width. Selecting
+holds only the color control. The list starts hidden and opens as an inset material card over the
+editor without changing the window frame. Selecting
 a row returns to the single-note editor. The card holds its search field and the rows and nothing
 else: a "Notes" heading over a list of notes says nothing, and the count is already the number of
 dots in the toolbar. The toolbar row is a sibling *above* the animated container
 holding the editor and that card, never inside it: within it, toggling the list ran the title and its
 buttons through the same animated relayout as the list and they visibly drifted. The title is also
 centred against the full toolbar width rather than its own measured width, so nothing beside it can
-re-centre it. The shared window owner keeps the top edge anchored while the
-editor grows from three visible lines to a maximum of twenty, after which the native overlay scroller
-takes over. Every auto-sized height is `NoteEditorMetrics.editorHeight(forTextHeight:)`: the text's
-own height, the symmetric 20-point text inset, and `trailingRoom` on top of it. The extra room below
-exists because the window is not symmetric — the toolbar sits above the text and nothing sits below
-it — so without it the last line ends a hair under its own descender.
+re-centre it. The shared window owner gives Notes a 440×360 default frame and a 360×180 minimum.
+From there the frame belongs entirely to the user: typing, switching Notes and opening the list never
+resize it. AppKit saves the dragged size and position under the bundle identifier and restores them
+when the window is reopened or Spotter relaunches. The native overlay scroller appears whenever
+content is taller than the current user-sized viewport.
 
 Tab nests the caret's list line and Shift-Tab un-nests it, wherever the caret sits in the line (a
 selection moves every list line it touches together); on prose the keys fall through to a plain tab.
@@ -72,11 +71,9 @@ does exactly what it always did — and a composition stands the rule down like 
 Restyling after an edit is synchronous, not debounced — a
 deferred pass left a frame where a new line's dash was plain text and the discs below the edit drew
 from stale ranges, a visible list blink on Return and delete; only caret-only moves keep the
-debounce. Typing-driven height changes resize immediately from the anchored top edge, so the text
-viewport never passes through intermediate heights or scrolls the content while catching up. The
-vertical scroller remains disabled until content genuinely exceeds the twenty-line cap, preventing
-the transient scrollbar flash that an about-to-grow viewport would otherwise produce. Explicit UI
-transitions such as opening the notes list still interpolate real window frames.
+debounce. Text edits update only the document layout inside the frame; the vertical scroller follows
+the live viewport during a user resize. Opening the notes list animates the inset card without
+changing the window frame.
 Closing the window flushes the latest in-memory snapshot.
 
 While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
@@ -113,10 +110,8 @@ The wash is deliberately *not* attenuated by Window Transparency: a tint that di
 slider would leave the most see-through windows the least identifiable. Editor text and controls are
 untouched. In the notes list a tinted Note shows a small dot beside its title.
 
-The same popover is the **only** place either control lives: it carries the Window Transparency
-slider and the Auto Window Sizing switch, and Notes Settings duplicated neither since Sep 2026 (owner
-decision — the controls belong next to the window they change). Both settings themselves are
-unchanged. Transparency fades exactly one
+The same popover is the **only** place the Window Transparency control lives, and Notes Settings does
+not duplicate it. Transparency fades exactly one
 layer: the adaptive `panelScrim` over the window's frost. The `.hudWindow` material stays at full
 strength at every setting and the tint film keeps its color, so the desktop shows through the scrim's
 absence rather than through a hole in the window — the frost is what makes a Note read as glass, and
@@ -136,12 +131,9 @@ migration clears it. Going further than the material would mean either snapping 
 private `CGSSetWindowBackgroundBlurRadius` route to a true radius; neither is in the build, and both
 are owner decisions.
 
-**Auto Window Sizing** (on by default, `note.auto-window-sizing`) is what lets the window follow the
-note. `NoteView.fitWindow` is the one place the height is set, and it returns immediately when the
-preference is off — a new note, a longer note or the list opening then leaves a hand-sized window
-exactly where its edge was dragged, and the editor fills that height instead of the measured one.
-The editor's scroller answers to the window's own clip height in that mode rather than to the
-twenty-line ceiling auto sizing grows to.
+The retired `note.auto-window-sizing` preference and corresponding v3 backup field are ignored. They
+remain readable only so older backups decode; new backups omit the field. The Note window is always
+user-sized, and its concrete frame stays device-local rather than entering backup or Settings Sync.
 
 A tint is a user modification: it bumps `updatedAt`, so it syncs and wins conflicts like any edit.
 It deliberately does not bump `contentUpdatedAt`, which is what the newest-first list order is sorted
@@ -513,12 +505,12 @@ titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and t
 identical behavior. There is no separate title field, preview surface, formatting palette,
 word/character counter or save-status footer; persistence remains automatic in the background.
 
-Auto Window Sizing and the 0–90% Window Transparency slider live only in the toolbar's color
-popover; Notes Settings carries no Appearance card (owner decision, Sep 2026).
+The 0–90% Window Transparency slider lives only in the toolbar's color popover; Notes Settings
+carries no Appearance card.
 Transparency fades the adaptive `panelScrim` and nothing else: the `.hudWindow` material and the tint
-film hold their strength, and editor content and controls remain fully opaque throughout. Both values
-are bundle-scoped and ride in trusted Settings backup/sync state, while the system material continues
-to honor macOS appearance and accessibility.
+film hold their strength, and editor content and controls remain fully opaque throughout. The value
+is bundle-scoped and rides in trusted Settings backup/sync state, while the concrete window frame
+stays device-local and the system material continues to honor macOS appearance and accessibility.
 
 ## Testing
 

@@ -96,6 +96,13 @@ commands (`builtInCommands`). Empty binding maps are authoritative, so unbinding
 per-item binding is applied only once its item exists, which is why quicklinks, custom commands and
 AI commands are restored before the shortcut map is.
 
+An absent shortcut map means the file predates that category and leaves the receiving Mac's newer
+bindings alone; a present empty map is authoritative and clears that category. The one-time app
+identity repair recovers the two Translate shortcut keys from the former `com.spotter.app` domain
+when the original migration marker already exists, and protects those recovered bindings through
+Settings Sync merges from older writers. Current snapshots carry a migration marker, which is what
+lets a later explicit unbind remain authoritative instead of being mistaken for legacy data loss.
+
 ### Credentials and networked features
 
 Restoring one of these *is* the consent act — the file is trusted explicitly before it is applied.
@@ -128,7 +135,7 @@ derive "answered" from the restored grant.
 | Caffeinate: keep display / disk awake | `pluginPrefs.caffeinate.*` |
 | Window Management: gap, cycle on repeat | `pluginPrefs.windowManagement.*` |
 | Mole binary path override | `pluginPrefs.mole.binaryPath` |
-| Notes window transparency and auto sizing | `pluginPrefs.note.*` |
+| Notes window transparency | `pluginPrefs.note.windowTransparency` |
 | World Clock cities | `worldClockCities` |
 | Quicklinks | `quicklinks` |
 | Snippets prefix and rules | `textReplacement.prefix`, `.rules` |

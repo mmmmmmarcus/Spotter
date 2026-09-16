@@ -27,6 +27,8 @@ struct AppIdentityMigrationTests {
         defer {
             defaults.removePersistentDomain(forName: legacyBundleID)
             defaults.removePersistentDomain(forName: currentBundleID)
+            defaults.removePersistentDomain(forName: suiteName + ".repair-legacy")
+            defaults.removePersistentDomain(forName: suiteName + ".repair-current")
             defaults.removePersistentDomain(forName: suiteName)
             try? fileManager.removeItem(at: root)
         }
@@ -48,6 +50,7 @@ struct AppIdentityMigrationTests {
                 "plain": "legacy",
                 "collision": "legacy",
                 "\(legacyBundleID).showInDock": true,
+                "KeyboardShortcuts_plugin.selection-tools.translate": "hyper-t",
             ], forName: legacyBundleID)
         defaults.setPersistentDomain(
             ["collision": "current"], forName: currentBundleID)
@@ -64,6 +67,10 @@ struct AppIdentityMigrationTests {
         expect(
             currentDomain["\(currentBundleID).showInDock"] as? Bool == true,
             "bundle-prefixed preference remapped")
+        expect(
+            currentDomain["KeyboardShortcuts_plugin.selection-tools.translate"] as? String
+                == "hyper-t",
+            "legacy Translate shortcut copied")
         expect(
             fileManager.fileExists(atPath: support.appendingPathComponent(
                 "\(currentBundleID)/Notes/notes.json").path),
@@ -93,6 +100,40 @@ struct AppIdentityMigrationTests {
         expect(
             String(decoding: copiedData, as: UTF8.self) == "legacy note",
             "rerun does not overwrite")
+
+        let repairLegacyID = suiteName + ".repair-legacy"
+        let repairCurrentID = suiteName + ".repair-current"
+        defaults.setPersistentDomain(
+            ["KeyboardShortcuts_plugin.selection-tools.translate": "recovered-hyper-t"],
+            forName: repairLegacyID)
+        defaults.setPersistentDomain(
+            ["app-identity-migration.from-com.spotter.app.v1": true],
+            forName: repairCurrentID)
+        let repaired = try AppIdentityMigration.migrateIfNeeded(
+            currentBundleID: repairCurrentID, legacyBundleID: repairLegacyID, defaults: defaults,
+            applicationSupportRoot: support, cachesRoot: caches)
+        let repairedDomain = defaults.persistentDomain(forName: repairCurrentID) ?? [:]
+        expect(repaired, "shortcut repair runs after the original identity migration")
+        expect(
+            repairedDomain["KeyboardShortcuts_plugin.selection-tools.translate"] as? String
+                == "recovered-hyper-t",
+            "shortcut repair recovers Hyper T")
+        let repairRerun = try AppIdentityMigration.migrateIfNeeded(
+            currentBundleID: repairCurrentID, legacyBundleID: repairLegacyID, defaults: defaults,
+            applicationSupportRoot: support, cachesRoot: caches)
+        expect(!repairRerun, "shortcut repair is idempotent")
+        let syncRepair = AppIdentityMigration.translateShortcutJSONForSyncRepair(
+            remoteMigrations: nil, defaults: defaults, currentBundleID: repairCurrentID,
+            legacyBundleID: repairLegacyID)
+        expect(
+            syncRepair["KeyboardShortcuts_plugin.selection-tools.translate"]
+                == "recovered-hyper-t",
+            "old sync snapshot recovers the legacy Translate shortcut")
+        let completedSyncRepair = AppIdentityMigration.translateShortcutJSONForSyncRepair(
+            remoteMigrations: AppIdentityMigration.completedSettingsSyncMigrations,
+            defaults: defaults, currentBundleID: repairCurrentID,
+            legacyBundleID: repairLegacyID)
+        expect(completedSyncRepair.isEmpty, "current sync snapshot respects an unbound shortcut")
         expect(
             AppIdentityMigration.legacyBundleID(for: AppIdentityMigration.betaBundleID)
                 == AppIdentityMigration.legacyBetaBundleID,

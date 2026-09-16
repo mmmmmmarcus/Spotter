@@ -131,7 +131,8 @@ extension SettingsBackup {
                 calendarSourceIdentifier: dashboard.calendarSourceIdentifier ?? "",
                 includesAllDayEvents: dashboard.includesAllDayEvents,
                 weatherEnabled: core.dashboardWeather.isEnabled,
-                weatherUnit: core.dashboardWeather.unit.rawValue))
+                weatherUnit: core.dashboardWeather.unit.rawValue),
+            settingsSyncMigrations: AppIdentityMigration.completedSettingsSyncMigrations)
 
         let hk = core.hotKeys
         var hotkeys = HotkeyBackup()
@@ -258,7 +259,7 @@ extension SettingsBackup {
         prefs.mole = SettingsBackupPluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
         prefs.note = SettingsBackupPluginPrefs.Note(
             windowTransparency: core.notes.windowTransparency,
-            autoWindowSizing: core.notes.autoWindowSizing)
+            autoWindowSizing: nil)
         return prefs
     }
 
@@ -295,7 +296,11 @@ extension SettingsBackup {
             core.quicklinks.replace(with: quicklinks)
             summary.settingsFields += 1
         }
-        if let hotkeys { summary.hotkeys = applyHotkeys(hotkeys, to: core, mode: mode) }
+        if let hotkeys {
+            summary.hotkeys = applyHotkeys(
+                hotkeys, settingsSyncMigrations: settings?.settingsSyncMigrations,
+                to: core, mode: mode)
+        }
         if let favoriteApps {
             core.favorites.replace(keys: favoriteApps)
             summary.favorites = favoriteApps.count
@@ -435,10 +440,6 @@ extension SettingsBackup {
         }
         if let transparency = prefs.note?.windowTransparency {
             core.notes.setWindowTransparency(transparency)
-            count += 1
-        }
-        if let autoWindowSizing = prefs.note?.autoWindowSizing {
-            core.notes.setAutoWindowSizing(autoWindowSizing)
             count += 1
         }
         if let dashboard = prefs.dashboardWidgets {
@@ -593,10 +594,29 @@ extension SettingsBackup {
     }
 
     private func applyHotkeys(
-        _ hotkeys: HotkeyBackup, to core: AppCore, mode: ApplyMode
+        _ hotkeys: HotkeyBackup, settingsSyncMigrations: [String]?,
+        to core: AppCore, mode: ApplyMode
     ) -> Int {
         let hk = core.hotKeys
         var count = 0
+        let recoveredTranslateBindings: [(HotKeyAction, HotKeyBinding)] =
+            (mode == .replace
+                ? AppIdentityMigration.translateShortcutJSONForSyncRepair(
+                    remoteMigrations: settingsSyncMigrations)
+                : [:]
+            ).compactMap { key, json in
+                guard let data = json.data(using: .utf8),
+                    let binding = try? JSONDecoder().decode(HotKeyBinding.self, from: data)
+                else { return nil }
+                switch key {
+                case PluginActionKey.translateSelectedText.defaultsKey:
+                    return (.plugin(.translateSelectedText), binding)
+                case PluginActionKey.translateText.defaultsKey:
+                    return (.plugin(.translateText), binding)
+                default:
+                    return nil
+                }
+            }
         // Skip a binding whose combo is already claimed by an earlier-applied (or existing) action: two actions on the same key would make Carbon's second RegisterEventHotKey fail with eventHotKeyExistsErr, silently killing that shortcut. The recorder does this check interactively; imports must too.
         func apply(_ s: HotKeyBinding, _ action: HotKeyAction) {
             guard hk.conflictOwner(of: s, excluding: action) == nil else { return }
@@ -606,30 +626,42 @@ extension SettingsBackup {
         if mode == .replace {
             hk.setBinding(nil, for: .togglePalette)
             hk.setBinding(nil, for: .togglePaletteBackup)
-            for key in core.plugins.shortcutActions { hk.setBinding(nil, for: .plugin(key)) }
-            let remoteAppIDs = Set(hotkeys.apps?.keys.map { $0 } ?? [])
-            for id in Set(hk.boundBundleIDs).union(remoteAppIDs) {
-                hk.setBinding(nil, for: .app(bundleID: id))
+            if hotkeys.pluginActions != nil {
+                for key in core.plugins.shortcutActions { hk.setBinding(nil, for: .plugin(key)) }
+            } else {
+                if hotkeys.toggleClipboard != nil { hk.setBinding(nil, for: .plugin(.openClipboard)) }
+                if hotkeys.toggleEmoji != nil { hk.setBinding(nil, for: .plugin(.openEmoji)) }
             }
-            let remotePaneIDs = Set(hotkeys.panes?.keys.map { $0 } ?? [])
-            for id in Set(hk.boundPaneBundleIDs).union(remotePaneIDs) {
-                hk.setBinding(nil, for: .settingsPane(bundleID: id))
+            if let apps = hotkeys.apps {
+                for id in Set(hk.boundBundleIDs).union(apps.keys) {
+                    hk.setBinding(nil, for: .app(bundleID: id))
+                }
             }
-            let remoteCommandIDs = Set(
-                (hotkeys.customCommands?.keys.map { $0 } ?? []).compactMap(UUID.init(uuidString:)))
-            for id in Set(hk.boundCustomCommandIDs).union(remoteCommandIDs) {
-                hk.setBinding(nil, for: .customCommand(id: id))
+            if let panes = hotkeys.panes {
+                for id in Set(hk.boundPaneBundleIDs).union(panes.keys) {
+                    hk.setBinding(nil, for: .settingsPane(bundleID: id))
+                }
             }
-            for id in CommandID.allCases { hk.setBinding(nil, for: .builtInCommand(id)) }
-            let remoteQuicklinkIDs = Set(
-                (hotkeys.quicklinks?.keys.map { $0 } ?? []).compactMap(UUID.init(uuidString:)))
-            for id in Set(hk.boundQuicklinkIDs).union(remoteQuicklinkIDs) {
-                hk.setBinding(nil, for: .quicklink(id: id))
+            if let customCommands = hotkeys.customCommands {
+                let remoteIDs = Set(customCommands.keys.compactMap(UUID.init(uuidString:)))
+                for id in Set(hk.boundCustomCommandIDs).union(remoteIDs) {
+                    hk.setBinding(nil, for: .customCommand(id: id))
+                }
             }
-            let remoteAICommandIDs = Set(
-                (hotkeys.aiCommands?.keys.map { $0 } ?? []).compactMap(UUID.init(uuidString:)))
-            for id in Set(core.aiCommands.commands.map(\.id)).union(remoteAICommandIDs) {
-                hk.setBinding(nil, for: .aiCommand(id: id))
+            if hotkeys.builtInCommands != nil {
+                for id in CommandID.allCases { hk.setBinding(nil, for: .builtInCommand(id)) }
+            }
+            if let quicklinks = hotkeys.quicklinks {
+                let remoteIDs = Set(quicklinks.keys.compactMap(UUID.init(uuidString:)))
+                for id in Set(hk.boundQuicklinkIDs).union(remoteIDs) {
+                    hk.setBinding(nil, for: .quicklink(id: id))
+                }
+            }
+            if let aiCommands = hotkeys.aiCommands {
+                let remoteIDs = Set(aiCommands.keys.compactMap(UUID.init(uuidString:)))
+                for id in Set(core.aiCommands.commands.map(\.id)).union(remoteIDs) {
+                    hk.setBinding(nil, for: .aiCommand(id: id))
+                }
             }
         }
         if let s = hotkeys.togglePalette { apply(s, .togglePalette) }
@@ -701,6 +733,18 @@ extension SettingsBackup {
                     let s = pluginActions[kind.legacyBackupKey] ?? pluginActions[kind.olderBackupKey]
                 else { continue }
                 apply(s, .aiCommand(id: kind.id))
+            }
+        }
+        if !recoveredTranslateBindings.isEmpty {
+            let remoteIDs = Set(hotkeys.pluginActions?.keys.map { $0 } ?? [])
+            for (action, binding) in recoveredTranslateBindings {
+                guard case .plugin(let key) = action else { continue }
+                let aliases = [
+                    "\(key.pluginID.rawValue).\(key.actionID)",
+                    "selection-tools.\(key.actionID)",
+                    "ai-chat.\(key.actionID)",
+                ]
+                if aliases.allSatisfy({ !remoteIDs.contains($0) }) { apply(binding, action) }
             }
         }
         return count

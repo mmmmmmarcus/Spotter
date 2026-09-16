@@ -41,7 +41,6 @@ final class NoteStore: ObservableObject {
     @Published private(set) var notes: [SpotterNote]
     @Published private(set) var saveState: NoteSaveState = .saved
     @Published private(set) var windowTransparency: Double
-    @Published private(set) var autoWindowSizing: Bool
     @Published var selectedID: UUID? {
         didSet {
             if let selectedID {
@@ -55,7 +54,6 @@ final class NoteStore: ObservableObject {
     private let defaults: UserDefaults
     private let selectedKey = "note.selected-id"
     private static let windowTransparencyKey = "note.window-transparency"
-    private static let autoWindowSizingKey = "note.auto-window-sizing"
     private let writer: NoteWriter
     private let now: () -> Date
     private var saveTask: Task<Void, Never>?
@@ -76,9 +74,6 @@ final class NoteStore: ObservableObject {
             : min(
                 max(defaults.double(forKey: Self.windowTransparencyKey), 0),
                 Self.maximumWindowTransparency)
-        autoWindowSizing = defaults.object(forKey: Self.autoWindowSizingKey) == nil
-            || defaults.bool(forKey: Self.autoWindowSizingKey)
-
         let archive = Self.load(from: resolvedURL)
         let loaded = Self.enforcingTitles(in: archive.notes)
             .sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
@@ -141,12 +136,6 @@ final class NoteStore: ObservableObject {
         guard windowTransparency != clamped else { return }
         windowTransparency = clamped
         defaults.set(clamped, forKey: Self.windowTransparencyKey)
-    }
-
-    func setAutoWindowSizing(_ enabled: Bool) {
-        guard autoWindowSizing != enabled else { return }
-        autoWindowSizing = enabled
-        defaults.set(enabled, forKey: Self.autoWindowSizingKey)
     }
 
     @discardableResult

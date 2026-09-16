@@ -46,25 +46,20 @@ extension AppCore {
         }
         if creatingNewNote { notes.createNote() }
         if palette.mode == .launcher { hidePalette(restoreFocus: false) }
-        let initialEditorHeight = NoteEditorMetrics.estimatedEditorHeight(
-            for: notes.selectedNote?.content ?? "")
         showPluginWindow(
             id: "notes", title: "Notes",
             size: CGSize(
                 width: Theme.Size.noteWindowWidth,
-                height: NoteEditorMetrics.windowHeight(forEditorHeight: initialEditorHeight)),
+                height: Theme.Size.noteWindowHeight),
             resizable: true, floating: true, transparent: true,
             minimumSize: CGSize(
                 width: Theme.Size.noteWindowMinimumWidth,
-                height: NoteEditorMetrics.windowHeight(
-                    forEditorHeight: NoteEditorMetrics.minimumEditorHeight)),
-            hidesStandardButtons: true, contentExtendsIntoTitleBar: true
+                height: Theme.Size.noteWindowMinimumHeight),
+            hidesStandardButtons: true, contentExtendsIntoTitleBar: true,
+            frameAutosaveName: "\(Bundle.main.bundleIdentifier ?? "com.spotter.app1").note-window"
         ) {
             NoteView(
                 store: notes,
-                resizeHeight: { [weak self] height, animated in
-                    self?.resizePluginWindow(id: "notes", height: height, animated: animated)
-                },
                 close: { [weak self] in self?.closePluginWindow(id: "notes") })
         }
     }

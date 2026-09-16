@@ -109,8 +109,9 @@ enum Theme {
         static let textReplacementEditorWidth: CGFloat = 480
         static let textReplacementEditorHeight: CGFloat = 120
         static let noteWindowWidth: CGFloat = 440
+        static let noteWindowHeight: CGFloat = 360
         static let noteWindowMinimumWidth: CGFloat = 360
-        static let noteListWindowHeight: CGFloat = 500
+        static let noteWindowMinimumHeight: CGFloat = 180
         static let noteListTopInset: CGFloat = 84
         static let noteToolbarHeight: CGFloat = 48
         /// One glass toolbar control in the Note window — a circle this size holds a 12pt glyph with breathing room.

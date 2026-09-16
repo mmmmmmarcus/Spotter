@@ -61,6 +61,8 @@ struct SettingsBackupData: Codable, Sendable {
     // Currency-conversion consent, like the update check: restoring a trusted file is the consent act.
     var currencyRatesEnabled: Bool?
     var dashboardWidgets: DashboardWidgets?
+    /// Protocol markers that distinguish an old writer omitting migrated data from a current writer deliberately clearing it.
+    var settingsSyncMigrations: [String]?
 }
 
 /// Per-plugin preferences that live in raw bundle-scoped `UserDefaults`. Gathered as effective values (defaults resolved), so a synced Mac lands on exactly what the source Mac shows.
@@ -122,6 +124,7 @@ struct SettingsBackupPluginPrefs: Codable, Sendable {
         // neither written nor read now: an old snapshot can never start the dormant CloudKit
         // engine, and the Notes folder is a device-local path that does not travel.
         var windowTransparency: Double?
+        // Retained only so older v3 files decode; Note windows are now always user-sized.
         var autoWindowSizing: Bool?
     }
     var changeCase: ChangeCase?

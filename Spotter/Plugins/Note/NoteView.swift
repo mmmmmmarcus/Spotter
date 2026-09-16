@@ -3,11 +3,9 @@ import SwiftUI
 
 struct NoteView: View {
     @ObservedObject var store: NoteStore
-    let resizeHeight: (CGFloat, Bool) -> Void
     let close: () -> Void
     @State private var query = ""
     @State private var showsNoteList = false
-    @State private var editorHeight: CGFloat
     @State private var trackedNoteID: UUID?
     @State private var previousH1Title: String?
     @State private var morphTitle: String?
@@ -17,15 +15,10 @@ struct NoteView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
-        store: NoteStore, resizeHeight: @escaping (CGFloat, Bool) -> Void,
-        close: @escaping () -> Void
+        store: NoteStore, close: @escaping () -> Void
     ) {
         self.store = store
-        self.resizeHeight = resizeHeight
         self.close = close
-        _editorHeight = State(
-            initialValue: NoteEditorMetrics.estimatedEditorHeight(
-                for: store.selectedNote?.content ?? ""))
         _previousH1Title = State(
             initialValue: NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? ""))
         _trackedNoteID = State(initialValue: store.selectedID)
@@ -67,7 +60,6 @@ struct NoteView: View {
             previousH1Title = NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? "")
         }
         .ignoresSafeArea(edges: .top)
-        .onChange(of: store.autoWindowSizing) { if store.autoWindowSizing { fitWindow() } }
         .background(noteSurface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
     }
@@ -149,15 +141,10 @@ struct NoteView: View {
                     text: selectedContent,
                     noteID: note.id,
                     tint: note.tint,
-                    autoSizes: store.autoWindowSizing,
                     reduceMotion: reduceMotion,
                     hidesLeadingH1: isMorphingTitle,
-                    onContentHeightChange: updateEditorHeight,
                     onNavigate: navigate)
-                // A hand-sized window owns its own height, so the editor fills it rather than
-                // leaving dead space below the text that no click can reach.
-                .frame(height: store.autoWindowSizing ? editorHeight : nil)
-                .frame(maxHeight: store.autoWindowSizing ? nil : .infinity)
+                .frame(maxHeight: .infinity)
                 .overlay(alignment: .topLeading) {
                     if isMorphingTitle, let morphTitle {
                         Text(morphTitle)
@@ -211,9 +198,7 @@ struct NoteView: View {
                 // dots, so neither earns a second control here.
                 NoteTintPicker(
                     tint: store.selectedNote?.tint, transparency: store.windowTransparency,
-                    autoWindowSizing: store.autoWindowSizing,
-                    select: setTint, setTransparency: store.setWindowTransparency,
-                    setAutoWindowSizing: store.setAutoWindowSizing)
+                    select: setTint, setTransparency: store.setWindowTransparency)
             }
             .padding(.horizontal, Theme.Spacing.xl)
             // The retired buttons' shortcuts survive them: ⌘N for a new note, ⌘L for the list.
@@ -243,15 +228,9 @@ struct NoteView: View {
             set: { store.updateSelectedContent($0) })
     }
 
-    private var editorWindowHeight: CGFloat {
-        NoteEditorMetrics.windowHeight(forEditorHeight: editorHeight)
-    }
-
     private func createNote() {
         query = ""
         store.createNote()
-        editorHeight = NoteEditorMetrics.estimatedEditorHeight(
-            for: NoteEngine.requiredTitlePrefix)
         closeNoteList()
     }
 
@@ -262,14 +241,11 @@ struct NoteView: View {
 
     private func select(_ note: SpotterNote) {
         store.select(note)
-        editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
         closeNoteList()
     }
 
     private func navigate(_ direction: NoteNavigationDirection) {
-        guard let note = store.selectAdjacent(direction) else { return }
-        editorHeight = NoteEditorMetrics.estimatedEditorHeight(for: note.content)
-        fitWindow()
+        _ = store.selectAdjacent(direction)
     }
 
     private func transitionH1Title() {
@@ -297,18 +273,11 @@ struct NoteView: View {
         }
     }
 
-    private func updateEditorHeight(_ height: CGFloat) {
-        guard abs(editorHeight - height) > 0.5 else { return }
-        editorHeight = height
-        fitWindow(animated: false)
-    }
-
     private func toggleNoteList() {
         if showsNoteList {
             closeNoteList()
         } else {
             showsNoteList = true
-            fitWindow()
             DispatchQueue.main.async { searchIsFocused = true }
         }
     }
@@ -316,17 +285,6 @@ struct NoteView: View {
     private func closeNoteList() {
         showsNoteList = false
         searchIsFocused = false
-        fitWindow()
-    }
-
-    /// The one place the window height is set. With auto sizing off the window is the user's to
-    /// size, so nothing here — a new note, a longer note, the list opening — may move it.
-    private func fitWindow(animated: Bool = true) {
-        guard store.autoWindowSizing else { return }
-        resizeHeight(
-            showsNoteList
-                ? max(editorWindowHeight, Theme.Size.noteListWindowHeight) : editorWindowHeight,
-            animated)
     }
 }
 

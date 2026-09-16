@@ -7,6 +7,13 @@ enum AppIdentityMigration {
     static let legacyBetaBundleID = "com.spotter.app.beta"
 
     private static let markerKey = "app-identity-migration.from-com.spotter.app.v1"
+    private static let shortcutRepairMarkerKey =
+        "app-identity-migration.translate-shortcuts.v2"
+    static let translateShortcutSyncMigration = "legacy-bundle.translate-shortcuts.v1"
+    private static let legacyTranslateShortcutKeys = [
+        "KeyboardShortcuts_plugin.selection-tools.translate",
+        "KeyboardShortcuts_plugin.selection-tools.translate-text",
+    ]
 
     static func runForCurrentApp() {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
@@ -35,9 +42,16 @@ enum AppIdentityMigration {
             return false
         }
         var currentDomain = defaults.persistentDomain(forName: currentBundleID) ?? [:]
-        guard currentDomain[markerKey] as? Bool != true else { return false }
+        let needsFullMigration = currentDomain[markerKey] as? Bool != true
+        let needsShortcutRepair = currentDomain[shortcutRepairMarkerKey] as? Bool != true
+        guard needsFullMigration || needsShortcutRepair else { return false }
 
-        if let legacyDomain = defaults.persistentDomain(forName: legacyBundleID) {
+        let legacyDomain = defaults.persistentDomain(forName: legacyBundleID)
+        let translateShortcutKeysToRepair = needsShortcutRepair
+            ? legacyTranslateShortcutKeys.filter {
+                currentDomain[$0] == nil && legacyDomain?[$0] != nil
+            } : []
+        if needsFullMigration, let legacyDomain {
             for (key, value) in legacyDomain {
                 let destinationKey = migratedKey(
                     key, from: legacyBundleID, to: currentBundleID)
@@ -45,22 +59,53 @@ enum AppIdentityMigration {
             }
         }
 
-        let supportRoot = applicationSupportRoot ?? fileManager
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let cacheRoot = cachesRoot ?? fileManager
-            .urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        try mergeDirectory(
-            from: supportRoot.appendingPathComponent(legacyBundleID, isDirectory: true),
-            to: supportRoot.appendingPathComponent(currentBundleID, isDirectory: true),
-            excludingTopLevelNames: ["onboarded"], fileManager: fileManager)
-        try mergeDirectory(
-            from: cacheRoot.appendingPathComponent(legacyBundleID, isDirectory: true),
-            to: cacheRoot.appendingPathComponent(currentBundleID, isDirectory: true),
-            excludingTopLevelNames: [], fileManager: fileManager)
+        if needsShortcutRepair {
+            for key in translateShortcutKeysToRepair {
+                guard let value = legacyDomain?[key] else { continue }
+                currentDomain[key] = value
+            }
+            currentDomain[shortcutRepairMarkerKey] = true
+        }
 
-        currentDomain[markerKey] = true
+        if needsFullMigration {
+            let supportRoot = applicationSupportRoot ?? fileManager
+                .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            let cacheRoot = cachesRoot ?? fileManager
+                .urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            try mergeDirectory(
+                from: supportRoot.appendingPathComponent(legacyBundleID, isDirectory: true),
+                to: supportRoot.appendingPathComponent(currentBundleID, isDirectory: true),
+                excludingTopLevelNames: ["onboarded"], fileManager: fileManager)
+            try mergeDirectory(
+                from: cacheRoot.appendingPathComponent(legacyBundleID, isDirectory: true),
+                to: cacheRoot.appendingPathComponent(currentBundleID, isDirectory: true),
+                excludingTopLevelNames: [], fileManager: fileManager)
+            currentDomain[markerKey] = true
+        }
+
         defaults.setPersistentDomain(currentDomain, forName: currentBundleID)
         return true
+    }
+
+    static var completedSettingsSyncMigrations: [String] {
+        [translateShortcutSyncMigration]
+    }
+
+    static func translateShortcutJSONForSyncRepair(
+        remoteMigrations: [String]?, defaults: UserDefaults = .standard,
+        currentBundleID: String? = Bundle.main.bundleIdentifier,
+        legacyBundleID overrideLegacyBundleID: String? = nil
+    ) -> [String: String] {
+        guard remoteMigrations?.contains(translateShortcutSyncMigration) != true,
+            let currentBundleID,
+            let legacyBundleID = overrideLegacyBundleID ?? legacyBundleID(for: currentBundleID)
+        else { return [:] }
+        let currentDomain = defaults.persistentDomain(forName: currentBundleID) ?? [:]
+        let legacyDomain = defaults.persistentDomain(forName: legacyBundleID) ?? [:]
+        return Dictionary(
+            uniqueKeysWithValues: legacyTranslateShortcutKeys.compactMap { key in
+                (currentDomain[key] as? String ?? legacyDomain[key] as? String).map { (key, $0) }
+            })
     }
 
     static func legacyBundleID(for currentBundleID: String) -> String? {

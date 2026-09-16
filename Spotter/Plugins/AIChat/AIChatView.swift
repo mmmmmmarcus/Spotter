@@ -4,7 +4,9 @@ import SwiftUI
 /// composer — this view only renders the transcript, in the palette's own list chrome.
 struct AIChatView: View {
     @ObservedObject var chat: AIChatStore
+    let selectedID: AIChatSession.ID?
     let scroll: ScrollIntent
+    let onActivate: (AIChatSession) -> Void
     @State private var followsBottom = true
     @State private var isUserScrolling = false
 
@@ -21,7 +23,7 @@ struct AIChatView: View {
                     text:
                         "Another session is thinking — switch back from Sessions or stop it in Actions."
                 )
-            } else if historySessions.isEmpty {
+            } else if chat.historySessions.isEmpty {
                 EmptyResults(
                     text: "Ask anything — ↵ sends here, and Actions (⌘K) sends to ChatGPT on the web."
                 )
@@ -33,29 +35,33 @@ struct AIChatView: View {
         }
     }
 
-    /// Every past conversation, newest first; the blank current session is not history.
-    private var historySessions: [AIChatSession] {
-        chat.orderedSessions.filter { !$0.messages.isEmpty }
-    }
-
     /// A fresh session opens on where you left off: the past conversations as rows, one click from
-    /// resuming any of them. Typing and sending still starts the new conversation as before.
+    /// resuming any of them. The shared palette selection drives highlight, arrows and Return.
     private var history: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                SectionHeader(title: "History", isFirst: true)
-                ForEach(historySessions) { session in
-                    AIChatHistoryRow(session: session) { chat.switchTo(session.id) }
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    SectionHeader(title: "History", isFirst: true)
+                    ForEach(chat.historySessions) { session in
+                        AIChatHistoryRow(session: session, selected: session.id == selectedID) {
+                            onActivate(session)
+                        }
+                        .id(session.id.uuidString)
+                    }
                 }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.top, Theme.Spacing.xs)
+                .padding(.bottom, Theme.Spacing.md)
+                .hideNativeScrollers()
+                .scrollOriginAnchor()
             }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.top, Theme.Spacing.xs)
-            .padding(.bottom, Theme.Spacing.md)
-            .hideNativeScrollers()
-            .scrollOriginAnchor()
+            .paletteScroll(
+                scroll, proxy: proxy,
+                followIsFirstRow: selectedID != nil && selectedID == chat.historySessions.first?.id,
+                followRowID: selectedID?.uuidString)
+            .edgeDissolve()
+            .thinScrollbar()
         }
-        .edgeDissolve()
-        .thinScrollbar()
     }
 
     private var transcript: some View {
@@ -110,8 +116,15 @@ struct AIChatView: View {
 
 private struct AIChatHistoryRow: View {
     let session: AIChatSession
+    let selected: Bool
     let open: () -> Void
     @State private var hovered = false
+
+    private var fill: Color {
+        if selected { return Theme.Colors.selection }
+        if hovered { return Theme.Colors.rowHover }
+        return .clear
+    }
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
@@ -135,7 +148,7 @@ private struct AIChatHistoryRow: View {
         .padding(.vertical, Theme.Spacing.sm)
         .background(
             RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
-                .fill(hovered ? Theme.Colors.rowHover : .clear)
+                .fill(fill)
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: open)

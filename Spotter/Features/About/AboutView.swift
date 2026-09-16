@@ -161,8 +161,6 @@ private struct AboutLinkRow: View {
 @MainActor
 final class AuxWindowController: NSObject, NSWindowDelegate {
     private var windows: [String: NSWindow] = [:]
-    private var resizeAnimations: [String: Task<Void, Never>] = [:]
-    private var resizeAnimationTokens: [String: UUID] = [:]
     private let onWindowsChanged: () -> Void
 
     init(onWindowsChanged: @escaping () -> Void) {
@@ -181,6 +179,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         minimumSize: CGSize? = nil, closeButtonOnly: Bool = false,
         hidesStandardButtons: Bool = false, clearsInitialFocus: Bool = false,
         contentExtendsIntoTitleBar: Bool = false, movableByBackground: Bool = true,
+        frameAutosaveName: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         let window: NSWindow
@@ -239,7 +238,9 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             hosting.sizingOptions = []
             window.contentView = hosting
             window.delegate = self
-            window.center()
+            let restoredFrame = frameAutosaveName.map { window.setFrameUsingName($0) } ?? false
+            if !restoredFrame { window.center() }
+            if let frameAutosaveName { window.setFrameAutosaveName(frameAutosaveName) }
             windows[id] = window
         }
         // Auxiliary windows require regular-app activation for native layering; AppCore decides whether that policy remains after they close.
@@ -254,48 +255,6 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             if clearsInitialFocus { window.makeFirstResponder(nil) }
         }
         return isNew
-    }
-
-    func resizeHeight(id: String, to requestedHeight: CGFloat, animated: Bool = true) {
-        guard let window = windows[id], requestedHeight.isFinite else { return }
-        let screenLimit = window.screen?.visibleFrame.height ?? requestedHeight
-        let height = min(max(requestedHeight, window.minSize.height), screenLimit)
-        resizeAnimations[id]?.cancel()
-        resizeAnimationTokens[id] = nil
-        guard abs(window.frame.height - height) > 0.5 else { return }
-
-        let startFrame = window.frame
-        var targetFrame = startFrame
-        targetFrame.size.height = height
-        targetFrame.origin.y = startFrame.maxY - height
-        guard animated, !window.inLiveResize else {
-            window.setFrame(targetFrame, display: true)
-            return
-        }
-
-        let token = UUID()
-        resizeAnimationTokens[id] = token
-        resizeAnimations[id] = Task { @MainActor [weak self, weak window] in
-            guard let self, let window else { return }
-            let startTime = ProcessInfo.processInfo.systemUptime
-            while !Task.isCancelled {
-                let elapsed = ProcessInfo.processInfo.systemUptime - startTime
-                let progress = min(elapsed / Theme.Animation.quick, 1)
-                let easedProgress = 1 - pow(1 - progress, 3)
-                var frame = startFrame
-                frame.size.height += (targetFrame.height - startFrame.height) * easedProgress
-                frame.origin.y = startFrame.maxY - frame.height
-                window.setFrame(frame, display: true)
-                if progress >= 1 { break }
-                try? await Task.sleep(for: .milliseconds(16))
-            }
-            guard !Task.isCancelled else { return }
-            window.setFrame(targetFrame, display: true)
-            if self.resizeAnimationTokens[id] == token {
-                self.resizeAnimations[id] = nil
-                self.resizeAnimationTokens[id] = nil
-            }
-        }
     }
 
     /// Close a window programmatically; `windowWillClose` handles the dict/teardown so the SwiftUI tree deallocates.
@@ -313,9 +272,6 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
         guard let window = notification.object as? NSWindow,
             let id = windows.first(where: { $0.value === window })?.key
         else { return }
-        resizeAnimations[id]?.cancel()
-        resizeAnimations[id] = nil
-        resizeAnimationTokens[id] = nil
         windows.removeValue(forKey: id)
         onWindowsChanged()
     }

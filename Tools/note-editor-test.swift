@@ -19,7 +19,7 @@ struct NoteEditorTests {
         var editor: NoteMarkdownEditor {
             NoteMarkdownEditor(
                 text: Binding(get: { self.text }, set: { self.text = $0 }), noteID: id,
-                tint: nil, autoSizes: true, onContentHeightChange: { _ in }, onNavigate: { _ in })
+                tint: nil, onNavigate: { _ in })
         }
     }
 

@@ -42,11 +42,6 @@ struct NoteTests {
         check(
             "sidebar excerpt skips title", "First point Second point",
             NoteEngine.excerpt(in: "# Plan\n- First point\n- Second point"))
-        check("empty editor has three rows", 3, NoteEngine.editorLineCount(in: ""))
-        check("editor follows line count", 7, NoteEngine.editorLineCount(in: "1\n2\n3\n4\n5\n6\n7"))
-        check(
-            "editor caps at twenty rows", 20,
-            NoteEngine.editorLineCount(in: Array(repeating: "line", count: 24).joined(separator: "\n")))
         check(
             "bullet continues", .continueWith("- "),
             NoteEngine.listContinuation(after: "- first"))

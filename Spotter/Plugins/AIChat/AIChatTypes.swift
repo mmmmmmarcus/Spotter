@@ -111,6 +111,12 @@ enum AIChatEngine {
     static let waitingStatus = "Thinking…"
     static let replyReadyStatus = "Reply ready."
 
+    /// Completed conversations shown on a fresh chat surface, newest first. The blank current
+    /// session stays out of the list because it is the composer the user is already in.
+    static func historySessions(_ sessions: [AIChatSession]) -> [AIChatSession] {
+        sessions.filter { !$0.messages.isEmpty }.sorted { $0.startedAt > $1.startedAt }
+    }
+
     /// A session's menu title: its first user turn, whitespace collapsed and capped — the same
     /// derive-don't-ask rule Notes uses for titles.
     static func sessionTitle(for messages: [AIChatMessage], limit: Int = 40) -> String {

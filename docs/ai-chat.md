@@ -20,8 +20,10 @@ the Apps → AI Chat → Clipboard → Emoji surface cycle and Shift-Tab walks i
 launcher's query follows into chat; arriving from Clipboard or Emoji, the filter string is dropped
 rather than sent. An already-empty current session is reused so cycling
 modes cannot pile up blanks. Entering chat on that empty session shows **History**: every past
-conversation as a row (title, relative start, turn count), one click from resuming — typing and
-sending still starts the fresh conversation. Earlier conversations also live in the **session
+conversation as a row (title, relative start, turn count), one click from resuming. The palette's
+shared selection drives this list: ↑/↓ moves the highlight and keeps it visible, while ↵ opens the
+selected conversation. Typing a draft keeps ↵ as Send and starts the fresh conversation. Earlier
+conversations also live in the **session
 menu**: the bottom-left palette menu in chat mode lists sessions newest-first (titled by their first
 user turn, the Notes derive-don't-ask rule) plus New Session (also **⌘N** anywhere in chat), and the
 ⌘K menu adds Delete Session.
@@ -133,8 +135,9 @@ whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw M
   in flight, `Reply ready.` on success, OpenRouter's own message on failure. Several finished AI rows
   are therefore told apart by the questions that made them. A send always appends the user turn
   before the row is titled, so the untitled fallback (`New Session`) is unreachable in practice;
-  success or failure remains dismissible while Stop Waiting discards the row. ↑/↓ do nothing — the transcript
-  has no row selection.
+  success or failure remains dismissible while Stop Waiting discards the row. In a transcript ↑/↓
+  do nothing because messages are not selectable rows; on the fresh-session History surface they
+  navigate conversations.
 - `AIChatMode` is a core `PaletteMode` (like Emoji) rather than a `PluginPaletteList` screen: a
   conversation flow is not a filter-a-list interaction, and the emoji grid is the precedent for a
   mode with its own body view while the plugin carries the launcher command and the

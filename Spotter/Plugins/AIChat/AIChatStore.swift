@@ -60,6 +60,17 @@ final class AIChatStore: ObservableObject {
         sessions.sorted { $0.startedAt > $1.startedAt }
     }
 
+    /// Rows visible on the empty-session History surface.
+    var historySessions: [AIChatSession] {
+        AIChatEngine.historySessions(sessions)
+    }
+
+    /// The root palette reads this same predicate as the view so its flat selection count always
+    /// matches the rows actually on screen.
+    var showsHistory: Bool {
+        isReady && messages.isEmpty && phase == .idle && !isWaiting && !historySessions.isEmpty
+    }
+
     // MARK: - Sessions
 
     /// Tab's contract: every entry into chat is a fresh session. An already-empty current session is

@@ -2,45 +2,6 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
-@MainActor
-enum NoteEditorMetrics {
-    static let minimumLines = 3
-    static let maximumLines = 20
-    /// Room below the last line, on top of the text inset. The inset is symmetric while the window
-    /// is not — the toolbar sits above the text and nothing sits below it — so an auto-sized note
-    /// ends a hair under its final descender without this.
-    static let trailingRoom: CGFloat = Theme.Spacing.xl
-
-    private static var bodyLineHeight: CGFloat {
-        let font = NSFont.preferredFont(forTextStyle: .body)
-        return ceil(font.ascender - font.descender + font.leading)
-    }
-
-    static var minimumTextHeight: CGFloat { bodyLineHeight * CGFloat(minimumLines) }
-
-    static func editorHeight(forTextHeight textHeight: CGFloat) -> CGFloat {
-        textHeight + Theme.Spacing.xxl * 2 + trailingRoom
-    }
-
-    static var minimumEditorHeight: CGFloat {
-        editorHeight(forTextHeight: minimumTextHeight)
-    }
-
-    static var maximumEditorHeight: CGFloat {
-        editorHeight(forTextHeight: bodyLineHeight * CGFloat(maximumLines))
-    }
-
-    static func estimatedEditorHeight(for markdown: String) -> CGFloat {
-        let lines = NoteEngine.editorLineCount(
-            in: markdown, minimum: minimumLines, maximum: maximumLines)
-        return editorHeight(forTextHeight: bodyLineHeight * CGFloat(lines))
-    }
-
-    static func windowHeight(forEditorHeight editorHeight: CGFloat) -> CGFloat {
-        Theme.Size.noteToolbarHeight + editorHeight
-    }
-}
-
 /// The one fixed cell every list marker occupies. A todo, a bullet and an ordered number have three
 /// different natural widths, so a note mixing them starts its text at three different x positions;
 /// kerning each marker out to this cell gives the note one content edge. All of it is presentation:
@@ -85,11 +46,8 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let noteID: UUID
     let tint: NoteTint?
-    /// Whether the window grows with the text; when it does not, the editor scrolls inside it.
-    let autoSizes: Bool
     var reduceMotion = false
     var hidesLeadingH1 = false
-    let onContentHeightChange: (CGFloat) -> Void
     let onNavigate: (NoteNavigationDirection) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -101,7 +59,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     }
 
     func makeScrollView(coordinator: Coordinator) -> NSScrollView {
-        let scrollView = NSScrollView()
+        let scrollView = NoteScrollView()
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
@@ -165,6 +123,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         scrollView.documentView = textView
         coordinator.textView = textView
+        scrollView.layoutHandler = { [weak coordinator] in coordinator?.refreshScroller() }
         coordinator.applyTint()
         coordinator.highlight()
 
@@ -174,7 +133,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 textView.setSelectedRange(
                     NSRange(location: NoteEngine.requiredTitlePrefix.utf16.count, length: 0))
             }
-            coordinator.reportContentHeight()
+            coordinator.refreshScroller()
         }
         return scrollView
     }
@@ -192,7 +151,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private var isRewritingAnswer = false
         /// Closing markers the last pass collapsed, so the caret can be stepped out of one.
         private var concealedSuffixes: [NSRange] = []
-        private var lastReportedHeight: CGFloat = 0
+        private var isRefreshingScroller = false
         private var codeRanges: [NSRange] = []
         private var isHighlighting = false
         private var taskMarkers: [(range: NSRange, state: NSRange, isDone: Bool)] = []
@@ -232,7 +191,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 highlight()
                 needsTitleVisibilityRefresh = false
             }
-            reportContentHeight()
+            refreshScroller()
             if noteChanged { fadeIn(scrollView: textView.enclosingScrollView) }
         }
 
@@ -271,7 +230,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             refreshArithmeticAnswer()
             // AppKit may omit this notification while marked text changes; update(from:) protects that draft.
             parent.text = textView.string
-            reportContentHeight()
+            refreshScroller()
             // Synchronous, not debounced: a deferred pass leaves a frame where a new line's dash is
             // plain text and every disc below the edit draws from stale ranges — the list "blink"
             // on Return and delete. Caret-only moves keep the debounce in the selection handler.
@@ -570,7 +529,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 storage.endEditing()
                 isHighlighting = false
                 textView.typingAttributes = typingAttributes
-                reportContentHeight()
+                refreshScroller()
             }
 
             guard source.length > 0, source.length <= 200_000 else {
@@ -849,36 +808,24 @@ struct NoteMarkdownEditor: NSViewRepresentable {
             return style
         }
 
-        func reportContentHeight() {
+        func refreshScroller() {
+            guard !isRefreshingScroller else { return }
             guard let textView, let layout = textView.layoutManager,
-                let container = textView.textContainer
+                let container = textView.textContainer,
+                let scrollView = textView.enclosingScrollView
             else { return }
+            isRefreshingScroller = true
+            defer { isRefreshingScroller = false }
             layout.ensureLayout(for: container)
-            let textHeight = max(
-                layout.usedRect(for: container).height, NoteEditorMetrics.minimumTextHeight)
-            let unboundedHeight = NoteEditorMetrics.editorHeight(forTextHeight: textHeight)
-            let height = min(
-                max(unboundedHeight, NoteEditorMetrics.minimumEditorHeight),
-                NoteEditorMetrics.maximumEditorHeight)
-            if let scrollView = textView.enclosingScrollView {
-                // A hand-sized window is bounded by its own frame, not by the height the window
-                // would have grown to, so the ceiling the scroller answers to differs per mode.
-                let ceiling = parent.autoSizes
-                    ? NoteEditorMetrics.maximumEditorHeight
-                    : scrollView.contentView.bounds.height
-                let needsScroller = unboundedHeight > ceiling + 0.5
-                if scrollView.hasVerticalScroller != needsScroller {
-                    scrollView.hasVerticalScroller = needsScroller
-                }
-                if !needsScroller {
-                    scrollView.contentView.scroll(to: .zero)
-                    scrollView.reflectScrolledClipView(scrollView.contentView)
-                }
+            let contentHeight = layout.usedRect(for: container).height
+                + textView.textContainerInset.height * 2
+            let needsScroller = contentHeight > scrollView.contentView.bounds.height + 0.5
+            if scrollView.hasVerticalScroller != needsScroller {
+                scrollView.hasVerticalScroller = needsScroller
             }
-            guard abs(lastReportedHeight - height) > 0.5 else { return }
-            lastReportedHeight = height
-            DispatchQueue.main.async { [weak self] in
-                self?.parent.onContentHeightChange(height)
+            if !needsScroller {
+                scrollView.contentView.scroll(to: .zero)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
             }
         }
 
@@ -1157,6 +1104,16 @@ private final class NoteLayoutManager: NSLayoutManager {
             union = union.map { $0.union(fragment) } ?? fragment
         }
         return union
+    }
+}
+
+@MainActor
+private final class NoteScrollView: NSScrollView {
+    var layoutHandler: (() -> Void)?
+
+    override func layout() {
+        super.layout()
+        layoutHandler?()
     }
 }
 

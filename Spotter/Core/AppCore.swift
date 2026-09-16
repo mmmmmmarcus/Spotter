@@ -579,7 +579,7 @@ final class AppCore: ObservableObject {
         floating: Bool = false, transparent: Bool = false, minimumSize: CGSize? = nil,
         closeButtonOnly: Bool = false, hidesStandardButtons: Bool = false,
         clearsInitialFocus: Bool = false, contentExtendsIntoTitleBar: Bool = false,
-        movableByBackground: Bool = true,
+        movableByBackground: Bool = true, frameAutosaveName: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> Bool {
         auxWindows.show(
@@ -589,7 +589,8 @@ final class AppCore: ObservableObject {
             hidesStandardButtons: hidesStandardButtons,
             clearsInitialFocus: clearsInitialFocus,
             contentExtendsIntoTitleBar: contentExtendsIntoTitleBar,
-            movableByBackground: movableByBackground
+            movableByBackground: movableByBackground,
+            frameAutosaveName: frameAutosaveName
         ) {
             content()
                 .environmentObject(self)
@@ -609,10 +610,6 @@ final class AppCore: ObservableObject {
 
     func isPluginWindowShowing(id: String) -> Bool {
         auxWindows.isShowing(id: "plugin." + id)
-    }
-
-    func resizePluginWindow(id: String, height: CGFloat, animated: Bool = true) {
-        auxWindows.resizeHeight(id: "plugin." + id, to: height, animated: animated)
     }
 
     var previousApplication: NSRunningApplication? { windowController.previousApp }
