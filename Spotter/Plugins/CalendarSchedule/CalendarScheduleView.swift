@@ -52,7 +52,7 @@ struct CalendarScheduleView: View {
                 .help("Previous \(model.mode.title)")
             Button { model.move(1) } label: { Image(systemName: "chevron.right") }
                 .help("Next \(model.mode.title)")
-            Picker("Calendar view", selection: Binding(get: { model.mode }, set: model.setMode)) {
+            Picker("Calendar view", selection: Binding(get: { model.mode }, set: { model.setMode($0) })) {
                 ForEach(ScheduleViewMode.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
