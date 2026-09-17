@@ -6,23 +6,9 @@ struct NoteView: View {
     let close: () -> Void
     @State private var query = ""
     @State private var showsNoteList = false
-    @State private var trackedNoteID: UUID?
-    @State private var previousH1Title: String?
-    @State private var morphTitle: String?
-    @State private var isMorphingTitle = false
-    @State private var morphGeneration = UUID()
+    @State private var navigationDirection: CGFloat = 1
     @FocusState private var searchIsFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    init(
-        store: NoteStore, close: @escaping () -> Void
-    ) {
-        self.store = store
-        self.close = close
-        _previousH1Title = State(
-            initialValue: NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? ""))
-        _trackedNoteID = State(initialValue: store.selectedID)
-    }
 
     private var visibleNotes: [SpotterNote] { store.filteredNotes(query: query) }
 
@@ -52,13 +38,7 @@ struct NoteView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onDisappear { store.deleteEmptyNotes() }
-        .onChange(of: store.selectedID) {
-            transitionH1Title()
-        }
-        .onChange(of: store.selectedNote?.content) {
-            guard trackedNoteID == store.selectedID else { return }
-            previousH1Title = NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? "")
-        }
+        .onChange(of: store.editorFocusRequest) { closeNoteList() }
         .ignoresSafeArea(edges: .top)
         .background(noteSurface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
@@ -141,20 +121,13 @@ struct NoteView: View {
                     text: selectedContent,
                     noteID: note.id,
                     tint: note.tint,
+                    focusRequest: store.editorFocusRequest,
                     reduceMotion: reduceMotion,
-                    hidesLeadingH1: isMorphingTitle,
+                    navigationDirection: navigationDirection,
                     onNavigate: navigate)
                 .frame(maxHeight: .infinity)
                 .overlay(alignment: .topLeading) {
-                    if isMorphingTitle, let morphTitle {
-                        Text(morphTitle)
-                            .font(.largeTitle)
-                            .contentTransition(.interpolate)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(Theme.Spacing.xxl)
-                            .allowsHitTesting(false)
-                    } else if NoteEngine.leadingH1Title(in: note.content) == nil {
+                    if NoteEngine.leadingH1Title(in: note.content) == nil {
                         Text("Title")
                             .font(.largeTitle)
                             .foregroundStyle(.tertiary)
@@ -240,37 +213,16 @@ struct NoteView: View {
     }
 
     private func select(_ note: SpotterNote) {
+        let current = store.notes.firstIndex { $0.id == store.selectedID } ?? 0
+        let next = store.notes.firstIndex { $0.id == note.id } ?? current
+        navigationDirection = next >= current ? 1 : -1
         store.select(note)
         closeNoteList()
     }
 
     private func navigate(_ direction: NoteNavigationDirection) {
+        navigationDirection = direction == .next ? 1 : -1
         _ = store.selectAdjacent(direction)
-    }
-
-    private func transitionH1Title() {
-        let nextTitle = NoteEngine.leadingH1Title(in: store.selectedNote?.content ?? "")
-        let oldTitle = previousH1Title
-        trackedNoteID = store.selectedID
-        previousH1Title = nextTitle
-        morphGeneration = UUID()
-        let generation = morphGeneration
-        guard !reduceMotion, let oldTitle, let nextTitle else {
-            isMorphingTitle = false
-            morphTitle = nil
-            return
-        }
-        morphTitle = oldTitle
-        isMorphingTitle = true
-        DispatchQueue.main.async {
-            guard morphGeneration == generation else { return }
-            withAnimation(.easeOut(duration: 0.16)) { morphTitle = nextTitle }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                guard morphGeneration == generation else { return }
-                isMorphingTitle = false
-                morphTitle = nil
-            }
-        }
     }
 
     private func toggleNoteList() {

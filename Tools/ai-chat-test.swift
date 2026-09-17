@@ -148,6 +148,26 @@ struct AIChatTests {
             AIChatMessage.Role.user.rawValue == "user"
                 && AIChatMessage.Role.assistant.rawValue == "assistant")
 
+        for (title, icon) in [("Translation", "translate"), ("Definition", "character.book.closed"),
+                              ("Grammar Check", "text.badge.checkmark")] {
+            let legacy = AIChatSession(titleOverride: title)
+            let encoded = try! JSONEncoder().encode(legacy)
+            let decoded = try! JSONDecoder().decode(AIChatSession.self, from: encoded)
+            check("old \(title) session recovers its source icon", decoded.systemImage == icon)
+        }
+        check("ordinary chat uses the chat icon",
+              AIChatSession().systemImage == "bubble.left.and.bubble.right")
+        check("typing Definition in a chat does not classify its source",
+              AIChatSession(messages: [message(.user, "Definition")]).systemImage
+                == "bubble.left.and.bubble.right")
+        var commandSession = AIChatSession(
+            titleOverride: "Definition", sourceSystemImage: "sparkles")
+        commandSession.messages.append(message(.assistant, "A follow-up answer"))
+        let commandRoundTrip = try! JSONDecoder().decode(
+            AIChatSession.self, from: JSONEncoder().encode(commandSession))
+        check("explicit command source survives sync and follow-ups",
+              commandRoundTrip.systemImage == "sparkles" && commandRoundTrip == commandSession)
+
         let portableSession = AIChatSession(
             messages: [message(.user, "同步这个对话"), message(.assistant, "好的")],
             startedAt: Date(timeIntervalSince1970: 1_700_000_000))

@@ -63,6 +63,10 @@ final class BackgroundTaskStore: ObservableObject {
     @Published private(set) var tasks: [BackgroundTaskItem] = []
     private let ownerID: UUID
     private var executingIDs: Set<UUID> = []
+    private var retiredIDs: Set<UUID> = []
+    private var seenCompletionIDs: Set<UUID> = []
+
+    var syncTasks: [BackgroundTaskItem] { tasks.filter { $0.state.isLive } }
     /// Where Return sends the user while a row is still running. Process-local by necessity: a
     /// closure cannot be synced, and a row mirrored from another Mac has no local work to open.
     private var activations: [UUID: () -> Void] = [:]
@@ -87,6 +91,8 @@ final class BackgroundTaskStore: ObservableObject {
         id: UUID = UUID(), queued: Bool = false, onOpen: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil
     ) -> UUID {
+        retiredIDs.remove(id)
+        seenCompletionIDs.remove(id)
         executingIDs.insert(id)
         activations[id] = onOpen
         cancellations[id] = onCancel
@@ -135,16 +141,32 @@ final class BackgroundTaskStore: ObservableObject {
 
     func dismiss(id: UUID) {
         guard let task = tasks.first(where: { $0.id == id }), task.isDismissible else { return }
+        retiredIDs.insert(id)
+        seenCompletionIDs.remove(id)
         activations[id] = nil
         cancellations[id] = nil
         tasks.removeAll { $0.id == id }
     }
 
     func discard(id: UUID) {
+        retiredIDs.insert(id)
+        seenCompletionIDs.remove(id)
         executingIDs.remove(id)
         activations[id] = nil
         cancellations[id] = nil
         tasks.removeAll { $0.id == id }
+    }
+
+    func markCompletionsSeen(ids: Set<UUID>) {
+        seenCompletionIDs.formUnion(tasks.lazy.filter { $0.state == .done && ids.contains($0.id) }.map(\.id))
+    }
+
+    func dismissSeenCompletions() {
+        let ids = seenCompletionIDs
+        seenCompletionIDs.removeAll()
+        for id in ids where tasks.contains(where: { $0.id == id && $0.state == .done }) {
+            dismiss(id: id)
+        }
     }
 
     /// Hands the call-off back to the feature that owns the work. The row's fate is the feature's
@@ -180,20 +202,24 @@ final class BackgroundTaskStore: ObservableObject {
 
     /// A remote snapshot mirrors rows without detaching live work or reviving this Mac's dead executor.
     func replace(tasks newTasks: [BackgroundTaskItem]) {
-        let liveLocal = tasks.filter { executingIDs.contains($0.id) }
-        let liveIDs = Set(liveLocal.map(\.id))
+        let local = tasks.filter { executingIDs.contains($0.id) || ($0.ownerID == ownerID && $0.isDismissible) }
+        let localIDs = Set(local.map(\.id))
         // A queued row is this Mac's promise too, so a relaunch retires it exactly like a running one.
-        let imported = newTasks.filter { !liveIDs.contains($0.id) }.map { task in
-            guard task.state.isLive, task.ownerID == ownerID else { return task }
+        let imported = newTasks.filter {
+            $0.state.isLive && !localIDs.contains($0.id) && !retiredIDs.contains($0.id)
+        }.map { task in
+            guard task.ownerID == ownerID else { return task }
+            retiredIDs.insert(task.id)
             var interrupted = task
             interrupted.detail = "Interrupted when Spotter last quit."
             interrupted.progress = nil
             interrupted.state = .failed
             return interrupted
         }
-        tasks = liveLocal + imported
-        activations = activations.filter { liveIDs.contains($0.key) }
-        cancellations = cancellations.filter { liveIDs.contains($0.key) }
+        tasks = local + imported
+        seenCompletionIDs.formIntersection(tasks.map(\.id))
+        activations = activations.filter { executingIDs.contains($0.key) }
+        cancellations = cancellations.filter { executingIDs.contains($0.key) }
     }
 
     private func finish(id: UUID, detail: String, state: BackgroundTaskItem.State) {
@@ -203,6 +229,7 @@ final class BackgroundTaskStore: ObservableObject {
         tasks[index].progress = state == .done ? 1 : nil
         tasks[index].state = state
         executingIDs.remove(id)
+        retiredIDs.insert(id)
         // A finished row's only action is Dismiss; the work it pointed at is over.
         activations[id] = nil
         cancellations[id] = nil

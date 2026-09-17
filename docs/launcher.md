@@ -264,3 +264,6 @@ The ⌘K menu samples `isRunning` **once, when it opens** (`RootPaletteView.open
 launching or quitting elsewhere can't add or drop the Quit row while the menu is up — the same freeze
 the rest of the menu already has ([palette.md](palette.md)). Only `LauncherList` observes
 `RunningAppsMonitor` live, for the running dot.
+
+The Try with terminal row reads `Run in <preferred terminal display name>` (for example,
+`Run in Ghostty`), using the same preference as the command handoff.

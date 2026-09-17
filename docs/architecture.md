@@ -117,3 +117,22 @@ House idioms for the sharp edges:
 - `ClipboardStore` uses `isolated deinit` for its SQLite teardown.
 - Raw Carbon / C pointers get decoded to plain values before crossing into actor code (see
   `hotKeyCarbonEventHandler`).
+
+## File descriptor lifetime
+
+`AppCore` owns `AppResourceMonitor`, started before feature work. `AppFileResources` raises only
+the process soft descriptor limit, capped at 4096, OPEN_MAX and the existing hard limit; it never
+lowers either limit or changes system configuration. A failed adjustment is logged and startup
+continues. Sampling uses `proc_pidinfo` without opening files and records only counts and descriptor
+types at startup and changes of at least 64 descriptors, checked once a minute and before workspace
+presentation. No paths, socket addresses or document content are collected.
+
+Every subprocess pipe has an explicit `defer { pipe.closeHandles() }`, including launch failures.
+`ProcessPipe.swift` closes both ends without waiting for Foundation object destruction. Unread
+stderr in Finder, Music, Battery and ZIP probes goes to the null device instead of a pipe that
+can fill or remain retained. This addresses delayed pipe cleanup under resource pressure; it does
+not establish which descriptors were exhausted in the macOS 27 Core Animation crash report.
+
+`AppCore.calendarSchedule` owns transient calendar browsing state and cancelable visible-range reads.
+Each EventKit read constructs and disposes its native objects off the main actor, returning only
+`DashboardEvent` values. Calendar account and all-day preferences remain on `DashboardWidgetsStore`.

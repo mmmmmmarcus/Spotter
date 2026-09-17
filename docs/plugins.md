@@ -362,3 +362,7 @@ marks. The symbol is a placeholder, not a charge reading; accessibility says “
 
 Widgets also registers the `Battery` launcher command and a shared palette screen that lists every
 reported peripheral with its charge percentage and charging state.
+
+Schedule supplies an optional `PluginPaletteScreenRegistration.canvas` for its day/week/month
+calendar geometry. Its context carries the shared snapshot, selected item and activation/Actions
+callbacks; list-based screens keep `PluginPaletteList`. The canvas stays inside the Palette frame.

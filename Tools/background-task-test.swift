@@ -110,8 +110,9 @@ struct BackgroundTaskTests {
         store.replace(tasks: [remoteDone])
         check(
             "sync preserves a locally executing task",
-            store.tasks.map(\.id) == [localRunning, remoteDone.id])
-        let encoded = try! JSONEncoder().encode(store.tasks)
+            store.tasks.map(\.id) == [localRunning])
+        check("old completed sync rows are ignored", !store.tasks.contains { $0.id == remoteDone.id })
+        let encoded = try! JSONEncoder().encode(store.syncTasks)
         let decoded = try! JSONDecoder().decode([BackgroundTaskItem].self, from: encoded)
         check("task rows round-trip through sync JSON", decoded == store.tasks)
 
@@ -131,6 +132,51 @@ struct BackgroundTaskTests {
         check(
             "a queued promise this Mac can no longer keep is retired too",
             afterQuit.tasks.first(where: { $0.id == orphanedQueue })?.state == .failed)
+
+        let notifications = BackgroundTaskStore(defaults: defaults)
+        var opened = false
+        var cancelledLive = false
+        let live = notifications.begin(title: "Live", onOpen: { opened = true }, onCancel: { cancelledLive = true })
+        let queued = notifications.begin(title: "Queued", queued: true)
+        let shown = notifications.begin(title: "Shown success")
+        let unseen = notifications.begin(title: "Unseen success")
+        let failed = notifications.begin(title: "Failure")
+        let staleLiveSnapshot = notifications.syncTasks
+        notifications.complete(id: shown, detail: "Done")
+        notifications.complete(id: unseen, detail: "Done")
+        notifications.fail(id: failed, detail: "Error")
+        check("only queued and running rows are exported", Set(notifications.syncTasks.map(\.id)) == [live, queued])
+        let remoteRunning = BackgroundTaskItem(
+            id: UUID(), title: "Remote live", systemImage: "gear", detail: "Working",
+            progress: nil, state: .running, ownerID: UUID())
+        let remoteFailed = BackgroundTaskItem(
+            id: UUID(), title: "Old failure", systemImage: "gear", detail: "Error",
+            progress: nil, state: .failed, ownerID: UUID())
+        notifications.replace(tasks: [remoteDone, remoteFailed, remoteRunning])
+        check("local success survives unrelated sync", notifications.tasks.contains { $0.id == unseen && $0.state == .done })
+        check("local failure survives unrelated sync", notifications.tasks.contains { $0.id == failed && $0.state == .failed })
+        check("remote live progress is imported", notifications.tasks.contains { $0.id == remoteRunning.id })
+        check("terminal remote notifications never import", !notifications.tasks.contains { $0.id == remoteDone.id || $0.id == remoteFailed.id })
+        notifications.open(id: live)
+        notifications.cancel(id: live)
+        check("sync preserves live callbacks", opened && cancelledLive)
+        notifications.dismissSeenCompletions()
+        check("closing before seeing a success keeps it", notifications.tasks.contains { $0.id == shown })
+        notifications.markCompletionsSeen(ids: [shown, failed, live, queued])
+        notifications.dismissSeenCompletions()
+        check("closing dismisses the seen success", !notifications.tasks.contains { $0.id == shown })
+        check("closing preserves unseen success", notifications.tasks.contains { $0.id == unseen })
+        check("closing preserves failure and live work", Set(notifications.tasks.map(\.id)).isSuperset(of: [failed, live, queued]))
+        notifications.replace(tasks: staleLiveSnapshot + [remoteDone, remoteFailed])
+        check("stale sync cannot revive a dismissed completion", !notifications.tasks.contains { $0.id == shown })
+        check("stale running snapshot cannot overwrite completion", notifications.tasks.first { $0.id == unseen }?.state == .done)
+        notifications.dismiss(id: unseen)
+        notifications.replace(tasks: staleLiveSnapshot)
+        check("manual dismissal also survives stale sync", !notifications.tasks.contains { $0.id == unseen })
+        check("interrupted failures do not re-export", afterQuit.syncTasks.isEmpty)
+        afterQuit.dismiss(id: orphanedQueue)
+        afterQuit.replace(tasks: orphanedSnapshot)
+        check("dismissed interruption cannot return in this process", afterQuit.tasks.isEmpty)
 
         print(failures == 0 ? "\nBackground tasks: ALL PASSED" : "\n\(failures) FAILED")
         if failures > 0 { exit(1) }

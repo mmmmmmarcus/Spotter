@@ -8,6 +8,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
     case screenshot
     case link
     case email
+    case number
 
     var title: String {
         switch self {
@@ -17,18 +18,20 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .screenshot: return "Screenshots Only"
         case .link: return "Links Only"
         case .email: return "Emails Only"
+        case .number: return "Numbers Only"
         }
     }
 
-    /// Also the header button's glyph, so the bar states the active filter without opening the menu.
+    /// The symbol shown by the header's type segment.
     var systemImage: String {
         switch self {
         case .all: return "line.3.horizontal.decrease"
-        case .text: return "textformat"
+        case .text: return "textformat.alt"
         case .image: return "photo"
         case .screenshot: return "camera.viewfinder"
         case .link: return "link"
         case .email: return "at"
+        case .number: return "number.sign"
         }
     }
 
@@ -41,6 +44,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .screenshot: return "No screenshots in clipboard history"
         case .link: return "No links in clipboard history"
         case .email: return "No email addresses in clipboard history"
+        case .number: return "No numbers in clipboard history"
         }
     }
 
@@ -55,6 +59,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .text: return item.textForm == .plain
         case .link: return item.textForm == .link
         case .email: return item.textForm == .email
+        case .number: return item.textForm == .number
         }
     }
 
@@ -78,6 +83,16 @@ extension ClipboardItem {
         case plain
         case link
         case email
+        case number
+
+        var systemImage: String {
+            switch self {
+            case .plain: "textformat.alt"
+            case .link: "link"
+            case .email: "at"
+            case .number: "number.sign"
+            }
+        }
     }
 
     /// Derived on demand and never stored, so improving the classifier stays a code change instead of a column, a migration and a backfill.
@@ -103,10 +118,15 @@ extension ClipboardItem {
         guard text.utf8.count <= detectionLimit else { return .plain }
         let token = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty, !token.contains(where: \.isWhitespace) else { return .plain }
+        let range = NSRange(token.startIndex..<token.endIndex, in: token)
+        if numberPattern.firstMatch(in: token, range: range) != nil { return .number }
         if let form = schemeForm(of: token) { return form }
         if isAddress(token) { return .email }
         return isBareDomain(token) ? .link : .plain
     }
+
+    private static let numberPattern = try! NSRegularExpression(
+        pattern: #"\A[+−-]?(?:(?:\p{Nd}{1,3}(?:,\p{Nd}{3})+|\p{Nd}+)(?:\.\p{Nd}+)?|\.\p{Nd}+)(?:[eE][+-]?\p{Nd}+)?%?\z"#)
 
     /// `mailto:` is an address; any other `scheme://` is a link, so `vscode://` needs no allowlist.
     private static func schemeForm(of token: String) -> TextForm? {

@@ -170,7 +170,8 @@ final class AIChatStore: ObservableObject {
     /// the chat model like any other conversation.
     func startCommandConversation(command: AICommand, selection: String) {
         stop()
-        replaceEmptySession(with: AIChatSession(titleOverride: command.sessionTitle))
+        replaceEmptySession(with: AIChatSession(
+            titleOverride: command.sessionTitle, sourceSystemImage: command.systemImage))
         _ = send(
             command.rendered(selection: selection),
             model: command.resolvedModel(chatModel: openRouter.chatModel), webSearch: false)
@@ -178,7 +179,8 @@ final class AIChatStore: ObservableObject {
 
     func showCommandFailure(command: AICommand, message: String) {
         stop()
-        replaceEmptySession(with: AIChatSession(titleOverride: command.sessionTitle))
+        replaceEmptySession(with: AIChatSession(
+            titleOverride: command.sessionTitle, sourceSystemImage: command.systemImage))
         requests.setFailure(message, for: currentID)
     }
 

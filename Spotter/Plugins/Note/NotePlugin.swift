@@ -27,6 +27,16 @@ enum NotePlugin {
                     id: "command:notes:new", name: "New Note", systemImage: "square.and.pencil",
                     actionKey: .newNote, perform: create),
             ],
+            dynamicLauncherCommands: { [weak core] in
+                guard let core else { return [] }
+                return core.notes.notes.compactMap { note in
+                    guard NoteEngine.leadingH1Title(in: note.content) != nil else { return nil }
+                    return PluginCommandRegistration(
+                        id: "command:note:\(note.id.uuidString)", name: note.title,
+                        systemImage: "note.text"
+                    ) { [weak core] in core?.openNotes(noteID: note.id) }
+                }
+            },
             onStart: { [weak core] in
                 core?.noteFolderSync.start()
             },
@@ -37,15 +47,20 @@ enum NotePlugin {
 }
 
 extension AppCore {
-    func openNotes(creatingNewNote: Bool = false) {
+    func openNotes(creatingNewNote: Bool = false, noteID: UUID? = nil) {
         // Open Notes is a toggle — the window floats over everything, so the shortcut that summoned
         // it is the obvious way to put it away. New Note always opens, since it has a note to show.
-        if !creatingNewNote, isPluginWindowShowing(id: "notes") {
+        if !creatingNewNote, noteID == nil, isPluginWindowShowing(id: "notes") {
             closePluginWindow(id: "notes")
             return
         }
+        if let noteID {
+            guard let note = notes.notes.first(where: { $0.id == noteID }) else { return }
+            notes.select(note)
+        }
         if creatingNewNote { notes.createNote() }
         if palette.mode == .launcher { hidePalette(restoreFocus: false) }
+        notes.requestEditorFocus()
         showPluginWindow(
             id: "notes", title: "Notes",
             size: CGSize(

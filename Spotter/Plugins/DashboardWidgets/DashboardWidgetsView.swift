@@ -515,9 +515,9 @@ struct DashboardWidgetsView: View {
             width: Theme.Size.launcherDashboardHeight,
             height: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
         .dashboardCardSurface()
-        // The card is a door to the real thing: clicking it opens Calendar. The access-state buttons consume their own clicks first.
+        // The card opens Schedule inside the existing palette.
         .contentShape(Rectangle())
-        .onTapGesture { core.openCalendarApp() }
+        .onTapGesture { core.openCalendarSchedule() }
     }
 
     @ViewBuilder

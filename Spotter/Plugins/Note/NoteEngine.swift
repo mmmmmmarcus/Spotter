@@ -13,6 +13,8 @@ enum NoteTint: String, Codable, CaseIterable, Sendable {
     case pink
     case graphite
 
+    static let selectable: [Self] = [.red, .orange, .yellow, .green, .blue, .purple, .pink]
+
     var displayName: String {
         switch self {
         case .red: "Red"
@@ -25,6 +27,25 @@ enum NoteTint: String, Codable, CaseIterable, Sendable {
         case .pink: "Pink"
         case .graphite: "Graphite"
         }
+    }
+}
+
+enum NoteTransparency: Double, CaseIterable, Sendable {
+    case low = 0
+    case medium = 0.45
+    case high = 0.9
+
+    var title: String {
+        switch self {
+        case .low: "Low"
+        case .medium: "Medium"
+        case .high: "High"
+        }
+    }
+
+    static func nearest(to value: Double) -> Self {
+        guard value.isFinite else { return .low }
+        return allCases.min { abs($0.rawValue - value) < abs($1.rawValue - value) } ?? .low
     }
 }
 
@@ -220,9 +241,14 @@ enum NoteEngine {
         let indentation = String(line.prefix(while: { $0 == " " || $0 == "\t" }))
         let body = String(line.dropFirst(indentation.count))
 
-        for marker in ["- [ ] ", "- [x] ", "- [X] "] where body.hasPrefix(marker) {
-            return isBlankListBody(body.dropFirst(marker.count))
-                ? .endList : .continueWith(indentation + "- [ ] ")
+        for bullet in ["-", "*", "+"] {
+            for state in [" ", "x", "X"] {
+                let marker = "\(bullet) [\(state)] "
+                if body.hasPrefix(marker) {
+                    return isBlankListBody(body.dropFirst(marker.count))
+                        ? .endList : .continueWith(indentation + bullet + " [ ] ")
+                }
+            }
         }
 
         for marker in ["- ", "* ", "+ "] where body.hasPrefix(marker) {

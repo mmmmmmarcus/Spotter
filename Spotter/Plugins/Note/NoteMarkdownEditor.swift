@@ -19,22 +19,22 @@ private enum NoteListMarker {
 
     /// The square the todo box and the bullet disc are both laid out in — one metric, so neither
     /// decoration can drift in size or position away from the other.
-    static var decorationSide: CGFloat { (bodyFont.ascender - bodyFont.descender).rounded() }
+    static var decorationSide: CGFloat { bodyFont.pointSize.rounded() }
 
     /// Wide enough for a one-digit ordered marker in the monospaced font it keeps, and never
     /// narrower than a decoration and its gap. A wider marker anywhere in the note raises it for
     /// every list line, so item ten does not cost the note its content edge.
     static var baseSlot: CGFloat {
-        max(decorationSide + minimumGap, width(of: "1. ", in: monospacedFont))
+        max(decorationSide + minimumGap, width(of: "1.", in: monospacedFont) + minimumGap)
     }
 
-    static var indentUnit: CGFloat { width(of: NoteEngine.listIndentUnit, in: bodyFont) }
+    static var indentUnit: CGFloat { Theme.Spacing.xxl }
 
     /// A nesting level is the same step whether it was written as spaces or as a legacy tab.
     static func indentationWidth(_ indentation: String) -> CGFloat {
         let spaces = indentation.filter { $0 == " " }.count
         let tabs = indentation.count - spaces
-        return CGFloat(spaces) * width(of: " ", in: bodyFont) + CGFloat(tabs) * indentUnit
+        return CGFloat(spaces) / CGFloat(NoteEngine.listIndentUnit.count) * indentUnit + CGFloat(tabs) * indentUnit
     }
 
     static func width(of text: String, in font: NSFont) -> CGFloat {
@@ -46,8 +46,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     let noteID: UUID
     let tint: NoteTint?
+    var focusRequest = 0
     var reduceMotion = false
-    var hidesLeadingH1 = false
+    var navigationDirection: CGFloat = 1
     let onNavigate: (NoteNavigationDirection) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -81,6 +82,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
 
         let textView = NoteTextView(frame: .zero, textContainer: container)
         textView.identifier = SelectedTextCapture.localSourceIdentifier
+        textView.pasteDocumentID = noteID
         textView.markdownCommandHandler = { [weak coordinator] command in
             coordinator?.apply(command)
         }
@@ -101,6 +103,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         }
         textView.delegate = coordinator
         textView.string = text
+        textView.setSelectedRange(NSRange(location: min(2, text.utf16.count), length: 0))
         textView.drawsBackground = false
         textView.textColor = .labelColor
         textView.font = .preferredFont(forTextStyle: .body)
@@ -156,7 +159,6 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private var isHighlighting = false
         private var taskMarkers: [(range: NSRange, state: NSRange, isDone: Bool)] = []
         private var fadeGeneration = 0
-        private var needsTitleVisibilityRefresh = false
 
         /// The plain slate every pass starts from, and the attributes typing inherits.
         static let baseAttributes: [NSAttributedString.Key: Any] = [
@@ -169,43 +171,62 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         }
 
         func update(from incoming: NoteMarkdownEditor) {
+            let focusRequested = parent.focusRequest != incoming.focusRequest
             let noteChanged = parent.noteID != incoming.noteID
             let tintChanged = parent.tint != incoming.tint
-            let titleVisibilityChanged = parent.hidesLeadingH1 != incoming.hidesLeadingH1
             parent = incoming
             guard let textView else { return }
             if tintChanged { applyTint() }
-            if titleVisibilityChanged { needsTitleVisibilityRefresh = true }
+            if focusRequested {
+                DispatchQueue.main.async { [weak textView] in
+                    guard let textView else { return }
+                    textView.window?.makeFirstResponder(textView)
+                }
+            }
             // Marked-text updates need not publish textDidChange; the binding is stale until commit.
             guard noteChanged || !textView.hasMarkedText() else { return }
             if noteChanged || textView.string != incoming.text {
                 // Only switching documents may abandon the input method's live composition.
                 if textView.hasMarkedText() { textView.inputContext?.discardMarkedText() }
                 let selection = textView.selectedRange()
+                (textView as? NoteTextView)?.pasteDocumentID = incoming.noteID
                 textView.string = incoming.text
                 textView.setSelectedRange(
                     NSRange(location: min(selection.location, (incoming.text as NSString).length), length: 0))
                 highlight()
-                needsTitleVisibilityRefresh = false
-            } else if needsTitleVisibilityRefresh {
-                highlight()
-                needsTitleVisibilityRefresh = false
             }
             refreshScroller()
-            if noteChanged { fadeIn(scrollView: textView.enclosingScrollView) }
+            if noteChanged {
+                if incoming.text == NoteEngine.requiredTitlePrefix {
+                    textView.setSelectedRange(NSRange(location: 2, length: 0))
+                    DispatchQueue.main.async { [weak textView] in
+                        guard let textView, textView.string == NoteEngine.requiredTitlePrefix else { return }
+                        textView.window?.makeFirstResponder(textView)
+                    }
+                }
+                animateSwitch(scrollView: textView.enclosingScrollView)
+            }
         }
 
-        /// AppKit owns the fade so it never enters SwiftUI's sizing proposal for the editor.
-        private func fadeIn(scrollView: NSScrollView?) {
+        // Presentation-only translation keeps the editor and window layout stationary.
+        private func animateSwitch(scrollView: NSScrollView?) {
             guard let scrollView else { return }
             fadeGeneration += 1
             let generation = fadeGeneration
+            scrollView.layer?.removeAnimation(forKey: "note-switch-translation")
             guard !parent.reduceMotion else { scrollView.alphaValue = 1; return }
             scrollView.alphaValue = 0
             // Commit the transparent frame first; otherwise AppKit coalesces both values and draws
             // only the final opaque state, making the animation appear to be missing.
             DispatchQueue.main.async { [weak self, weak scrollView] in
                 guard let self, self.fadeGeneration == generation, let scrollView else { return }
+                scrollView.wantsLayer = true
+                let translation = CABasicAnimation(keyPath: "transform.translation.x")
+                translation.fromValue = self.parent.navigationDirection * Theme.Spacing.md
+                translation.toValue = 0
+                translation.duration = 0.16
+                translation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                scrollView.layer?.add(translation, forKey: "note-switch-translation")
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = 0.16
                     context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -361,11 +382,14 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private func continueList(in textView: NSTextView, at caret: NSRange) -> Bool {
             let source = textView.string as NSString
             let contentRange = lineContentRange(before: caret, in: source)
-            guard caret.location == NSMaxRange(contentRange),
-                let continuation = NoteEngine.listContinuation(
+            guard let continuation = NoteEngine.listContinuation(
                     after: source.substring(with: contentRange))
             else { return true }
 
+            let prefixRange = linePrefixRange(before: caret, in: source)
+            guard NoteEngine.listContinuation(after: source.substring(with: prefixRange)) != nil else {
+                return true
+            }
             let replacementRange: NSRange
             let replacement: String
             switch continuation {
@@ -590,6 +614,8 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 storage.addAttribute(
                     .strikethroughStyle, value: NSUnderlineStyle.single.rawValue,
                     range: match.range(at: 1))
+                storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor,
+                                     range: match.range(at: 1))
             }
             apply(Self.heading, to: textView.string) { match in
                 guard match.numberOfRanges > 2 else { return }
@@ -605,27 +631,35 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                     }
                 let font = NSFont.preferredFont(forTextStyle: style)
                 storage.addAttribute(.font, value: font, range: match.range)
-                if parent.hidesLeadingH1, match.range.location == 0, marker.count == 1 {
-                    storage.addAttribute(
-                        .foregroundColor, value: NSColor.clear, range: match.range(at: 2))
-                }
                 let selection = textView.selectedRange()
                 if selection.length == 0, selection.location >= match.range.location,
                     selection.location <= NSMaxRange(match.range)
                 {
                     typingAttributes[.font] = font
                 }
-                self.concealSyntax(around: match.range(at: 2), in: match.range, storage: storage)
+                let prefix = NSRange(location: match.range.location,
+                                     length: match.range(at: 2).location - match.range.location)
+                // Keep the heading's line height even when its only characters are hidden syntax.
+                storage.addAttribute(.foregroundColor, value: NSColor.clear, range: prefix)
+                for index in prefix.location..<NSMaxRange(prefix) {
+                    self.stretch(NSRange(location: index, length: 1), to: 0, in: storage)
+                }
             }
             apply(Self.listLine, to: textView.string) { match in
                 guard match.numberOfRanges > 1 else { return }
+                let indentation = match.range(at: 1)
+                let indentWidth = NoteListMarker.indentationWidth(source.substring(with: indentation))
+                for index in indentation.location..<NSMaxRange(indentation)
+                    where source.character(at: index) == 32 {
+                    self.stretch(NSRange(location: index, length: 1),
+                                 to: NoteListMarker.indentUnit / CGFloat(NoteEngine.listIndentUnit.count),
+                                 in: storage)
+                }
                 let style = NSMutableParagraphStyle()
                 style.firstLineHeadIndent = 0
                 // Every marker was kerned out to the same cell, so a wrapped line hangs at the one
                 // content edge whichever kind of list it belongs to.
-                style.headIndent =
-                    NoteListMarker.indentationWidth(source.substring(with: match.range(at: 1)))
-                    + slot
+                style.headIndent = indentWidth + slot
                 // A raw tab in list indentation renders one indent unit wide, not the default
                 // 28-point stop — nesting should read as a step, not a gulf.
                 style.tabStops = []
@@ -685,8 +719,9 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 let marker = match.range(at: 2)
                 storage.addAttribute(.font, value: monospaced, range: marker)
                 markers.append(marker)
-                slot = max(
-                    slot, NoteListMarker.width(of: source.substring(with: marker), in: monospaced))
+                slot = max(slot, NoteListMarker.width(
+                    of: String(source.substring(with: marker).dropLast()), in: monospaced)
+                    + Theme.Spacing.xs)
             }
             for marker in markers { fit(marker, to: slot, in: storage) }
             return slot
@@ -890,7 +925,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private static let inlineCode = try! NSRegularExpression(pattern: #"`([^\n`]+)`"#)
         private static let link = try! NSRegularExpression(pattern: #"\[([^\]]+)\]\([^\)]+\)"#)
         private static let completedTask = try! NSRegularExpression(
-            pattern: #"(?m)^\s*- \[[xX]\]\s+(.+)$"#)
+            pattern: #"(?m)^[ \t]*[-*+] \[[xX]\][ \t]+(.+)$"#)
         // The body may be empty so a heading takes effect the moment its marker and space are typed.
         private static let heading = try! NSRegularExpression(
             pattern: #"(?m)^(#{1,6})[ \t]+(.*)$"#)
@@ -900,7 +935,7 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         private static let orderedMarker = try! NSRegularExpression(
             pattern: #"(?m)^([ \t]*)(\d+\. )"#)
         private static let listLine = try! NSRegularExpression(
-            pattern: #"(?m)^([ \t]*)([-*+] \[[ xX]\] |[-*+] |\d+\. ).+$"#)
+            pattern: #"(?m)^([ \t]*)([-*+] \[[ xX]\] |[-*+] |\d+\. ).*$"#)
     }
 }
 
@@ -1118,7 +1153,8 @@ private final class NoteScrollView: NSScrollView {
 }
 
 @MainActor
-private final class NoteTextView: NSTextView {
+private final class NoteTextView: NSTextView, LocalPasteEditor {
+    var pasteDocumentID = UUID()
     var markdownCommandHandler: ((NoteMarkdownCommand) -> Void)?
     var blockFormatHandler: ((NoteBlockFormat) -> Void)?
     var navigationHandler: ((NoteNavigationDirection) -> Void)?
@@ -1128,6 +1164,15 @@ private final class NoteTextView: NSTextView {
     var indentHandler: ((NoteIndentDirection) -> Bool)?
     /// Returns whether a whole list marker was removed, so Delete falls through everywhere else.
     var deleteHandler: (() -> Bool)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window else { return }
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, self.window === window else { return }
+            window.makeFirstResponder(self)
+        }
+    }
 
     override func deleteBackward(_ sender: Any?) {
         if deleteHandler?() == true { return }

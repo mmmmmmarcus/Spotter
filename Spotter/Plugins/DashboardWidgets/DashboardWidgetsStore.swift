@@ -25,7 +25,7 @@ final class DashboardWidgetsStore: ObservableObject {
     @Published private(set) var calendarAccess: DashboardCalendarAccess
     @Published private(set) var calendarAccounts: [DashboardCalendarAccount] = []
     @Published private(set) var nextEvent: DashboardEvent?
-    /// The soonest events ahead (14 days, capped), for the Calendar schedule screen; `nextEvent` is its head.
+    /// The widget preview cache (14 days, capped); the Schedule canvas loads its own visible range.
     @Published private(set) var upcomingEvents: [DashboardEvent] = []
     @Published private(set) var isRequestingCalendarAccess = false
 

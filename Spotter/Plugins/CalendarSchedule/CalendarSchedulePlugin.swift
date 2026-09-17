@@ -4,26 +4,33 @@ import SwiftUI
 
 extension PluginActionKey {
     static let openCalendarSchedule = standard(
-        pluginID: .calendarSchedule, actionID: "open", title: "My Schedule")
+        pluginID: .calendarSchedule, actionID: "open", title: "Schedule")
 }
 
-/// Calendar & meetings: the upcoming days as palette rows, with one keystroke into a meeting's
-/// video call. The widget strip's calendar card and this screen are one feature — both read the
-/// same `DashboardWidgetsStore` EventKit fetch, and this plugin's Settings pane owns the shared
-/// calendar preferences (account, all-day events). Disabling the plugin removes the screen and
-/// command only; the card keeps its reading, since widgets have no off switch.
+/// The calendar canvas and widget share account preferences and calendar authorization.
 @MainActor
 enum CalendarSchedulePlugin {
     static func registration(core: AppCore) -> PluginRegistration {
         let open: () -> Void = { [weak core] in core?.openCalendarSchedule() }
         let screen = PluginPaletteScreenRegistration(
-            placeholder: "Search upcoming events…",
+            placeholder: "Search events…",
+            canvas: { [weak core] context in
+                guard let core, core.dashboardWidgets.calendarAccess.canRead else { return nil }
+                return AnyView(CalendarScheduleView(
+                    model: core.calendarSchedule, dashboard: core.dashboardWidgets, context: context))
+            },
+            adjustHours: { [weak core] step in core?.calendarSchedule.move(step) },
+            handleBack: { [weak core] in
+                guard let model = core?.calendarSchedule, model.detailID != nil else { return false }
+                model.detailID = nil
+                return true
+            },
             snapshot: { [weak core] query in
                 guard let core else {
                     return PluginPaletteSnapshot(
                         sectionTitle: "Schedule", items: [], emptyMessage: "Plugin unavailable")
                 }
-                return snapshot(store: core.dashboardWidgets, query: query)
+                return snapshot(store: core.dashboardWidgets, model: core.calendarSchedule, query: query)
             },
             performPrimaryAction: { [weak core] itemID in
                 core?.performCalendarScheduleRow(itemID: itemID)
@@ -35,22 +42,26 @@ enum CalendarSchedulePlugin {
             onOpen: { [weak core] in
                 core?.dashboardWidgets.start()
                 core?.dashboardWidgets.refresh()
+                if let core { core.calendarSchedule.open(dashboard: core.dashboardWidgets) }
             },
+            onClose: { [weak core] in core?.calendarSchedule.close() },
             observeChanges: { [weak core] invalidate in
-                core?.dashboardWidgets.objectWillChange.sink { invalidate() } ?? AnyCancellable {}
+                guard let core else { return AnyCancellable {} }
+                return Publishers.Merge(core.dashboardWidgets.objectWillChange,
+                                        core.calendarSchedule.objectWillChange).sink { invalidate() }
             })
         return PluginRegistration(
             metadata: PluginMetadata(
                 id: .calendarSchedule,
-                name: "Calendar",
+                name: "Schedule",
                 summary:
-                    "See the days ahead in the launcher and jump straight into a meeting's video call.",
+                    "Browse your day, week or month inside the launcher.",
                 systemImage: "calendar",
                 tint: .red),
             shortcutActions: [PluginActionRegistration(key: .openCalendarSchedule, perform: open)],
             launcherCommands: [
                 PluginCommandRegistration(
-                    id: "command:calendar-schedule", name: "My Schedule",
+                    id: "command:calendar-schedule", name: "Schedule",
                     systemImage: "calendar", actionKey: .openCalendarSchedule, perform: open)
             ],
             paletteScreen: screen,
@@ -64,12 +75,14 @@ enum CalendarSchedulePlugin {
         event.id + "|" + String(event.startDate.timeIntervalSince1970)
     }
 
-    static func event(store: DashboardWidgetsStore, itemID: String) -> DashboardEvent? {
-        store.upcomingEvents.first { rowID(for: $0) == itemID }
+    static func dayID(_ date: Date) -> String { "day:" + String(date.timeIntervalSince1970) }
+
+    static func event(store: CalendarScheduleStore, itemID: String) -> DashboardEvent? {
+        store.events.first { rowID(for: $0) == itemID }
     }
 
     private static func snapshot(
-        store: DashboardWidgetsStore, query: String
+        store: DashboardWidgetsStore, model: CalendarScheduleStore, query: String
     ) -> PluginPaletteSnapshot {
         switch store.calendarAccess {
         case .notDetermined, .writeOnly:
@@ -101,15 +114,16 @@ enum CalendarSchedulePlugin {
             break
         }
 
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let now = Date()
-        let calendar = Calendar.current
-        let visible = store.upcomingEvents.filter { event in
-            trimmed.isEmpty
-                || event.title.localizedCaseInsensitiveContains(trimmed)
-                || event.calendarTitle.localizedCaseInsensitiveContains(trimmed)
-                || event.location?.localizedCaseInsensitiveContains(trimmed) == true
+        let calendar = model.calendar
+        if model.mode == .month, model.detailID == nil {
+            return PluginPaletteSnapshot(sectionTitle: "Schedule", items: model.days.map { day in
+                PluginPaletteItem(id: dayID(day), title: day.formatted(date: .complete, time: .omitted),
+                                  subtitle: "", icon: .symbol("calendar"), primaryActionTitle: "View Day")
+            }, emptyMessage: "No events this month.")
         }
+        let visible = model.detailID.map { id in model.events.filter { rowID(for: $0) == id } }
+            ?? model.matching(query)
         let items = visible.map { event -> PluginPaletteItem in
             let link = CalendarScheduleEngine.meetingLink(
                 urlString: event.urlString, location: event.location, notes: event.notes)
@@ -134,17 +148,15 @@ enum CalendarSchedulePlugin {
                     ? .tintedSymbol("calendar", tint: .red)
                     : .tintedSymbol("video.fill", tint: .green),
                 accessories: accessories,
-                primaryActionTitle: link == nil ? "Open Calendar" : "Join Meeting")
+                primaryActionTitle: model.detailID == nil ? "View Event" : "Back to Schedule")
         }
         return PluginPaletteSnapshot(
             sectionTitle: "Schedule", items: items,
-            emptyMessage: store.upcomingEvents.isEmpty
-                ? "Nothing scheduled in the next two weeks."
-                : "No matching event.")
+            isLoading: model.isLoading, emptyMessage: "No events in this period.")
     }
 
     private static func menu(core: AppCore, itemID: String) -> PopoverMenuContent? {
-        guard let event = event(store: core.dashboardWidgets, itemID: itemID) else { return nil }
+        guard let event = event(store: core.calendarSchedule, itemID: itemID) else { return nil }
         let link = CalendarScheduleEngine.meetingLink(
             urlString: event.urlString, location: event.location, notes: event.notes)
         var items: [PopoverMenuItem] = []
@@ -180,7 +192,7 @@ extension AppCore {
         showPalette(mode: .plugin(.calendarSchedule))
     }
 
-    /// Hides the palette and fronts Calendar; shared by the widget card's click and the schedule rows.
+    /// An explicit event action for opening the system Calendar app.
     func openCalendarApp() {
         hidePalette(restoreFocus: false)
         guard
@@ -204,16 +216,15 @@ extension AppCore {
             hidePalette(restoreFocus: false)
             Permissions.openCalendarSettings()
         default:
-            guard let event = CalendarSchedulePlugin.event(
-                store: dashboardWidgets, itemID: itemID)
-            else { return }
-            let link = CalendarScheduleEngine.meetingLink(
-                urlString: event.urlString, location: event.location, notes: event.notes)
-            if let link {
-                openCalendarMeetingLink(link.urlString)
-            } else {
-                openCalendarApp()
+            if let day = calendarSchedule.days.first(where: { CalendarSchedulePlugin.dayID($0) == itemID }) {
+                calendarSchedule.showDay(day)
+                return
             }
+            guard let event = CalendarSchedulePlugin.event(
+                store: calendarSchedule, itemID: itemID)
+            else { return }
+            calendarSchedule.detailID = calendarSchedule.detailID == nil
+                ? CalendarSchedulePlugin.rowID(for: event) : nil
         }
     }
 }

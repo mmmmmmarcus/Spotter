@@ -93,6 +93,7 @@ final class KillProcessManager: ObservableObject {
         try await Task.detached(priority: .userInitiated) {
             let task = Process()
             let pipe = Pipe()
+            defer { pipe.closeHandles() }
             task.executableURL = URL(fileURLWithPath: "/bin/ps")
             task.arguments = ["-axo", "pid=,ppid=,%cpu=,rss=,comm="]
             task.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "C"]) {
@@ -135,6 +136,7 @@ private func authorizedKill(signal: Int32, pids: [Int32]) throws {
     let script = "do shell script \"/bin/kill -\(signal) \(arguments)\" with administrator privileges"
     let task = Process()
     let errorPipe = Pipe()
+    defer { errorPipe.closeHandles() }
     task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
     task.arguments = ["-e", script]
     task.standardOutput = FileHandle.nullDevice

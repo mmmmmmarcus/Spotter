@@ -235,3 +235,10 @@ browser's signed-in account.
 AI Chat and AI commands request OpenRouter SSE streaming. A stable assistant message reveals complete visual lines; a transient draft is committed once on completion, Stop, or failure, preserving partial text. Session changes never redirect an active reply. SSE framing handles UTF-8, comments, multiline data, usage frames and provider errors; EOF without [DONE] is a failure. Transport is cancelled on Stop and late delivery checks the exact request key.
 
 The Markdown renderer measures actual SwiftUI text lines at the current width. Completed lines fade in over 120 ms; the unfinished last line waits for the next line or completion. Bursts are paced within 120 ms rather than building a long animation queue. Completion, Stop and failure immediately show all received text. Reduce Motion disables the fades.
+
+History rows show the session's source icon: translation, definition, grammar check, or chat.
+AI commands capture their own symbol when creating a session, including a failed start, and the
+optional `sourceSystemImage` travels with the session in backup/sync. Earlier sessions without this
+field recover the three shipped selection-action icons from their fixed `titleOverride` values;
+ordinary message text never determines the icon. The Sessions menu uses the same source icons,
+with the current session still marked by a check.

@@ -168,8 +168,9 @@ swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift 
 swiftc -swift-version 6 Spotter/Core/LauncherSections.swift Tools/launcher-sections-test.swift \
     -o /tmp/launcher-sections-test && /tmp/launcher-sections-test # browse section order/visibility
 swiftc -swift-version 6 Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
+    Spotter/Plugins/CalendarSchedule/ScheduleLayout.swift \
     Tools/calendar-schedule-test.swift \
-    -o /tmp/calendar-schedule-test && /tmp/calendar-schedule-test # meeting links + schedule labels
+    -o /tmp/calendar-schedule-test && /tmp/calendar-schedule-test # meeting links + calendar geometry
 swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
     Spotter/Plugins/FileSearch/FileSearchTypes.swift Tools/file-search-test.swift \
     -o /tmp/file-search-test && /tmp/file-search-test             # file search policy
@@ -213,7 +214,7 @@ swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/No
     Spotter/Plugins/Note/NoteSyncDocument.swift Spotter/Plugins/Note/NoteFolderDocument.swift \
     Spotter/Plugins/Note/NoteFolderIO.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
-swiftc -swift-version 6 Spotter/Core/Theme.swift \
+swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Core/LocalTextPasteTarget.swift \
     Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteMarkdownEditor.swift \
     Spotter/Core/Calculator/*.swift \
     Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
@@ -233,7 +234,7 @@ swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
 swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift Tools/background-task-test.swift \
     -o /tmp/background-task-test && /tmp/background-task-test     # task lifetime + dismissal
 swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
-    Spotter/Plugins/Mole/MoleProcessRunner.swift Tools/mole-test.swift \
+    Spotter/Plugins/Mole/MoleProcessRunner.swift Spotter/Core/ProcessPipe.swift Tools/mole-test.swift \
     -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
@@ -463,3 +464,14 @@ swiftc -swift-version 6 Spotter/Features/Settings/SettingsSearch.swift Tools/set
 The harness is also included in `scripts/test-all.sh`.
 
 The AI Chat harness additionally compiles `Spotter/Core/OpenRouterStream.swift` and covers SSE framing, Unicode, provider errors, truncation and size bounds.
+
+### File descriptor regression
+
+```sh
+swiftc -swift-version 6 Spotter/Core/AppFileResources.swift Spotter/Core/ProcessPipe.swift \
+    Tools/file-resources-test.swift -o /tmp/file-resources-test && /tmp/file-resources-test
+```
+
+Exercises repeated subprocess success and launch failure, simulated EMFILE recovery without
+changing the hard limit, and 1000 diagnostic samples without descriptor growth. Limits are changed
+only inside the standalone test process and restored afterwards.

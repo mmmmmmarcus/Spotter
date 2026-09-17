@@ -33,12 +33,11 @@ private actor NoteWriter {
 
 @MainActor
 final class NoteStore: ObservableObject {
-    /// Short of fully transparent on purpose: the slider now fades the window's real surface, and
-    /// a window with no surface left is invisible *and* lets clicks through to whatever is under it,
-    /// which leaves the user nothing to grab to undo it.
+    // The strongest preset retains a little scrim over the native frost.
     static let maximumWindowTransparency = 0.9
 
     @Published private(set) var notes: [SpotterNote]
+    @Published private(set) var editorFocusRequest = 0
     @Published private(set) var saveState: NoteSaveState = .saved
     @Published private(set) var windowTransparency: Double
     @Published var selectedID: UUID? {
@@ -59,6 +58,8 @@ final class NoteStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private var revision: UInt = 0
     private var tombstones: [UUID: NoteTombstone]
+    var onTitlesChanged: (() -> Void)?
+    private var indexedTitles: [UUID: String] = [:]
     var onSyncSnapshotChanged: ((NoteSyncSnapshot) -> Void)?
 
     init(
@@ -71,9 +72,7 @@ final class NoteStore: ObservableObject {
         self.now = now
         windowTransparency = defaults.object(forKey: Self.windowTransparencyKey) == nil
             ? 0
-            : min(
-                max(defaults.double(forKey: Self.windowTransparencyKey), 0),
-                Self.maximumWindowTransparency)
+            : NoteTransparency.nearest(to: defaults.double(forKey: Self.windowTransparencyKey)).rawValue
         let archive = Self.load(from: resolvedURL)
         let loaded = Self.enforcingTitles(in: archive.notes)
             .sorted { $0.contentUpdatedAt > $1.contentUpdatedAt }
@@ -93,6 +92,10 @@ final class NoteStore: ObservableObject {
     var selectedNote: SpotterNote? {
         guard let selectedID else { return nil }
         return notes.first { $0.id == selectedID }
+    }
+
+    func requestEditorFocus() {
+        editorFocusRequest &+= 1
     }
 
     func filteredNotes(query: String) -> [SpotterNote] {
@@ -132,7 +135,7 @@ final class NoteStore: ObservableObject {
     }
 
     func setWindowTransparency(_ value: Double) {
-        let clamped = min(max(value, 0), Self.maximumWindowTransparency)
+        let clamped = NoteTransparency.nearest(to: value).rawValue
         guard windowTransparency != clamped else { return }
         windowTransparency = clamped
         defaults.set(clamped, forKey: Self.windowTransparencyKey)
@@ -273,6 +276,13 @@ final class NoteStore: ObservableObject {
     }
 
     private func notifySyncSnapshotChanged() {
+        let titles = Dictionary(uniqueKeysWithValues: notes.compactMap { note in
+            NoteEngine.leadingH1Title(in: note.content).map { _ in (note.id, note.title) }
+        })
+        if titles != indexedTitles {
+            indexedTitles = titles
+            onTitlesChanged?()
+        }
         onSyncSnapshotChanged?(syncSnapshot)
     }
 

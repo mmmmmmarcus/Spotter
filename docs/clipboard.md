@@ -37,11 +37,17 @@ merging old rows back in.
 
 ## Type filter
 
-The trailing edge of the clipboard's search bar carries a filter button — **All Types, Text Only,
-Images Only, Screenshots Only, Links Only, Emails Only** — opened by the button or by **⌘P**. It is the same
-`PopoverMenu` as ⌘K Actions, just anchored `.topTrailing` under its button and narrower, so the
-glass, rows and hover behaviour are shared rather than reimplemented as a second dropdown idiom. The
-button states the active filter, and the menu opens highlighting it the way a pop-up button does.
+The trailing edge of the clipboard search bar carries a native segmented control for **All Types,
+Text Only, Images Only, Screenshots Only, Links Only, Emails Only, Numbers Only**. Each segment
+shows its SF Symbol, with a tooltip and accessible name. Clicking a segment keeps the search
+field focused, resets selection to the first result and scrolls to the top. **⌘P** cycles forward
+and **⇧⌘P** cycles backward; the filter no longer opens a menu.
+
+Text rows use `textformat.alt`, links use `link`, numbers use `number.sign`, and email addresses
+keep their distinct `at` symbol. Images retain their thumbnails. Numbers must occupy the entire
+trimmed entry: signed integers, decimals, correctly grouped thousands, scientific notation and
+percentages are accepted. Mixed strings such as `50080C`, expressions and version strings remain
+text. This is presentation-only classification; persisted kinds remain text/image.
 
 **Screenshots are derived too, off the file name.** Spotter names its own captures
 `<App>_SpotterScreenshot_<yyMMddHHmm>.png`, and `ClipboardItem.isScreenshot` looks for that marker in
@@ -52,12 +58,12 @@ keeps it and Screenshots Only is the narrower slice. An image capture reaches hi
 marker, which is what stops the poller from recording a second, differently-named copy of the same
 pixels. A capture from an app the user excluded from history is excluded here too.
 
-**Links and emails are derived, never stored.** `ClipboardItem.Kind` stays `text`/`image` — the two
+**Links, emails and numbers are derived, never stored.** `ClipboardItem.Kind` stays `text`/`image` — the two
 things capture can actually tell apart — and `ClipboardFilter` reads `ClipboardItem.textForm`
-(`plain`/`link`/`email`) off the text on demand. No column, no migration, no backfill: improving the
+(`plain`/`link`/`email`/`number`) off the text on demand. No column, no migration, no backfill: improving the
 classifier stays a code change. Because the whole list reclassifies on every render, the classifier is
 guarded cheapest-first — over 2048 UTF-8 bytes is prose by definition (`utf8.count` is O(1), `count`
-walks graphemes), then whitespace, then a `scheme://` / `mailto:` prefix, an address shape, and last a
+walks graphemes), then whitespace, a complete numeric token, then a `scheme://` / `mailto:` prefix, an address shape, and last a
 bare domain. That last step is the only judgement call, since `report.pdf` and `index.html` are
 domain-shaped too: a bare domain must be lower case (which is what keeps `Safari.app` out) and end in
 one of a compact set of TLDs people actually copy. It is a heuristic whose worst case files a row

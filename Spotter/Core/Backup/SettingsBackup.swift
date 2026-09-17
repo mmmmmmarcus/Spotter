@@ -196,7 +196,7 @@ extension SettingsBackup {
         backup.calculatorHistory = core.calcHistory.entries
         backup.aiChat = AIChatBackup(
             sessions: core.aiChat.sessions, currentID: core.aiChat.currentID)
-        backup.backgroundTasks = core.backgroundTasks.tasks
+        backup.backgroundTasks = core.backgroundTasks.syncTasks
         backup.frequentEmoji = core.frequentEmoji.records
         backup.launcherRanking = core.launcherRanking.records
         return backup

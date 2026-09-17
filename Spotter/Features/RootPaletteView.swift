@@ -156,7 +156,9 @@ struct RootPaletteView: View {
     private var inlineCount: Int { inlineResult == nil ? 0 : 1 }
     private var launcherFallbackResults: [LauncherFallback] {
         guard vm.mode == .launcher else { return [] }
-        return LauncherFallback.suggestions(for: vm.query, aiChatModel: aiChatModelName)
+        return LauncherFallback.suggestions(
+                for: vm.query, aiChatModel: aiChatModelName,
+                terminalName: settings.preferredTerminal.displayName)
     }
 
     /// Named only while a key exists: the key is the gate, so without one the row can't promise a model.
@@ -168,6 +170,11 @@ struct RootPaletteView: View {
     /// else, so the rows step aside rather than sitting above every match.
     private var launcherTaskCount: Int {
         vm.mode == .launcher && isQueryEmpty ? backgroundTasks.tasks.count : 0
+    }
+
+    private var visibleCompletedTaskIDs: Set<UUID> {
+        guard core.isPaletteVisible, vm.mode == .launcher, isQueryEmpty else { return [] }
+        return Set(backgroundTasks.tasks.filter { $0.state == .done }.map(\.id))
     }
 
     private var resultCount: Int {
@@ -322,7 +329,6 @@ struct RootPaletteView: View {
     private enum OpenMenu {
         case actions
         case app
-        case clipboardFilter
     }
 
     /// Whichever menu is open — the source for keyboard navigation and activation.
@@ -330,22 +336,8 @@ struct RootPaletteView: View {
         switch openMenu {
         case .actions: return actionsContent
         case .app: return appMenuContent
-        case .clipboardFilter: return clipboardFilterContent
         case nil: return nil
         }
-    }
-
-    /// The clipboard's type filter, as a menu. No search field and no separators: a fixed five rows that open highlighting the active one, the way a pop-up button does.
-    private var clipboardFilterContent: PopoverMenuContent {
-        PopoverMenuContent(
-            header: "Filter by Type",
-            items: ClipboardFilter.allCases.map { filter in
-                PopoverMenuItem(title: filter.title, systemImage: filter.systemImage) {
-                    vm.clipboardFilter = filter
-                    vm.selection = 0
-                    scroll = ScrollIntent(kind: .top)
-                }
-            })
     }
 
     var body: some View {
@@ -367,7 +359,9 @@ struct RootPaletteView: View {
         // Every count/selection below derives from the same task/inline offsets, so the flat index always matches the visible row order.
         let inline = inlineResult
         let fallbacks = vm.mode == .launcher
-            ? LauncherFallback.suggestions(for: vm.query, aiChatModel: aiChatModelName) : []
+            ? LauncherFallback.suggestions(
+                for: vm.query, aiChatModel: aiChatModelName,
+                terminalName: settings.preferredTerminal.displayName) : []
         let inlineOffset = inline == nil ? 0 : 1
         let taskOffset = tasks.count
         // Only the active mode is non-empty.
@@ -483,19 +477,6 @@ struct RootPaletteView: View {
                 .transition(Self.menuTransition(.bottomTrailing))
             }
         }
-        // The filter hangs under its own header button rather than off the footer, so it opens where it was clicked.
-        .overlay(alignment: .topTrailing) {
-            if openMenu == .clipboardFilter {
-                let content = clipboardFilterContent
-                PopoverMenu(
-                    header: content.header, items: content.items, selection: $menuSelection,
-                    width: Self.filterMenuWidth, onActivate: activateMenuItem
-                )
-                .padding(.top, Theme.Size.headerHeight + Theme.Size.headerPadding)
-                .padding(.trailing, Self.menuInset * 2)
-                .transition(Self.menuTransition(.topTrailing))
-            }
-        }
         // The alias editor owns the keyboard through its own focused field, so the click-catcher only has to stop the list and footer from stealing it back.
         .overlay {
             if aliasEditorOpen {
@@ -539,6 +520,9 @@ struct RootPaletteView: View {
         _ content: Content, clips: [ClipboardItem], clipFollow: ClipFollowKey
     ) -> some View {
         content
+        .onChange(of: visibleCompletedTaskIDs, initial: true) {
+            backgroundTasks.markCompletionsSeen(ids: visibleCompletedTaskIDs)
+        }
         // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up). The scroll snaps home too: a reopen that preserved its state should still start reading from the top.
         .onChange(of: vm.focusToken) {
             aliasTarget = nil
@@ -565,11 +549,9 @@ struct RootPaletteView: View {
         .onChange(of: vm.resetToken) {
             scroll = ScrollIntent(kind: .top)
         }
-        // An opening menu always starts with a highlight; the filter starts on the active row the way a pop-up button does, everything else on its first.
+        // An opening menu always starts on its first row.
         .onChange(of: openMenu) {
             switch openMenu {
-            case .clipboardFilter:
-                menuSelection = ClipboardFilter.allCases.firstIndex(of: vm.clipboardFilter) ?? 0
             case .actions, .app:
                 menuSelection = 0
             case nil:
@@ -826,12 +808,15 @@ struct RootPaletteView: View {
             closeMenus()
             return .handled
         }
-        // ⌘P opens the clipboard's type filter; the pin it used to serve moved to ⌘. (see `pinChordToken`), so one chord keeps one meaning app-wide.
-        .onKeyPress(keys: ["p"], phases: .down) { press in
+        // Keep the filter shortcut useful without opening a menu; Shift reverses the cycle.
+        .onKeyPress(keys: ["p", "P"], phases: .down) { press in
             guard press.modifiers.contains(.command), vm.mode == .clipboard, !isCollapsed,
                 !aliasEditorOpen
             else { return .ignored }
-            toggleClipboardFilter()
+            let filters = ClipboardFilter.allCases
+            let index = filters.firstIndex(of: vm.clipboardFilter) ?? 0
+            let step = press.modifiers.contains(.shift) ? -1 : 1
+            selectClipboardFilter(filters[(index + step + filters.count) % filters.count])
             return .handled
         }
         // Both cases are listed because Shift uppercases the reported key. The compact bar is excluded like ⌘K — it shows no selection to aim a destructive action at.
@@ -887,9 +872,8 @@ struct RootPaletteView: View {
             }
             // The clipboard's type filter sits at the trailing edge of its own search bar, where it filters.
             if vm.mode == .clipboard, !isCollapsed {
-                ClipboardFilterButton(
-                    filter: vm.clipboardFilter, isOpen: openMenu == .clipboardFilter,
-                    action: toggleClipboardFilter)
+                ClipboardTypeSegments(filter: vm.clipboardFilter, select: selectClipboardFilter)
+                    .fixedSize()
             }
             // Compact bar pins favorites to the right of the field; expanded shows them as list rows instead.
             if isCollapsed, settings.showFavoritesInCompactMode {
@@ -1074,8 +1058,24 @@ struct RootPaletteView: View {
                     }
                 )
             }
-        case .plugin:
-            if let error = plugin?.errorMessage {
+        case .plugin(let pluginID):
+            if let plugin, let canvas = plugins.paletteCanvas(
+                pluginID: pluginID,
+                context: PluginPaletteCanvasContext(
+                    query: vm.query, snapshot: plugin,
+                    selectedID: plugin.items.indices.contains(selection) ? plugin.items[selection].id : nil,
+                    activate: { id in
+                        guard let index = plugin.items.firstIndex(where: { $0.id == id }) else { return }
+                        vm.selection = index
+                        activateSelection()
+                    },
+                    actions: { id in
+                        guard let index = plugin.items.firstIndex(where: { $0.id == id }) else { return }
+                        vm.selection = index
+                        openActions()
+                    })) {
+                canvas
+            } else if let error = plugin?.errorMessage {
                 EmptyResults(text: error)
             } else if plugin?.isLoading == true, plugin?.items.isEmpty == true {
                 EmptyResults(text: plugin?.loadingMessage ?? "Loading…")
@@ -1231,10 +1231,12 @@ struct RootPaletteView: View {
         }
     }
 
-    private func toggleClipboardFilter() {
-        withAnimation(Self.menuAnimation) {
-            openMenu = openMenu == .clipboardFilter ? nil : .clipboardFilter
-        }
+    private func selectClipboardFilter(_ filter: ClipboardFilter) {
+        closeMenus()
+        vm.clipboardFilter = filter
+        vm.selection = 0
+        scroll = ScrollIntent(kind: .top)
+        searchFocused = true
     }
 
     private var selectedTaskState: BackgroundTaskItem.State? { selectedBackgroundTask?.state }
@@ -1288,7 +1290,6 @@ struct RootPaletteView: View {
     private static let menuInset: CGFloat = 8
     private static let menuAnimation: Animation = .easeOut(duration: Theme.Animation.quick)
     /// Narrower than the footer menus: five fixed rows of two words each.
-    private static let filterMenuWidth: CGFloat = 196
 
     private static func menuTransition(_ anchor: UnitPoint) -> AnyTransition {
         .opacity.combined(with: .scale(scale: 0.96, anchor: anchor))
@@ -1515,39 +1516,6 @@ private struct MenuCircleButton: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .frosted(in: Circle())
-    }
-}
-
-/// The clipboard header's type-filter control: states the active filter, opens the menu that changes it. `.help()` rather than the in-house `Tooltip`, which renders above its view and would clip at the panel's top edge.
-private struct ClipboardFilterButton: View {
-    let filter: ClipboardFilter
-    let isOpen: Bool
-    let action: () -> Void
-    @State private var hovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: Theme.Spacing.xxs) {
-                Image(systemName: filter.systemImage)
-                    .font(Theme.Typography.bar)
-                    .symbolRenderingMode(.monochrome)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
-            }
-            .foregroundStyle(
-                filter == .all ? Theme.Colors.textSecondary : Color.primary
-            )
-            .padding(.horizontal, Theme.Spacing.sm)
-            .frame(height: 26)
-            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.menuRow, style: .continuous))
-            .background(
-                RoundedRectangle(cornerRadius: Theme.Radius.menuRow, style: .continuous)
-                    .fill(hovered || isOpen ? Theme.Colors.rowHover : .clear)
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .help("\(filter.title) (⌘P)")
     }
 }
 

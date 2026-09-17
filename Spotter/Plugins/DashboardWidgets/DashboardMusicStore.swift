@@ -159,10 +159,11 @@ final class DashboardMusicStore: ObservableObject {
 private nonisolated func runScriptSync(_ source: String, arguments: [String] = []) -> String? {
     let process = Process()
     let output = Pipe()
+    defer { output.closeHandles() }
     process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
     process.arguments = ["-e", source] + arguments
     process.standardOutput = output
-    process.standardError = Pipe()
+    process.standardError = FileHandle.nullDevice
     guard (try? process.run()) != nil else { return nil }
     let data = output.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()

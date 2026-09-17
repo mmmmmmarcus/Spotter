@@ -22,9 +22,11 @@ enum MoleProcessRunner {
                         _, override in override
                     }
                     let out = Pipe()
+                    defer { out.closeHandles() }
                     process.standardOutput = out
                     process.standardError = out
                     let input = standardInput.map { _ in Pipe() }
+                    defer { input?.closeHandles() }
                     if let input {
                         process.standardInput = input
                     } else {

@@ -20,7 +20,8 @@ enum LauncherFallbackAction: String, CaseIterable, Identifiable, Sendable {
 
     /// The AI Chat row names the model it will ask. A nil name means there is nothing to promise —
     /// no API key, so no request can be made — and the row keeps its generic title.
-    func title(aiChatModel: String?) -> String {
+    func title(aiChatModel: String?, terminalName: String) -> String {
+        if self == .terminal { return "Run in \(terminalName)" }
         guard case .aiChat = self, let aiChatModel,
             !aiChatModel.trimmingCharacters(in: .whitespaces).isEmpty
         else { return title }
@@ -56,17 +57,19 @@ struct LauncherFallback: Identifiable, Equatable, Sendable {
 
     var id: LauncherFallbackAction.ID { action.id }
 
-    init(action: LauncherFallbackAction, query: String, aiChatModel: String? = nil) {
+    init(action: LauncherFallbackAction, query: String, aiChatModel: String? = nil,
+         terminalName: String = "Terminal") {
         self.action = action
         self.query = query
-        self.title = action.title(aiChatModel: aiChatModel)
+        self.title = action.title(aiChatModel: aiChatModel, terminalName: terminalName)
     }
 
-    static func suggestions(for rawQuery: String, aiChatModel: String? = nil) -> [LauncherFallback] {
+    static func suggestions(for rawQuery: String, aiChatModel: String? = nil,
+                            terminalName: String = "Terminal") -> [LauncherFallback] {
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return [] }
         return LauncherFallbackAction.allCases.map {
-            LauncherFallback(action: $0, query: query, aiChatModel: aiChatModel)
+            LauncherFallback(action: $0, query: query, aiChatModel: aiChatModel, terminalName: terminalName)
         }
     }
 }

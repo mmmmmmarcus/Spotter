@@ -11,10 +11,6 @@ struct NoteTintPicker: View {
     let setTransparency: (Double) -> Void
     @State private var showsPanel = false
 
-    private let columns = Array(
-        repeating: GridItem(.fixed(Theme.Size.noteTintSwatch), spacing: Theme.Spacing.md),
-        count: 5)
-
     var body: some View {
         Button { showsPanel.toggle() } label: {
             Image(systemName: "paintbrush.fill")
@@ -24,18 +20,15 @@ struct NoteTintPicker: View {
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: Circle())
-        .help("Note Color")
+        .help("Note Appearance")
         .popover(isPresented: $showsPanel, arrowEdge: .bottom) {
             NoteTintPanel(
-                tint: tint, transparency: transparency, select: choose,
+                tint: tint, transparency: transparency, select: select,
                 setTransparency: setTransparency)
         }
     }
 
-    private func choose(_ candidate: NoteTint?) {
-        select(candidate)
-        showsPanel = false
-    }
+
 }
 
 /// The panel behind the brush: the tint ramp and the window's transparency.
@@ -46,45 +39,36 @@ struct NoteTintPanel: View {
     let setTransparency: (Double) -> Void
 
     private let columns = Array(
-        repeating: GridItem(.fixed(Theme.Size.noteTintSwatch), spacing: Theme.Spacing.md),
-        count: 5)
+        repeating: GridItem(.flexible(), spacing: Theme.Spacing.md),
+        count: 4)
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
-                ForEach(NoteTint.allCases, id: \.self) { candidate in
-                    button(for: candidate)
+            Text("Appearance").font(.headline)
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                Text("Note Color").font(.callout).foregroundStyle(.secondary)
+                LazyVGrid(columns: columns, spacing: Theme.Spacing.xl) {
+                    button(for: nil)
+                    ForEach(NoteTint.selectable, id: \.self) { button(for: $0) }
                 }
-                button(for: nil)
             }
-
             Divider()
-
-            slider(
-                "Window Transparency", value: transparency,
-                in: 0...NoteStore.maximumWindowTransparency, set: setTransparency)
-
+            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                Text("Window Transparency").font(.callout).foregroundStyle(.secondary)
+                Picker("Window Transparency", selection: Binding(
+                    get: { NoteTransparency.nearest(to: transparency) },
+                    set: { setTransparency($0.rawValue) }
+                )) {
+                    ForEach(NoteTransparency.allCases, id: \.self) { preset in
+                        Text(preset.title).tag(preset)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
         }
         .frame(width: Theme.Size.noteTintPanelWidth)
         .padding(Theme.Spacing.xl)
-    }
-
-    /// The slider edits the same stored value Settings does, so the two surfaces cannot disagree.
-    private func slider(
-        _ title: String, value: Double, in bounds: ClosedRange<Double>,
-        set: @escaping (Double) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            HStack {
-                Text(title)
-                    .font(.callout)
-                Spacer(minLength: Theme.Spacing.xl)
-                Text(value.formatted(.percent.precision(.fractionLength(0))))
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            Slider(value: Binding(get: { value }, set: set), in: bounds, step: 0.05)
-        }
     }
 
     private func button(for candidate: NoteTint?) -> some View {
@@ -112,7 +96,7 @@ struct NoteTintPanel: View {
             if candidate == tint {
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.5, weight: .bold))
-                    .foregroundStyle(candidate == nil ? Theme.Colors.textSecondary : .white)
+                    .foregroundStyle(.primary)
             }
         }
         .frame(width: size, height: size)
@@ -149,7 +133,7 @@ struct NotePagination: View {
     private func marker(for note: SpotterNote, isSelected: Bool) -> some View {
         if let emoji = note.titleEmoji {
             Text(emoji)
-                .font(.system(size: isSelected ? 18 : 15))
+                .font(.system(size: 18))
                 .opacity(isSelected ? 1 : 0.48)
                 .fixedSize()
                 .frame(

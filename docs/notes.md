@@ -18,6 +18,11 @@ The plugin registers two launcher commands and two independently bindable global
   immediately. Return is refused until the title has text. It always opens, never toggles, since it
   has a new note to show.
 
+Notes with a nonempty H1 also register UUID-keyed dynamic launcher entries. Searching a title in the
+main Palette opens that exact Note without toggling an already open workspace closed. Title edits,
+creation, deletion and folder reconciliation refresh the entries; body-only changes leave the index
+alone.
+
 Both routes call `AppCore.openNotes`, which dismisses the launcher when
 needed and opens the shared `AuxWindowController` workspace. The translucent window opts into
 resizing, `.floating` level and all-Spaces visibility, but the plugin never creates or retains an
@@ -37,7 +42,7 @@ The centered toolbar carries page markers rather than a title — the title is a
 of the note directly beneath it, so what the header can add is *where in the stack you are*. A Note
 whose title contains an Emoji uses its first complete Emoji as the marker and as its list icon; the
 list label omits that first Emoji. Other Notes keep their tint-aware dots. Emoji markers use
-bearing-safe 24-point slots, and past seven Notes the strip slides around the current one so Apple
+a constant 18-point font with selection indicated only by opacity, inside bearing-safe 24-point slots, and past seven Notes the strip slides around the current one so Apple
 Color Emoji never gets clipped by the centered toolbar lane. Clicking
 anywhere on it opens the notes list. The right side
 holds only the color control. The list starts hidden and opens as an inset material card over the
@@ -57,8 +62,10 @@ content is taller than the current user-sized viewport.
 Tab nests the caret's list line and Shift-Tab un-nests it, wherever the caret sits in the line (a
 selection moves every list line it touches together); on prose the keys fall through to a plain tab.
 A nesting level is two spaces in the source (`NoteEngine.listIndentUnit`, harness-covered), and list
-lines render a raw legacy tab at that same width instead of the 28-point default stop, so nesting
-reads as a step rather than a gulf. Delete with the caret immediately after a list marker removes
+lines render each level at 20 points, including a legacy tab. Bullets, numbers and todos share a
+compact marker slot and a common content edge. Return in the middle of an item carries its suffix
+into a new item, incrementing a number or resetting a checkbox. Completed todos use tertiary text
+color as well as a strike-through. Delete with the caret immediately after a list marker removes
 the whole prefix — indentation and marker together — in one press, so a todo never degrades through
 `- [ ]`, `- [` and out the other side as plain text; `NoteEngine.listMarkerDeletion` decides it and
 `NoteTextView.deleteBackward` is the hook, beside `insertTab`/`insertBacktab`. The indentation goes
@@ -78,12 +85,11 @@ Closing the window flushes the latest in-memory snapshot.
 
 While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
 next one. Navigation follows the same newest-first order as the notes list and wraps at either end.
-The new editor content fades in over 160 ms when the selected Note changes; it has no directional
-movement, and Reduce Motion makes the switch immediate. The toolbar stays fixed during the fade.
-When both Notes begin with a non-empty `# ` H1, that heading temporarily moves into a SwiftUI text
-overlay and uses Apple's built-in `ContentTransition.interpolate`; the body keeps its normal fade.
-The overlay sits outside the editor's sizing tree, so it cannot affect the measured content or the
-window height. Imported legacy Notes promote their old first line to the required H1.
+The new editor content fades in over 160 ms while moving eight points from the navigation side to
+its resting position once. It never moves away and returns; Reduce Motion makes the switch immediate.
+The toolbar stays fixed. A presentation-layer transform leaves layout and the window frame untouched.
+The heading and body share the same native editor fade, with no separate heading overlay or morph.
+Imported legacy Notes promote their old first line to the required H1.
 
 ## Model and persistence
 
@@ -96,8 +102,9 @@ tombstones; any Note containing text is preserved.
 
 ## Tints and window appearance
 
-Each Note can carry one tint from a fixed nine-color ramp, chosen from the toolbar's `paintbrush.fill`
-button left of the notes-list button. That button keeps its own color: a control that wore the note's
+Each Note can carry one tint from a seven-color ramp (red, orange, yellow, green, blue, purple, pink), chosen from the toolbar's `paintbrush.fill`
+button on the right of the toolbar. A four-column grid includes No Color; older mint and graphite
+Notes retain their saved appearance. That button keeps its own color: a control that wore the note's
 tint would read as a swatch, and an untinted note would leave nothing to point at. The ramp is fixed rather than a free color well because a tint has to
 follow the system appearance: `Theme.Colors.noteTintAccent` and `noteTintWash` give every tint its
 own pair of stops, since a hue that reads right over the dark window material turns muddy over the
@@ -107,7 +114,7 @@ an unrecognized tint written by a newer build decodes as untinted rather than fa
 The tint shows as a wash over the window surface, laid above `panelScrim`, and the caret and text
 selection wear the same color — a system-blue caret on a red note reads as another app's text field.
 The wash is deliberately *not* attenuated by Window Transparency: a tint that dissolved with the
-slider would leave the most see-through windows the least identifiable. Editor text and controls are
+control would leave the most see-through windows the least identifiable. Editor text and controls are
 untouched. In the notes list a tinted Note shows a small dot beside its title.
 
 The same popover is the **only** place the Window Transparency control lives, and Notes Settings does
@@ -115,11 +122,12 @@ not duplicate it. Transparency fades exactly one
 layer: the adaptive `panelScrim` over the window's frost. The `.hudWindow` material stays at full
 strength at every setting and the tint film keeps its color, so the desktop shows through the scrim's
 absence rather than through a hole in the window — the frost is what makes a Note read as glass, and
-a tint that thinned with the slider would make the most see-through notes the hardest to tell apart
+a tint that thinned with the control would make the most see-through notes the hardest to tell apart
 (owner decision, Sep 2026).
 
-The range stops at 90% rather than 100%: a window with no surface left is invisible *and* passes
-clicks through to whatever is under it, leaving nothing to grab to undo the setting.
+Transparency has three presets: Low (0%), Medium (45%), and High (90%). Legacy continuous
+values snap to the nearest preset. The popover stays open when a tint is chosen so both controls
+can be adjusted together.
 
 There is no frost control. `NSVisualEffectView` publishes a named material, never a blur radius, so
 the only thing Spotter could move is frost *coverage* — the material's own alpha — and the material
@@ -574,3 +582,16 @@ window or reading user data. It updates marked pinyin between model refreshes in
 bold text, verifies text/marked-range/selection preservation and commits Chinese characters. It also
 checks document switching and external updates. Run it through `scripts/test-all.sh`; only the
 app-wide selection-capture identifier is stubbed.
+
+## Local Palette paste
+
+Opening the Palette from the Note editor captures a weak local text target, its document UUID and
+UTF-16 selection. Emoji and clipboard text insert through the editor's native editing path,
+preserving undo and the selected range. Repeated pastes advance the saved caret even when the
+Palette stays open. Switching documents, intervening edits or active IME composition invalidate
+the target; it never falls back to pasting into an unrelated external app. External-app paste
+keeps its existing activation and Accessibility-gated path.
+
+The empty H1 keeps its full font metrics while its syntax has zero advance, so its caret remains
+visible before typing. Note switching uses the shared 160 ms fade and one-way translation described
+above, with no delayed handoff between two heading renderers.

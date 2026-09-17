@@ -87,6 +87,11 @@ enum Theme {
         /// The visibility checkbox's column, measured at its intrinsic 16pt. Reserved on rows without one, so the recorder column never shifts.
         static let shortcutVisibilityControl: CGFloat = 16
         static let menuButton: CGFloat = 36
+        static let clipboardFilterSegmentWidth: CGFloat = 28
+        static let scheduleHourHeight: CGFloat = 36
+        static let scheduleToolbarHeight: CGFloat = 30
+        static let scheduleTimeGutter: CGFloat = 40
+        static let scheduleAllDayHeight: CGFloat = 38
         static let clipboardListWidth: CGFloat = 290
         static let emojiCell: CGFloat = 56
         /// Empty-launcher dashboard cards share one compact height; the analog clock card is this square.
@@ -124,7 +129,7 @@ enum Theme {
         /// Emoji need their own bearing-safe boxes; Apple Color Emoji exceeds a text glyph's advance.
         static let noteEmojiIcon: CGFloat = 28
         static let noteEmojiMarker: CGFloat = 24
-        static let noteTintPanelWidth: CGFloat = 190
+        static let noteTintPanelWidth: CGFloat = 232
         /// The toolbar's page dots: one per note, the current one larger.
         static let noteDot: CGFloat = 5
         static let noteDotSelected: CGFloat = 8

@@ -128,7 +128,7 @@ private struct AIChatHistoryRow: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: "bubble.left.and.bubble.right")
+            Image(systemName: session.systemImage)
                 .font(.title3)
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.secondary)

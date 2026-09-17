@@ -39,8 +39,18 @@ struct PluginCommandRegistration {
 
 /// A plugin-owned data source rendered by the shared command-palette shell and row grammar.
 @MainActor
+struct PluginPaletteCanvasContext {
+    let query: String
+    let snapshot: PluginPaletteSnapshot
+    let selectedID: String?
+    let activate: (String) -> Void
+    let actions: (String) -> Void
+}
+
+@MainActor
 struct PluginPaletteScreenRegistration {
     let placeholder: String
+    var canvas: ((PluginPaletteCanvasContext) -> AnyView?)?
     /// Overrides `placeholder` while the screen is open, for a step-by-step flow whose prompt changes (Quicklinks' argument entry). Returning nil falls back to the static one.
     var livePlaceholder: (() -> String?)?
     /// Set by a screen whose rows represent instants (World Clock): ←/→ scrub by ±1 hour while the query is empty.
@@ -237,6 +247,10 @@ final class PluginRegistry: ObservableObject {
         guard let handleBack = registrations[pluginID]?.paletteScreen?.handleBack
         else { return false }
         return handleBack()
+    }
+
+    func paletteCanvas(pluginID: PluginID, context: PluginPaletteCanvasContext) -> AnyView? {
+        registrations[pluginID]?.paletteScreen?.canvas?(context)
     }
 
     func paletteActions(pluginID: PluginID, itemID: String) -> PopoverMenuContent? {

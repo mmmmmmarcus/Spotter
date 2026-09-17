@@ -17,10 +17,11 @@ enum FinderSelection {
         await Task.detached(priority: .userInitiated) {
             let process = Process()
             let output = Pipe()
+            defer { output.closeHandles() }
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
             process.arguments = ["-e", script]
             process.standardOutput = output
-            process.standardError = Pipe()
+            process.standardError = FileHandle.nullDevice
             guard (try? process.run()) != nil else { return [] }
             // Drained before the wait: a few thousand selected paths outrun the pipe buffer, and
             // waiting first would then block on a child that is itself blocked writing.

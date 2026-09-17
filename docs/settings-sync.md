@@ -150,7 +150,10 @@ an older build reading a new file keeps them.
 ### Content
 
 `clipboardHistory` (text and image rows, pinned state and image bytes), `calculatorHistory`,
-`aiChat` (sessions and the current one), `backgroundTasks`, `frequentEmoji`, `launcherRanking`.
+`aiChat` (sessions and the current one), `backgroundTasks` (Queued and Running snapshots only),
+`frequentEmoji`, `launcherRanking`. Done and Failed notifications stay process-local and are ignored
+on import, including legacy snapshots. Local terminal notifications survive unrelated sync until
+dismissed; successful notifications clear after being shown in the empty launcher and closing it.
 Manual backups additionally contain `notes` and the selected note.
 
 ## Deliberately device-local

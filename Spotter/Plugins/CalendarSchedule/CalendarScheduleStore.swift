@@ -1,0 +1,135 @@
+import Combine
+import EventKit
+import Foundation
+
+@MainActor
+final class CalendarScheduleStore: ObservableObject {
+    @Published private(set) var mode: ScheduleViewMode = .week
+    @Published private(set) var date = Date()
+    @Published private(set) var events: [DashboardEvent] = []
+    @Published private(set) var isLoading = false
+    @Published var detailID: String?
+    private weak var dashboard: DashboardWidgetsStore?
+    private var task: Task<Void, Never>?
+    private var reader: Task<[DashboardEvent], Never>?
+    private var timer: Task<Void, Never>?
+    private var generation = UUID()
+    private var lastRange: DateInterval?
+    private var lastPreferences: DashboardWidgetPreferences?
+    var calendar: Calendar { .current }
+    var days: [Date] { ScheduleLayout.days(containing: date, mode: mode, calendar: calendar) }
+
+    func open(dashboard: DashboardWidgetsStore) {
+        self.dashboard = dashboard
+        date = Date()
+        detailID = nil
+        refresh()
+        timer?.cancel()
+        timer = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                self?.refresh()
+            }
+        }
+    }
+
+    func close() {
+        generation = UUID()
+        task?.cancel()
+        reader?.cancel()
+        timer?.cancel()
+        task = nil
+        timer = nil
+        events = []
+        lastRange = nil
+        lastPreferences = nil
+        detailID = nil
+        isLoading = false
+    }
+
+    func setMode(_ mode: ScheduleViewMode) {
+        guard mode != self.mode else { return }
+        self.mode = mode
+        detailID = nil
+        refresh()
+    }
+
+    func move(_ step: Int) {
+        date = ScheduleLayout.moved(date, mode: mode, by: step, calendar: calendar)
+        detailID = nil
+        refresh()
+    }
+
+    func today() { date = Date(); detailID = nil; refresh() }
+    func showDay(_ day: Date) { date = day; mode = .day; detailID = nil; refresh() }
+
+    func matching(_ query: String) -> [DashboardEvent] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return events.filter {
+            query.isEmpty || $0.title.localizedCaseInsensitiveContains(query)
+                || $0.calendarTitle.localizedCaseInsensitiveContains(query)
+                || $0.location?.localizedCaseInsensitiveContains(query) == true
+        }
+    }
+
+    func refresh() {
+        guard let dashboard, let start = days.first, let last = days.last,
+              let end = calendar.date(byAdding: .day, value: 1, to: last) else { return }
+        task?.cancel()
+        reader?.cancel()
+        generation = UUID()
+        let request = generation
+        let preferences = dashboard.preferences
+        let range = DateInterval(start: start, end: end)
+        if range != lastRange || preferences != lastPreferences || !dashboard.calendarAccess.canRead {
+            events = []
+        }
+        lastRange = range
+        lastPreferences = preferences
+        isLoading = dashboard.calendarAccess.canRead
+        let reader = Task.detached(priority: .userInitiated) {
+            Self.read(start: start, end: end, preferences: preferences)
+        }
+        self.reader = reader
+        task = Task { [weak self] in
+            let result = await reader.value
+            guard !Task.isCancelled, let self, generation == request else { return }
+            events = result
+            if let detailID, !result.contains(where: { CalendarSchedulePlugin.rowID(for: $0) == detailID }) {
+                self.detailID = nil
+            }
+            isLoading = false
+        }
+    }
+
+    nonisolated private static func read(start: Date, end: Date,
+                                        preferences: DashboardWidgetPreferences) -> [DashboardEvent] {
+        guard !Task.isCancelled, EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
+        return autoreleasepool {
+            let store = EKEventStore()
+            let calendars = store.calendars(for: .event)
+            let source = DashboardWidgetsEngine.effectiveCalendarSourceIdentifier(
+                selected: preferences.calendarSourceIdentifier,
+                availableIdentifiers: Set(calendars.compactMap { $0.source?.sourceIdentifier }))
+            let selected = source.map { id in calendars.filter { $0.source?.sourceIdentifier == id } }
+            let predicate = store.predicateForEvents(withStart: start, end: end, calendars: selected)
+            let events = store.events(matching: predicate).filter {
+                $0.status != .canceled && $0.startDate < end && $0.endDate > start
+                    && (preferences.includesAllDayEvents || !$0.isAllDay)
+            }.map { event in
+                DashboardEvent(
+                    id: event.eventIdentifier ?? event.calendarItemIdentifier,
+                    title: event.title?.isEmpty == false ? event.title : "Untitled event",
+                    startDate: event.startDate, endDate: event.endDate, isAllDay: event.isAllDay,
+                    calendarTitle: event.calendar.title, location: event.location,
+                    urlString: event.url?.absoluteString, notes: event.notes)
+            }.sorted {
+                if $0.isAllDay != $1.isAllDay { return $0.isAllDay }
+                if $0.startDate != $1.startDate { return $0.startDate < $1.startDate }
+                return $0.id < $1.id
+            }
+            guard !Task.isCancelled, EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
+            return events
+        }
+    }
+}

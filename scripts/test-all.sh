@@ -9,6 +9,7 @@ TESTS=(
     fuzz
     app-identity-migration
     app-version
+    file-resources
     ranking
     launcher-fallback
     launcher-sections
@@ -79,6 +80,10 @@ run_harness() {
         fuzz)
             swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
                 Tools/fuzz-test.swift -o "$output" && "$output"
+            ;;
+        file-resources)
+            swiftc -swift-version 6 Spotter/Core/AppFileResources.swift Spotter/Core/ProcessPipe.swift \
+                Tools/file-resources-test.swift -o "$output" && "$output"
             ;;
         app-version)
             swiftc -swift-version 6 Spotter/Core/AppVersion.swift \
@@ -178,7 +183,7 @@ run_harness() {
                 Tools/note-test.swift -o "$output" && "$output"
             ;;
         note-editor)
-            swiftc -swift-version 6 Spotter/Core/Theme.swift \
+            swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Core/LocalTextPasteTarget.swift \
                 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteMarkdownEditor.swift \
                 Spotter/Core/Calculator/*.swift \
                 Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
@@ -211,12 +216,13 @@ run_harness() {
             ;;
         mole)
             swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
-                Spotter/Plugins/Mole/MoleProcessRunner.swift Tools/mole-test.swift \
+                Spotter/Plugins/Mole/MoleProcessRunner.swift Spotter/Core/ProcessPipe.swift Tools/mole-test.swift \
                 -o "$output" && "$output"
             ;;
         calendar-schedule)
             swiftc -swift-version 6 \
                 Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
+                Spotter/Plugins/CalendarSchedule/ScheduleLayout.swift \
                 Tools/calendar-schedule-test.swift -o "$output" && "$output"
             ;;
         coffee)

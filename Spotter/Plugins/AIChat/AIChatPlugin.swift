@@ -111,7 +111,7 @@ enum AIChatSessionsMenu {
             PopoverMenuItem(
                 title: session.title,
                 systemImage: session.id == core.aiChat.currentID
-                    ? "checkmark.circle.fill" : "bubble.left"
+                    ? "checkmark.circle.fill" : session.systemImage
             ) { core.aiChat.switchTo(session.id) }
         }
         return PopoverMenuContent(header: "Sessions", items: items)

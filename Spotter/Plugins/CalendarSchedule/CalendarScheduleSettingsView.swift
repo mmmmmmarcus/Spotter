@@ -1,12 +1,12 @@
 import SwiftUI
 
 /// One pane for the whole calendar feature: the schedule screen and the widget card share every
-/// preference here, since both read the same store.
+/// preference here, including the account and all-day filter.
 struct CalendarScheduleSettingsView: View {
     @ObservedObject var store: DashboardWidgetsStore
 
     var body: some View {
-        SettingsPane(title: "Calendar") {
+        SettingsPane(title: "Schedule") {
             Section("Calendars") {
                 SettingsRow(title: "Calendar Access", subtitle: accessSubtitle) {
                     switch store.calendarAccess {

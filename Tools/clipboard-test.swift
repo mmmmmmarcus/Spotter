@@ -203,6 +203,23 @@ struct ClipboardTests {
             expect(form(plain) == .plain, "\(plain.isEmpty ? "(empty)" : plain) is plain text")
         }
 
+        for number in ["42", "-12.5", "+0.5", ".75", "1,234.56", "1e-6", "12%", "１２３", " 42\n"] {
+            expect(form(number) == .number, "\(number) is a complete number")
+        }
+        for plain in ["50080C", "FFC700", "1.2.3", "12,34", "42 apples", "1 + 2", "NaN", "Infinity"] {
+            expect(form(plain) == .plain, "\(plain) is not a complete number")
+        }
+        expect(form("https://example.com/42")?.systemImage == "link", "URL rows use link")
+        expect(form("42")?.systemImage == "number.sign", "numeric rows use number.sign")
+        expect(form("some text")?.systemImage == "textformat.alt", "text rows use textformat.alt")
+        withStore { store, _ in
+            store.addText("123", sourceBundleID: nil)
+            store.addText("hello", sourceBundleID: nil)
+            expect(store.search("", filter: .number).map(\.text) == ["123"], "numbers filter selects numeric entries")
+            expect(store.search("", filter: .text).map(\.text) == ["hello"], "text filter excludes numbers")
+            expect(store.search("", filter: .all).count == 2, "switching filters preserves all entries")
+        }
+
         let long = String(repeating: "a", count: 2050) + ".com"
         expect(form(long) == .plain, "past the detection limit everything is prose")
 

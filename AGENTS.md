@@ -139,7 +139,7 @@ Never break these without an explicit task to do so.
   stays a pure type in `MoleTypes.swift` while `MoleManager` owns the processes, and one
   confirmation card still buys exactly one queue entry. `Plugins/Coffee/CoffeeTypes.swift` stays Foundation-only and pure for
   `Tools/coffee-test.swift`,
-  `Plugins/CalendarSchedule/CalendarScheduleEngine.swift` stays Foundation-only and pure (clock,
+  `Plugins/CalendarSchedule/CalendarScheduleEngine.swift` and `Plugins/CalendarSchedule/ScheduleLayout.swift` stay Foundation-only and pure (clock,
   calendar and locale injected) for `Tools/calendar-schedule-test.swift`, the
   `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
   `ScreenshotColorSampler.swift`, `ScreenshotImageProcessor.swift`, `ScreenshotAnnotation.swift` and

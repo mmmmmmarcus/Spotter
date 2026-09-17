@@ -71,6 +71,11 @@ struct PasteTarget: Equatable {
     /// Bundle path for `IconCache` — nil for a target with no on-disk bundle.
     let iconPath: String?
 
+    init(name: String, iconPath: String?) {
+        self.name = name
+        self.iconPath = iconPath
+    }
+
     init?(app: NSRunningApplication?) {
         guard let app, let name = app.localizedName else { return nil }
         self.name = name
@@ -173,6 +178,7 @@ final class AppCore: ObservableObject {
     let launcherRanking: LauncherRankingStore
     let appIndex: AppIndex
     let customCommands = CustomCommandStore()
+    let resourceMonitor = AppResourceMonitor()
     let settingsSync = SettingsSyncManager()
     let clipboardStore = ClipboardStore()
     let clipboardManager: ClipboardManager
@@ -194,6 +200,7 @@ final class AppCore: ObservableObject {
     let plugins = PluginRegistry()
     let worldClock = WorldClockStore()
     let dashboardWidgets = DashboardWidgetsStore()
+    let calendarSchedule = CalendarScheduleStore()
     let dashboardWeather = DashboardWeatherStore()
     let uptime = UptimeStore()
     let dashboardMusic = DashboardMusicStore()
@@ -259,6 +266,7 @@ final class AppCore: ObservableObject {
     }
 
     func start() {
+        resourceMonitor.start()
         // AppKit's default tooltip delay is ~2–3s; shorten it (in ms) so the compact-bar favorite tooltips appear promptly. Registration domain — never overrides a user default.
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 250])
         syncActivationPolicy()
@@ -293,6 +301,9 @@ final class AppCore: ObservableObject {
         quicklinks.onChange = { [weak self] in
             QuicklinkManager.invalidateOpenerCache()
             self?.plugins.reloadDynamicCommands(for: .quicklinks)
+        }
+        notes.onTitlesChanged = { [weak self] in
+            self?.plugins.reloadDynamicCommands(for: .note)
         }
         textReplacements.onSnippetsChanged = { [weak self] in
             self?.plugins.reloadDynamicCommands(for: .textReplacement)
@@ -582,7 +593,8 @@ final class AppCore: ObservableObject {
         movableByBackground: Bool = true, frameAutosaveName: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> Bool {
-        auxWindows.show(
+        resourceMonitor.record()
+        return auxWindows.show(
             id: "plugin." + id, title: title, size: size, seamlessTitleBar: true,
             resizable: resizable, floating: floating, transparent: transparent,
             minimumSize: minimumSize, closeButtonOnly: closeButtonOnly,
@@ -627,6 +639,8 @@ final class AppCore: ObservableObject {
     func paletteVisibilityDidChange(to visible: Bool) {
         guard isPaletteVisible != visible else { return }
         isPaletteVisible = visible
+        if !visible { backgroundTasks.dismissSeenCompletions() }
+        if !visible, let id = palette.mode.pluginID { plugins.deactivatePaletteScreen(id) }
         // The section's CPU/memory readings poll `ps`; a hidden palette must not keep sampling.
         if visible, settings.visibleLauncherSections.contains(.activeApps) {
             runningApps.startUsageSampling()
@@ -923,10 +937,9 @@ final class AppCore: ObservableObject {
     }
 
     func paste(_ item: ClipboardItem) {
-        let previous = windowController.previousApp
         hidePalette(restoreFocus: false)
         // A successful write promotes the item to the head of its section; follow it so any preserved (pop-to-root) or open clipboard state highlights the row that moved.
-        if Paster.paste(item, store: clipboardStore, previousApp: previous) {
+        if windowController.paste(item, store: clipboardStore) {
             selectClip(item)
         }
     }
@@ -991,9 +1004,8 @@ final class AppCore: ObservableObject {
 
     func pasteEmoji(_ entry: EmojiEntry) {
         frequentEmoji.record(entry.glyph)
-        let previous = windowController.previousApp
         hidePalette(restoreFocus: false)
-        Paster.pasteString(entry.display(tone: settings.emojiSkinTone), previousApp: previous)
+        windowController.pasteString(entry.display(tone: settings.emojiSkinTone))
     }
 
     func copyEmoji(_ entry: EmojiEntry) {

@@ -16,6 +16,47 @@ enum CalendarScheduleTests {
     }
 
     static func main() {
+        var layoutCalendar = Calendar(identifier: .gregorian)
+        layoutCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        layoutCalendar.firstWeekday = 2
+        func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {
+            layoutCalendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
+        }
+        let leap = ScheduleLayout.days(containing: date(2024, 2, 15), mode: .month, calendar: layoutCalendar)
+        check("month grid has six complete weeks", leap.count == 42)
+        check("month starts on the configured weekday", layoutCalendar.component(.weekday, from: leap[0]) == 2)
+        check("leap day is present", leap.contains(date(2024, 2, 29)))
+        check("month grid includes boundary days", leap.first! < date(2024, 2, 1) && leap.last! >= date(2024, 3, 1))
+        check("January 31 advances to February instead of skipping a month",
+              ScheduleLayout.moved(date(2024, 1, 31), mode: .month, by: 1, calendar: layoutCalendar) == date(2024, 2, 1))
+        let dst = ScheduleLayout.days(containing: date(2024, 3, 10), mode: .week, calendar: layoutCalendar)
+        check("DST week still contains seven local dates", dst.count == 7)
+        check("days start at local midnight across DST", dst.allSatisfy { layoutCalendar.component(.hour, from: $0) == 0 })
+        let springDay = date(2024, 3, 10)
+        let springEnd = ScheduleLayout.moved(springDay, mode: .day, by: 1, calendar: layoutCalendar)
+        check("day navigation uses calendar arithmetic across DST", springEnd.timeIntervalSince(springDay) == 23 * 3600)
+        let midnight = date(2026, 9, 18)
+        check("event ending at midnight does not occupy the following day",
+              !ScheduleLayout.overlaps(start: date(2026, 9, 17, 23), end: midnight, day: midnight, calendar: layoutCalendar))
+        let overnight = ScheduleLayout.block(id: "night", start: date(2026, 9, 17, 23),
+            end: date(2026, 9, 18, 1), day: midnight, calendar: layoutCalendar)!
+        check("overnight event is clipped to each day", overnight.startMinute == 0 && overnight.endMinute == 60)
+        let late = ScheduleLayout.block(id: "late", start: date(2026, 9, 17, 23, 55),
+            end: midnight, day: date(2026, 9, 17), calendar: layoutCalendar)!
+        check("a late event keeps its true start", late.startMinute == 1435)
+        let blocks = ScheduleLayout.columns([
+            ScheduleTimeBlock(id: "a", startMinute: 540, endMinute: 600),
+            ScheduleTimeBlock(id: "b", startMinute: 570, endMinute: 630),
+            ScheduleTimeBlock(id: "c", startMinute: 600, endMinute: 660),
+            ScheduleTimeBlock(id: "d", startMinute: 660, endMinute: 720)])
+        check("overlapping events occupy separate columns", blocks[0].column != blocks[1].column)
+        check("a completed column is reused", blocks[0].column == blocks[2].column)
+        check("overlap groups share their maximum column count", blocks.prefix(3).allSatisfy { $0.columnCount == 2 })
+        check("a subsequent nonoverlapping event gets full width", blocks[3].columnCount == 1)
+        let morning = ScheduleLayout.block(id: "spring", start: date(2024, 3, 10, 9),
+            end: date(2024, 3, 10, 10), day: springDay, calendar: layoutCalendar)!
+        check("timed events align with local wall-clock hours after DST", morning.startMinute == 540)
+
         let zoom = CalendarScheduleEngine.meetingLink(
             urlString: "https://us02web.zoom.us/j/123?pwd=abc", location: nil, notes: nil)
         check("a Zoom URL field is a Zoom meeting", zoom?.provider == "Zoom")

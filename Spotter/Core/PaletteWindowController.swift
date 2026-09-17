@@ -6,6 +6,7 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
     private unowned let core: AppCore
     private var panel: PalettePanel?
     private(set) var previousApp: NSRunningApplication?
+    private var localPasteTarget: LocalTextPasteTarget?
     private var popToRootTimer: Timer?
     /// Left/top edge of the panel, resolved once per show and reused across compact↔expanded resizes so both states share an exact top edge (only the height changes). Cleared on hide so the next summon re-resolves for the current screen.
     private var anchor: (x: CGFloat, topEdgeY: CGFloat)?
@@ -22,13 +23,18 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
 
     func show() {
         core.selectedTextCapture.prepareForPalettePresentation()
-        // Ignore ourselves as the "previous" app (e.g. summoned while Settings/About/Onboarding is frontmost) so paste/focus-restore always targets the user's real app, never Spotter's own field.
         let frontmost = NSWorkspace.shared.frontmostApplication
-        if frontmost?.processIdentifier != NSRunningApplication.current.processIdentifier {
-            previousApp = frontmost
+        if !isVisible {
+            localPasteTarget = nil
+            if let editor = NSApp.keyWindow?.firstResponder as? NSTextView {
+                localPasteTarget = LocalTextPasteTarget(editor: editor)
+            }
+            if frontmost?.processIdentifier != NSRunningApplication.current.processIdentifier {
+                previousApp = frontmost
+            }
         }
-        // Resolve the name/icon path once per summon rather than per render; reading `previousApp` (not `frontmost`) keeps the label naming the same app paste will actually target.
-        core.palette.pasteTarget = PasteTarget(app: previousApp)
+        core.palette.pasteTarget = localPasteTarget == nil
+            ? PasteTarget(app: previousApp) : PasteTarget(name: "Notes", iconPath: Bundle.main.bundlePath)
         let panel = ensurePanel()
         // Switch to ASCII before the field takes focus, so the first keystroke can't open an IME composition. One-shot: switching away afterwards is the user's call.
         if core.settings.lockInputToEnglish { InputSourceLock.selectASCIIKeyboard() }
@@ -61,7 +67,10 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         // Drop the multi-MB clipboard preview bitmaps now the window is gone, so idle RAM returns near baseline (row thumbnails stay cached).
         ImageThumbnail.purgePreviews()
         schedulePopToRoot()
-        if restoreFocus { previousApp?.activate() }
+        if restoreFocus {
+            if let localPasteTarget { localPasteTarget.restoreFocus() }
+            else { previousApp?.activate() }
+        }
     }
 
     /// Pop to Root Search: reset immediately (also releases heavy sub-screens — a fully scrolled emoji grid is ~2k realized views), or keep state and reset after the configured delay unless a reopen consumes it first.
@@ -92,12 +101,37 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
     /// Paste into the previously focused app while leaving the palette frontmost (keystroke delivered straight to that app's process).
     @discardableResult
     func pasteKeepingWindowOpen(_ item: ClipboardItem, store: ClipboardStore) -> Bool {
-        Paster.pasteInPlace(item, store: store, into: previousApp)
+        paste(item, store: store, keepingWindowOpen: true)
     }
 
     /// String flavor of the above, for emoji/symbol pastes.
     func pasteStringKeepingWindowOpen(_ text: String) {
-        Paster.pasteStringInPlace(text, into: previousApp)
+        pasteString(text, keepingWindowOpen: true)
+    }
+
+    @discardableResult
+    func paste(_ item: ClipboardItem, store: ClipboardStore, keepingWindowOpen: Bool = false) -> Bool {
+        if let localPasteTarget {
+            guard let text = item.text,
+                localPasteTarget.insert(text, restoringFocus: !keepingWindowOpen)
+            else { return false }
+            return Paster.copy(item, store: store)
+        }
+        return keepingWindowOpen
+            ? Paster.pasteInPlace(item, store: store, into: previousApp)
+            : Paster.paste(item, store: store, previousApp: previousApp)
+    }
+
+    func pasteString(_ text: String, keepingWindowOpen: Bool = false) {
+        if let localPasteTarget {
+            if localPasteTarget.insert(text, restoringFocus: !keepingWindowOpen) {
+                Paster.copyString(text)
+            }
+        } else if keepingWindowOpen {
+            Paster.pasteStringInPlace(text, into: previousApp)
+        } else {
+            Paster.pasteString(text, previousApp: previousApp)
+        }
     }
 
     // MARK: - NSWindowDelegate

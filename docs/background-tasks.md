@@ -8,8 +8,12 @@ snapshot that remains visible to the user.
 
 `AppCore.backgroundTasks` is the single `@MainActor` owner. A feature begins a task with a title,
 detail and symbol, then updates it by UUID and finishes it as Done or Failed. New tasks appear first.
-A row is **live** while it is Queued or Running: neither can be dismissed, and finished tasks remain
-until the user selects one and presses Return. Rows enter trusted v3 backups and automatic sync. A
+A row is **live** while it is Queued or Running: neither can be dismissed. Successful notifications
+stay until shown in the visible empty launcher, then clear when the palette closes; unseen successes
+and failures stay available for manual Dismiss during this process. Only live rows enter trusted v3
+backups and automatic sync. Imported Done and Failed snapshots are ignored, so old completion
+notifications cannot reappear on every launch. Local terminal notifications survive unrelated sync,
+and retired task IDs cannot be revived by stale live snapshots during the same process. A
 device identifier distinguishes remote progress from this Mac's executor: a local task that was still
 live when Spotter quit returns as Failed after relaunch — a queued promise this Mac can no longer
 keep is retired exactly like an interrupted run — while a row owned by another live Mac can keep

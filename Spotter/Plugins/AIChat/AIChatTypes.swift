@@ -24,22 +24,36 @@ struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
     var messages: [AIChatMessage]
     let startedAt: Date
     let titleOverride: String?
+    let sourceSystemImage: String?
     /// Only ever set by a conversation started before AI commands rendered their prompt into the
     /// first user turn; still applied so a synced session from then keeps answering in character.
     let systemPrompt: String?
 
     init(
         id: UUID = UUID(), messages: [AIChatMessage] = [], startedAt: Date = Date(),
-        titleOverride: String? = nil, systemPrompt: String? = nil
+        titleOverride: String? = nil, systemPrompt: String? = nil,
+        sourceSystemImage: String? = nil
     ) {
         self.id = id
         self.messages = messages
         self.startedAt = startedAt
         self.titleOverride = titleOverride
+        self.sourceSystemImage = sourceSystemImage
         self.systemPrompt = systemPrompt
     }
 
     var title: String { titleOverride ?? AIChatEngine.sessionTitle(for: messages) }
+
+    var systemImage: String {
+        if let sourceSystemImage { return sourceSystemImage }
+        // Earlier selection actions persisted these exact titles instead of explicit source metadata.
+        switch titleOverride {
+        case "Translation": return "translate"
+        case "Definition": return "character.book.closed"
+        case "Grammar Check": return "text.badge.checkmark"
+        default: return "bubble.left.and.bubble.right"
+        }
+    }
 }
 
 enum AIChatPhase: Equatable, Sendable {

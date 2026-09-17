@@ -222,7 +222,7 @@ private struct ClipboardRow: View {
     private var thumbnail: some View {
         switch item.kind {
         case .text:
-            glyphTile("doc.text")
+            glyphTile(item.textForm?.systemImage ?? "textformat.alt")
         case .image:
             AsyncThumbnail(url: imageURL, maxPixel: 64) { image in
                 image

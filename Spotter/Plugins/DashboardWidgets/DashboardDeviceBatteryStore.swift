@@ -104,10 +104,11 @@ final class DashboardDeviceBatteryStore: ObservableObject {
         await Task.detached(priority: .utility) {
             let process = Process()
             let output = Pipe()
+            defer { output.closeHandles() }
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
             process.arguments = ["SPBluetoothDataType", "-json"]
             process.standardOutput = output
-            process.standardError = Pipe()
+            process.standardError = FileHandle.nullDevice
             guard (try? process.run()) != nil else { return [] }
             // Drained before the wait, like FinderSelection: waiting first can block on a child
             // that is itself blocked writing a report larger than the pipe buffer.

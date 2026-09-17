@@ -39,9 +39,9 @@ top-left corner with the time pinned to the bottom-left — an "Up Next" heading
 best line saying what the card obviously is, and the date left for the clock's corner so a second
 copy here wouldn't be the strip repeating itself. Splitting the two to opposite ends of the card is
 what puts the time in the same place whether the title runs to one line or three. Clicking the card
-hides the palette and opens Calendar — the card is a door to the real thing; the access-state
-buttons it shows before authorization consume their own clicks first. The card and the Calendar
-plugin's My Schedule screen are one feature: both read the same store's fetch, and the card's
+opens Schedule in the same palette; the access-state buttons it shows before authorization consume
+their own clicks first. The card and the Schedule
+plugin's Schedule screen are one feature: both share calendar access and account preferences, and the card's
 account/access/all-day preferences live on the plugin's Settings pane
 (see [calendar.md](calendar.md)); the Widgets page points there.
 

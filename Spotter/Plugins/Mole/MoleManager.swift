@@ -606,8 +606,9 @@ final class MoleManager: ObservableObject {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/zipinfo")
         process.arguments = ["-1", path]
         let out = Pipe()
+        defer { out.closeHandles() }
         process.standardOutput = out
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return false }
         let data = out.fileHandleForReading.readDataToEndOfFile()

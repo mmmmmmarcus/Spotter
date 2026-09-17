@@ -594,7 +594,9 @@ enum SystemCommandRunner {
         try await Task.detached(priority: .userInitiated) {
             let process = Process()
             let stdout = Pipe()
+            defer { stdout.closeHandles() }
             let stderr = Pipe()
+            defer { stderr.closeHandles() }
             process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = arguments
             process.standardInput = FileHandle.nullDevice

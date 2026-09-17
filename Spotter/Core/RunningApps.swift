@@ -79,6 +79,7 @@ final class RunningAppsMonitor: ObservableObject {
         await Task.detached(priority: .utility) {
             let task = Process()
             let pipe = Pipe()
+            defer { pipe.closeHandles() }
             task.executableURL = URL(fileURLWithPath: "/bin/ps")
             task.arguments = ["-axo", "%cpu=,rss=,comm="]
             task.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "C"]) {

@@ -37,8 +37,108 @@ struct NoteEditorTests {
         chineseTitleComposition()
         documentSwitch()
         externalUpdate()
+        emptyTitleCaret()
+        listSplitting()
+        listGeometry()
+        localEmojiPaste()
         print("\(checks - failures)/\(checks) passed")
         if failures > 0 { exit(1) }
+    }
+
+    static func emptyTitleCaret() {
+        let document = Document("# ")
+        let editor = document.editor
+        let coordinator = editor.makeCoordinator()
+        let scroll = editor.makeScrollView(coordinator: coordinator)
+        let view = scroll.documentView as! NSTextView
+        expect(view.selectedRange() == NSRange(location: 2, length: 0), "new title starts after H1 syntax")
+        let font = view.textStorage?.attribute(.font, at: 1, effectiveRange: nil) as? NSFont
+        expect(font?.pointSize == NSFont.preferredFont(forTextStyle: .largeTitle).pointSize,
+               "empty title keeps a full height line and caret")
+        expect((view.typingAttributes[.foregroundColor] as? NSColor) == .labelColor,
+               "typing into empty title has visible ink")
+    }
+
+    static func listSplitting() {
+        for (marker, next) in [("- ", "- "), ("12. ", "13. "), ("- [x] ", "- [ ] "),
+                               ("  * [X] ", "  * [ ] "), ("  + ", "  + ")] {
+            let document = Document("# 标题\n" + marker + "前半后半")
+            let editor = document.editor
+            let coordinator = editor.makeCoordinator()
+            let scroll = editor.makeScrollView(coordinator: coordinator)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 360),
+                                  styleMask: [.titled], backing: .buffered, defer: true)
+            window.contentView = scroll
+            defer { withExtendedLifetime(window) {} }
+            let view = scroll.documentView as! NSTextView
+            let caret = ("# 标题\n" + marker + "前半").utf16.count
+            view.setSelectedRange(NSRange(location: caret, length: 0))
+            view.insertNewline(nil)
+            expect(view.string == "# 标题\n" + marker + "前半\n" + next + "后半",
+                   "Return splits the middle of \(marker) into another list item")
+            expect(document.text == view.string, "split reaches the document binding")
+            view.undoManager?.undo()
+            expect(view.string == "# 标题\n" + marker + "前半后半", "list split undoes in one step")
+        }
+    }
+
+    static func listGeometry() {
+        let document = Document("# Lists\n- bullet\n1. number\n- [ ] todo\n  - nested\n  2. nested\n  - [x] done")
+        let editor = document.editor
+        let coordinator = editor.makeCoordinator()
+        let scroll = editor.makeScrollView(coordinator: coordinator)
+        let view = scroll.documentView as! NSTextView
+        scroll.frame = NSRect(x: 0, y: 0, width: 440, height: 360)
+        view.frame.size.width = 440
+        view.textContainer?.containerSize.width = 400
+        view.layoutManager?.ensureLayout(for: view.textContainer!)
+        let source = view.string as NSString
+        func indent(_ text: String) -> CGFloat {
+            let style = view.textStorage?.attribute(.paragraphStyle, at: source.range(of: text).location,
+                                                    effectiveRange: nil) as? NSParagraphStyle
+            return style?.headIndent ?? -1
+        }
+        func textX(_ text: String) -> CGFloat {
+            let layout = view.layoutManager!
+            let glyph = layout.glyphIndexForCharacter(at: source.range(of: text).location)
+            return layout.location(forGlyphAt: glyph).x
+                + layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minX
+        }
+        expect(abs(textX("bullet") - textX("number")) < 1,
+               "rendered bullet and number text align")
+        expect(abs(textX("bullet") - textX("todo")) < 1,
+               "rendered bullet and todo text align")
+        expect(abs(textX("nested") - textX("bullet") - 20) < 1,
+               "rendered nested text moves twenty points")
+        expect(abs(textX("Lists")) < 1, "heading syntax occupies no visible horizontal space: \(textX("Lists"))")
+        let slot = indent("bullet")
+        expect(slot == indent("number") && slot == indent("todo"), "all list markers share one content edge")
+        expect(slot < 24, "one digit markers occupy a compact slot")
+        expect(indent("nested") - slot == 20, "one nesting level advances twenty points")
+        let color = view.textStorage?.attribute(.foregroundColor, at: source.range(of: "done").location,
+                                                effectiveRange: nil) as? NSColor
+        expect(color == .tertiaryLabelColor, "completed task text is subdued")
+    }
+
+    static func localEmojiPaste() {
+        let document = Document("# Hello\nworld")
+        let editor = document.editor
+        let coordinator = editor.makeCoordinator()
+        let scroll = editor.makeScrollView(coordinator: coordinator)
+        let view = scroll.documentView as! NSTextView
+        view.setSelectedRange(NSRange(location: 2, length: 5))
+        let target = LocalTextPasteTarget(editor: view)!
+        expect(target.insert("🧑🏽‍💻", restoringFocus: false), "emoji inserts in the captured Note editor")
+        expect(document.text == "# 🧑🏽‍💻\nworld", "emoji replaces the captured UTF16 selection")
+        expect(target.insert("🎉", restoringFocus: false), "picker can paste again while staying open")
+        expect(document.text == "# 🧑🏽‍💻🎉\nworld", "repeated emoji paste advances the caret")
+        let next = Document(document.text)
+        coordinator.update(from: next.editor)
+        expect(!target.insert("❌", restoringFocus: false), "a stale target cannot paste into a different Note")
+        let target2 = LocalTextPasteTarget(editor: view)!
+        view.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0),
+                           replacementRange: NSRange(location: NSNotFound, length: 0))
+        expect(!target2.insert("❌", restoringFocus: false), "paste does not overwrite an IME composition")
     }
 
     static func titlePrefixIsProtected() {

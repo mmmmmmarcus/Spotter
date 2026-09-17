@@ -1,56 +1,65 @@
-# Calendar plugin
+# Schedule
 
-Calendar & meetings in the launcher: the **My Schedule** command opens a palette screen of the next
-two weeks' events, and an event carrying a video-call link joins it with one Return. The widget
-strip's calendar card and this screen are **one feature** — both read the same
-`DashboardWidgetsStore` EventKit fetch, and this plugin's Settings pane owns the shared calendar
-preferences.
+The **Schedule** launcher command and the calendar Widget open the same calendar canvas inside the
+existing Palette. No auxiliary window is created. The command ID `command:calendar-schedule`,
+plugin ID and shortcut binding remain unchanged, so existing shortcuts and favorites survive the
+rename from My Schedule.
 
-## Data flow
+## Views and navigation
 
-`DashboardWidgetsStore` (owned by `AppCore`, deliberately not gated by this plugin's enablement)
-fetches events once per minute while visible and publishes:
+The Day / Week / Month segmented control switches between actual layouts. Day and Week display a
+scrollable 24-hour time grid, a separate all-day lane, local-time labels and a current-time line.
+Overlapping events occupy separate columns; overnight events are clipped into each displayed day.
+Month displays six complete weeks, including adjacent-month dates. Cells show one event preview
+and an overflow count; clicking a date or pressing Return on it opens that day with every event
+accessible through scrolling. Week starts on the system calendar's configured weekday.
 
-- `upcomingEvents` — the soonest events of the next 14 days, capped at 50, each carrying its URL
-  field, location and notes for meeting-link detection.
-- `nextEvent` — the widget card's single reading, the head of `upcomingEvents`, falling back to the
-  year horizon's soonest event when the fortnight is empty.
+Entering a day/week that contains today centers the current-time line after events and the all-day
+lane have loaded. Automatic refreshes do not keep recentering after the user scrolls. Other periods
+start at 8 AM.
 
-The existing account filter, all-day toggle and cancellation/source rules apply to both readings —
-one fetch, two surfaces. Preference keys keep their historical `dashboard-widgets.*` names, so
-nothing migrates.
+Previous / Next advances by the displayed period, and Today returns to the current date. Empty-query
+Left / Right arrows also navigate periods. Up / Down and Return reuse the Palette selection and
+activation path. The shared search field filters events within the displayed period by title,
+calendar name or location. Month retains its date cells while filtering their previews.
 
-## The schedule screen
+Selecting an event opens its details in the same canvas; Esc or Back returns to the calendar. The
+meeting button and the shared Actions menu offer explicit Join, Copy Meeting Link, Copy Event Title
+and Open Calendar actions. Only those explicit actions leave the Palette. Meeting-link detection
+continues to recognize the existing trusted conference-host patterns.
 
-A `PluginPaletteScreenRegistration` rendered by the shared list. Rows are keyed by event identifier
-*plus start time*, because a recurring event reuses one identifier across occurrences. Each row:
+## Ownership and data
 
-- Title, with `Today · 2:00 – 2:30 PM · CalendarName` (and the location, when it isn't a link)
-  as the subtitle.
-- A green video tile and a provider accessory (Zoom, Google Meet, Microsoft Teams, Webex, Whereby,
-  Jitsi, FaceTime) when a meeting link is found; a red calendar tile otherwise.
-- ↵ joins the meeting when there is one, otherwise opens Calendar. The ⌘K menu adds Join, Open
-  Calendar, Copy Meeting Link and Copy Event Title.
+`AppCore.calendarSchedule` owns `CalendarScheduleStore`: the current date, view mode, selected detail,
+visible event records and refresh tasks. These browsing choices are transient. The store loads only
+the visible day/week/42-day month range, including past and future dates; the previous 14-day/50-event
+schedule cap no longer applies. Each load uses a background-owned EventKit store, maps events to
+Sendable values, and releases its native objects before returning. Stale and cancelled results never
+replace the current range. Minute refreshes preserve the existing view while reading, and stop on
+leaving the screen. Calendar access is checked before and after reading.
 
-Without full access the screen shows a single actionable row: request access, or open System
-Settings when access was denied. Nothing here reads the network — events come from EventKit and
-"joining" is opening the event's own URL in the default browser.
+Account choice, all-day preference, canceled-event exclusion and permission state are shared with
+`DashboardWidgetsStore`. The Widget retains its existing upcoming-event cache and refresh behavior.
+Missing saved accounts retain the existing all-accounts fallback and Settings explanation. There
+are no new permissions, network requests, content writes or persisted preference keys.
 
-## Meeting-link detection
+Without full Calendar access, the existing shared palette list presents Request Access or Open
+System Settings. Granting access mounts and refreshes the calendar canvas.
 
-`CalendarScheduleEngine` stays Foundation-only and pure (clock, calendar and locale injected;
-`Tools/calendar-schedule-test.swift` compiles it). `meetingLink(urlString:location:notes:)` scans the
-event's URL field first, then the location, then the notes, extracting URLs and matching hosts
-(exact or subdomain) against the known providers — a lookalike host or an ordinary website is not a
-meeting. The engine also owns the schedule rows' day labels (Today / Tomorrow / abbreviated
-weekday+date) and time spans.
+## Palette integration and tests
 
-## Settings
+`PluginPaletteScreenRegistration.canvas` optionally supplies a plugin-owned calendar or other spatial
+view inside the existing palette content area. Shared header, footer, Actions, selection and back
+handling remain owned by the Palette. List plugins continue to use `PluginPaletteList`.
 
-The pane hosts the shared calendar preferences (access state, account
-picker, all-day toggle — moved here from the Widgets page, which now points at this pane). The
-My Schedule binding is recorded in Settings ▸ Shortcuts with every other launcher command. Leaving the screen returns an
-active schedule screen to the launcher; the widget card keeps showing, since widgets have no off
-switch.
+Month snapshots contain one selectable item per date, in row order; previews and overflow counts
+are not extra selectable items. Day/week snapshots contain all-day events first, then timed events.
+Recurring occurrences retain identifier-plus-start-time identities.
 
-An unavailable saved account remains selected until the user changes it. Settings explains the existing all-accounts fallback and offers Use All Accounts to clear the stale filter explicitly.
+`ScheduleLayout.swift` and `CalendarScheduleEngine.swift` stay Foundation-only and pure, with calendar
+and time injected. The harness covers leap months, week boundaries, DST day lengths, exclusive
+midnight endings, overnight clipping and overlap column allocation, alongside existing meeting-link
+and date-label checks.
+
+Layout references: [Apple Calendar](https://support.apple.com/en-ie/guide/calendar/icl1002/mac) and
+[Google Calendar](https://support.google.com/calendar/answer/6110849?hl=en-ID).
