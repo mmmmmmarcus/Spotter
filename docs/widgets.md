@@ -275,8 +275,7 @@ a few kilometres, with `NSLocationDefaultAccuracyReduced` in `Info.plist` so mac
 the precise kind. A forecast is a property of a city, so a street address would be data Spotter has
 no use for and no business holding. `requestLocation()` is a single reading rather than a
 subscription: nothing monitors where the Mac goes between refreshes, and a fresh fix is asked for
-only alongside a refresh that was happening anyway (every 30 minutes while the dashboard is
-visible, or on **Update Now**).
+only alongside a refresh that was happening anyway (every 30 minutes, or on **Update Now**).
 
 **Spotter's question comes first, macOS's second.** The consent dialog is Spotter's own and is raised
 at first launch; only an accepted dialog creates the location provider, so a decline never produces a
@@ -347,8 +346,16 @@ each side of the `await`, so a response that lands after the Mac has moved is dr
 captioning the new place with the old one's weather. Requests go out on a private ephemeral
 `URLSession` with `urlCache = nil`, never `URLSession.shared`, so a cacheable response cannot leave a
 second copy in the shared on-disk `URLCache` that nothing else would delete. The reading refreshes
-every 30 minutes while the dashboard is visible, backing off to a shorter retry after a failure, and
-the loop does not run without both consent and a place.
+every 30 minutes, backing off for five minutes after a failure, and the loop does not run without
+consent, location authorization and a place. A fix at the same place leaves the active refresh task
+alone: restarting it would cancel its own network request and immediately request another fix.
+Only a material move restarts the task; an identity guard keeps a cancelled task's cleanup from
+clearing its replacement. Late fixes after authorization denial are ignored.
+
+`Tools/weather-refresh-test.swift` drives the real store with a fake location provider, a temporary
+cache and an injected forecast fetch. It checks successful completion, repeated callbacks, refresh
+cadence, failure backoff, location changes and authorization denial without real location or network
+access.
 
 ## File Info and the Finder
 

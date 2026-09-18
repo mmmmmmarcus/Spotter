@@ -273,7 +273,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   ships with its rate download **off**: `CurrencyRateStore` owns consent and the daily table, and its
   Settings switch is that consent act rather than a plugin switch. Without it nothing is contacted
   and no conversion resolves.
-- **Clipboard** (`Spotter/Plugins/Clipboard/`) — pasteboard polling with a persisted history.
+- **Clipboard** (`Spotter/Plugins/Clipboard/`) — pasteboard polling with a persisted history;
+  synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
   event tap without storing typing history or using the clipboard.

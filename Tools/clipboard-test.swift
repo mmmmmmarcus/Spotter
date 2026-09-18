@@ -24,10 +24,128 @@ struct ClipboardTests {
         persistence()
         migrationFromShippedDatabase()
         await portableSnapshot()
+        await incrementalSync()
+        await imageSnapshotCache()
+        await mappedImageLifetime()
         await namedImagesKeepTheirName()
 
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
+    }
+
+    static func incrementalSync() async {
+        let dir = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = ClipboardStore(directory: dir)
+        let id = UUID()
+        let now = Date()
+        func image(_ data: Data) -> ClipboardSyncItem {
+            ClipboardSyncItem(id: id, kind: .image, text: nil, imageData: data,
+                imageExtension: "png", createdAt: now, sourceBundleID: nil, pinnedAt: now)
+        }
+        let original = image(Data(repeating: 7, count: 1024 * 1024))
+        await store.replace(with: [original])
+        let path = store.items[0].imagePath!
+        let attributes = try! FileManager.default.attributesOfItem(atPath: path)
+        let revision = store.syncRevision
+        await store.replace(with: [original])
+        expect(store.syncRevision == revision, "identical sync makes no SQLite writes")
+        let text = ClipboardSyncItem(id: UUID(), kind: .text, text: "incoming newest", imageData: nil,
+            imageExtension: nil, createdAt: now.addingTimeInterval(1), sourceBundleID: nil, pinnedAt: nil)
+        await store.replace(with: [text, original])
+        expect(store.items.map(\.id) == [text.id, id], "incremental sync keeps newest-first order")
+        expect(store.syncRevision - revision < 20, "one incoming text does not rewrite existing history")
+        let after = try! FileManager.default.attributesOfItem(atPath: path)
+        expect(after[.systemFileNumber] as? UInt64 == attributes[.systemFileNumber] as? UInt64,
+            "text sync preserves the image inode")
+        expect(after[.modificationDate] as? Date == attributes[.modificationDate] as? Date,
+            "text sync does not rewrite image bytes")
+        let changed = image(Data(repeating: 8, count: 1024 * 1024))
+        await store.replace(with: [text, changed])
+        let changedPath = store.items.first { $0.id == id }!.imagePath!
+        expect((try? Data(contentsOf: URL(fileURLWithPath: changedPath))) == changed.imageData,
+            "changed image bytes with the same ID are applied")
+        expect(!FileManager.default.fileExists(atPath: path), "superseded owned blob is removed")
+        await store.replace(with: [text])
+        expect(!FileManager.default.fileExists(atPath: changedPath), "remote deletion removes the owned blob")
+        expect(store.items.map(\.id) == [text.id], "remote deletion remains authoritative")
+        await store.replace(with: [])
+        expect(store.items.isEmpty, "empty remote history clears local history")
+        await store.replace(with: [text])
+        let baseline = store.synchronizationBaseline()
+        store.addText("copied during remote decoding", sourceBundleID: nil)
+        store.remove(store.items.first { $0.id == text.id }!)
+        await store.replace(with: [text], preservingChangesSince: baseline)
+        expect(store.items.map(\.text) == ["copied during remote decoding"],
+            "local copies and deletions made during sync survive the remote apply")
+    }
+
+    static func imageSnapshotCache() async {
+        let dir = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("cached.png")
+        try! Data([1, 2, 3]).write(to: file)
+        let reads = ReadCount()
+        let cache = ClipboardSyncImages(byteLimit: 4) { url in
+            reads.increment()
+            return try Data(contentsOf: url)
+        }
+        let item = ClipboardItem(imagePath: file.path, sourceBundleID: nil)
+        _ = await cache.snapshot([item])
+        _ = await cache.snapshot([ClipboardItem(text: "new text", sourceBundleID: nil), item])
+        expect(reads.value == 1, "text changes reuse the cached image bytes")
+        try! Data([3, 2, 1]).write(to: file, options: .atomic)
+        let updated = await cache.snapshot([item])
+        expect(reads.value == 2 && updated.first?.imageData == Data([3, 2, 1]),
+            "atomic replacement invalidates even a same-size image")
+        try! Data(repeating: 9, count: 5).write(to: file, options: .atomic)
+        _ = await cache.snapshot([item])
+        _ = await cache.snapshot([item])
+        expect(reads.value == 4, "oversized images are not retained in the bounded cache")
+        try! FileManager.default.removeItem(at: file)
+        let missing = await cache.snapshot([item])
+        expect(missing.isEmpty, "deleted blobs cannot be resurrected from the cache")
+    }
+
+    static func mappedImageLifetime() async {
+        let dir = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let owned = dir.appendingPathComponent("owned", isDirectory: true)
+        try! FileManager.default.createDirectory(at: owned, withIntermediateDirectories: true)
+        let file = owned.appendingPathComponent("image.png")
+        let oldBytes = Data(repeating: 7, count: 2 * 1024 * 1024)
+        let newBytes = Data(repeating: 9, count: oldBytes.count)
+        try! oldBytes.write(to: file, options: .atomic)
+        let cache = ClipboardSyncImages(managedDirectory: owned)
+        let row = ClipboardItem(imagePath: file.path, sourceBundleID: nil)
+        let first = await cache.snapshot([row])
+        try! newBytes.write(to: file, options: .atomic)
+        let second = await cache.snapshot([row])
+        try! FileManager.default.removeItem(at: file)
+        expect(first.first?.imageData == oldBytes, "mapped snapshot survives atomic replacement and deletion")
+        expect(second.first?.imageData == newBytes, "new snapshot maps the replacement inode")
+        let missing = await cache.snapshot([row])
+        expect(missing.isEmpty, "unlinked mappings never restore deleted history")
+
+        let external = dir.appendingPathComponent("external.png")
+        try! oldBytes.write(to: external)
+        let externalRow = ClipboardItem(imagePath: external.path, sourceBundleID: nil)
+        let externalSnapshot = await cache.snapshot([externalRow])
+        let linked = owned.appendingPathComponent("linked.png")
+        try! FileManager.default.createSymbolicLink(at: linked, withDestinationURL: external)
+        let linkedSnapshot = await cache.snapshot([ClipboardItem(imagePath: linked.path, sourceBundleID: nil)])
+        let handle = try! FileHandle(forWritingTo: external)
+        try! handle.truncate(atOffset: 0)
+        try! handle.close()
+        expect(externalSnapshot.first?.imageData == oldBytes, "external snapshot owns its bytes after truncation")
+        expect(linkedSnapshot.first?.imageData == oldBytes, "symlink inside managed directory must not map external bytes")
+    }
+
+    final class ReadCount: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        var value: Int { lock.withLock { count } }
+        func increment() { lock.withLock { count += 1 } }
     }
 
     // MARK: - Cases

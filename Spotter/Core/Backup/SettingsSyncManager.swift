@@ -26,9 +26,13 @@ final class SettingsSyncManager: ObservableObject {
     private var revision = CoordinatedFileRevision()
     private var watcher: CoordinatedFileWatcher?
     private var cancellables: Set<AnyCancellable> = []
-    private var saveTask: Task<Void, Never>?
-    private var reloadTask: Task<Void, Never>?
-    private var isApplyingRemote = false
+    private var workTask: Task<Void, Never>?
+    private var pendingSave = false
+    private var pendingReload = false
+    private var savedMetadata: Data?
+    private var savedClipboardRevision: Int64?
+    private var isConnecting = false
+    private var connectionTask: Task<Void, Never>?
     private var hasStarted = false
 
     init(defaults: UserDefaults = .standard) {
@@ -52,14 +56,24 @@ final class SettingsSyncManager: ObservableObject {
         self.core = core
         observeLocalChanges(core: core)
         if isEnabled {
-            startWatching()
-            scheduleReload()
+            Task {
+                if let fileURL { await io.invalidate(fileURL) }
+                guard isEnabled else { return }
+                startWatching()
+                scheduleReload()
+            }
         }
     }
 
     func connect(toFolder folder: URL) {
         let url = folder.standardizedFileURL.appending(path: Self.fileName)
-        Task { await connectNow(url) }
+        let previous = connectionTask
+        previous?.cancel()
+        connectionTask = Task {
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            await connectNow(url)
+        }
     }
 
     /// Turning sync off *is* disconnecting, so there is no separate Disconnect control: the watcher
@@ -74,9 +88,14 @@ final class SettingsSyncManager: ObservableObject {
             isEnabled = true
             defaults.set(true, forKey: Key.enabled)
             errorMessage = nil
-            startWatching()
-            scheduleReload()
+            Task {
+                if let fileURL { await io.invalidate(fileURL) }
+                guard isEnabled else { return }
+                startWatching()
+                scheduleReload()
+            }
         } else {
+            connectionTask?.cancel()
             stopWatching()
             fileURL = nil
             isEnabled = false
@@ -92,16 +111,27 @@ final class SettingsSyncManager: ObservableObject {
     /// that fails *because nothing is there* may create: every other failure means the file may well
     /// exist and simply cannot be reached right now, and creating over it would destroy it.
     private func connectNow(_ url: URL) async {
+        isConnecting = true
+        stopWatching()
+        await workTask?.value
+        defer {
+            isConnecting = false
+            isWorking = false
+            if isEnabled {
+                startWatching()
+                scheduleReload()
+            }
+        }
         isWorking = true
         errorMessage = nil
         do {
             let data = try await io.read(from: url)
             try await join(url: url, data: data)
+        } catch is CancellationError {
         } catch {
             if Self.isMissingFile(error) {
                 await create(at: url)
             } else {
-                isApplyingRemote = false
                 errorMessage = "Couldn’t connect: " + error.localizedDescription
                 AppLog.error("settings-sync", "Couldn’t connect: " + error.localizedDescription)
             }
@@ -113,24 +143,36 @@ final class SettingsSyncManager: ObservableObject {
         let backup = try await SettingsBackup.decodedOffMain(data)
         guard let core else { throw CocoaError(.userCancelled) }
         stopWatching()
-        isApplyingRemote = true
+        await workTask?.value
+        try Task.checkCancellation()
         _ = await backup.apply(to: core, mode: .replace, notes: .exclude)
-        isApplyingRemote = false
-        let effectiveData = try await SettingsBackup.gather(from: core, notes: .exclude)
-            .encodedOffMain()
-        configure(url: url, revisionData: effectiveData)
+        let captured = try await capture(core: core)
+        let effectiveData = try await captured.backup.encodedOffMain()
+        try Task.checkCancellation()
         if effectiveData != data { try await io.write(effectiveData, to: url) }
+        try Task.checkCancellation()
+        let fingerprint = await CoordinatedFileRevision.fingerprint(effectiveData)
+        try Task.checkCancellation()
+        remember(captured)
+        configure(url: url, revision: fingerprint)
         lastSyncedAt = Date()
     }
 
     private func create(at url: URL) async {
         guard let core else { return }
         do {
-            let data = try await SettingsBackup.gather(from: core, notes: .exclude).encodedOffMain()
-            try await io.write(data, to: url)
             stopWatching()
-            configure(url: url, revisionData: data)
+            await workTask?.value
+            let captured = try await capture(core: core)
+            let data = try await captured.backup.encodedOffMain()
+            try await io.write(data, to: url)
+            try Task.checkCancellation()
+            let fingerprint = await CoordinatedFileRevision.fingerprint(data)
+            try Task.checkCancellation()
+            remember(captured)
+            configure(url: url, revision: fingerprint)
             lastSyncedAt = Date()
+        } catch is CancellationError {
         } catch {
             errorMessage = "Couldn’t create the sync file: " + error.localizedDescription
             AppLog.error(
@@ -155,11 +197,10 @@ final class SettingsSyncManager: ObservableObject {
         }
     }
 
-    private func configure(url: URL, revisionData: Data) {
+    private func configure(url: URL, revision: CoordinatedFileRevision) {
         fileURL = url
         isEnabled = true
-        revision = CoordinatedFileRevision()
-        revision.record(revisionData)
+        self.revision = revision
         defaults.set(url.path, forKey: Key.filePath)
         defaults.set(true, forKey: Key.enabled)
         startWatching()
@@ -186,74 +227,134 @@ final class SettingsSyncManager: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.scheduleSave() }
             .store(in: &cancellables)
-        // Every defaults-backed store rides this one notification — world clock, snippets, screenshot,
-        // translate, OpenRouter, updates, currency rates, the widget strip. Only the file- and
-        // SQLite-backed stores above need a publisher of their own.
+        // Compare the exported metadata before collecting clipboard blobs; device-local defaults are not sync changes.
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.scheduleSave() }
             .store(in: &cancellables)
     }
 
+    private struct Capture {
+        var backup: SettingsBackup
+        let metadata: Data
+        let clipboardRevision: Int64
+    }
+
+    private func capture(core: AppCore) async throws -> Capture {
+        let backup = SettingsBackup.gatherMetadata(from: core)
+        let clipboardRevision = core.clipboardStore.syncRevision
+        let metadata = try await backup.encodedOffMain()
+        try Task.checkCancellation()
+        var captured = Capture(backup: backup, metadata: metadata, clipboardRevision: clipboardRevision)
+        captured.backup.clipboardHistory = await core.clipboardStore.syncSnapshot()
+        try Task.checkCancellation()
+        return captured
+    }
+
+    private func remember(_ captured: Capture) {
+        savedMetadata = captured.metadata
+        savedClipboardRevision = captured.clipboardRevision
+    }
+
     private func scheduleSave() {
-        guard isEnabled, fileURL != nil, !isApplyingRemote else { return }
-        saveTask?.cancel()
-        saveTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(600))
-            guard !Task.isCancelled else { return }
-            await self?.saveNow()
+        guard isEnabled, fileURL != nil else { return }
+        pendingSave = true
+        startWork()
+    }
+
+    private func scheduleReload() {
+        guard isEnabled, fileURL != nil else { return }
+        pendingReload = true
+        startWork()
+    }
+
+    private func startWork() {
+        guard workTask == nil, !isConnecting else { return }
+        workTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled, isEnabled, pendingReload || pendingSave {
+                do {
+                    try await Task.sleep(for: .milliseconds(pendingReload ? 250 : 600))
+                } catch { break }
+                if pendingReload {
+                    pendingReload = false
+                    await reloadNow()
+                } else {
+                    pendingSave = false
+                    await saveNow()
+                }
+            }
+            workTask = nil
+            if isEnabled, pendingReload || pendingSave { startWork() }
         }
     }
 
     private func saveNow() async {
-        guard let core, let fileURL, isEnabled, !isApplyingRemote else { return }
+        guard let core, let fileURL, isEnabled else { return }
         do {
-            let data = try await SettingsBackup.gather(from: core, notes: .exclude).encodedOffMain()
-            guard !revision.isCurrent(data) else { return }
-            isWorking = true
+            var backup = SettingsBackup.gatherMetadata(from: core)
+            let clipboardRevision = core.clipboardStore.syncRevision
+            let metadata = try await backup.encodedOffMain()
+            try Task.checkCancellation()
+            guard metadata != savedMetadata || clipboardRevision != savedClipboardRevision else { return }
+            backup.clipboardHistory = await core.clipboardStore.syncSnapshot()
+            let data = try await backup.encodedOffMain()
+            try Task.checkCancellation()
+            let fingerprint = await CoordinatedFileRevision.fingerprint(data)
+            try Task.checkCancellation()
+            if revision != fingerprint {
+                isWorking = true
+                defer { isWorking = false }
+                try await io.write(data, to: fileURL)
+                try Task.checkCancellation()
+                revision = fingerprint
+                lastSyncedAt = Date()
+            }
+            savedMetadata = metadata
+            savedClipboardRevision = clipboardRevision
             errorMessage = nil
-            try await io.write(data, to: fileURL)
-            revision.record(data)
-            lastSyncedAt = Date()
-            isWorking = false
+        } catch is CancellationError {
         } catch {
-            isWorking = false
             errorMessage = "Couldn’t save settings: " + error.localizedDescription
             AppLog.error("settings-sync", "Couldn’t save settings: " + error.localizedDescription)
         }
     }
 
-    private func scheduleReload() {
-        guard isEnabled, fileURL != nil else { return }
-        reloadTask?.cancel()
-        reloadTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            await self?.reloadNow()
-        }
-    }
-
     private func reloadNow() async {
         guard let core, let fileURL, isEnabled else { return }
-        saveTask?.cancel()
+        let clipboardBaseline = core.clipboardStore.synchronizationBaseline()
         do {
-            let data = try await io.read(from: fileURL)
-            guard !revision.isCurrent(data) else { return }
+            guard let data = try await io.readIfChanged(from: fileURL) else { return }
+            try Task.checkCancellation()
+            let fingerprint = await CoordinatedFileRevision.fingerprint(data)
+            try Task.checkCancellation()
+            guard revision != fingerprint else { return }
             let backup = try await SettingsBackup.decodedOffMain(data)
+            let local = try await capture(core: core)
+            let changes = try await backup.changes(comparedTo: local.backup)
+            try Task.checkCancellation()
             isWorking = true
-            errorMessage = nil
-            isApplyingRemote = true
-            _ = await backup.apply(to: core, mode: .replace, notes: .exclude)
-            isApplyingRemote = false
-            let effectiveData = try await SettingsBackup.gather(from: core, notes: .exclude)
-                .encodedOffMain()
-            revision.record(effectiveData)
+            defer {
+                isWorking = false
+            }
+            _ = await changes.apply(
+                to: core, mode: .replace, notes: .exclude, clipboardBaseline: clipboardBaseline)
+            try Task.checkCancellation()
+            let effective = try await capture(core: core)
+            let effectiveData = try await effective.backup.encodedOffMain()
+            try Task.checkCancellation()
             if effectiveData != data { try await io.write(effectiveData, to: fileURL) }
+            try Task.checkCancellation()
+            let effectiveRevision = await CoordinatedFileRevision.fingerprint(effectiveData)
+            try Task.checkCancellation()
+            revision = effectiveRevision
+            remember(effective)
             lastSyncedAt = Date()
-            isWorking = false
+            errorMessage = nil
+        } catch is CancellationError {
+            await io.invalidate(fileURL)
         } catch {
-            isApplyingRemote = false
-            isWorking = false
+            await io.invalidate(fileURL)
             errorMessage = "Couldn’t read settings: " + error.localizedDescription
             AppLog.error("settings-sync", "Couldn’t read settings: " + error.localizedDescription)
         }
@@ -267,10 +368,11 @@ final class SettingsSyncManager: ObservableObject {
     }
 
     private func stopWatching() {
-        saveTask?.cancel()
-        reloadTask?.cancel()
-        saveTask = nil
-        reloadTask = nil
+        workTask?.cancel()
+        pendingSave = false
+        pendingReload = false
+        savedMetadata = nil
+        savedClipboardRevision = nil
         watcher?.stop()
         watcher = nil
     }

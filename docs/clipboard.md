@@ -35,6 +35,19 @@ bytes are embedded in the JSON and written into the destination Mac's own cache,
 absolute paths never cross devices. A synced deletion replaces the destination history rather than
 merging old rows back in.
 
+Sync reads reuse image bytes in an off-main cache capped at 32 MiB, validating each cached file's
+inode, modification date and size. Removed or changed files invalidate their cached bytes; oversized
+images are read but not retained. Spotter-owned regular files with one link use safe file mapping,
+so cached bytes can be reclaimed from the backing file instead of occupying a duplicate dirty heap
+allocation. External paths, symlinks and hard links keep owned copies because another writer could
+truncate them in place. Existing snapshots remain valid across Spotter's atomic replacements and
+unlink operations. Applying an unchanged snapshot performs no SQLite or image writes.
+New text normally inserts only the changed rows; a remote recency reorder may rebuild rowids, but
+unchanged images retain their original path and inode (including screenshot names). Changed image
+bytes are staged separately before the rows are updated, and only unreferenced owned blobs are
+removed afterwards. Captures, pin changes and deletions made locally during asynchronous sync win
+over that incoming snapshot. The wire format and retention rules are unchanged.
+
 ## Type filter
 
 The trailing edge of the clipboard search bar carries a native segmented control for **All Types,

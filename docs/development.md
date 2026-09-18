@@ -224,7 +224,7 @@ swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.sw
     Spotter/Plugins/TextReplacement/TextReplacementStore.swift Tools/text-replacement-test.swift \
     -o /tmp/text-replacement-test && /tmp/text-replacement-test
 swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
-    Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
+    Spotter/Core/Backup/SettingsBackupData.swift Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
 swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
 swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
@@ -326,12 +326,16 @@ case-insensitive trigger matching, bounded suffix retention, backspace behavior,
 and bundle-scoped preference persistence without installing an event tap or observing real input.
 
 The Settings Sync harness exercises the real coordinated JSON reader/writer against a temporary file
-and validates the byte revision guard used to suppress self-triggered file notifications.
+and validates the digest revision and file metadata guards, including sibling changes, duplicate
+notifications, same-size replacements, in-place edits, missing files and retries after failed applies.
 
 The clipboard harness likewise compiles the real `ClipboardStore.swift` and `ClipboardFilter.swift`,
 including portable text/image sync snapshots and the type filter's derived link/email classifier, so
 both files must keep to Foundation (plus SQLite3) and depend on no other app source. Each case drives a store rooted in a
 throwaway temp directory (`ClipboardStore(directory:)`), so a run can never reach a real history.
+Sync regressions verify zero writes for identical snapshots, image inode/mtime preservation on text
+updates, changed/deleted blobs, bounded image caching, and local edits made during remote decoding.
+Mapped snapshot checks cover atomic replacement/unlink lifetime and copying externally mutable files.
 
 The custom-command harness spawns **real `/bin/zsh`** processes. Its shell-environment cases point
 `ZDOTDIR` at a throwaway fixture directory (and unset `TERM_PROGRAM`), so a run can never read or write
@@ -475,3 +479,16 @@ swiftc -swift-version 6 Spotter/Core/AppFileResources.swift Spotter/Core/Process
 Exercises repeated subprocess success and launch failure, simulated EMFILE recovery without
 changing the hard limit, and 1000 diagnostic samples without descriptor growth. Limits are changed
 only inside the standalone test process and restored afterwards.
+
+### Weather refresh lifecycle regression
+
+```sh
+swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
+    Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
+    Spotter/Plugins/DashboardWidgets/DashboardWeatherStore.swift \
+    Tools/weather-refresh-test.swift -o /tmp/weather-refresh-test && /tmp/weather-refresh-test
+```
+
+The real store uses an injected forecast response, fake location callbacks and a temporary cache.
+Tests cover the location-to-refresh feedback loop, success, retry backoff, coarse-fix jitter, a moved
+place and denied authorization. This harness never contacts a provider or asks macOS for location.

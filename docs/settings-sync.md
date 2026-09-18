@@ -12,7 +12,7 @@ Manual backup and automatic sync share the human-readable `SettingsBackup` forma
 exports/imports include Notes for disaster recovery while automatic Settings Sync always omits and
 ignores Note content. Notes has its own replication — a user-chosen folder of Markdown files, under
 Settings → Plugins → Notes — whose path is device-local and never travels here; only the Notes
-window-transparency and auto-sizing preferences belong to trusted Settings state.
+window-transparency preference belongs to trusted Settings state.
 
 The folder can be anywhere. When it is inside iCloud Drive, macOS transports the file to the user's
 other Macs; Settings Sync itself uses no network service or CloudKit records.
@@ -193,21 +193,29 @@ deletions and cleared values.
 ## Live pipeline
 
 `AppCore` owns one `SettingsSyncManager`. It observes every automatic-sync store,
-debounces local changes, gathers canonical sorted JSON and writes it through `NSFileCoordinator`.
+coalesces local changes and runs save/reload operations in one serial worker. Before collecting any
+clipboard blobs, it compares the exported non-clipboard metadata and the SQLite mutation revision
+with the last successful snapshot. Device-local defaults changes (including Uptime counters) therefore
+never trigger full clipboard encoding. Actual changes still write canonical sorted v3 JSON through
+`NSFileCoordinator`, preserving compatibility with existing Macs.
 File- and SQLite-backed stores get a publisher each; every defaults-backed store rides the single
 `UserDefaults.didChangeNotification` subscription, which is why adding a defaults-backed setting
 needs no new observer.
 An `NSFilePresenter` receives coordinated iCloud updates, while a parent-directory dispatch source
 also catches uncoordinated editors and atomic file replacement. Reads and writes pass through one
-actor so they cannot race inside a process; when two Macs write independently, the last file version
+actor; an inode, size and nanosecond modification/change-time stamp rejects unchanged files before
+reading their payload, including notifications from sibling files and Spotter's own atomic writes.
+A failed decode/apply invalidates that stamp so the next event can retry. When two Macs write independently, the last file version
 delivered by the sync provider becomes the shared snapshot.
 
 External bytes are decoded completely before they touch live state. A different valid snapshot is
-applied on the main actor and hot-updates the owning stores, with any legacy `notes` field ignored.
+compared with local state off-main; only changed sections are applied to the owning stores, with any
+legacy `notes` field ignored. Clipboard synchronization preserves local captures and deletions made
+while a remote file is being decoded or applied.
 Locally executing AI requests and background tasks keep their executors so a remote snapshot cannot
-orphan work in progress. The last
-effective JSON bytes suppress Spotter's own write notifications and normalized re-exports, preventing
-feedback loops. Malformed or unavailable files leave live state untouched, surface an inline error
+orphan work in progress. A SHA-256 revision suppresses equivalent content without retaining a second
+complete JSON payload. Disconnect cancels queued work and async operations re-check cancellation
+before applying or writing. Malformed or unavailable files leave live state untouched, surface an inline error
 and remain watched for recovery — an unavailable file is never read as an absent one.
 
 Connecting a file requires an explicit trust alert because future changes are applied automatically.

@@ -38,6 +38,7 @@ TESTS=(
     coffee
     ai-chat
     dashboard-widgets
+    weather-refresh
     calendar-schedule
     uptime
     theme
@@ -238,6 +239,12 @@ run_harness() {
                 Spotter/Core/OpenRouterStream.swift \
                 Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
                 -o "$output" && "$output"
+            ;;
+        weather-refresh)
+            swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
+                Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
+                Spotter/Plugins/DashboardWidgets/DashboardWeatherStore.swift \
+                Tools/weather-refresh-test.swift -o "$output" && "$output"
             ;;
         dashboard-widgets)
             swiftc -swift-version 6 \

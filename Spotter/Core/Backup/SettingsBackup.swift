@@ -92,6 +92,14 @@ extension SettingsBackup {
     static func gather(
         from core: AppCore = .shared, notes noteTransfer: NoteTransfer = .include
     ) async -> SettingsBackup {
+        var backup = gatherMetadata(from: core, notes: noteTransfer)
+        backup.clipboardHistory = await core.clipboardStore.syncSnapshot()
+        return backup
+    }
+
+    static func gatherMetadata(
+        from core: AppCore, notes noteTransfer: NoteTransfer = .exclude
+    ) -> SettingsBackup {
         let s = core.settings
         let dashboard = core.dashboardWidgets.preferences
         var backup = SettingsBackup()
@@ -192,7 +200,6 @@ extension SettingsBackup {
         if case .include = noteTransfer {
             backup.notes = NotesBackup(notes: core.notes.notes, selectedID: core.notes.selectedID)
         }
-        backup.clipboardHistory = await core.clipboardStore.syncSnapshot()
         backup.calculatorHistory = core.calcHistory.entries
         backup.aiChat = AIChatBackup(
             sessions: core.aiChat.sessions, currentID: core.aiChat.currentID)
@@ -266,7 +273,8 @@ extension SettingsBackup {
     @discardableResult
     func apply(
         to core: AppCore = .shared, mode: ApplyMode = .merge,
-        notes noteTransfer: NoteTransfer = .include
+        notes noteTransfer: NoteTransfer = .include,
+        clipboardBaseline: [ClipboardItem]? = nil
     ) async -> ApplySummary {
         var summary = ApplySummary()
         if let s = settings {
@@ -330,7 +338,8 @@ extension SettingsBackup {
             summary.contentCollections += 1
         }
         if let clipboardHistory {
-            await core.clipboardStore.replace(with: clipboardHistory)
+            await core.clipboardStore.replace(
+                with: clipboardHistory, preservingChangesSince: clipboardBaseline)
             summary.contentCollections += 1
         }
         if let calculatorHistory {
@@ -772,6 +781,38 @@ extension SettingsBackup {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(self)
+    }
+
+    func changes(comparedTo previous: SettingsBackup) async throws -> SettingsBackup {
+        try await Task.detached(priority: .utility) {
+            var delta = self
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            func same<T: Encodable>(_ lhs: T?, _ rhs: T?) throws -> Bool {
+                try encoder.encode(lhs) == encoder.encode(rhs)
+            }
+            if try same(settings, previous.settings) { delta.settings = nil }
+            if try same(hotkeys, previous.hotkeys) { delta.hotkeys = nil }
+            if try same(customCommands, previous.customCommands) { delta.customCommands = nil }
+            if try same(aiCommands, previous.aiCommands) { delta.aiCommands = nil }
+            if try same(favoriteApps, previous.favoriteApps) { delta.favoriteApps = nil }
+            if try same(hiddenLauncherItems, previous.hiddenLauncherItems) { delta.hiddenLauncherItems = nil }
+            if try same(hiddenLauncherKinds, previous.hiddenLauncherKinds) { delta.hiddenLauncherKinds = nil }
+            if try same(launcherAliases, previous.launcherAliases) { delta.launcherAliases = nil }
+            if try same(pluginPrefs, previous.pluginPrefs) { delta.pluginPrefs = nil }
+            if try same(worldClockCities, previous.worldClockCities) { delta.worldClockCities = nil }
+            if try same(quicklinks, previous.quicklinks) { delta.quicklinks = nil }
+            if try same(textReplacement, previous.textReplacement) { delta.textReplacement = nil }
+            if try same(notes, previous.notes) { delta.notes = nil }
+            if try same(calculatorHistory, previous.calculatorHistory) { delta.calculatorHistory = nil }
+            if try same(aiChat, previous.aiChat) { delta.aiChat = nil }
+            if try same(backgroundTasks, previous.backgroundTasks) { delta.backgroundTasks = nil }
+            if try same(frequentEmoji, previous.frequentEmoji) { delta.frequentEmoji = nil }
+            if try same(launcherRanking, previous.launcherRanking) { delta.launcherRanking = nil }
+            if clipboardHistory == previous.clipboardHistory { delta.clipboardHistory = nil }
+            if delta.hotkeys != nil { delta.settings = settings }
+            return delta
+        }.value
     }
 
     func encodedOffMain() async throws -> Data {

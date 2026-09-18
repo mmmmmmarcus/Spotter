@@ -54,22 +54,28 @@ final class DashboardWeatherStore: ObservableObject {
     private let defaults: UserDefaults
     private let fileURL: URL
     private var pump: Task<Void, Never>?
+    private var pumpID: UUID?
+    private let fetchWeather: @Sendable (URL) async throws -> CurrentWeather
     /// Created only once consent has been granted: no `CLLocationManager` exists before that.
     private var location: WeatherLocationProvider?
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard, cacheURL: URL? = nil,
+        fetchWeather: @escaping @Sendable (URL) async throws -> CurrentWeather = DashboardWeatherStore.fetch
+    ) {
         self.defaults = defaults
+        self.fetchWeather = fetchWeather
         // Absent reads as false, which is the only safe default for a network feature.
         isEnabled = defaults.bool(forKey: Keys.consent)
         hasBeenAsked = defaults.bool(forKey: Keys.asked)
         unit = DashboardWeatherEngine.resolvedUnit(from: defaults.string(forKey: Keys.unit))
 
         let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
-        let base = FileManager.default
+        let base = cacheURL?.deletingLastPathComponent() ?? FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(bundleID, isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        fileURL = base.appendingPathComponent("weather.json")
+        fileURL = cacheURL ?? base.appendingPathComponent("weather.json")
 
         // Guard 1 — a disabled feature doesn't even read back a snapshot left on disk.
         guard isEnabled, let data = try? Data(contentsOf: fileURL),
@@ -159,8 +165,13 @@ final class DashboardWeatherStore: ObservableObject {
     }
 
     private func handleFix(latitude: Double, longitude: Double) {
+        guard isEnabled, authorization == .authorized else { return }
         hasFailedFix = false
         var located = WeatherPlace(latitude: latitude, longitude: longitude)
+        let moved = place.map {
+            DashboardWeatherEngine.distanceKilometers(from: $0, to: located)
+                > DashboardWeatherEngine.placeChangeKilometers
+        } ?? false
         // The zone belongs to the coordinates, so it survives a fix that only jittered — and is
         // dropped by one that moved, rather than dating a new place from the old one.
         if let previous = place,
@@ -176,6 +187,7 @@ final class DashboardWeatherStore: ObservableObject {
             self.snapshot = nil
             try? FileManager.default.removeItem(at: fileURL)
         }
+        if moved { stopPump() }
         startPump()
     }
 
@@ -186,9 +198,14 @@ final class DashboardWeatherStore: ObservableObject {
         hasFailedFix = true
     }
 
-    private func forgetReading() {
+    private func stopPump() {
         pump?.cancel()
         pump = nil
+        pumpID = nil
+    }
+
+    private func forgetReading() {
+        stopPump()
         snapshot = nil
         place = nil
         hasFailedFix = false
@@ -198,11 +215,17 @@ final class DashboardWeatherStore: ObservableObject {
     /// Fetch whenever the cached reading is older than `refreshInterval`, otherwise sleep exactly
     /// until it expires. Guard 3 — the loop does not exist without consent and a located place.
     private func startPump() {
-        guard isEnabled, place != nil else { return }
-        // Replace rather than bail on a live pump: a loop that has already exited still leaves a
-        // non-nil task behind, and a `pump == nil` guard would let that dead task block every restart.
-        pump?.cancel()
+        // A location callback must not restart the fetch that requested that very fix.
+        guard isEnabled, authorization == .authorized, place != nil, pump == nil else { return }
+        let id = UUID()
+        pumpID = id
         pump = Task { [weak self] in
+            defer {
+                if self?.pumpID == id {
+                    self?.pump = nil
+                    self?.pumpID = nil
+                }
+            }
             while !Task.isCancelled, let self, self.isEnabled, self.place != nil {
                 // Clamped: a reading stamped in the future (clock skew, an edited cache file) must
                 // not park the loop for longer than one interval.
@@ -263,11 +286,12 @@ final class DashboardWeatherStore: ObservableObject {
         guard isEnabled, let place = DashboardWeatherEngine.place(from: locationState),
             let url = DashboardWeatherEngine.forecastURL(
                 latitude: place.latitude, longitude: place.longitude),
-            let current = try? await Self.fetch(url: url)
+            !Task.isCancelled,
+            let current = try? await fetchWeather(url)
         else { return false }
         // Re-check after the await: consent can be withdrawn, or the Mac moved, while the request is
         // in flight — a late response must not resurrect the feature or mislabel a new place.
-        guard isEnabled, let now = self.place,
+        guard !Task.isCancelled, isEnabled, let now = self.place,
             DashboardWeatherEngine.distanceKilometers(from: place, to: now)
                 <= DashboardWeatherEngine.placeChangeKilometers
         else { return false }
@@ -306,7 +330,7 @@ final class DashboardWeatherStore: ObservableObject {
     }()
 
     /// Off-main by way of `URLSession`'s async API; only plain values cross back.
-    private nonisolated static func fetch(url: URL) async throws -> CurrentWeather {
+    nonisolated static func fetch(url: URL) async throws -> CurrentWeather {
         let request = URLRequest(url: url, timeoutInterval: 20)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -325,7 +349,7 @@ final class DashboardWeatherStore: ObservableObject {
             timeZoneIdentifier: decoded.timezone)
     }
 
-    private struct CurrentWeather: Sendable {
+    struct CurrentWeather: Sendable {
         let temperature: Double
         let weatherCode: Int
         let isDay: Bool

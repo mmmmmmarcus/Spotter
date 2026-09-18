@@ -25,6 +25,29 @@ struct SettingsSyncTests {
         precondition(secondRead == second)
         precondition(FileManager.default.fileExists(atPath: file.path))
 
+        let noChange = try await io.readIfChanged(from: file)
+        precondition(noChange == nil, "our own coordinated write must not be reread")
+        try Data("sibling".utf8).write(to: directory.appendingPathComponent("Other.json"))
+        let siblingChange = try await io.readIfChanged(from: file)
+        precondition(siblingChange == nil, "sibling directory changes must not read the sync payload")
+        try Data("SECOND".utf8).write(to: file, options: .atomic)
+        let replaced = try await io.readIfChanged(from: file)
+        precondition(replaced == Data("SECOND".utf8), "same-size atomic replacement must be detected")
+        let repeated = try await io.readIfChanged(from: file)
+        precondition(repeated == nil, "duplicate notifications must not reread the payload")
+        try Data("third!".utf8).write(to: file)
+        let edited = try await io.readIfChanged(from: file)
+        precondition(edited == Data("third!".utf8), "in-place same-size changes must be detected")
+        await io.invalidate(file)
+        let retry = try await io.readIfChanged(from: file)
+        precondition(retry != nil, "failed applies must be retryable")
+        try FileManager.default.removeItem(at: file)
+        do {
+            _ = try await io.readIfChanged(from: file)
+            preconditionFailure("missing file must report failure, not unchanged")
+        } catch { }
+        try await io.write(second, to: file)
+
         let changed = DispatchSemaphore(value: 0)
         let watcher = CoordinatedFileWatcher(url: file) { changed.signal() }
         try Data("external replacement".utf8).write(to: file, options: .atomic)

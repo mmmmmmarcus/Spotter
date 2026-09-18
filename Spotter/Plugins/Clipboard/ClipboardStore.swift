@@ -110,8 +110,17 @@ final class ClipboardStore: ObservableObject {
         didSet {
             searchCache = nil
             orderedCache = nil
+            memoryRevision &+= 1
         }
     }
+    private var memoryRevision: Int64 = 0
+    private var clearRevision = 0
+    private let syncImages: ClipboardSyncImages
+
+    var syncRevision: Int64 {
+        db.map { Int64(sqlite3_total_changes64($0)) } ?? memoryRevision
+    }
+
     var maxAge: TimeInterval = ClipboardRetention.threeMonths.maxAge
 
     /// One-entry memo so repeated renders (e.g. arrow-key nav) for the same query reuse the FTS result instead of re-querying SQLite every frame; invalidated whenever `items` changes. The filter is part of the key because it moves without the query — keying on the query alone would serve the previous filter's rows.
@@ -161,6 +170,7 @@ final class ClipboardStore: ObservableObject {
     init(directory: URL? = nil) {
         let base = directory ?? Self.defaultDirectory
         imagesDir = base.appendingPathComponent("images", isDirectory: true)
+        syncImages = ClipboardSyncImages(managedDirectory: imagesDir)
         dbURL = base.appendingPathComponent("clipboard.sqlite3")
         try? FileManager.default.createDirectory(at: imagesDir, withIntermediateDirectories: true)
         if !openDatabase() {
@@ -303,6 +313,7 @@ final class ClipboardStore: ObservableObject {
     }
 
     func clearAll() {
+        clearRevision &+= 1
         if db != nil { sqlite3_exec(db, "DELETE FROM items", nil, nil, nil) }
         try? FileManager.default.removeItem(at: imagesDir)
         try? FileManager.default.createDirectory(at: imagesDir, withIntermediateDirectories: true)
@@ -310,61 +321,39 @@ final class ClipboardStore: ObservableObject {
         items = []
     }
 
-    /// Captures complete SQLite history off-main and omits image rows whose blobs are missing.
     func syncSnapshot() async -> [ClipboardSyncItem] {
-        let rows = allItemsForSync()
-        return await Task.detached(priority: .utility) {
-            rows.compactMap { item in
-                switch item.kind {
-                case .text:
-                    return ClipboardSyncItem(
-                        id: item.id, kind: .text, text: item.text, imageData: nil,
-                        imageExtension: nil, createdAt: item.createdAt,
-                        sourceBundleID: item.sourceBundleID, pinnedAt: item.pinnedAt)
-                case .image:
-                    guard let path = item.imagePath, let data = try? Data(contentsOf: URL(fileURLWithPath: path))
-                    else { return nil }
-                    let ext = URL(fileURLWithPath: path).pathExtension
-                    return ClipboardSyncItem(
-                        id: item.id, kind: .image, text: nil, imageData: data,
-                        imageExtension: ext.isEmpty ? "png" : ext,
-                        createdAt: item.createdAt, sourceBundleID: item.sourceBundleID,
-                        pinnedAt: item.pinnedAt)
-                }
-            }
-        }.value
+        await syncImages.snapshot(allItemsForSync())
     }
 
-    /// Writes blobs off-main and replaces SQLite rows plus their FTS index in one transaction.
-    func replace(with snapshot: [ClipboardSyncItem]) async {
-        clearAll()
-        let imagesDir = imagesDir
-        let entries = await Task.detached(priority: .utility) {
-            snapshot.compactMap { item -> ClipboardItem? in
-                switch item.kind {
-                case .text:
-                    guard let text = item.text else { return nil }
-                    return ClipboardItem(
-                        id: item.id, kind: .text, text: text, imagePath: nil,
-                        createdAt: item.createdAt, sourceBundleID: item.sourceBundleID,
-                        pinnedAt: item.pinnedAt)
-                case .image:
-                    guard let data = item.imageData else { return nil }
-                    let rawExtension = item.imageExtension ?? "png"
-                    let safeExtension = rawExtension.unicodeScalars.allSatisfy {
-                        CharacterSet.alphanumerics.contains($0)
-                    } ? rawExtension.lowercased() : "png"
-                    let url = imagesDir.appendingPathComponent(
-                        item.id.uuidString + "." + safeExtension)
-                    guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }
-                    return ClipboardItem(
-                        id: item.id, kind: .image, text: nil, imagePath: url.path,
-                        createdAt: item.createdAt, sourceBundleID: item.sourceBundleID,
-                        pinnedAt: item.pinnedAt)
-                }
-            }
-        }.value
-        replaceEntries(entries)
+    func synchronizationBaseline() -> [ClipboardItem] { allItemsForSync() }
+
+    func replace(
+        with snapshot: [ClipboardSyncItem], preservingChangesSince baseline: [ClipboardItem]? = nil
+    ) async {
+        let previous = allItemsForSync()
+        let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
+        let baselineByID = Dictionary(uniqueKeysWithValues: (baseline ?? previous).map { ($0.id, $0) })
+        let clearRevision = self.clearRevision
+        let prepared = await syncImages.prepare(snapshot, existing: previousByID, directory: imagesDir)
+        guard !Task.isCancelled, clearRevision == self.clearRevision else {
+            await syncImages.removeFiles(prepared.createdPaths)
+            return
+        }
+        let entries = prepared.entries
+        let current = allItemsForSync()
+        let currentByID = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
+        // Clipboard capture continues during blob IO; edits made after the snapshot belong to the local user.
+        let locallyChanged = Set(baselineByID.keys).union(currentByID.keys).filter {
+            baselineByID[$0] != currentByID[$0]
+        }
+        var resolved = entries.filter { !locallyChanged.contains($0.id) }
+        resolved.append(contentsOf: current.filter { locallyChanged.contains($0.id) })
+        resolved.sort { $0.createdAt > $1.createdAt }
+        if resolved != current { replaceEntries(resolved, previous: current) }
+        let keptPaths = Set(resolved.compactMap(\.imagePath))
+        let candidates = current.compactMap(\.imagePath) + prepared.createdPaths
+        let removedPaths = candidates.filter { owns($0) && !keptPaths.contains($0) }
+        await syncImages.removeFiles(removedPaths)
     }
 
     func imageURL(for item: ClipboardItem) -> URL? {
@@ -427,14 +416,28 @@ final class ClipboardStore: ObservableObject {
         return result
     }
 
-    private func replaceEntries(_ entries: [ClipboardItem]) {
-        guard let stmt = insertStmt else {
+    private func replaceEntries(_ entries: [ClipboardItem], previous: [ClipboardItem]) {
+        guard let stmt = insertStmt, let deleteStmt = deleteByIDStmt else {
             items = Array(entries.prefix(Self.memoryWindow))
             return
         }
+        let old = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
+        let retained = Set(entries.filter { old[$0.id] == $0 }.map(\.id))
+        let changed = entries.filter { !retained.contains($0.id) }
+        let incrementalOrder = changed.map(\.id) + previous.filter { retained.contains($0.id) }.map(\.id)
         sqlite3_exec(db, "BEGIN", nil, nil, nil)
-        for item in entries.sorted(by: { $0.createdAt < $1.createdAt }) {
-            bindAndInsert(stmt, item)
+        if incrementalOrder == entries.map(\.id) {
+            for item in previous where !retained.contains(item.id) {
+                sqlite3_bind_text(deleteStmt, 1, item.id.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_step(deleteStmt)
+                sqlite3_reset(deleteStmt)
+                sqlite3_clear_bindings(deleteStmt)
+            }
+            for item in changed.reversed() { bindAndInsert(stmt, item) }
+        } else {
+            // A remote recency reorder needs new rowids, but never a rewrite of the image blobs.
+            sqlite3_exec(db, "DELETE FROM items", nil, nil, nil)
+            for item in entries.reversed() { bindAndInsert(stmt, item) }
         }
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
         load()
@@ -707,5 +710,124 @@ final class ClipboardStore: ObservableObject {
         guard let ptr = sqlite3_column_text(stmt, index) else { return nil }
         let count = Int(sqlite3_column_bytes(stmt, index))
         return String(decoding: UnsafeBufferPointer(start: ptr, count: count), as: UTF8.self)
+    }
+}
+
+// Bounded, off-main reuse of immutable image blobs across text-only clipboard changes.
+actor ClipboardSyncImages {
+    private struct Entry {
+        let modified: Date
+        let size: Int
+        let inode: UInt64
+        let data: Data
+    }
+
+    private var cache: [String: Entry] = [:]
+    private let byteLimit: Int
+    private var cachedBytes = 0
+    private let readImage: @Sendable (URL) throws -> Data
+
+    init(
+        byteLimit: Int = 32 * 1024 * 1024, managedDirectory: URL? = nil,
+        readImage: (@Sendable (URL) throws -> Data)? = nil
+    ) {
+        self.byteLimit = byteLimit
+        let managedDirectory = managedDirectory?.standardizedFileURL
+        self.readImage = readImage ?? { url in
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            // Only Spotter-owned, atomically replaced blobs may be mapped; external files can be truncated in place.
+            let canMap = url.deletingLastPathComponent().standardizedFileURL == managedDirectory
+                && attributes[.type] as? FileAttributeType == .typeRegular
+                && (attributes[.referenceCount] as? Int) == 1
+            return try Data(contentsOf: url, options: canMap ? .mappedIfSafe : [])
+        }
+    }
+
+    func removeFiles(_ paths: [String]) {
+        for path in paths {
+            if let old = cache.removeValue(forKey: path) { cachedBytes -= old.size }
+            try? FileManager.default.removeItem(atPath: path)
+        }
+    }
+
+    private func read(_ path: String) -> Data? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+            let modified = attributes[.modificationDate] as? Date,
+            let size = attributes[.size] as? Int,
+            let inode = attributes[.systemFileNumber] as? UInt64
+        else {
+            if let old = cache.removeValue(forKey: path) { cachedBytes -= old.size }
+            return nil
+        }
+        if let entry = cache[path], entry.modified == modified, entry.size == size, entry.inode == inode {
+            return entry.data
+        }
+        if let old = cache.removeValue(forKey: path) { cachedBytes -= old.size }
+        guard let data = try? readImage(URL(fileURLWithPath: path)) else { return nil }
+        if data.count <= byteLimit {
+            if cachedBytes + data.count > byteLimit {
+                cache.removeAll()
+                cachedBytes = 0
+            }
+            cache[path] = Entry(modified: modified, size: data.count, inode: inode, data: data)
+            cachedBytes += data.count
+        }
+        return data
+    }
+
+    func snapshot(_ rows: [ClipboardItem]) -> [ClipboardSyncItem] {
+        let paths = Set(rows.compactMap(\.imagePath))
+        for path in Array(cache.keys) where !paths.contains(path) {
+            if let old = cache.removeValue(forKey: path) { cachedBytes -= old.size }
+        }
+        return rows.compactMap { item in
+            let data = item.imagePath.flatMap { read($0) }
+            if item.kind == .image && data == nil { return nil }
+            return ClipboardSyncItem(
+                id: item.id, kind: item.kind == .text ? .text : .image, text: item.text,
+                imageData: data,
+                imageExtension: item.imagePath.map { URL(fileURLWithPath: $0).pathExtension },
+                createdAt: item.createdAt, sourceBundleID: item.sourceBundleID, pinnedAt: item.pinnedAt)
+        }
+    }
+
+    struct Prepared: Sendable {
+        let entries: [ClipboardItem]
+        let createdPaths: [String]
+    }
+
+    func prepare(
+        _ snapshot: [ClipboardSyncItem], existing: [UUID: ClipboardItem], directory: URL
+    ) -> Prepared {
+        var seen = Set<UUID>()
+        var createdPaths: [String] = []
+        let entries: [ClipboardItem] = snapshot.compactMap { item in
+            guard !Task.isCancelled, seen.insert(item.id).inserted else { return nil }
+            var path: String?
+            if item.kind == .image {
+                guard let data = item.imageData else { return existing[item.id] }
+                if let oldPath = existing[item.id]?.imagePath, read(oldPath) == data {
+                    path = oldPath
+                } else {
+                    let rawExtension = item.imageExtension ?? "png"
+                    let safeExtension = !rawExtension.isEmpty && rawExtension.unicodeScalars.allSatisfy {
+                        CharacterSet.alphanumerics.contains($0)
+                    } ? rawExtension.lowercased() : "png"
+                    let url = directory.appendingPathComponent(
+                        item.id.uuidString + "-" + UUID().uuidString + "." + safeExtension)
+                    guard (try? data.write(to: url, options: .atomic)) != nil else { return existing[item.id] }
+                    path = url.path
+                    createdPaths.append(url.path)
+                }
+            } else if item.text == nil {
+                return existing[item.id]
+            }
+            return ClipboardItem(
+                id: item.id, kind: item.kind == .text ? .text : .image, text: item.text,
+                imagePath: path, createdAt: Date(timeIntervalSince1970: item.createdAt.timeIntervalSince1970),
+                sourceBundleID: item.sourceBundleID,
+                pinnedAt: item.pinnedAt.map { Date(timeIntervalSince1970: $0.timeIntervalSince1970) })
+        }
+        return Prepared(entries: entries, createdPaths: createdPaths)
     }
 }
