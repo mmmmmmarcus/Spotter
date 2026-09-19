@@ -51,6 +51,35 @@ enum KillProcessPlugin {
                     id: "command:kill-process", name: "Kill Process",
                     systemImage: "xmark.octagon", actionKey: .openKillProcess, perform: open)
             ],
+            parameterizedCommand: { [weak core] query in
+                guard let core, let argument = KillProcessEngine.applicationArgument(query) else { return nil }
+                let apps = NSWorkspace.shared.runningApplications.filter {
+                    $0.activationPolicy == .regular && !$0.isTerminated
+                }
+                let candidates = apps.compactMap { app -> RunningProcessInfo? in
+                    guard let executable = app.executableURL, let name = app.localizedName,
+                          app.bundleURL != Bundle.main.bundleURL else { return nil }
+                    return RunningProcessInfo(
+                        id: app.processIdentifier, parentID: 0, cpu: 0, memoryKB: 0,
+                        executablePath: executable.path, processName: executable.lastPathComponent,
+                        appName: name, kind: .app)
+                }
+                guard let process = KillProcessEngine.applicationTarget(
+                    in: candidates, argument: argument, excludingPID: ProcessInfo.processInfo.processIdentifier),
+                      let app = apps.first(where: { $0.processIdentifier == process.id }) else { return nil }
+                let identity = "\(process.id):\(app.launchDate?.timeIntervalSince1970 ?? 0):\(process.executablePath)"
+                return PluginCommandRegistration(
+                    id: "command:kill-process", name: "Kill \(process.appName ?? process.processName)",
+                    systemImage: "xmark.octagon", iconFilePath: app.bundleURL?.path,
+                    actionKey: .openKillProcess, parameterIdentity: identity
+                ) { [weak core] in
+                    guard !app.isTerminated else {
+                        core?.openKillProcess()
+                        return
+                    }
+                    core?.performKillProcessAction(.kill, process: process)
+                }
+            },
             paletteScreen: screen,
             settingsView: { AnyView(KillProcessSettingsView()) })
     }

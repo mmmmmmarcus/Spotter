@@ -176,6 +176,9 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         let panel = PalettePanel(rootView: root)
         panel.delegate = self
         panel.paletteViewModel = core.palette
+        panel.onNavigationKey = { [weak self] event in
+            self?.core.handleCalendarScheduleKey(event) ?? false
+        }
         // Backspace in an already-empty search backs out of a sub-screen to a fresh root launcher; `prepare` clears state and re-focuses the field.
         panel.onBareBackspace = { [weak self] in
             guard let vm = self?.core.palette, vm.mode != .launcher, vm.query.isEmpty else {

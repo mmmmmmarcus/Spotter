@@ -62,6 +62,7 @@ struct SettingsSyncTests {
         testCredentialsRoundTrip()
         testOlderFileLeavesNewFieldsUnset()
         testUnknownFieldsAreIgnored()
+        testRetiredImageFormatIsIgnored()
         testEmptyObjectDecodesToAllUnset()
         print("Settings Sync: ALL PASSED")
     }
@@ -125,7 +126,7 @@ struct SettingsSyncTests {
                 sort: "cpu", groupApps: true, searchPaths: false, searchPIDs: true,
                 prioritizeApps: true, showPID: false, showPath: true, refreshSeconds: 3.5),
             imageModification: SettingsBackupPluginPrefs.ImageModification(
-                output: "alongside", format: "png"),
+                output: "alongside"),
             screenshot: SettingsBackupPluginPrefs.Screenshot(
                 roundedCorners: true, captureScale: "retina", fileFormat: "png",
                 includesWindowShadow: false, hidesSpotterWindows: true, previewDuration: 4.5),
@@ -243,6 +244,13 @@ struct SettingsSyncTests {
                 unwrap(child.value) == nil,
                 "\(child.label ?? "?") decoded as a value from an empty object")
         }
+    }
+
+    private static func testRetiredImageFormatIsIgnored() {
+        let legacy = Data(#"{"output":"desktop","format":"png"}"#.utf8)
+        let decoded = try! decode(SettingsBackupPluginPrefs.ImageModification.self, from: legacy)
+        precondition(decoded.output == "desktop")
+        precondition(jsonObject(encode(decoded))["format"] == nil)
     }
 
     private static func encode<T: Encodable>(_ value: T) -> Data {

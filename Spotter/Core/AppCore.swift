@@ -873,7 +873,7 @@ final class AppCore: ObservableObject {
     }
 
     private func runCommand(_ entry: AppEntry) {
-        if plugins.performCommand(entry.id) { return }
+        if plugins.performCommand(entry, query: palette.mode == .launcher ? palette.query : "") { return }
         guard let command = CommandRegistry.command(for: entry) else { return }
         runCommand(command)
     }

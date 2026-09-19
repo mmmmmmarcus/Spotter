@@ -1,11 +1,10 @@
 import Foundation
 
 enum ScheduleViewMode: String, CaseIterable, Sendable {
-    case day, week, month
+    case week, month
     var title: String { rawValue.capitalized }
     var component: Calendar.Component {
         switch self {
-        case .day: .day
         case .week: .weekOfYear
         case .month: .month
         }
@@ -20,19 +19,109 @@ struct ScheduleTimeBlock: Identifiable, Equatable, Sendable {
     var columnCount = 1
 }
 
+enum ScheduleDirection: Sendable {
+    case up, down, left, right
+}
+
+struct ScheduleEventPosition: Identifiable, Sendable {
+    let eventID: String
+    let day: Date
+    let startMinute: Double
+    let isAllDay: Bool
+
+    var id: String { Self.id(eventID: eventID, day: day) }
+
+    static func id(eventID: String, day: Date) -> String {
+        eventID + "@" + String(day.timeIntervalSinceReferenceDate)
+    }
+}
+
+enum ScheduleNavigation {
+    static func ordered(_ items: [ScheduleEventPosition]) -> [ScheduleEventPosition] {
+        items.sorted {
+            if $0.isAllDay != $1.isAllDay { return $0.isAllDay }
+            if $0.day != $1.day { return $0.day < $1.day }
+            if $0.startMinute != $1.startMinute { return $0.startMinute < $1.startMinute }
+            return $0.eventID < $1.eventID
+        }
+    }
+
+    static func neighbor(
+        in items: [ScheduleEventPosition], selectedID: String?, direction: ScheduleDirection
+    ) -> String? {
+        guard let current = items.first(where: { $0.id == selectedID }) else {
+            return ordered(items).first?.id
+        }
+        switch direction {
+        case .up, .down:
+            let column = ordered(items.filter { $0.day == current.day })
+            guard let index = column.firstIndex(where: { $0.id == current.id }) else { return current.id }
+            let next = index + (direction == .up ? -1 : 1)
+            return column.indices.contains(next) ? column[next].id : current.id
+        case .left, .right:
+            let candidates = items.filter { direction == .left ? $0.day < current.day : $0.day > current.day }
+            let day = direction == .left ? candidates.map(\.day).max() : candidates.map(\.day).min()
+            guard let day else { return current.id }
+            return candidates.filter { $0.day == day }.min {
+                let leftLane = $0.isAllDay == current.isAllDay
+                let rightLane = $1.isAllDay == current.isAllDay
+                if leftLane != rightLane { return leftLane }
+                let leftDistance = abs($0.startMinute - current.startMinute)
+                let rightDistance = abs($1.startMinute - current.startMinute)
+                if leftDistance != rightDistance { return leftDistance < rightDistance }
+                if $0.startMinute != $1.startMinute { return $0.startMinute < $1.startMinute }
+                return $0.eventID < $1.eventID
+            }?.id
+        }
+    }
+
+    static func monthNeighbor(from index: Int, direction: ScheduleDirection, count: Int) -> Int? {
+        guard count > 0 else { return nil }
+        guard (0..<count).contains(index) else { return 0 }
+        let step: Int
+        switch direction {
+        case .up: step = -7
+        case .down: step = 7
+        case .left: step = -1
+        case .right: step = 1
+        }
+        let next = index + step
+        return (0..<count).contains(next) ? next : index
+    }
+}
+
 enum ScheduleLayout {
+    static func initialScrollMinute(
+        days: [Date], events: [(start: Date, end: Date, isAllDay: Bool)],
+        now: Date, calendar: Calendar
+    ) -> Double {
+        let containsToday = days.contains { calendar.isDate($0, inSameDayAs: now) }
+        let hasCurrentEvent = events.contains { !$0.isAllDay && $0.start <= now && now < $0.end }
+        guard containsToday, hasCurrentEvent else { return 600 }
+        return elapsedMinutes(on: now, now: now, calendar: calendar)
+    }
+
     static func days(containing date: Date, mode: ScheduleViewMode, calendar: Calendar) -> [Date] {
         guard let period = calendar.dateInterval(of: mode.component, for: date) else { return [] }
         let start = mode == .month
             ? calendar.dateInterval(of: .weekOfYear, for: period.start)?.start ?? period.start
             : period.start
-        let count = mode == .month ? 42 : mode == .week ? 7 : 1
+        let count = mode == .month ? 42 : 7
         return (0..<count).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
 
     static func moved(_ date: Date, mode: ScheduleViewMode, by step: Int, calendar: Calendar) -> Date {
         let anchor = calendar.dateInterval(of: mode.component, for: date)?.start ?? date
         return calendar.date(byAdding: mode.component, value: step, to: anchor) ?? date
+    }
+
+    static func elapsedMinutes(on day: Date, now: Date, calendar: Calendar) -> Double {
+        let start = calendar.startOfDay(for: day)
+        let today = calendar.startOfDay(for: now)
+        if start < today { return 1440 }
+        if start > today { return 0 }
+        let parts = calendar.dateComponents([.hour, .minute, .second], from: now)
+        return Double((parts.hour ?? 0) * 60 + (parts.minute ?? 0)) + Double(parts.second ?? 0) / 60
     }
 
     static func overlaps(start: Date, end: Date, day: Date, calendar: Calendar) -> Bool {

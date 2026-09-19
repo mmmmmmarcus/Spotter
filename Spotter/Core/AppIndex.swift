@@ -19,6 +19,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     let pluginActionKey: PluginActionKey?
     /// Optional trailing value that replaces the generic kind label for informational commands.
     let detailLabel: String?
+    let parameterIdentity: String?
     /// Spotlight's `kMDItemAlternateNames`, ranked below the display name. Applications only.
     var alternateNames: [String] = []
     /// `CFBundleExecutable`, matched literally as a last resort. Applications only.
@@ -29,6 +30,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
         symbolImage: String? = nil, iconFilePath: String? = nil,
         pluginActionKey: PluginActionKey? = nil,
         detailLabel: String? = nil,
+        parameterIdentity: String? = nil,
         alternateNames: [String] = [], executableName: String? = nil
     ) {
         self.id = id
@@ -40,6 +42,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
         self.iconFilePath = iconFilePath
         self.pluginActionKey = pluginActionKey
         self.detailLabel = detailLabel
+        self.parameterIdentity = parameterIdentity
         self.alternateNames = alternateNames
         self.executableName = executableName
     }

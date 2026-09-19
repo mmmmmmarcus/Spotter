@@ -334,14 +334,14 @@ mouse-down for a window drag whenever the hit view reports `mouseDownCanMoveWind
 clears for controls but not for a `Canvas` carrying only a `DragGesture` — so a stroke on the capture
 also moved the window. The toolbar strip carries an explicit `WindowDragGesture()` instead, making it
 the one deliberate handle; its controls take their own clicks first, so only the gaps between them
-drag. Four tools stack in a floating card at the canvas's bottom-left — Rectangle (R), Oval (O),
-Pencil (P) and Text (T) — and the eight-color palette mirrors it at the bottom-right; the three stroke
+drag. Four tools stack in a card in a dedicated column left of the image — Rectangle (R), Oval (O),
+Pencil (P) and Text (T) — and the eight-color palette occupies its own column on the right; the three stroke
 weights sit under the colors in that same card, each with a full-cell hit target — a `.clear` fill
 takes no hits, so before that an unselected weight was only clickable on its 4-point dot. The top bar is only actions, all `.controlSize(.extraLarge)` with `.imageScale(.large)` so the
 glyphs grow with them, in a 68-point bar shared with the window sizing: a
 capsule **Cancel** at the leading edge, then undo/redo, Save (⌘S) and Copy (⌘↩) as circular
-icon-only Liquid Glass buttons with Copy prominent. Undo and redo sit in a `GlassEffectContainer`
-spaced two points apart, so their glass shapes merge and read as one control. Each icon button
+icon-only Liquid Glass buttons with Copy prominent. Undo and redo are two plain hit targets inside
+one shared Liquid Glass capsule, with their disabled states and keyboard shortcuts preserved. Each icon button
 carries a `Label`, so the same string is its tooltip and its VoiceOver name. The bar remains the
 window's drag handle.
 
@@ -361,6 +361,11 @@ rectangle tool draws a rectangle with the left button and an arrow with the righ
 canvas listens through an AppKit overlay — SwiftUI's `DragGesture` only speaks the primary button.
 Marks are committed on mouse-up; a sub-3-point drag is discarded as a misclick. The text tool places an inline field at the
 click point (Return commits, Escape discards), rendered bold with a soft dark halo for legibility.
+
+The side cards are 40 points wide with 12-point gaps to the central image area and 12-point outer
+padding. They participate in layout rather than overlaying the capture, so resizing and wide or tall
+images cannot put pixels underneath the tools. Initial window sizing includes both tool columns and
+their gaps; the central image keeps its own coordinate space for annotation and export.
 
 The canvas never enlarges the capture: the fit is capped at `1 / displayScale`, one image pixel per
 device pixel. Without that cap a small capture was stretched to fill the window's minimum size — on a

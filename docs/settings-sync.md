@@ -130,7 +130,7 @@ derive "answered" from the restored grant.
 | Widget strip order, calendar source, all-day events | `settings.dashboardWidgets.widgetOrder`, `.calendarSourceIdentifier`, `.includesAllDayEvents` |
 | Change Case: source, primary action, case/punctuation preservation, exceptions, affixes, pinned, recent, disabled | `pluginPrefs.changeCase.*` |
 | Kill Process: sort, grouping, search fields, prioritization, PID/path columns, refresh interval | `pluginPrefs.killProcess.*` |
-| Image Modification: output location, format | `pluginPrefs.imageModification.*` |
+| Image Modification: output location | `pluginPrefs.imageModification.output` |
 | Screenshot: rounded corners, capture scale, file format, window shadow, hiding Spotter windows, preview duration | `pluginPrefs.screenshot.*` |
 | Caffeinate: keep display / disk awake | `pluginPrefs.caffeinate.*` |
 | Window Management: gap, cycle on repeat | `pluginPrefs.windowManagement.*` |

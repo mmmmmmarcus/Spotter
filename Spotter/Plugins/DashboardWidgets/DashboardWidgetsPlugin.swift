@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension PluginActionKey {
@@ -50,6 +51,14 @@ enum DashboardWidgetsPlugin {
 }
 
 extension AppCore {
+    func openDashboardMusic() {
+        guard let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: DashboardMusicStore.musicBundleIdentifier) else { return }
+        hidePalette(restoreFocus: false)
+        AppLauncher.launch(url)
+    }
+
+
     private static let weatherConsentWindowID = "weather-consent"
 
     /// Raises the one weather question, for someone who has never answered it. Returns whether it

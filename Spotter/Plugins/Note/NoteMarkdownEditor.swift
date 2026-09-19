@@ -224,11 +224,11 @@ struct NoteMarkdownEditor: NSViewRepresentable {
                 let translation = CABasicAnimation(keyPath: "transform.translation.x")
                 translation.fromValue = self.parent.navigationDirection * Theme.Spacing.md
                 translation.toValue = 0
-                translation.duration = 0.16
+                translation.duration = Theme.Animation.pageSwitch
                 translation.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 scrollView.layer?.add(translation, forKey: "note-switch-translation")
                 NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.16
+                    context.duration = Theme.Animation.pageSwitch
                     context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     scrollView.animator().alphaValue = 1
                 }

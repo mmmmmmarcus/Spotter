@@ -88,42 +88,17 @@ room for File Info without moving the window.
 
 `keyCap` sizes the palette's keycap chips; `recorderKeyCap` (both size and radius) is the intentionally-smaller Settings shortcut-recorder chip.
 
-`shortcutRowControl` is the trailing **column** of a Settings ▸ Shortcuts row: the alias field is
-exactly this wide, and the shortcut recorder gets a slot this wide to sit trailing-aligned inside.
+`shortcutRowControl` sets the fixed 120-point width of both Alias and Hotkey fields. Their
+24-point height and eight-point gap stay constant across empty, active and bound states. Hotkey
+fields have no placeholder or recording prompt; an accent border indicates capture. Held modifiers
+and recorded keycaps are shown, while long bindings use compact text. Conflicts use a warning icon
+with the owner in a tooltip, so no state widens the field. The shared recorder applies this behavior
+in every Settings surface and onboarding.
 
-**The recorder pill hugs its content; the slot is what aligns the column.** The two are deliberately
-separate. A fixed-width pill leaves a `✦ D` binding rattling around in a box several times its size,
-which is what the pill looked like before; a pill that hugs but has no slot lets the width of one
-row's binding shove that row's checkbox — or the pencil beside an AI-command recorder — to a
-different x than its neighbours'. Sizing the pill to its content and reserving the column around it
-gets both: the visible box is as wide as what it holds, and every recorder's right edge, and
-everything after it, lands at one x. The slot lives inside `ShortcutRecorder` itself, applied after
-the tap and hover targets so only the pill is clickable, so every call site gets the column for free.
-
-Measured with an offscreen `NSHostingView` probe reading laid-out frames — the repo standard for a
-layout question, and how 120 was set in the first place. Full pill widths, `sm` padding included:
-
-| State | Width |
-| --- | --- |
-| `✦ D` (Hyper + a letter) | 65 |
-| `⌘ ⌘` (a double-tap) | 69 |
-| `⌥ F12` | 76 |
-| `⌘ Space` | 89 |
-| unbound "Hotkey" | 46 |
-| `⌃⌥⌘ K` | 110 |
-| recording, "Type or double-tap…" | 113 |
-| `⌃⌥⇧⌘ K` (a fourth modifier) | 132 |
-| conflict, "Used by Window Management" | 159 |
-
-The rule that follows: **no floor.** The empty prompt does not force one — at 91 it lands mid-range,
-between `⌘ Space` and `⌃⌥⌘ K` — but the pill hugs, so an unbound row would have been the widest
-resting state in a pane of two-chip bindings. It is one word, `Hotkey`, and no bound row is padded
-out to fit it. 120 stays as the slot because it still has to seat the realistic maximum without
-pushing a neighbour: it carries `⌃⌥⌘ K` and the recording prompt with slack, and the two states that
-exceed it behave exactly as they did at a fixed width — a fourth modifier closes the `xxs` gaps
-between its chips, and the prompt and conflict text are `lineLimit(1)` with a scale floor. A grouped
-`Form` leaves a row's trailing control about 325pt at the 652-point content width, so nothing
-squeezes the slot. Measure before retuning any of it; don't eyeball it.
+Shortcuts rows place the visibility checkbox before the icon. Unchecked rows fade to 45% opacity
+and their icons desaturate; the checkbox stays fully visible so it is easy to restore the row.
+Global shortcut rows reserve matching leading columns. Visibility continues to control launcher
+listing without deleting a saved hotkey.
 
 `settingsSidebar` is sized the same way, to the widest label rather than to a round number. In
 `rowTitle` (13pt system) the longest entry is **Window Management** at 131pt — wider than the
@@ -314,7 +289,7 @@ labels name the destination.
 
 Glass is **only** for floating controls, never the main surface.
 
-- `View.frosted(in:)` = `glassEffect(.regular.interactive().tint(glassFrost), in:)` + `.tint(.clear)` — interactive lensing with a whitish frost tint (`glassFrost`) so the glass reads brighter than clear. Used on the action-group capsule and the menu circle; tune the frost amount via the `glassFrost` token, not per call site.
+- `View.frosted(in:)` = `glassEffect(.regular.interactive().tint(glassFrost), in:)` + `.tint(.clear)` — interactive lensing with a whitish frost tint (`glassFrost`) so the glass reads brighter than clear. Used on the action-group capsule, clipboard type segments and the menu circle; tune the frost amount via the `glassFrost` token, not per call site.
 - **Menus are in-window overlays, not system popovers.** `.contextMenu`/`NSMenu` stall clicks for seconds inside a `LazyVStack` and spill outside the panel. Use `PopoverMenu` anchored to a bottom corner via `.overlay`, inset `menuInset` (8pt) so its own corner isn't clipped by the panel's.
 - **`PopoverMenu`** uses `glassEffect(.regular, in: RoundedRectangle(menuPanel 16))` with **no hand-tuned shadow** — Tahoe glass carries its own elevation; adding a drop shadow reads heavy and non-native.
 - For *buttons*, use the system styles rather than wrapping a plain button in glass: `.buttonStyle(.glass)`, and `.glassProminent` for the one primary action in a group. `.buttonBorderShape(.circle)`/`.capsule` sets the shape, and a `GlassEffectContainer` with small spacing merges neighbouring glass shapes into one control (the editor's undo/redo pair). The screenshot editor's action bar is the reference — icon-only `Label`s, so one string serves as both tooltip and VoiceOver name, and Copy is the prominent one.
@@ -398,6 +373,9 @@ backing scale, matching the four-pixel alpha mask applied to the copied TIFF. Th
 chrome or persisted geometry. Hiding all panels before sampling pixels is load-bearing; otherwise the
 selection treatment becomes part of the screenshot.
 
+The screenshot editor reserves separate 40-point side columns for tools and colors, with 12-point
+gaps to the aspect-fitted image. Undo/redo share one glass capsule with two independent hit targets.
+
 ## Confirmation card — `Features/ConfirmationCard.swift`
 
 The in-palette yes/no: a centered glass card (`confirmationWidth 380`, `menuPanel` radius, no hand
@@ -479,8 +457,8 @@ of substrate, not of information architecture.
   and rebuilds each `Section`, leaving only the first one's header unbuilt. Panes go on writing
   `Section("Header") { … }` exactly as before, and a pane added later inherits the rule instead of
   having to remember it — a per-call-site version would be ~25 edits and would drift on the next
-  pane. Settings sections carry no footers, so the rebuild does not carry one; add a footer and it
-  needs adding there. A pane that opens with loose content (Translate's missing-key callout) makes
+  pane. The rebuild preserves every footer, including the first group's creation actions.
+  A pane that opens with loose content (Translate's missing-key callout) makes
   that its implicit first group, so the named group after it keeps its header — which is right: the
   callout is the group the title sits over.
 - **`SettingsRow`**: a `LabeledContent` pairing the title (+ optional `statusDot`) with the row's
@@ -530,9 +508,9 @@ binary reports through a `SettingsCallout`'s orange box rather than a red row sy
 **Settings copy reports; it does not explain** (owner decision, Sep 2026). A subtitle earns its line
 only when it tells the user something that changes — a version, a timestamp, a count, a path in use,
 a granted/denied state, an error. A line that would read identically on a fresh install forever is
-gone: the control's own label and position say what it does. Three deliberate exceptions stay,
+gone: the control's own label and position say what it does. Two deliberate exceptions stay,
 because they are statements of what Spotter does with the user's data rather than descriptions of a
-control — File Search's *What Is Searched* card, Uptime's *Counts only* callout, and Notes'
+control — File Search's *What Is Searched* card and Notes'
 *One Markdown file per note* callout — as do About's licence callout and the key rows that name a
 network provider and what is billed (Translate, OpenRouter). Onboarding is outside this rule; its
 whole job is to explain.
@@ -556,6 +534,19 @@ List-oriented plugins do not use a workspace. Register a palette screen and rend
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
 section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
+Image Modification uses these same rows for format, size, scale and quality parameters. Presets and
+custom typed values share the existing search field; complete launcher queries display a single
+parameterized command row without opening another window.
+Kill Process uses the same command-row grammar for `kill Chrome`, showing the full application name
+and its icon before activation; the direct action is ordinary Kill.
+
+Emoji's Actions menu opens a **Choose Skin Tone** submenu in the same bottom-right overlay. The
+current tone is checked, choosing a tone updates the grid and dismisses only the menu, and Escape or
+Left Arrow returns to Actions. The search field remains first responder throughout both levels.
+
+Snippets settings uses aligned Trigger, Original Text and Actions columns inside its grouped section.
+The trigger includes the shared prefix; keywordless snippets show a dash. The content column expands
+with the window and previews two lines, with the snippet name below; edit/delete stay at the right.
 Mole uses the same trailing accessory slot to mark Homebrew-owned or duplicate-name app rows that are
 reveal-only; the two-line subtitle explains why destructive actions are unavailable.
 AI Chat is the asynchronous selected-text surface for definition and grammar actions: they render
@@ -570,13 +561,11 @@ Notes is the floating-workspace reference. It opts the shared auxiliary window i
 transparent rendering, resizing and all-Spaces visibility while `AuxWindowController` remains the
 owner. It opens as a 440-point editor with four matching 20-point continuous corners; the native
 backdrop stays clear while its host neutralizes the safe-area inset, so the clipped Note material is
-the only rounded surface and fills one seamless title bar behind a single native close button.
-Minimize and zoom stay hidden. The selected first-line title is centered in that same native-height row, directly right of
-the window control, with only notes-list and New Note actions at the right.
-The list appears as an inset material card over the editor, temporarily grows the window vertically,
-and uses selection-over-hover precedence. The overlay-scrolling `NSTextView` presents live Markdown
-and handles common formatting shortcuts, while the shared window owner grows the single-note
-workspace from three visible editor lines to twenty before scrolling. Inline spans are styled through
+the only rounded surface and fills one seamless title bar behind a custom close button.
+Minimize and zoom stay hidden. Direct Note markers are centered in that toolbar, with New Note
+and the native options menu on the right. The Notes list overlay is removed. The window keeps the
+user's size while the overlay-scrolling `NSTextView` presents live Markdown and handles common
+formatting shortcuts. Inline spans are styled through
 the text storage's attributes, so a heading's line box and caret grow with it — temporary layout-manager
 attributes are drawing-only and would leave both at body height. Heading and inline Markdown markers
 stay collapsed even while their content is selected, so the workspace reads as a visual editor while
@@ -592,12 +581,12 @@ blockquote, and a `separator` hairline across a horizontal rule. Those are the s
 rendered replies use, so a code block reads the same in both surfaces. Notes has no separate title
 input, formatting buttons, preview mode or bottom status row; persistence remains automatic.
 The Note window keeps the frame the user dragged and never changes size for typing, navigation or
-the notes list. The native overlay scroller appears only when content exceeds that user-sized
+Note menus. The native overlay scroller appears only when content exceeds that user-sized
 viewport. Switching Notes fades in the heading and body together over 160 ms while translating eight
 points from the navigation side to rest, with no overshoot or return trip. The transform is confined
-to the native editor's presentation layer. The toolbar stays fixed and Reduce Motion switches immediately. The notes list animates inside that frame. Its Settings pane owns a background-
-only transparency slider plus the consent, status and manual action for private CloudKit sync; Note
-content never enters automatic Settings Sync or the global Backup pane.
+to the native editor's presentation layer. The toolbar stays fixed and Reduce Motion switches immediately. The toolbar options menu owns tint and three transparency presets. Notes Settings owns the chosen
+Markdown sync folder, status and manual sync action; Note content stays out of automatic Settings
+Sync but remains included in manual backups.
 The heading stays in TextKit throughout the switch; there is no separate morph overlay or delayed
 handoff to the native glyphs. The fade changes drawing only, preserving the fixed window frame.
 
@@ -626,9 +615,9 @@ controls carry explicit accessible names. Text and secure fields inside labelled
 own label and use `prompt` for examples, so a populated field never displays a second sample value.
 
 Permissions includes Location using the existing weather authorization publisher; opening this
-page does not create a location manager or request a fix. Backup explicitly discloses manual versus
-automatic coverage, credentials and device-local exclusions, with a route to Notes Settings.
-These disclosures are part of the data-handling exceptions to the usual concise settings copy.
+page does not create a location manager or request a fix. Backup keeps its export/import summary and
+Notes Sync row with a route to Notes Settings. The separate privacy and device-local exclusions
+callout cards are omitted.
 
 AI Chat publishes streaming draft text at most every 33 ms. The same assistant row grows while generating; scrolling follows it only while near the bottom. Completed or stopped replies use the existing Markdown renderer.
 
@@ -641,6 +630,33 @@ marks. The symbol is a placeholder, not a charge reading; accessibility says “
 The `Battery` launcher command enters a standard plugin palette list. Rows use the device symbol and
 name on the left, type and charging state underneath, and the percentage as a trailing accessory.
 
-Schedule is a spatial canvas inside the standard Palette shell: a compact period/view toolbar,
-scrollable day/week time grid with an all-day lane, and a six-row month grid. Event details replace
+Schedule is a spatial canvas inside the standard Palette shell: a compact period toolbar,
+scrollable week time grid with an all-day lane, and a six-row month grid. The Week / Month switch
+lives at the trailing edge of the Palette search header in a Liquid Glass capsule with no selection animation,
+with a Liquid Glass Today button immediately to its left; both surfaces are 32 points high.
+On-screen paging arrows are omitted. Week omits the redundant date-range title and its empty toolbar row;
+Month retains its month/year heading. Event details replace
 the canvas in place. It uses existing semantic Theme colors and never changes the Palette frame.
+Calendar page turns share Note's 160 ms ease-out fade and eight-point translation, with the header fixed
+and Reduce Motion respected. Both use `Theme.Animation.pageSwitch` for their duration.
+
+Music keeps its cover at rest. Hover crossfades to Calendar-style text: a top-left song title and
+bottom-left artist on the standard card surface. There are no transport controls; clicking anywhere
+on the card opens Apple Music and dismisses the Palette.
+
+Notes use directly clickable title-Emoji markers (14.4-point glyphs, 32-point hit targets, 8-point
+spacing) in a horizontally scrollable toolbar. There is no Notes list overlay. New Note sits left
+of the native ellipsis menu, which contains color, three transparency presets and Delete Note.
+New Note and the menu share plain button styling and a fixed 24-point circular glass frame.
+
+Settings list creation actions live in trailing-aligned section footers below their list cards,
+using `SettingsListActions` while keeping the existing button labels and styles. This covers AI
+Commands, Custom Commands, Snippets, Quicklinks, Search Scopes, Clipboard Disabled Applications and
+Translate target languages. `SettingsPane` preserves every section footer even when it suppresses
+the first header. Empty lists keep their creation action available. World Clock also places Add City
+in this footer and opens a dedicated city-search popover from it.
+
+Shortcuts group headings are ordinary foldable List rows rather than native section headers, so
+Global Shortcuts and subsequent groups share the same background, separators and scrolling behavior.
+The two global actions have command/keyboard icons aligned with application icons and use the same
+name and recorder columns; they have no launcher visibility checkbox or alias field.

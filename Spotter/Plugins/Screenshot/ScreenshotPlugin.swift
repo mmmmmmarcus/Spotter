@@ -132,7 +132,7 @@ extension AppCore {
         let toolbarHeight = ScreenshotEditorView.toolbarHeight
         let canvasPadding = Theme.Spacing.xl * 2
         let content = CGSize(
-            width: CGFloat(image.width) / scale + canvasPadding,
+            width: CGFloat(image.width) / scale + ScreenshotEditorView.canvasHorizontalInset,
             height: CGFloat(image.height) / scale + canvasPadding + toolbarHeight)
         let limit = (NSScreen.main?.visibleFrame.size).map {
             CGSize(width: $0.width * 0.85, height: $0.height * 0.85)

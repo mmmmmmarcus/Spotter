@@ -173,6 +173,8 @@ struct ScreenshotEditorView: View {
     static let windowID = "screenshot-editor"
     /// Shared with the window sizing so the canvas gets the space the bar does not.
     static let toolbarHeight: CGFloat = 68
+    static let paletteWidth: CGFloat = 28 + Theme.Spacing.sm * 2
+    static let canvasHorizontalInset: CGFloat = Theme.Spacing.xl * 2 + (paletteWidth + Theme.Spacing.xl) * 2
 
     @EnvironmentObject private var core: AppCore
     @Environment(\.displayScale) private var displayScale
@@ -199,25 +201,31 @@ struct ScreenshotEditorView: View {
             // The window hides its traffic lights, so this is the only way to close it.
             cancelButton
             Spacer(minLength: Theme.Spacing.md)
-            // Undo and redo read as one control: a container merges closely-spaced glass shapes.
-            GlassEffectContainer(spacing: Theme.Spacing.xxs) {
-                HStack(spacing: Theme.Spacing.xxs) {
-                    Button { model.undo() } label: {
-                        Label("Undo", systemImage: "arrow.uturn.backward")
-                    }
-                    .disabled(!model.canUndo)
-                    .keyboardShortcut("z", modifiers: .command)
-                    .help("Undo")
-                    Button { model.redo() } label: {
-                        Label("Redo", systemImage: "arrow.uturn.forward")
-                    }
-                    .disabled(!model.canRedo)
-                    .keyboardShortcut("z", modifiers: [.command, .shift])
-                    .help("Redo")
+            HStack(spacing: 0) {
+                Button { model.undo() } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                        .foregroundStyle(model.canUndo ? .primary : .tertiary)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
+                .disabled(!model.canUndo)
+                .keyboardShortcut("z", modifiers: .command)
+                .help("Undo")
+                Button { model.redo() } label: {
+                    Label("Redo", systemImage: "arrow.uturn.forward")
+                        .foregroundStyle(model.canRedo ? .primary : .tertiary)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .disabled(!model.canRedo)
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+                .help("Redo")
             }
+            .buttonStyle(.plain)
+            .padding(Theme.Spacing.xxs)
+            .frosted(in: Capsule())
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Undo and Redo")
             Button { save() } label: {
                 Label("Save…", systemImage: "square.and.arrow.down")
             }
@@ -308,6 +316,15 @@ struct ScreenshotEditorView: View {
     }
 
     private var canvasArea: some View {
+        HStack(alignment: .bottom, spacing: Theme.Spacing.xl) {
+            floatingPalette { toolPaletteContent }
+            fittedCanvas
+            floatingPalette { colorPaletteContent }
+        }
+        .padding(Theme.Spacing.xl)
+    }
+
+    private var fittedCanvas: some View {
         GeometryReader { geometry in
             let fitted = fittedSize(in: geometry.size)
             let scale = fitted.width / model.imageSize.width
@@ -325,13 +342,6 @@ struct ScreenshotEditorView: View {
                     .stroke(Theme.Colors.border, lineWidth: 1))
             .frame(
                 maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        }
-        .padding(Theme.Spacing.xl)
-        .overlay(alignment: .bottomLeading) {
-            floatingPalette { toolPaletteContent }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            floatingPalette { colorPaletteContent }
         }
     }
 
@@ -356,6 +366,7 @@ struct ScreenshotEditorView: View {
     ) -> some View {
         VStack(spacing: Theme.Spacing.xs) { content() }
             .fixedSize()
+            .frame(width: Self.paletteWidth - Theme.Spacing.sm * 2)
             .padding(Theme.Spacing.sm)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
@@ -363,7 +374,6 @@ struct ScreenshotEditorView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
                     .stroke(Theme.Colors.cardStroke))
-            .padding(Theme.Spacing.xl)
     }
 
     private var toolPaletteContent: some View {

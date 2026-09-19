@@ -26,6 +26,7 @@ struct PluginCommandRegistration {
     var iconFilePath: String?
     var actionKey: PluginActionKey?
     var defaultVisible = true
+    var parameterIdentity: String?
     let perform: () -> Void
 
     var entry: AppEntry {
@@ -33,7 +34,8 @@ struct PluginCommandRegistration {
             id: id, name: name,
             url: URL(string: "spotter://plugin-command/" + id)!,
             bundleID: nil, kind: .command, symbolImage: systemImage,
-            iconFilePath: iconFilePath, pluginActionKey: actionKey)
+            iconFilePath: iconFilePath, pluginActionKey: actionKey,
+            parameterIdentity: parameterIdentity)
     }
 }
 
@@ -86,6 +88,8 @@ struct PluginRegistration {
     var queryProvider: (any PluginQueryProvider)?
     /// Launcher entries a plugin owns that change at runtime (a user's saved quicklinks), re-read on every rebuild rather than captured at registration.
     var dynamicLauncherCommands: (() -> [PluginCommandRegistration])?
+    // Resolves typed parameters into a transient row using an existing command's stable identity.
+    var parameterizedCommand: ((_ query: String) -> PluginCommandRegistration?)?
     var paletteScreen: PluginPaletteScreenRegistration?
     var launcherDashboard: PluginLauncherDashboardRegistration?
     /// Run once from `PluginRegistry.start()`, for a plugin with a manager to bring up.
@@ -100,6 +104,7 @@ final class PluginRegistry: ObservableObject {
     private var orderedIDs: [PluginID] = []
     private var queryProviders: [any PluginQueryProvider] = []
     private var commandOwners: [String: PluginID] = [:]
+    private var parameterizedSnapshot = PluginCommandSnapshot<AppEntry>()
     private var paletteObservers: [PluginID: AnyCancellable] = [:]
     private var activePaletteScreen: PluginID?
     private var launcherDashboardOwner: PluginID?
@@ -146,6 +151,19 @@ final class PluginRegistry: ObservableObject {
             return (registration.launcherCommands + dynamic).map(\.entry)
         }
     }
+
+    func parameterizedCommands(matching query: String) -> [AppEntry] {
+        guard !query.isEmpty, query.count <= 256 else { return [] }
+        return parameterizedSnapshot.resolve(query: query) { [registrations, orderedIDs, commandOwners] in
+            orderedIDs.compactMap { owner in
+                guard let command = registrations[owner]?.parameterizedCommand?(query),
+                      commandOwners[command.id] == owner else { return nil }
+                return command.entry
+            }
+        }
+    }
+
+    func resetParameterizedCommands() { parameterizedSnapshot.reset() }
 
     var initiallyHiddenLauncherCommands: [AppEntry] {
         orderedIDs.flatMap { id in
@@ -294,9 +312,16 @@ final class PluginRegistry: ObservableObject {
     }
 
     @discardableResult
-    func performCommand(_ commandID: String) -> Bool {
+    func performCommand(_ entry: AppEntry, query: String = "") -> Bool {
+        let commandID = entry.id
         guard let owner = commandOwners[commandID], let registration = registrations[owner]
         else { return false }
+        if !query.isEmpty, query.count <= 256,
+           let command = registration.parameterizedCommand?(query), command.id == commandID,
+           command.parameterIdentity == entry.parameterIdentity {
+            command.perform()
+            return true
+        }
         let dynamic = registration.dynamicLauncherCommands?() ?? []
         guard
             let command = (registration.launcherCommands + dynamic).first(where: {

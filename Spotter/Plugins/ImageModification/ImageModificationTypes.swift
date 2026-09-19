@@ -1,7 +1,7 @@
 import Foundation
 
 enum ImageOperation: String, CaseIterable, Identifiable, Sendable {
-    case filter, convert, create, flipHorizontal, flipVertical, optimize, pad
+    case filter, convert, flipHorizontal, flipVertical, optimize
     case removeBackground, resize, rotate, scale, stripMetadata
 
     var id: String { rawValue }
@@ -9,11 +9,9 @@ enum ImageOperation: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .filter: "Apply Filter"
         case .convert: "Convert Image"
-        case .create: "Create Image"
         case .flipHorizontal: "Flip Horizontally"
         case .flipVertical: "Flip Vertically"
         case .optimize: "Optimize Image"
-        case .pad: "Pad Image"
         case .removeBackground: "Remove Background"
         case .resize: "Resize Image"
         case .rotate: "Rotate Image"
@@ -25,11 +23,9 @@ enum ImageOperation: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .filter: "camera.filters"
         case .convert: "arrow.triangle.2.circlepath"
-        case .create: "plus.rectangle"
         case .flipHorizontal: "arrow.left.and.right.righttriangle.left.righttriangle.right"
         case .flipVertical: "arrow.up.and.down.righttriangle.up.righttriangle.down"
         case .optimize: "gauge.with.dots.needle.67percent"
-        case .pad: "rectangle.inset.filled"
         case .removeBackground: "person.crop.rectangle.badge.minus"
         case .resize: "arrow.up.left.and.arrow.down.right"
         case .rotate: "rotate.right"
@@ -58,7 +54,7 @@ enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
     case png, jpeg, gif, tiff, jp2, atx, ktx, ktx2, astc, dds, heic, heics, avif
     case ico, bmp, icns, psd, pdf, tga, exr, pbm, pvr
     var id: String { rawValue }
-    var title: String { rawValue.uppercased() }
+    var title: String { self == .jpeg ? "JPG" : rawValue.uppercased() }
     var fileExtension: String { self == .jpeg ? "jpg" : rawValue }
     var uniformType: String {
         switch self {
@@ -94,51 +90,24 @@ struct ImageFilterDescriptor: Identifiable, Hashable, Sendable {
     var id: String { name }
 }
 
-enum ImageGenerator: String, CaseIterable, Identifiable, Sendable {
-    case checkerboard, constantColor, lenticularHalo, linearGradient, radialGradient
-    case random, starShine, stripes, sunbeams
-
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .checkerboard: "Checkerboard"
-        case .constantColor: "Constant Color"
-        case .lenticularHalo: "Lenticular Halo"
-        case .linearGradient: "Linear Gradient"
-        case .radialGradient: "Radial Gradient"
-        case .random: "Random"
-        case .starShine: "Star Shine"
-        case .stripes: "Stripes"
-        case .sunbeams: "Sunbeams"
-        }
-    }
-}
-
 struct ImageModificationRequest: Sendable {
     var operation: ImageOperation = .resize
     var output: ImageOutputLocation = .alongside
     var format: ImageFormat = .png
     var filterName = "CIPhotoEffectChrome"
-    var generator: ImageGenerator = .linearGradient
     var width = 1200
     var height = 800
     var preserveAspect = true
     var scale = 0.5
     var angle = 90.0
     var quality = 0.82
-    var padding = 40
-    var colorHex = "#00000000"
-    var secondColorHex = "#4F46E5"
 
     static func commandDefaults(
         operation: ImageOperation, output: ImageOutputLocation, format: ImageFormat,
         hasPersistentInput: Bool
     ) -> ImageModificationRequest {
         var request = ImageModificationRequest(operation: operation, output: output, format: format)
-        if output == .alongside {
-            if operation == .create { request.output = .preview }
-            else if !hasPersistentInput { request.output = .clipboard }
-        }
+        if output == .alongside, !hasPersistentInput { request.output = .clipboard }
         return request
     }
 }

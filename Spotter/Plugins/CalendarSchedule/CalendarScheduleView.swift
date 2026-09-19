@@ -2,10 +2,14 @@ import SwiftUI
 
 struct CalendarScheduleView: View {
     @EnvironmentObject private var core: AppCore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: CalendarScheduleStore
     @ObservedObject var dashboard: DashboardWidgetsStore
     let context: PluginPaletteCanvasContext
     @State private var positionedPeriod: TimelinePeriod?
+    @State private var transitionPeriod: TimelinePeriod?
+    @State private var transitionProgress: CGFloat = 1
+    @State private var transitionDirection: CGFloat = 1
 
     private struct TimelinePeriod: Equatable {
         let mode: ScheduleViewMode
@@ -15,14 +19,36 @@ struct CalendarScheduleView: View {
     private struct PositionRequest: Equatable {
         let period: TimelinePeriod
         let isLoading: Bool
+        var reduceMotion = false
+        var isPositioned = true
     }
     private var events: [DashboardEvent] { model.matching(context.query) }
     private var days: [Date] { model.days }
     private let hourHeight = Theme.Size.scheduleHourHeight
 
+    private var pagePeriod: TimelinePeriod {
+        TimelinePeriod(mode: model.mode,
+            date: model.calendar.dateInterval(of: model.mode.component, for: model.date)?.start ?? model.date)
+    }
+
+    private var pageProgress: CGFloat {
+        if reduceMotion { return 1 }
+        return transitionPeriod == nil || transitionPeriod == pagePeriod ? transitionProgress : 0
+    }
+
+    private var isPagePositioned: Bool {
+        model.mode == .month || model.detailID != nil
+            || positionedPeriod == TimelinePeriod(mode: model.mode, date: model.date)
+    }
+
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
-            toolbar
+            if model.mode == .month {
+                Text(model.date.formatted(.dateTime.month(.wide).year()))
+                    .font(.headline).lineLimit(1).minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: Theme.Size.scheduleToolbarHeight)
+            }
             if let id = model.detailID, let event = model.events.first(where: { rowID($0) == id }) {
                 detail(event)
             } else if model.mode == .month {
@@ -33,6 +59,8 @@ struct CalendarScheduleView: View {
         }
         .padding(.horizontal, Theme.Spacing.xl)
         .padding(.bottom, Theme.Spacing.sm)
+        .opacity(pageProgress)
+        .offset(x: (1 - pageProgress) * transitionDirection * Theme.Spacing.md)
         .overlay(alignment: .bottomTrailing) {
             if model.isLoading { ProgressView().controlSize(.small).padding(Theme.Spacing.md) }
         }
@@ -41,38 +69,41 @@ struct CalendarScheduleView: View {
         .onChange(of: model.date) { core.palette.focusToken = UUID() }
         .onChange(of: dashboard.preferences) { model.refresh() }
         .onChange(of: dashboard.calendarAccess) { model.refresh() }
-    }
-
-    private var toolbar: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            Text(periodTitle).font(.headline).lineLimit(1).minimumScaleFactor(0.8)
-            Spacer(minLength: Theme.Spacing.md)
-            Button("Today") { model.today() }.controlSize(.small)
-            Button { model.move(-1) } label: { Image(systemName: "chevron.left") }
-                .help("Previous \(model.mode.title)")
-            Button { model.move(1) } label: { Image(systemName: "chevron.right") }
-                .help("Next \(model.mode.title)")
-            Picker("Calendar view", selection: Binding(get: { model.mode }, set: { model.setMode($0) })) {
-                ForEach(ScheduleViewMode.allCases, id: \.self) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
+        .task(id: PositionRequest(period: pagePeriod, isLoading: model.isLoading,
+                                 reduceMotion: reduceMotion, isPositioned: isPagePositioned)) {
+            await animatePageSwitch()
         }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .frame(height: Theme.Size.scheduleToolbarHeight)
     }
 
-    private var periodTitle: String {
-        switch model.mode {
-        case .day: model.date.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated))
-        case .week:
-            (days.first ?? model.date).formatted(.dateTime.month(.abbreviated).day()) + " – "
-                + (days.last ?? model.date).formatted(.dateTime.month(.abbreviated).day().year())
-        case .month: model.date.formatted(.dateTime.month(.wide).year())
+    private func animatePageSwitch() async {
+        let period = pagePeriod
+        guard let previous = transitionPeriod else {
+            transitionPeriod = period
+            return
+        }
+        if reduceMotion || previous != period {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                transitionDirection = period.date < previous.date
+                    || (period.date == previous.date && period.mode == .week) ? -1 : 1
+                transitionPeriod = period
+                transitionProgress = reduceMotion ? 1 : 0
+            }
+        }
+        guard !model.isLoading, isPagePositioned, transitionProgress == 0 else { return }
+        // Let the timeline establish its scroll position before revealing the new period.
+        await Task.yield()
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: Theme.Animation.pageSwitch)) {
+            transitionProgress = 1
         }
     }
 
     private func rowID(_ event: DashboardEvent) -> String { CalendarSchedulePlugin.rowID(for: event) }
+    private func rowID(_ event: DashboardEvent, on day: Date) -> String {
+        ScheduleEventPosition.id(eventID: rowID(event), day: day)
+    }
     private func onDay(_ day: Date) -> [DashboardEvent] {
         events.filter {
             ScheduleLayout.overlaps(start: $0.startDate, end: $0.endDate, day: day, calendar: model.calendar)
@@ -141,26 +172,28 @@ struct CalendarScheduleView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(day.formatted(date: .complete, time: .omitted) + " · \(dayEvents.count) events — View Day")
+        .help(day.formatted(date: .complete, time: .omitted) + " · \(dayEvents.count) events — View Week")
         .accessibilityLabel(day.formatted(date: .complete, time: .omitted) + ", \(dayEvents.count) events")
     }
 
     private var timeline: some View {
-        VStack(spacing: Theme.Spacing.xs) {
+        let now = Date()
+        return VStack(spacing: Theme.Spacing.xs) {
             HStack(spacing: 0) {
                 Text(model.calendar.timeZone.abbreviation() ?? "")
                     .font(.system(size: 9)).foregroundStyle(.secondary)
                     .frame(width: Theme.Size.scheduleTimeGutter)
                 ForEach(days, id: \.self) { day in
-                    Button { model.showDay(day) } label: { dayLabel(day, weekday: true).frame(maxWidth: .infinity) }
-                        .buttonStyle(.plain)
+                    dayLabel(day, weekday: true)
+                        .frame(maxWidth: .infinity)
+                        .opacity(day < model.calendar.startOfDay(for: now) ? Theme.Opacity.schedulePast : 1)
                 }
             }
-            if events.contains(where: \.isAllDay) { allDayEvents }
+            if events.contains(where: \.isAllDay) { allDayEvents(now: now) }
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     GeometryReader { geometry in
-                        timeGrid(width: geometry.size.width)
+                        timeGrid(width: geometry.size.width, now: now)
                     }
                     .frame(height: hourHeight * 24)
                 }
@@ -172,11 +205,7 @@ struct CalendarScheduleView: View {
                     // Wait for the all-day lane and timeline anchors to settle before positioning.
                     await Task.yield()
                     guard !Task.isCancelled else { return }
-                    if days.contains(where: { model.calendar.isDateInToday($0) }) {
-                        proxy.scrollTo("current-time", anchor: .center)
-                    } else {
-                        proxy.scrollTo("hour:8", anchor: .top)
-                    }
+                    proxy.scrollTo("initial-time", anchor: .center)
                     positionedPeriod = period
                 }
                 .onDisappear { positionedPeriod = nil }
@@ -195,7 +224,7 @@ struct CalendarScheduleView: View {
         }
     }
 
-    private var allDayEvents: some View {
+    private func allDayEvents(now: Date) -> some View {
         HStack(alignment: .top, spacing: 0) {
             Text("All day").font(.system(size: 9)).foregroundStyle(.secondary)
                 .frame(width: Theme.Size.scheduleTimeGutter)
@@ -204,7 +233,9 @@ struct CalendarScheduleView: View {
                     ScrollView(.vertical) {
                         VStack(spacing: Theme.Spacing.xxs) {
                             ForEach(Array(onDay(day).filter(\.isAllDay).enumerated()), id: \.offset) { _, event in
-                                eventButton(event, compact: true).id(rowID(event))
+                                eventButton(event, id: rowID(event, on: day))
+                                    .opacity(day < model.calendar.startOfDay(for: now) ? Theme.Opacity.schedulePast : 1)
+                                    .id(rowID(event, on: day))
                             }
                         }
                     }
@@ -217,78 +248,89 @@ struct CalendarScheduleView: View {
         }
     }
 
-    private func timeGrid(width: CGFloat) -> some View {
+    private func timeGrid(width: CGFloat, now: Date) -> some View {
         let gutter = Theme.Size.scheduleTimeGutter
-        let dayWidth = max(1, (width - gutter) / CGFloat(max(1, days.count)))
+        let gridWidth = max(0, width - gutter)
+        let dayWidth = gridWidth / CGFloat(max(1, days.count))
+        let containsToday = days.contains { model.calendar.isDate($0, inSameDayAs: now) }
+        let minute = ScheduleLayout.elapsedMinutes(on: now, now: now, calendar: model.calendar)
+        let initialMinute = ScheduleLayout.initialScrollMinute(
+            days: days, events: events.map { (start: $0.startDate, end: $0.endDate, isAllDay: $0.isAllDay) },
+            now: now, calendar: model.calendar)
         return ZStack(alignment: .topLeading) {
-            if days.contains(where: { model.calendar.isDateInToday($0) }) {
-                let minute = model.calendar.component(.hour, from: Date()) * 60
-                    + model.calendar.component(.minute, from: Date())
-                // A layout anchor has a reliable scroll rect; drawing offsets alone do not.
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: CGFloat(minute) / 60 * hourHeight)
-                    Color.clear.frame(height: 1).id("current-time")
-                    Spacer(minLength: 0)
-                }
-                .frame(height: hourHeight * 24)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            // A layout anchor has a reliable scroll rect; drawing offsets alone do not.
+            VStack(spacing: 0) {
+                Color.clear.frame(height: CGFloat(initialMinute) / 60 * hourHeight)
+                Color.clear.frame(height: 1).id("initial-time")
+                Spacer(minLength: 0)
             }
+            .frame(height: hourHeight * 24)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
             ForEach(0..<24, id: \.self) { hour in
-                HStack(alignment: .top, spacing: 0) {
-                    Text(hourLabel(hour)).font(.system(size: 10).monospacedDigit())
-                        .foregroundStyle(.secondary).frame(width: gutter, alignment: .leading)
-                    Rectangle().fill(Theme.Colors.separator).frame(height: 1)
-                }
-                .frame(height: hourHeight, alignment: .top)
-                .offset(y: CGFloat(hour) * hourHeight).id("hour:\(hour)")
+                Text(hourLabel(hour)).font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: gutter, height: hourHeight, alignment: .topLeading)
+                    .offset(y: CGFloat(hour) * hourHeight).id("hour:\(hour)")
             }
             ForEach(Array(days.enumerated()), id: \.offset) { index, day in
-                Rectangle().fill(Theme.Colors.separator).frame(width: 1, height: hourHeight * 24)
-                    .offset(x: gutter + CGFloat(index) * dayWidth)
-                let timed = onDay(day).filter { !$0.isAllDay }
-                let blocks = ScheduleLayout.columns(timed.compactMap {
-                    ScheduleLayout.block(id: rowID($0), start: $0.startDate, end: $0.endDate,
-                                         day: day, calendar: model.calendar)
-                })
-                ForEach(blocks) { block in
-                    if let event = timed.first(where: { rowID($0) == block.id }) {
-                        let columnWidth = dayWidth / CGFloat(block.columnCount)
-                        eventButton(event, compact: model.mode == .week)
-                            .frame(width: max(1, columnWidth - Theme.Spacing.xxs),
-                                   height: max(18, (block.endMinute - block.startMinute) / 60 * hourHeight - 2))
-                            .clipped()
-                            .offset(x: gutter + CGFloat(index) * dayWidth + CGFloat(block.column) * columnWidth + 1,
-                                    y: block.startMinute / 60 * hourHeight)
-                            .id(block.id)
+                timeColumn(day, width: dayWidth)
+                    .frame(width: dayWidth, height: hourHeight * 24, alignment: .topLeading)
+                    .mask(alignment: .top) {
+                        VStack(spacing: 0) {
+                            Rectangle().fill(.primary.opacity(Theme.Opacity.schedulePast))
+                                .frame(height: CGFloat(ScheduleLayout.elapsedMinutes(
+                                    on: day, now: now, calendar: model.calendar)) / 60 * hourHeight)
+                            Rectangle().fill(.primary)
+                        }
                     }
-                }
-                if model.calendar.isDateInToday(day) {
-                    let minute = model.calendar.component(.hour, from: Date()) * 60
-                        + model.calendar.component(.minute, from: Date())
-                    Rectangle().fill(Theme.Colors.noteTintAccent(.red)).frame(width: dayWidth, height: 1)
-                        .offset(x: gutter + CGFloat(index) * dayWidth, y: CGFloat(minute) / 60 * hourHeight)
-                        .allowsHitTesting(false)
+                    .offset(x: gutter + CGFloat(index) * dayWidth)
+            }
+            if containsToday {
+                Rectangle().fill(Theme.Colors.noteTintAccent(.red))
+                    .frame(width: gridWidth, height: 1)
+                    .offset(x: gutter, y: CGFloat(minute) / 60 * hourHeight)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func timeColumn(_ day: Date, width: CGFloat) -> some View {
+        let timed = onDay(day).filter { !$0.isAllDay }
+        let blocks = ScheduleLayout.columns(timed.compactMap {
+            ScheduleLayout.block(id: rowID($0, on: day), start: $0.startDate, end: $0.endDate,
+                                 day: day, calendar: model.calendar)
+        })
+        return ZStack(alignment: .topLeading) {
+            Rectangle().fill(Theme.Colors.separator).frame(width: 1, height: hourHeight * 24)
+            ForEach(0..<24, id: \.self) { hour in
+                Rectangle().fill(Theme.Colors.separator).frame(width: width, height: 1)
+                    .offset(y: CGFloat(hour) * hourHeight)
+            }
+            ForEach(blocks) { block in
+                if let event = timed.first(where: { rowID($0, on: day) == block.id }) {
+                    let columnWidth = width / CGFloat(block.columnCount)
+                    eventButton(event, id: block.id)
+                        .frame(width: max(1, columnWidth - Theme.Spacing.xxs),
+                               height: max(18, (block.endMinute - block.startMinute) / 60 * hourHeight - 2))
+                        .clipped()
+                        .offset(x: CGFloat(block.column) * columnWidth + 1,
+                                y: block.startMinute / 60 * hourHeight)
+                        .id(block.id)
                 }
             }
         }
     }
 
     private func hourLabel(_ hour: Int) -> String {
-        let value = Date(timeIntervalSinceReferenceDate: Double(hour) * 3600)
-        var format = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated))
-        format.timeZone = TimeZone(secondsFromGMT: 0)!
-        return value.formatted(format)
+        String(hour)
     }
 
-    private func eventButton(_ event: DashboardEvent, compact: Bool) -> some View {
-        Button { context.activate(rowID(event)) } label: {
+    private func eventButton(_ event: DashboardEvent, id: String) -> some View {
+        Button { context.activate(id) } label: {
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                Text(event.title).font(.system(size: compact ? 10 : 12, weight: .medium)).lineLimit(compact ? 2 : 3)
-                if !compact, !event.isAllDay {
-                    Text(event.startDate.formatted(date: .omitted, time: .shortened))
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
+                Text(event.title).font(.system(size: 10, weight: .medium)).lineLimit(2)
             }
             .padding(.horizontal, Theme.Spacing.xs)
             .padding(.vertical, Theme.Spacing.xxs)
@@ -296,7 +338,7 @@ struct CalendarScheduleView: View {
             .background(accent(event).opacity(0.16))
             .overlay(alignment: .leading) { Rectangle().fill(accent(event)).frame(width: 2) }
             .overlay {
-                if context.selectedID == rowID(event) {
+                if context.selectedID == id {
                     RoundedRectangle(cornerRadius: Theme.Radius.menu).strokeBorder(accent(event), lineWidth: 1.5)
                 }
             }
@@ -330,5 +372,64 @@ struct CalendarScheduleView: View {
             .padding(Theme.Spacing.xl)
         }
         .overlayScroller()
+    }
+}
+
+struct ScheduleHeaderControls: View {
+    @ObservedObject var model: CalendarScheduleStore
+    @ObservedObject var dashboard: DashboardWidgetsStore
+    let today: () -> Void
+    let select: (ScheduleViewMode) -> Void
+
+    var body: some View {
+        if dashboard.calendarAccess.canRead {
+            HStack(spacing: Theme.Spacing.sm) {
+                Button(action: today) {
+                    Label("Today", systemImage: "calendar.badge.clock")
+                        .labelStyle(.iconOnly)
+                        .font(Theme.Typography.bar)
+                        .symbolRenderingMode(.monochrome)
+                        .frame(width: Theme.Size.scheduleHeaderControlHeight,
+                               height: Theme.Size.scheduleHeaderControlHeight)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .frosted(in: Capsule())
+                .focusable(false)
+                .help("Go to today")
+                viewSegments
+            }
+        }
+    }
+
+    private var viewSegments: some View {
+        HStack(spacing: 0) {
+            ForEach(ScheduleViewMode.allCases, id: \.self) { mode in
+                Button { select(mode) } label: {
+                    Label(mode.title, systemImage: mode == .week ? "rectangle.split.3x1" : "calendar")
+                        .labelStyle(.iconOnly)
+                        .font(Theme.Typography.bar)
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(model.mode == mode ? .primary : .secondary)
+                        .frame(width: Theme.Size.scheduleHeaderControlHeight - Theme.Spacing.xxs * 2,
+                               height: Theme.Size.scheduleHeaderControlHeight - Theme.Spacing.xxs * 2)
+                        .background {
+                            if model.mode == mode {
+                                Capsule().fill(Theme.Colors.selection)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .help("\(mode.title) view")
+                .accessibilityAddTraits(model.mode == mode ? .isSelected : [])
+            }
+        }
+        .padding(Theme.Spacing.xxs)
+        .frosted(in: Capsule())
+        .animation(nil, value: model.mode)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Calendar view")
     }
 }

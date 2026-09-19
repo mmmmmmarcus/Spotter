@@ -9,7 +9,7 @@ struct QuicklinksSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Quicklinks") {
-            Section("Saved Quicklinks") {
+            Section {
                 if store.sorted.isEmpty {
                     SettingsRow(title: "No quicklinks") { EmptyView() }
                 } else {
@@ -21,9 +21,13 @@ struct QuicklinksSettingsView: View {
                             onDelete: { pendingDeletion = quicklink })
                     }
                 }
-                SettingsRow(title: "Add Quicklink") {
+            } header: {
+                Text("Saved Quicklinks")
+            } footer: {
+                SettingsListActions {
                     Button("Add…") { editor = QuicklinkEditorTarget(quicklink: nil) }
                         .controlSize(.small)
+                        .accessibilityLabel("Add Quicklink")
                 }
             }
         }

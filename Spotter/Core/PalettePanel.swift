@@ -10,6 +10,7 @@ final class PalettePanel: NSPanel {
     var onBareReturn: (() -> Bool)?
     /// Called for a bare Escape when no footer menu owns the keyboard; focus-free palette screens otherwise never enter SwiftUI's key-press chain.
     var onBareEscape: (() -> Bool)?
+    var onNavigationKey: ((NSEvent) -> Bool)?
     /// The transparent drag strip occupying the top of the frame; its pill is the palette's one move affordance.
     let dragHandle = PaletteDragHandleView()
     /// How deep the pill's reveal zone reaches below the strip, into the glass's top edge.
@@ -40,7 +41,22 @@ final class PalettePanel: NSPanel {
         editor.updateInsertionPointStateAndRestartTimer(!hidden)
     }
 
+    private func routeNavigationKey(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown, paletteViewModel?.menuOpen != true,
+              (firstResponder as? NSTextView)?.hasMarkedText() != true,
+              onNavigationKey?(event) == true else { return false }
+        paletteViewModel?.hoverHighlightArmed = false
+        return true
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if routeNavigationKey(event) { return true }
+        return super.performKeyEquivalent(with: event)
+    }
+
     override func sendEvent(_ event: NSEvent) {
+        // Calendar navigation must reach its canvas before the search field editor consumes it.
+        if routeNavigationKey(event) { return }
         switch event.type {
         case .mouseMoved:
             paletteViewModel?.hoverHighlightArmed = true

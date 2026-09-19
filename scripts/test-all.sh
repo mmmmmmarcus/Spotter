@@ -138,6 +138,7 @@ run_harness() {
             ;;
         commands)
             swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
+                Spotter/Plugins/Infrastructure/PluginCommandSnapshot.swift \
                 Spotter/Core/CommandID.swift \
                 Spotter/Plugins/Commands/SystemCommand.swift Tools/commands-test.swift \
                 -o "$output" && "$output"
@@ -173,6 +174,7 @@ run_harness() {
             swiftc -swift-version 6 -framework AppKit -framework CoreImage \
                 -framework ImageIO -framework Vision \
                 Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
+                Spotter/Plugins/ImageModification/ImageCommand.swift \
                 Spotter/Plugins/ImageModification/ImageModificationEngine.swift \
                 Tools/image-modification-test.swift -o "$output" && "$output"
             ;;

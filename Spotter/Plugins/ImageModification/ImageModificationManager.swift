@@ -21,22 +21,14 @@ final class ImageModificationManager {
     var onTaskFinished: ((UUID, Bool, String) -> Void)?
     var onTaskCancelled: ((UUID) -> Void)?
 
-    func run(operation: ImageOperation, sourceApp: NSRunningApplication?) {
-        precondition(operation != .convert, "Convert Image requires an explicit target format")
-        start(operation: operation, format: nil, sourceApp: sourceApp)
-    }
+    var parameterOperation: ImageOperation = .convert
 
-    func convert(to format: ImageFormat, sourceApp: NSRunningApplication?) {
-        start(operation: .convert, format: format, sourceApp: sourceApp)
-    }
-
-    private func start(
-        operation: ImageOperation, format: ImageFormat?, sourceApp: NSRunningApplication?
-    ) {
+    func run(operation: ImageOperation, parameter: ImageCommand? = nil, sourceApp: NSRunningApplication?) {
+        guard !ImageCommandParser.operations.contains(operation) || parameter?.operation == operation else { return }
         guard task == nil else { return }
         task = Task { [weak self] in
             guard let self else { return }
-            await execute(operation: operation, format: format, sourceApp: sourceApp)
+            await execute(operation: operation, parameter: parameter, sourceApp: sourceApp)
             task = nil
         }
     }
@@ -48,23 +40,19 @@ final class ImageModificationManager {
     }
 
     private func execute(
-        operation: ImageOperation, format: ImageFormat?, sourceApp: NSRunningApplication?
+        operation: ImageOperation, parameter: ImageCommand?, sourceApp: NSRunningApplication?
     ) async {
         do {
-            let inputs = operation == .create
-                ? Inputs(urls: [], arePersistent: false)
-                : try await resolveInputs(sourceApp: sourceApp)
-            guard !Task.isCancelled, operation == .create || !inputs.urls.isEmpty else { return }
+            let inputs = try await resolveInputs(sourceApp: sourceApp)
+            guard !Task.isCancelled, !inputs.urls.isEmpty else { return }
 
             let configuredOutput = ImageOutputLocation(
                 rawValue: UserDefaults.standard.string(forKey: "image-modification.output") ?? "alongside"
             ) ?? .alongside
-            let configuredFormat = format ?? ImageFormat(
-                rawValue: UserDefaults.standard.string(forKey: "image-modification.format") ?? "png"
-            ) ?? .png
-            let request = ImageModificationRequest.commandDefaults(
-                operation: operation, output: configuredOutput, format: configuredFormat,
+            var request = ImageModificationRequest.commandDefaults(
+                operation: operation, output: configuredOutput, format: .png,
                 hasPersistentInput: inputs.arePersistent)
+            parameter?.apply(to: &request)
 
             if request.output == .replace,
                 !confirmReplacement(count: inputs.urls.count, sourceApp: sourceApp)
@@ -72,15 +60,16 @@ final class ImageModificationManager {
                 return
             }
 
-            let total = operation == .create ? 1 : inputs.urls.count
+            let total = inputs.urls.count
             let taskID = onTaskStarted?(operation, total)
             backgroundTaskID = taskID
             let temporaryDirectory = temporaryDirectory
+            let resolvedRequest = request
             let (progress, continuation) = AsyncStream.makeStream(of: ProgressUpdate.self)
             let processing = Task.detached(priority: .userInitiated) {
                 defer { continuation.finish() }
                 return try ImageModificationEngine.process(
-                    request: request, inputs: inputs.urls, temporaryDirectory: temporaryDirectory
+                    request: resolvedRequest, inputs: inputs.urls, temporaryDirectory: temporaryDirectory
                 ) { completed, total, input in
                     continuation.yield(
                         ProgressUpdate(completed: completed, total: total, input: input))
@@ -88,7 +77,7 @@ final class ImageModificationManager {
             }
             for await update in progress {
                 guard let taskID else { continue }
-                let name = update.input?.lastPathComponent ?? "Generated image"
+                let name = update.input?.lastPathComponent ?? "image"
                 onTaskProgress?(
                     taskID, "Processed \(name)",
                     Double(update.completed) / Double(update.total))

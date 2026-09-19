@@ -244,8 +244,7 @@ extension SettingsBackup {
                 ? 2.0 : d.double(forKey: "kill-process.refresh-seconds"))
         prefs.imageModification = SettingsBackupPluginPrefs.ImageModification(
             output: d.string(forKey: "image-modification.output")
-                ?? ImageOutputLocation.alongside.rawValue,
-            format: d.string(forKey: "image-modification.format") ?? ImageFormat.png.rawValue)
+                ?? ImageOutputLocation.alongside.rawValue)
         prefs.screenshot = SettingsBackupPluginPrefs.Screenshot(
             roundedCorners: core.screenshot.roundedCorners,
             captureScale: core.screenshot.captureScale.rawValue,
@@ -398,7 +397,6 @@ extension SettingsBackup {
         }
         if let i = prefs.imageModification {
             set(i.output, "image-modification.output")
-            set(i.format, "image-modification.format")
         }
         if let roundedCorners = prefs.screenshot?.roundedCorners {
             core.screenshot.roundedCorners = roundedCorners

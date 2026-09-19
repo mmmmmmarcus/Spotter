@@ -31,11 +31,9 @@ struct AIChatSettingsView: View {
                         onDelete: { pendingDeletion = command })
                 }
             } header: {
-                // Adding belongs to the group, not to the list: as a header accessory it stays put
-                // while the list grows, where a footer button would drift and read as a last row.
-                HStack {
-                    Text("Commands")
-                    Spacer()
+                Text("Commands")
+            } footer: {
+                SettingsListActions {
                     Button("Add…") { editor = AICommandEditorTarget(command: nil) }
                         .controlSize(.small)
                         .help("Add AI Command")
@@ -333,12 +331,12 @@ private struct OpenRouterSettingsSection: View {
     var body: some View {
         Section("AI (OpenRouter)") {
             SettingsRow(
-                title: "API Key", subtitle: keySubtitle,
+                title: "Open Router API key", subtitle: keySubtitle,
                 statusDot: store.isReady ? .green : nil
             ) {
                 HStack(spacing: Theme.Spacing.md) {
                     SecureField("", text: $keyDraft)
-                        .accessibilityLabel("OpenRouter API Key")
+                        .accessibilityLabel("Open Router API key")
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 220)
                         .onSubmit { store.setAPIKey(keyDraft) }
@@ -355,11 +353,9 @@ private struct OpenRouterSettingsSection: View {
         .onChange(of: store.apiKey) { if store.apiKey != keyDraft { keyDraft = store.apiKey } }
     }
 
-    private var keySubtitle: String {
+    private var keySubtitle: String? {
         switch store.validation {
-        case .unknown:
-            "Messages go to \(OpenRouterStore.provider) under this key, which is included in "
-                + "settings backups and sync."
+        case .unknown: nil
         case .checking: "Checking key with \(OpenRouterStore.provider)…"
         case .valid(let detail): detail
         case .invalid(let message): message

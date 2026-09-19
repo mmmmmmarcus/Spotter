@@ -183,6 +183,7 @@ swiftc -swift-version 6 Spotter/Core/CustomCommand.swift \
     -o /tmp/custom-command-test && /tmp/custom-command-test        # custom command store + runner
 swiftc -swift-version 6 Spotter/Core/CommandID.swift \
     Spotter/Plugins/Infrastructure/PluginTypes.swift \
+    Spotter/Plugins/Infrastructure/PluginCommandSnapshot.swift \
     Spotter/Plugins/Commands/SystemCommand.swift Tools/commands-test.swift \
     -o /tmp/commands-test && /tmp/commands-test                    # built-in command catalog + compatibility
 swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
@@ -208,6 +209,7 @@ swiftc -swift-version 6 \
     -o /tmp/translate-test && /tmp/translate-test
 swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageIO -framework Vision \
     Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
+    Spotter/Plugins/ImageModification/ImageCommand.swift \
     Spotter/Plugins/ImageModification/ImageModificationEngine.swift Tools/image-modification-test.swift \
     -o /tmp/image-modification-test && /tmp/image-modification-test
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \

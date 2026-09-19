@@ -98,15 +98,6 @@ final class NoteStore: ObservableObject {
         editorFocusRequest &+= 1
     }
 
-    func filteredNotes(query: String) -> [SpotterNote] {
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return notes }
-        return notes.filter {
-            $0.title.localizedCaseInsensitiveContains(query)
-                || $0.content.localizedCaseInsensitiveContains(query)
-        }
-    }
-
     @discardableResult
     func createNote(content: String = NoteEngine.requiredTitlePrefix) -> UUID {
         let date = now()

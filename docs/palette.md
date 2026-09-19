@@ -76,6 +76,12 @@ hook (←/→ hour scrubbing on an empty query — World Clock, whose screen als
 in place). Registry observation invalidates
 the palette when the plugin's `AppCore`-owned manager changes. Kill Process is the reference screen.
 
+Schedule's canvas keeps the same flat selection but uses spatial arrows: within-day event navigation
+vertically, nearest populated date horizontally, and date-grid navigation in Month. Command-[ / Command-]
+page by week or month. `PalettePanel` routes these keys before the field editor consumes them, while
+open menus, confirmations and marked IME text keep priority. The route only applies to an authorized
+Schedule canvas; other palette screens and Notes keep their existing keyboard behavior.
+
 The empty-query launcher can also host the single registered `launcherDashboard`. It appears above
 the normal launcher sections inside the same scroll view, has no selectable rows, and disappears as
 soon as the user types or enters another palette mode. Its visible lifecycle controls any refresh
@@ -102,8 +108,15 @@ rows through `PluginPaletteList`, with London, Shanghai and San Francisco as the
 That screen's single field serves two readings: a query starting with a clock time (`8pm in london`)
 converts that instant into every configured city, anything else keeps searching the catalog to add a
 city. See [world-clock.md](world-clock.md).
-Image Modification uses the same shared screen as the second level of Convert Image: choosing the
-command shows writable target formats, and choosing a format is the action that starts conversion.
+Image Modification uses the same shared screen for Convert, Resize, Scale and Optimize parameters.
+Choosing a command shows presets; typing in that screen accepts custom dimensions, a scale factor or
+quality. A complete root query such as `Convert JPG`, `Scale1.5`, `Resize 1920x1080` or `Optimize 80%`
+instead inserts one parameterized command row, reusing the base command's identity. Both entry paths
+use the same parser and begin input resolution only after the user activates the chosen parameters.
+
+Kill Process also contributes a parameterized row for `kill <application name>`, selecting the best
+matching running application and displaying its full name and icon. The transient process identity
+must still match on activation; otherwise the base Kill Process list opens for a fresh selection.
 
 ## Window placement
 

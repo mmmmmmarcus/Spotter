@@ -127,7 +127,7 @@ migration marker, so deliberately unbinding it in a current build remains author
 `Features/Settings/ShortcutsSettingsView.swift` is the one Settings pane that is not a
 `SettingsPane`, and the reason is laziness: its rows are every application, System Settings pane and
 command on the Mac, and a grouped `Form` is not a lazy container. It is **one `List`** instead —
-lazy, so only the visible rows are realized — with a `Section` per heading:
+lazy, so only the visible rows are realized — with an ordinary foldable row per heading:
 
 | Section | Rows |
 | --- | --- |
@@ -145,7 +145,8 @@ means one thing everywhere in it. The field lives in the `VStack` **above** the 
 so it never scrolls away. Headings stay foldable with their counts, and a typed query still
 overrides every fold.
 
-The summon rows carry no icon, alias or visibility box, but reserve the icon and visibility columns
+All headings use the same non-pinned row layout, without native section-header backgrounds or
+separators. The summon rows carry command/keyboard icons and reserve the leading visibility column
 (`Theme.Size.shortcutRowIcon`, `Theme.Size.shortcutVisibilityControl`) so their names and recorders
 land at the same x as every launcher row's. Fold state stays device-local under
 `shortcuts.collapsedGroups`, and nothing about the bindings themselves moved: every one keeps its
@@ -158,9 +159,14 @@ The settings recorder (`Features/Settings/ShortcutRecorder.swift`) is deliberate
 control: the active recorder is `HotKeyManager.recordingAction` state, and keys are captured by local
 NSEvent monitors while all Carbon registrations are paused.
 
-**The pill hugs its content; the slot around it does the aligning.** See
-[ui.md](ui.md) for the measured widths — the short version is that a fixed-width pill left a `✦ D`
-binding rattling around in a box several times its size, so the pill is now sized by what it holds
-and sits trailing-aligned inside a `Theme.Size.shortcutRowControl` slot. The slot is what keeps every
-recorder's right edge at one x and stops whatever follows one (a checkbox, a pencil) from moving with
-the width of the binding beside it.
+Every recorder is a fixed 120×24-point field. Unbound and recording-with-no-input states show no
+placeholder; clicking activates capture and the accent border marks that state. Held modifiers
+appear live, and a completed binding shows keycaps. Wide bindings fall back to compact text inside
+the same field. A conflict shows a warning icon with the owner in its tooltip and accessibility
+label rather than a sentence inside the field. Escape, Delete, outside-click cancellation,
+double-tap recording and conflict validation retain their existing behavior.
+
+Alias and Hotkey fields sit eight points apart. Launcher-row visibility checkboxes precede the
+icon; unchecked rows have desaturated icons and faded content, while their checkbox remains fully
+visible and editable. This remains launcher visibility, not a new hotkey-enable flag: saved
+bindings and favorites are preserved. Global summon rows reserve the same leading columns.

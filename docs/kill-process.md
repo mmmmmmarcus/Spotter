@@ -8,6 +8,19 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
 
 ## Behavior
 
+- The root palette accepts `kill Chrome`, `kill Safari`, or another running application's name.
+  It shows one best matching **Kill <Application>** command with the app icon; exact names rank ahead
+  of prefixes and substrings. This reuses the parameterized-command route used by Image Modification.
+  Bare `kill` still finds the normal process-list command. The direct query uses macOS's running-app
+  metadata, starts no process polling and launches no `ps` subprocess while typing. Only regular
+  running applications are candidates, with Spotter and PID 0/1 excluded.
+- Activating that row sends the existing ordinary Kill (`SIGTERM`) to the selected application's
+  main process; it does not invoke Force Kill or Kill All. The row carries a transient PID, launch
+  date and executable identity, held stable until the query changes or the palette reopens.
+  If the resolved target changed before activation, the normal process
+  list opens instead of killing a different application. The palette remains open as with process-list
+  actions. No real application is terminated by the automated matcher tests.
+
 - Sort by CPU or resident memory; filter by name and app name, plus PID (on by default) and
   executable path (off by default) — both toggles in Settings, and both synced through
   `SettingsBackup.PluginPrefs.KillProcess` with the other six preferences.

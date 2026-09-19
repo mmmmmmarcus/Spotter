@@ -46,7 +46,7 @@ struct CalendarScheduleSettingsView: View {
                             }
                         }
                         .labelsHidden()
-                        .frame(width: 220)
+                        .frame(width: 220, alignment: .trailing)
                     }
                 }
 

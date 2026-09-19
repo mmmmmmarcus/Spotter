@@ -10,15 +10,19 @@ struct SearchScopesSection: View {
     private var isDefault: Bool { settings.searchScopes == SearchScopes.defaults }
 
     var body: some View {
-        Section("Search Scopes") {
+        Section {
+            if settings.searchScopes.isEmpty {
+                SettingsRow(title: "No search scopes") { EmptyView() }
+            }
             ForEach(settings.searchScopes, id: \.self) { scope in
                 ScopeRow(scope: scope, isMissing: missing.contains(scope)) {
                     settings.searchScopes.removeAll { $0 == scope }
                 }
             }
-
-            HStack(spacing: Theme.Spacing.lg) {
-                Spacer(minLength: Theme.Spacing.xl)
+        } header: {
+            Text("Search Scopes")
+        } footer: {
+            SettingsListActions {
                 if !isDefault {
                     Button("Restore Defaults") { settings.searchScopes = SearchScopes.defaults }
                         .controlSize(.small)
@@ -29,6 +33,7 @@ struct SearchScopesSection: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Add a folder or application to search.")
+                .accessibilityLabel("Add Search Scope")
             }
         }
         .onAppear(perform: refreshMissing)

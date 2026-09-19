@@ -16,12 +16,23 @@ shortcut are routed through `PluginRegistry`.
   - `EmojiData.generated.swift` — the emoji dataset.
   - `EmojiIndex.swift` — search index over the catalog.
   - `FrequentEmojiStore.swift` — persisted most-recently / frequently used emoji.
-  - `EmojiGridView.swift` and `EmojiSettingsView.swift` — the SwiftUI feature surfaces.
+  - `EmojiGridView.swift` — the grid and its Actions menu content.
 
 `EmojiCatalog.swift`, `EmojiGridGeometry.swift` and the generated dataset form the
 **Foundation-only** testable boundary; the other files may use AppKit or SwiftUI as required.
 The bounded `FrequentEmojiStore` records enter trusted v3 backups and automatic sync, so usage
 ranking and resets propagate between Macs.
+
+## Skin tone
+
+The bottom-right Actions menu contains **Choose Skin Tone**, opening a second menu with the default
+yellow and five skin tones. It marks the current choice; selecting one updates the grid immediately
+without pasting or closing the palette. Escape, Left Arrow or Back to Actions returns to the parent
+menu. Arrow keys, Return and menu typeahead use the shared menu navigation. The action remains
+available even when a search has no matches.
+
+Emoji has no Settings page. The existing `AppSettings.emojiSkinTone` preference and trusted backup/sync
+field are unchanged; render, copy and paste all continue to use that one value.
 
 ## Invariants
 

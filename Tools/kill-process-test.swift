@@ -25,6 +25,31 @@ struct KillProcessTests {
         let searched = KillProcessEngine.visible(parsed, query: "220", sort: .cpu, groupingApplications: true, searchPaths: false, searchPIDs: true, prioritizeApps: true)
         check("pid search", searched.map(\.id) == [220])
 
+        check("kill parses an application argument", KillProcessEngine.applicationArgument("kill Chrome") == "Chrome")
+        check("kill accepts casing and multiword names", KillProcessEngine.applicationArgument("  KILL  Google Chrome  ") == "Google Chrome")
+        for query in ["kill", "kill   ", "killall Chrome", "Q Chrome", "skill Chrome", "Chrome", String(repeating: "k", count: 257)] {
+            check("reject unrelated or incomplete query: \(query.prefix(24))", KillProcessEngine.applicationArgument(query) == nil)
+        }
+        let apps = KillProcessEngine.parse("""
+         10 1 0 0 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+         20 1 0 0 /Applications/Safari.app/Contents/MacOS/Safari
+         30 1 0 0 /Applications/Safari Technology Preview.app/Contents/MacOS/Safari Technology Preview
+         40 1 0 0 /Applications/Spotter.app/Contents/MacOS/Spotter
+         50 1 0 0 /usr/bin/Chrome
+        """)
+        func target(_ argument: String, in source: [RunningProcessInfo]? = nil) -> Int32? {
+            KillProcessEngine.applicationTarget(in: source ?? apps, argument: argument, excludingPID: 40)?.id
+        }
+        check("Chrome resolves a running Google Chrome", target("chrome") == 10)
+        check("partial application name works", target("Chro") == 10)
+        check("exact name outranks variants", target("Safari") == 20)
+        check("full variant name selects that variant", target("Safari Technology") == 30)
+        check("matching is independent of process order", target("Safari", in: Array(apps.reversed())) == 20)
+        check("Spotter is excluded", target("Spotter") == nil)
+        check("missing application produces no target", target("Firefox") == nil)
+        check("empty argument produces no target", target("") == nil)
+        check("exited application cannot retarget a binary", target("Chrome", in: apps.filter { $0.id != 10 }) == nil)
+
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

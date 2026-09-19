@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import Foundation
 
-/// Backs the music card: what Apple Music is playing, its artwork, and the three transport controls.
+/// Backs the music card with Apple Music track information and artwork.
 ///
 /// Everything here goes through one Apple Event, run as an `osascript` subprocess off the main actor
 /// exactly like `Core/FinderSelection` — macOS's own Automation prompt is the gate, and a refused
@@ -54,31 +54,6 @@ final class DashboardMusicStore: ObservableObject {
         timer?.invalidate()
         timer = nil
         notificationToken = nil
-    }
-
-    func playPause() {
-        control("playpause")
-    }
-
-    func nextTrack() {
-        control("next track")
-    }
-
-    func previousTrack() {
-        // Music's own "previous" restarts the track a few seconds in, which is what the button means
-        // in every player; leave that behaviour to Music rather than second-guessing it here.
-        control("previous track")
-    }
-
-    private func control(_ command: String) {
-        guard Self.isMusicRunning else { return }
-        Task {
-            _ = await Self.runScript("tell application \"Music\" to \(command)")
-            // Music applies the change asynchronously; one short beat before re-reading avoids
-            // drawing the state the user just left.
-            try? await Task.sleep(for: .milliseconds(180))
-            refresh()
-        }
     }
 
     private func refresh() {

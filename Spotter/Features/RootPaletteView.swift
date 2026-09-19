@@ -20,7 +20,7 @@ struct RootPaletteView: View {
     /// Observed so the AI Chat fallback row renames itself the moment the chat model or the key changes.
     @ObservedObject private var openRouter = AppCore.shared.openRouter
     @ObservedObject private var backgroundTasks = AppCore.shared.backgroundTasks
-    /// Observed so a skin tone changed in Settings re-renders the grid glyphs immediately.
+    // Observed so choosing a skin tone or syncing preferences updates the grid immediately.
     @ObservedObject private var settings = AppCore.shared.settings
     @FocusState private var searchFocused: Bool
     @State private var openMenu: OpenMenu?
@@ -72,7 +72,12 @@ struct RootPaletteView: View {
         // Visibility filtering stays downstream of `matches` so its one-deep memo cache is never keyed on hidden state; hidden favorites drop out here too.
         let base = appIndex.matches(vm.query)
             .filter(visibility.isVisible)
-        guard isQueryEmpty else { return LauncherBrowse(entries: base, sections: nil, usage: [:]) }
+        guard isQueryEmpty else {
+            let parameterized = plugins.parameterizedCommands(matching: vm.query).filter(visibility.isVisible)
+            let replacedIDs = Set(parameterized.map(\.id))
+            return LauncherBrowse(entries: parameterized + base.filter { !replacedIDs.contains($0.id) },
+                                  sections: nil, usage: [:])
+        }
 
         // The flat array is rebuilt in section order, so the flat selection index and the visible
         // row order stay one and the same. A hidden section's take is skipped: its Applications-kind
@@ -283,11 +288,11 @@ struct RootPaletteView: View {
             }
             return nil
         case .emoji:
-            if let emoji = selectedEmojiEntry {
-                return EmojiActionsMenu.content(
-                    entry: emoji, core: core, target: vm.pasteTarget)
+            return EmojiActionsMenu.content(
+                entry: selectedEmojiEntry, core: core, target: vm.pasteTarget
+            ) {
+                openMenu = .emojiSkinTone
             }
-            return nil
         case .aiChat:
             return AIChatActionsMenu.content(core: core)
         case .updates:
@@ -329,6 +334,7 @@ struct RootPaletteView: View {
     private enum OpenMenu {
         case actions
         case app
+        case emojiSkinTone
     }
 
     /// Whichever menu is open — the source for keyboard navigation and activation.
@@ -336,6 +342,8 @@ struct RootPaletteView: View {
         switch openMenu {
         case .actions: return actionsContent
         case .app: return appMenuContent
+        case .emojiSkinTone:
+            return EmojiActionsMenu.skinTones(settings: settings) { openMenu = .actions }
         case nil: return nil
         }
     }
@@ -389,11 +397,11 @@ struct RootPaletteView: View {
         // A task row earns a ↵ pill only when Return has somewhere to go; live work that can merely
         // be called off shows the Actions button alone, so ↵ never stops anything by reflex.
         let taskPrimary = selectedTask.map { $0.isDismissible || backgroundTasks.canOpen(id: $0.id) }
-        let showPrimaryAction = taskPrimary ?? true
+        let showPrimaryAction = taskPrimary ?? (vm.mode != .emoji || !emojis.isEmpty)
         let showActionGroup = selectedTask.map {
             (taskPrimary ?? false) || backgroundTasks.canCancel(id: $0.id)
         }
-            ?? (((count > 0 || vm.mode == .aiChat)
+            ?? (((count > 0 || vm.mode == .aiChat || vm.mode == .emoji)
                 && !(inlineSelected && inlineActionTitle == nil))
                 || (vm.mode == .updates && updatePrimaryActionTitle != nil))
         let showActionsButton = vm.mode != .updates
@@ -468,7 +476,7 @@ struct RootPaletteView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if openMenu == .actions, let content = actionsContent {
+            if openMenu == .actions || openMenu == .emojiSkinTone, let content = menuContent {
                 PopoverMenu(
                     header: content.header, items: content.items, selection: $menuSelection,
                     onActivate: activateMenuItem
@@ -525,6 +533,7 @@ struct RootPaletteView: View {
         }
         // Every show bumps focusToken — refocus search and drop any menu left open from last time (e.g. dismissed by clicking away with a context menu up). The scroll snaps home too: a reopen that preserved its state should still start reading from the top.
         .onChange(of: vm.focusToken) {
+            plugins.resetParameterizedCommands()
             aliasTarget = nil
             aliasFocused = false
             searchFocused = vm.mode != .updates
@@ -532,6 +541,7 @@ struct RootPaletteView: View {
             scroll = ScrollIntent(kind: .top)
         }
         .onChange(of: vm.query) {
+            plugins.resetParameterizedCommands()
             vm.selection = 0
             pluginQueryHourOffset = 0
             scroll = ScrollIntent(kind: .top)
@@ -554,6 +564,8 @@ struct RootPaletteView: View {
             switch openMenu {
             case .actions, .app:
                 menuSelection = 0
+            case .emojiSkinTone:
+                menuSelection = 1 + (EmojiSkinTone.allCases.firstIndex(of: settings.emojiSkinTone) ?? 0)
             case nil:
                 break
             }
@@ -569,7 +581,7 @@ struct RootPaletteView: View {
             syncMenuInputState()
         }
         .onChange(of: vm.menuTypeaheadQuery) {
-            guard openMenu == .actions, let items = actionsContent?.items,
+            guard openMenu == .actions || openMenu == .emojiSkinTone, let items = menuContent?.items,
                 let index = PaletteMenuTypeahead.bestMatch(
                     query: vm.menuTypeaheadQuery, titles: items.map(\.title))
             else { return }
@@ -628,6 +640,7 @@ struct RootPaletteView: View {
                 moveMenu(1)
                 return .handled
             }
+            if vm.mode == .plugin(.calendarSchedule), core.dashboardWidgets.calendarAccess.canRead { return .ignored }
             if vm.mode == .emoji { moveEmojiRow(1) } else { move(1) }
             return .handled
         }
@@ -638,6 +651,7 @@ struct RootPaletteView: View {
                 moveMenu(-1)
                 return .handled
             }
+            if vm.mode == .plugin(.calendarSchedule), core.dashboardWidgets.calendarAccess.canRead { return .ignored }
             if vm.mode == .emoji { moveEmojiRow(-1) } else { move(-1) }
             return .handled
         }
@@ -648,7 +662,12 @@ struct RootPaletteView: View {
                 return .handled
             }
             if aliasEditorOpen { return .ignored }
+            if openMenu == .emojiSkinTone {
+                openMenu = .actions
+                return .handled
+            }
             if menuOpen { return .handled }
+            if vm.mode == .plugin(.calendarSchedule), core.dashboardWidgets.calendarAccess.canRead { return .ignored }
             if adjustPluginQueryHour(by: -1) { return .handled }
             if adjustPluginScreenHour(by: -1) { return .handled }
             guard vm.mode == .emoji else { return .ignored }
@@ -662,6 +681,7 @@ struct RootPaletteView: View {
             }
             if aliasEditorOpen { return .ignored }
             if menuOpen { return .handled }
+            if vm.mode == .plugin(.calendarSchedule), core.dashboardWidgets.calendarAccess.canRead { return .ignored }
             if adjustPluginQueryHour(by: 1) { return .handled }
             if adjustPluginScreenHour(by: 1) { return .handled }
             guard vm.mode == .emoji else { return .ignored }
@@ -731,6 +751,10 @@ struct RootPaletteView: View {
                 return .handled
             }
             if openMenu != nil {
+                if openMenu == .emojiSkinTone {
+                    openMenu = .actions
+                    return .handled
+                }
                 closeMenus()
                 return .handled
             }
@@ -766,8 +790,8 @@ struct RootPaletteView: View {
             guard press.modifiers.contains(.command), !aliasEditorOpen else { return .ignored }
             // The Actions menu has no anchor in the compact bar (no bottom bar); swallow ⌘K there.
             guard !isCollapsed else { return .handled }
-            // Chat has no selectable rows but a fixed menu; every other mode needs a selection.
-            guard resultCount > 0 || vm.mode == .aiChat else { return .handled }
+            // Chat and Emoji have actions available even without a selected result.
+            guard resultCount > 0 || vm.mode == .aiChat || vm.mode == .emoji else { return .handled }
             // A task row's only menu is calling the work off, so it opens only when it can be.
             if let task = selectedBackgroundTask {
                 if backgroundTasks.canCancel(id: task.id) { toggleActions() }
@@ -874,6 +898,18 @@ struct RootPaletteView: View {
             if vm.mode == .clipboard, !isCollapsed {
                 ClipboardTypeSegments(filter: vm.clipboardFilter, select: selectClipboardFilter)
                     .fixedSize()
+            }
+            if vm.mode == .plugin(.calendarSchedule), !isCollapsed {
+                ScheduleHeaderControls(model: core.calendarSchedule, dashboard: core.dashboardWidgets, today: {
+                    closeMenus()
+                    core.calendarSchedule.today()
+                    searchFocused = true
+                }) { mode in
+                    closeMenus()
+                    core.calendarSchedule.setMode(mode)
+                    searchFocused = true
+                }
+                .fixedSize()
             }
             // Compact bar pins favorites to the right of the field; expanded shows them as list rows instead.
             if isCollapsed, settings.showFavoritesInCompactMode {
@@ -1224,7 +1260,7 @@ struct RootPaletteView: View {
     }
 
     private func toggleActions() {
-        if openMenu == .actions {
+        if openMenu == .actions || openMenu == .emojiSkinTone {
             withAnimation(Self.menuAnimation) { openMenu = nil }
         } else {
             openActions()
@@ -1283,7 +1319,7 @@ struct RootPaletteView: View {
 
     private func syncMenuInputState() {
         vm.menuOpen = menuOpen || confirmOpen
-        vm.menuTypeaheadEnabled = openMenu == .actions && !confirmOpen
+        vm.menuTypeaheadEnabled = (openMenu == .actions || openMenu == .emojiSkinTone) && !confirmOpen
     }
 
     /// Inset of the menu panels from the window's bottom corners, kept just inside the rounded corner so the menu's own corner isn't clipped.
@@ -1346,11 +1382,12 @@ struct RootPaletteView: View {
         menuSelection = min(max(menuSelection + delta, 0), count - 1)
     }
 
-    /// The single activation path for a menu row, shared by a click and Return: run the row's action, then close.
+    // A row that opens another menu keeps it open; terminal actions dismiss the current menu.
     private func activateMenuItem(_ index: Int) {
         guard let items = menuContent?.items, items.indices.contains(index) else { return }
+        let previousMenu = openMenu
         items[index].action()
-        closeMenus()
+        if openMenu == previousMenu { closeMenus() }
     }
 
     /// Vertical grid move: one visual row within a section, spilling into the neighbor while keeping the column.

@@ -56,6 +56,15 @@ Widgets section, one row per card, rather than a pane of its own; Commands is an
 [plugins.md](plugins.md) for the contract, directory rules, `spotter-plugin` project skill and plugin
 lifecycle checklists.
 
+Registrations may also parse a launcher query into a parameterized command. These transient rows reuse
+an existing owned command ID, so visibility and action routing still flow through the same registry.
+Image Modification's Foundation-only `ImageCommand` parser serves both this direct entry and its
+second-level parameter palette; input resolution and pixel work remain in its manager and engine.
+Kill Process uses the same route for running-application names. A transient parameter identity on the
+entry is checked during dispatch so a refreshed process match cannot silently change the target.
+The registry snapshots displayed entries until the query changes or the palette reopens; activation
+reads this same snapshot before resolving and checking the current target independently.
+
 ## Entry points and windows
 
 `SpotterApp` (`@main`) declares only a `MenuBarExtra` scene — the `bolt.square.fill` symbol, hidden

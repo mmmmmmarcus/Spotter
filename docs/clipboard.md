@@ -50,11 +50,13 @@ over that incoming snapshot. The wire format and retention rules are unchanged.
 
 ## Type filter
 
-The trailing edge of the clipboard search bar carries a native segmented control for **All Types,
+The trailing edge of the clipboard search bar carries a Liquid Glass segmented control for **All Types,
 Text Only, Images Only, Screenshots Only, Links Only, Emails Only, Numbers Only**. Each segment
 shows its SF Symbol, with a tooltip and accessible name. Clicking a segment keeps the search
 field focused, resets selection to the first result and scrolls to the top. **⌘P** cycles forward
-and **⇧⌘P** cycles backward; the filter no longer opens a menu.
+and **⇧⌘P** cycles backward; the filter no longer opens a menu. The seven segments share one
+interactive glass capsule using `Theme.frosted(in:)`, with an immediate, unanimated selection highlight.
+Buttons stay out of keyboard focus traversal and expose their selected state to VoiceOver.
 
 Text rows use `textformat.alt`, links use `link`, numbers use `number.sign`, and email addresses
 keep their distinct `at` symbol. Images retain their thumbnails. Numbers must occupy the entire

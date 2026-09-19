@@ -96,6 +96,14 @@ Every registration supplies `metadata` and a standard Settings view. Everything 
   quicklinks or shell commands — and is re-read on every rebuild instead of captured once. Call
   `PluginRegistry.reloadDynamicCommands(for:)` whenever the underlying store changes; registration
   seeds the routing table so entries restored from disk are launchable before any change fires.
+- `parameterizedCommand` parses the current launcher query into a transient command row. It must
+  reuse an existing command ID owned by the registration; the row replaces that command in search
+  results and keeps its visibility, favorite and shortcut identity. Activation resolves the same query
+  through the same parser. Parsing is bounded to 256 characters and must do no IO or pixel work.
+  A `parameterIdentity` pins the value shown in a row to the value resolved on activation; if it
+  changes or disappears, activation falls back to the base command's parameter-selection surface.
+  `PluginCommandSnapshot` holds displayed entries until the query changes or the palette reopens,
+  so rebuilding the result list during activation cannot substitute a different target first.
 - `metadata.settingsPlacement` places a registration under Settings → System, Settings → Widgets or
   Settings → Plugins. System features may reuse the registry's command, shortcut and Settings routing
   without being presented as optional plugins. Widgets is one of them: the whole card strip is
@@ -275,9 +283,11 @@ shell-command feature; do not use shell commands as an internal plugin API.
   and no conversion resolves.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — pasteboard polling with a persisted history;
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
+  The palette's type filters share one Liquid Glass capsule and preserve search-field focus.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
-  event tap without storing typing history or using the clipboard.
+  event tap without storing typing history or using the clipboard. Its Snippets settings table
+  separates Trigger, Original Text and Actions into aligned columns.
 - **Notes** (`Spotter/Plugins/Note/`) — the editor preserves live IME compositions across same-note
   model refreshes, with AppKit regression coverage in `Tools/note-editor-test.swift`. Unlimited local notes in a translucent,
   content-height floating Markdown editor that opens 440 points wide with a 20-point window radius
@@ -295,7 +305,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   background-task rows; successful invisible work reports through the brief command HUD, while
   failures preserve their detailed alerts.
 - **Emoji & Symbols** (`Spotter/Plugins/EmojiSymbols/`) — lazily loads its Foundation catalog on
-  first use.
+  first use. Skin tone is selected in the palette's Actions menu; it has no Settings page.
 - **World Clock** (`Spotter/Plugins/WorldClock/`) — local-only, backed by macOS
   IANA time-zone data. Queries compare a city with local system time and support hourly keyboard
   adjustment; its launcher screen shows a user-managed saved-city list.
@@ -304,6 +314,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   counters are counts only and nothing leaves the Mac.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
+  `kill Chrome` and other application-name arguments also resolve directly to a running-app action.
 - **Change Case** (`Spotter/Plugins/ChangeCase/`) — 21 local text transforms, selected-text/clipboard
   fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
 - **Search** (`Spotter/Plugins/SelectionTools/`, display-renamed from Selection Tools; the id stays
@@ -315,9 +326,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
   pauses, and Translate Selected Text translates the frontmost app's selection; both list one row per
   configured target language.
 - **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
-  ImageIO commands with Finder/clipboard/file input and explicit output handling; Convert Image uses
-  a searchable target-format palette before any conversion begins, then every operation reports
-  batch progress through the launcher background-task surface.
+  ImageIO commands with Finder/clipboard/file input and explicit output handling. Convert, Resize,
+  Scale and Optimize use a searchable parameter palette, or accept direct launcher queries such as
+  `Convert JPG` and `Scale1.5`. Parameters are parsed, not enumerated as launcher commands. Every
+  operation reports batch progress through the launcher background-task surface.
 - **Window Management** (`Spotter/Plugins/WindowManagement/`) — 30 commands
   covering halves, quarters, thirds, sizing, display moves and fullscreen, on a pure geometry engine
   with an AX mover.
@@ -341,7 +353,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   pointers are rendered once from SF Symbols with a one-point white outline and subtle drop shadow.
   The display stays visually unchanged; a one-alpha-step hit surface keeps the panel interactive,
   while a dragged region receives an exact 5% overlay. A default-on synced preference gives the
-  overlay, selection border and output pixels a 4px radius.
+  overlay, selection border and output pixels a 4px radius. The editor reserves separate side columns
+  for tools and colors so they never cover the image, and groups Undo/Redo in one glass capsule.
   The overlay architecture is adapted from Capso under BSL 1.1; no Capso service or idle process is
   loaded.
 Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Uptime](uptime.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
@@ -364,6 +377,10 @@ marks. The symbol is a placeholder, not a charge reading; accessibility says “
 Widgets also registers the `Battery` launcher command and a shared palette screen that lists every
 reported peripheral with its charge percentage and charging state.
 
-Schedule supplies an optional `PluginPaletteScreenRegistration.canvas` for its day/week/month
+Schedule supplies an optional `PluginPaletteScreenRegistration.canvas` for its week/month
 calendar geometry. Its context carries the shared snapshot, selected item and activation/Actions
 callbacks; list-based screens keep `PluginPaletteList`. The canvas stays inside the Palette frame.
+
+The Note workspace switches documents directly from its scrollable Emoji markers. Its native
+options menu contains appearance settings and Delete Note; New Note is a separate toolbar button.
+The former in-window Notes list and its ⌘L shortcut are removed; Palette Note search remains available.

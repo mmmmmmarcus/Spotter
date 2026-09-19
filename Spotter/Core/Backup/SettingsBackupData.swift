@@ -91,7 +91,6 @@ struct SettingsBackupPluginPrefs: Codable, Sendable {
     }
     struct ImageModification: Codable, Sendable {
         var output: String?
-        var format: String?
     }
     struct Screenshot: Codable, Sendable {
         var roundedCorners: Bool?

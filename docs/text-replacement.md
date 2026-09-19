@@ -67,9 +67,13 @@ explicit user action, goes through `Paster` like every other palette paste).
 
 The prefix defaults to `@@`; snippets start empty. `TextReplacementStore` persists both in the
 application's bundle-scoped `UserDefaults` domain under `text-replacement.prefix` and
-`text-replacement.rules`. The Settings pane holds the standard Plugin toggle, the snippet list with
-add/edit/delete (name, multiline content up to 10,000 characters, optional keyword), and the
-expansion prefix. The Accessibility callout appears only when a keyworded snippet actually needs it.
+`text-replacement.rules`. The Settings pane presents a three-column table: Trigger (the full
+prefix + keyword), Original Text, and Actions (edit/delete). A missing keyword displays a dash with
+a palette-only explanation on hover. Content previews use up to two lines with the snippet's name
+below in secondary text; hovering reveals the complete text. The Add button sits below the table on
+the right. The editor retains name, multiline content up to 10,000 characters and optional keyword;
+the shared expansion prefix remains in its own section. The Accessibility callout appears only when
+a keyworded snippet actually needs it.
 
 ## Testing
 

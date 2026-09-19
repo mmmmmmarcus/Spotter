@@ -18,7 +18,7 @@ struct CustomCommandsSettingsView: View {
                 }
             }
 
-            Section("Custom Commands") {
+            Section {
                 if store.commands.isEmpty {
                     SettingsRow(title: "No custom commands") {
                         EmptyView()
@@ -31,10 +31,13 @@ struct CustomCommandsSettingsView: View {
                             onDelete: { pendingDeletion = command })
                     }
                 }
-
-                SettingsRow(title: "Add Custom Command") {
+            } header: {
+                Text("Custom Commands")
+            } footer: {
+                SettingsListActions {
                     Button("Add…") { editor = EditorTarget(command: nil) }
                         .controlSize(.small)
+                        .accessibilityLabel("Add Custom Command")
                 }
             }
         }

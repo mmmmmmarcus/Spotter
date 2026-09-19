@@ -147,7 +147,7 @@ Never break these without an explicit task to do so.
   stay pure CoreGraphics/CoreText/ImageIO pixel code for `Tools/screenshot-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
-  `Plugins/ImageModification/ImageModificationTypes.swift` and
+  `Plugins/ImageModification/ImageModificationTypes.swift`, `Plugins/ImageModification/ImageCommand.swift` and
   `Plugins/FileSearch/FileSearchTypes.swift` (which `Tools/file-search-test.swift` compiles beside
   the real `Core/SearchRelevance.swift` it ranks with) stay
   Foundation-only so their standalone harnesses compile without app state.
@@ -347,7 +347,8 @@ Never break these without an explicit task to do so.
   coverage and deliberate exclusions are pinned in [`docs/background-tasks.md`](docs/background-tasks.md).
 - **Process and image mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
   executes selected process actions immediately without dismissing its palette. Image Modification's
-  Convert Image command selects a target format in a second-level palette before any work starts and
+  Convert, Resize, Scale and Optimize commands require parameters, selected in a second-level palette
+  or parsed from an explicit launcher query, before any work starts. Image Modification
   confirms every Replace Original run; pixel work stays off the main actor and temporary output is
   bundle-identifier-scoped.
 - **Swift 6 language mode: data-race violations are hard errors.** Almost everything is `@MainActor`;

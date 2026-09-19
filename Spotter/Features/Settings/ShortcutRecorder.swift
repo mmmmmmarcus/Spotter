@@ -17,9 +17,7 @@ struct ShortcutRecorder: View {
     var body: some View {
         content
             .padding(.horizontal, Theme.Spacing.sm)
-            // The pill hugs its content — a fixed width leaves a `✦ D` binding rattling around in a
-            // box several times its size.
-            .frame(height: 24)
+            .frame(width: Theme.Size.shortcutRowControl, height: 24)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.menu, style: .continuous)
                     .fill(Theme.Colors.cardFill)
@@ -46,11 +44,12 @@ struct ShortcutRecorder: View {
                 session.stop()
             }
             .animation(.easeOut(duration: 0.12), value: hovered)
-            // …inside a fixed-width slot it sits at the trailing edge of. The slot is what lines the
-            // column up: every recorder's right edge lands at the same x, and whatever follows one
-            // (a checkbox, a pencil) never shifts with the width of the binding beside it. Applied
-            // after the tap and hover targets, so only the pill itself is clickable.
-            .frame(width: Theme.Size.shortcutRowControl, alignment: .trailing)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Hotkey")
+            .accessibilityValue(hotKeys.binding(for: action)?.keycaps.joined() ?? "Not set")
+            .accessibilityHint(isRecording ? "Recording shortcut" : "Click to record a shortcut")
+            .accessibilityAction { hotKeys.recordingAction = action }
+
     }
 
     @ViewBuilder
@@ -60,54 +59,50 @@ struct ShortcutRecorder: View {
         } else if let binding = hotKeys.binding(for: action) {
             boundLabel(binding.keycaps)
         } else {
-            // One word: the pill hugs its content, so the unbound state is what would otherwise
-            // set the widest resting row in a pane full of two-chip bindings.
-            Text("Hotkey")
-                .font(Theme.Typography.keyCap)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            Color.clear
         }
     }
 
     private var recordingLabel: some View {
         Group {
             if let owner = session.conflictOwner {
-                Text("Used by \(owner)")
+                Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
+                    .help("Used by \(owner)")
+                    .accessibilityLabel("Shortcut used by \(owner)")
             } else if !session.heldModifiers.isEmpty {
-                // Collapsed so holding the Hyper key previews as "✦" while recording.
                 Text(KeyShortcut.collapsedModifierSymbols(from: session.heldModifiers).joined())
                     .foregroundStyle(.primary)
             } else {
-                // Both ways to bind, named in the width a bound shortcut occupies.
-                Text("Type or double-tap…")
-                    .foregroundStyle(.secondary)
+                Color.clear
             }
         }
         .font(Theme.Typography.keyCap)
-        // A long conflict owner ("Quarterly Planning Doc") would otherwise outgrow the reserved slot.
         .lineLimit(1)
         .minimumScaleFactor(0.75)
     }
 
     private func boundLabel(_ keycaps: [String]) -> some View {
-        // `minimumScaleFactor` can't help a row of chips, so a binding too wide for the reserved
-        // slot shrinks its spacing rather than pushing the row's other controls aside.
         HStack(spacing: Theme.Spacing.xs) {
-            ForEach(Array(keycaps.enumerated()), id: \.offset) { _, cap in
-                Text(cap)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.Spacing.xs) {
+                    ForEach(Array(keycaps.enumerated()), id: \.offset) { _, cap in
+                        Text(cap)
+                            .font(Theme.Typography.keyCap)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, Theme.Spacing.xs)
+                            .frame(minWidth: Theme.Size.recorderKeyCap, minHeight: Theme.Size.recorderKeyCap)
+                            .background(
+                                RoundedRectangle(cornerRadius: Theme.Radius.recorderKeyCap, style: .continuous)
+                                    .fill(Color.primary.opacity(0.08)))
+                    }
+                }
+                .fixedSize()
+                Text(keycaps.joined(separator: " "))
                     .font(Theme.Typography.keyCap)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, Theme.Spacing.xs)
-                    .frame(
-                        minWidth: Theme.Size.recorderKeyCap, minHeight: Theme.Size.recorderKeyCap
-                    )
-                    .background(
-                        RoundedRectangle(
-                            cornerRadius: Theme.Radius.recorderKeyCap, style: .continuous
-                        )
-                        .fill(Color.primary.opacity(0.08))
-                    )
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
             // Constant-width slot so the clear button doesn't shift the caps on hover.
             Button {
@@ -118,6 +113,8 @@ struct ShortcutRecorder: View {
                     .foregroundStyle(.tertiary)
             }
             .buttonStyle(.plain)
+            .help("Clear shortcut")
+            .accessibilityLabel("Clear shortcut")
             .opacity(hovered ? 1 : 0)
             .allowsHitTesting(hovered)
         }

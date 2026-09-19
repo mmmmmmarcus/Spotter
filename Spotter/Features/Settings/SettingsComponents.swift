@@ -32,17 +32,31 @@ struct SettingsPane<Content: View>: View {
     /// and a header directly under it reads as the same label twice. Expressed here rather than at
     /// the panes, so a pane added later inherits the rule instead of remembering it — the sections
     /// are decomposed and rebuilt, and only the first one's header is left unbuilt. Panes keep
-    /// writing `Section("Header") { … }` exactly as before. Settings sections carry no footers.
+    /// writing `Section("Header") { … }` exactly as before; section footers retain list actions.
     private var leadingHeaderStripped: some View {
         Group(sections: content) { sections in
             ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                 if index == 0 {
-                    Section { section.content }
+                    Section { section.content } footer: { section.footer }
                 } else {
-                    Section { section.content } header: { section.header }
+                    Section { section.content } header: { section.header } footer: { section.footer }
                 }
             }
         }
+    }
+}
+
+struct SettingsListActions<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.lg) {
+            Spacer(minLength: 0)
+            content
+        }
+        .font(.body)
+        .foregroundStyle(.primary)
+        .buttonStyle(.bordered)
     }
 }
 

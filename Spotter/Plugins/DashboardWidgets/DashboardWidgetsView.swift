@@ -8,7 +8,6 @@ struct DashboardWidgetsView: View {
     @ObservedObject var battery: DashboardDeviceBatteryStore
     @ObservedObject var fileInfo: DashboardFileInfoStore
     @EnvironmentObject private var core: AppCore
-    /// The music card shows its controls only under the pointer; the cover is the card at rest.
     @State private var isHoveringMusic = false
 
     /// Live-reorder state: hold a card briefly and it lifts and follows the pointer while the other
@@ -220,52 +219,77 @@ struct DashboardWidgetsView: View {
         return parts.joined(separator: ", ")
     }
 
-    /// The artwork *is* the card — it fills the square edge to edge with the text and transport
-    /// laid over a scrim, the way a player's now-playing tile reads. Without artwork the same layout
-    /// runs over the ordinary card surface, so the strip keeps its rhythm either way.
     private func musicCard() -> some View {
         let snapshot = music.snapshot
-        return ZStack {
-            musicArtwork
-            // Without a cover there is nothing to show at rest: a coverless track is named and
-            // nothing else, and with no track at all the card's own mark stands alone — the
-            // resting words live in Settings and the accessibility label.
-            if music.artwork == nil, !isHoveringMusic {
-                if let title = snapshot.track?.title {
-                    Text(title)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, Theme.Spacing.md)
-                } else {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 34))
-                        .foregroundStyle(Theme.Colors.textSecondary)
+        let showsDetails = isHoveringMusic && snapshot.track != nil
+        return Button { core.openDashboardMusic() } label: {
+            ZStack {
+                musicArtwork.opacity(showsDetails ? 0 : 1)
+                if music.artwork == nil {
+                    Group {
+                        if let title = snapshot.track?.title {
+                            Text(title)
+                                .font(.caption2)
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, Theme.Spacing.md)
+                        } else {
+                            Image(systemName: "music.note")
+                                .font(.system(size: 34))
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                        }
+                    }
+                    .opacity(showsDetails ? 0 : 1)
+                }
+                if let track = snapshot.track {
+                    musicDetails(track)
+                        .opacity(showsDetails ? 1 : 0)
                 }
             }
-            if isHoveringMusic {
-                // The scrim arrives with the controls: at rest the cover is the card, and nothing
-                // dims it.
-                Rectangle()
-                    .fill(.black.opacity(0.45))
-                    .transition(.opacity)
-                musicTransport(isPlaying: snapshot.isPlaying)
-                    .transition(.opacity)
-            }
+            .frame(
+                width: Theme.Size.launcherDashboardHeight,
+                height: Theme.Size.launcherDashboardHeight)
+            .dashboardCardSurface()
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            .contentShape(Rectangle())
         }
-        .frame(
-            width: Theme.Size.launcherDashboardHeight,
-            height: Theme.Size.launcherDashboardHeight)
-        .dashboardCardSurface()
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .buttonStyle(.plain)
+        .focusable(false)
         .onHover { hovering in
             withAnimation(.easeOut(duration: Theme.Animation.quick)) {
                 isHoveringMusic = hovering
             }
         }
-        .accessibilityElement(children: .contain)
+        .onChange(of: core.isPaletteVisible) { _, visible in
+            if !visible { isHoveringMusic = false }
+        }
+        .help("Open Apple Music")
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(musicAccessibilityLabel(snapshot))
+        .accessibilityHint("Open Apple Music")
+    }
+
+    private func musicDetails(_ track: DashboardTrack) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(track.title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(3)
+                .minimumScaleFactor(0.6)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Text(DashboardMusicEngine.subtitle(for: track))
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .padding(Theme.Spacing.lg)
+        .frame(
+            width: Theme.Size.launcherDashboardHeight,
+            height: Theme.Size.launcherDashboardHeight, alignment: .topLeading)
     }
 
     /// The cover, edge to edge and undimmed — it *is* the card until the pointer arrives.
@@ -280,37 +304,6 @@ struct DashboardWidgetsView: View {
                 .clipped()
         }
     }
-
-    /// Three controls, centred, shown only while the pointer is on the card. Always white: they sit
-    /// on a scrim over artwork that could be any colour, never on the card surface.
-    private func musicTransport(isPlaying: Bool) -> some View {
-        HStack(spacing: Theme.Spacing.md) {
-            musicButton("backward.fill", label: "Previous Track") { music.previousTrack() }
-            musicButton(isPlaying ? "pause.fill" : "play.fill", label: isPlaying ? "Pause" : "Play") {
-                music.playPause()
-            }
-            musicButton("forward.fill", label: "Next Track") { music.nextTrack() }
-        }
-    }
-
-    private func musicButton(
-        _ systemImage: String, label: String, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.body)
-                // A full-cell hit target: a glyph alone leaves most of the control unclickable.
-                .frame(width: Self.musicButtonSize, height: Self.musicButtonSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white)
-        .help(label)
-        .accessibilityLabel(label)
-    }
-
-
-    private static let musicButtonSize: CGFloat = 22
 
     private func musicAccessibilityLabel(_ snapshot: DashboardMusicSnapshot) -> String {
         guard let track = snapshot.track else {

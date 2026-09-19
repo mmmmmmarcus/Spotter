@@ -25,15 +25,19 @@ struct ClipboardSettingsView: View {
                 }
             }
 
-            Section("Disabled Applications") {
+            Section {
+                if settings.clipboardDisabledApps.isEmpty {
+                    SettingsRow(title: "No disabled applications") { EmptyView() }
+                }
                 ForEach(settings.clipboardDisabledApps, id: \.self) { bundleID in
                     DisabledAppRow(bundleID: bundleID) {
                         settings.clipboardDisabledApps.removeAll { $0 == bundleID }
                     }
                 }
-
-                HStack(spacing: Theme.Spacing.lg) {
-                    Spacer(minLength: Theme.Spacing.xl)
+            } header: {
+                Text("Disabled Applications")
+            } footer: {
+                SettingsListActions {
                     Button {
                         showingAppPicker = true
                     } label: {
@@ -41,6 +45,8 @@ struct ClipboardSettingsView: View {
                             .font(.system(size: 12, weight: .medium))
                     }
                     .buttonStyle(.borderless)
+                    .help("Add Disabled Application")
+                    .accessibilityLabel("Add Disabled Application")
                     .popover(isPresented: $showingAppPicker, arrowEdge: .bottom) {
                         AppPickerPopover(excluded: Set(settings.clipboardDisabledApps)) { bundleID in
                             settings.clipboardDisabledApps.append(bundleID)

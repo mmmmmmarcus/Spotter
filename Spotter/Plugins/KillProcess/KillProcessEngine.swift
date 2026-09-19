@@ -35,6 +35,34 @@ struct RunningProcessInfo: Identifiable, Hashable, Sendable {
 }
 
 enum KillProcessEngine {
+    static func applicationArgument(_ query: String) -> String? {
+        guard query.count <= 256 else { return nil }
+        let parts = query.split(maxSplits: 1, whereSeparator: \.isWhitespace)
+        guard parts.count == 2, parts[0].lowercased() == "kill" else { return nil }
+        let name = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
+    }
+
+    static func applicationTarget(
+        in processes: [RunningProcessInfo], argument: String, excludingPID: Int32
+    ) -> RunningProcessInfo? {
+        let needle = argument.lowercased()
+        guard !needle.isEmpty else { return nil }
+        func name(_ process: RunningProcessInfo) -> String { process.appName ?? process.processName }
+        func rank(_ process: RunningProcessInfo) -> Int {
+            let value = name(process).lowercased()
+            return value == needle ? 0 : value.hasPrefix(needle) ? 1 : 2
+        }
+        return processes.filter {
+            $0.id > 1 && $0.id != excludingPID && $0.kind == .app
+                && name($0).localizedCaseInsensitiveContains(argument)
+        }.sorted {
+            if rank($0) != rank($1) { return rank($0) < rank($1) }
+            let order = name($0).localizedStandardCompare(name($1))
+            return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
+        }.first
+    }
+
     static func parse(
         _ output: String, excluding excludedPID: Int32? = nil,
         excludingBundlePath: String? = nil

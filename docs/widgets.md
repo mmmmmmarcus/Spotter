@@ -145,23 +145,23 @@ dashboard becomes visible and stops when it leaves the palette.
 
 ## Music
 
-The music card is the cover, and nothing else: at rest the artwork fills the square edge to edge with
-no title, no scrim and no controls over it. The pointer is what reveals the transport — hovering dims
-the cover and centres previous, play/pause and next on it, all three in white because they sit on
-artwork that could be any colour. They act on Music directly, and each is a full-cell hit target since
-a glyph alone leaves most of the control unclickable.
+At rest the music card shows its artwork edge to edge. Hovering crossfades to the normal card
+surface with the song title at the top left and artist pinned to the bottom left, matching Calendar's
+15-point semibold, three-line headline, caption footer and padding. A missing artist falls back to
+the album. There are no playback controls. The entire card is a button that closes the Palette and
+opens or activates Apple Music, including when nothing is playing. Hover itself never launches Music.
 
 A track with no cover would leave a blank square, so that case shows the track's name and nothing
 else until the pointer arrives. With no track at all the `music.note` mark stands alone
 (owner decision, Aug 2026): "Nothing playing" restated what a bare music card already says, so the
 resting words live only in Settings and the accessibility label — where "Music is not open" still
 reads differently from nothing playing. There is deliberately no progress readout: the card shows
-what is playing and lets you change it, and a playhead is the one thing a glance at a launcher does
+what is playing and opens Music, and a playhead is the one thing a glance at a launcher does
 not need.
 
 Everything goes through one Apple Event run as an `osascript` subprocess off the main actor, exactly
 like `Core/FinderSelection`: macOS's own Automation prompt is the gate, and a refused grant reads as
-"nothing playing" rather than an error. **Spotter never launches Music.** `tell application "Music"`
+"nothing playing" rather than an error. **Background reads never launch Music; only an explicit card click does.** `tell application "Music"`
 starts the app if it is not running, so the store checks `NSWorkspace.runningApplications` before any
 script runs; with Music closed the Settings row and accessibility label say so, which is not the same
 as nothing playing. Note also
@@ -170,9 +170,7 @@ out rather than abbreviating them.
 
 The card polls every three seconds while the launcher is on screen and stops when it leaves, and it
 also listens for Music's own `com.apple.Music.playerInfo` distributed notification so a track or
-state change lands immediately. Between polls the playhead is interpolated from the last anchor by
-`DashboardMusicEngine.interpolatedPosition` rather than asking Music every second — a subprocess per
-tick would be the whole cost of the card. Artwork is re-read only when the persistent track ID
+state change lands immediately. Artwork is re-read only when the persistent track ID
 changes, written by the script to a bundle-scoped temporary file because artwork bytes cannot come
 back through stdout as text; a slower artwork read never overwrites the track that replaced it. The
 reader asks for name, artist, album and duration only — the playhead went with the progress bar. Note

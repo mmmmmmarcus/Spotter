@@ -27,16 +27,6 @@ struct UptimeSettingsView: View {
                         .controlSize(.small)
                 }
             }
-
-            // Kept deliberately: Uptime watches input system-wide, and this is the statement of what
-            // it does and does not record.
-            SettingsCallout(
-                title: "Counts only",
-                message:
-                    "Spotter records that a key was pressed and that a click happened — never which "
-                    + "key, what was typed, or where you clicked. There is nothing here to "
-                    + "reconstruct your typing from. The totals stay on this Mac, never leave it, "
-                    + "and clear at midnight.")
         }
     }
 }

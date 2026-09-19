@@ -4,41 +4,16 @@ import SwiftUI
 struct NoteView: View {
     @ObservedObject var store: NoteStore
     let close: () -> Void
-    @State private var query = ""
-    @State private var showsNoteList = false
     @State private var navigationDirection: CGFloat = 1
-    @FocusState private var searchIsFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var visibleNotes: [SpotterNote] { store.filteredNotes(query: query) }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Deliberately outside the animated container below: inside it, every list toggle put the
-            // title and its trailing buttons through the same animated relayout as the list, so the
-            // toolbar drifted on a change that has nothing to do with it.
             editorToolbar
-
-            ZStack(alignment: .top) {
-                editorContent
-
-                if showsNoteList {
-                    noteList
-                        .padding(.horizontal, Theme.Spacing.xxl)
-                        // The token measures from the window's top edge; the toolbar is now a sibling
-                        // above this container, so its height comes out of the inset.
-                        .padding(.top, Theme.Size.noteListTopInset - Theme.Size.noteToolbarHeight)
-                        .padding(.bottom, Theme.Spacing.xxl)
-                        .transition(
-                            .scale(scale: 0.98, anchor: .topTrailing).combined(with: .opacity))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .animation(.easeOut(duration: Theme.Animation.quick), value: showsNoteList)
+            editorContent
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onDisappear { store.deleteEmptyNotes() }
-        .onChange(of: store.editorFocusRequest) { closeNoteList() }
         .ignoresSafeArea(edges: .top)
         .background(noteSurface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window, style: .continuous))
@@ -61,57 +36,6 @@ struct NoteView: View {
         if let tint = store.selectedNote?.tint {
             Theme.Colors.noteTintWash(tint)
         }
-    }
-
-    private var noteList: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: Theme.Spacing.md) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.tertiary)
-                TextField("Search for notes…", text: $query)
-                    .textFieldStyle(.plain)
-                    .focused($searchIsFocused)
-                if !query.isEmpty {
-                    Button { query = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.horizontal, Theme.Spacing.xl)
-            .frame(height: Theme.Size.headerHeight)
-
-            Rectangle().fill(Theme.Colors.separator).frame(height: 1)
-
-            if visibleNotes.isEmpty {
-                ContentUnavailableView.search(text: query)
-                    .frame(maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: Theme.Spacing.xs) {
-                        ForEach(visibleNotes) { note in
-                            NoteListRow(
-                                note: note, isSelected: store.selectedID == note.id,
-                                select: { select(note) }, delete: { store.delete(note) })
-                        }
-                    }
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.vertical, Theme.Spacing.md)
-                }
-                .overlayScroller()
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous)
-                .stroke(Theme.Colors.cardStroke, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.25), radius: 24, y: 12)
     }
 
     private var editorContent: some View {
@@ -151,14 +75,9 @@ struct NoteView: View {
 
     private var editorToolbar: some View {
         ZStack {
-            // Centred against the full toolbar width rather than against its own measured width, so
-            // the dots cannot re-centre when anything beside them changes.
-            NotePagination(
-                notes: store.notes, selectedID: store.selectedID,
-                open: { if !showsNoteList { toggleNoteList() } }
-            )
-            .padding(.horizontal, Theme.Size.noteToolbarTitleInset)
-            .frame(maxWidth: .infinity)
+            NotePagination(notes: store.notes, selectedID: store.selectedID, select: select)
+                .padding(.horizontal, Theme.Size.noteToolbarTitleInset)
+                .frame(maxWidth: .infinity)
 
             HStack(spacing: Theme.Spacing.sm) {
                 // The window hides its standard buttons, so close is a toolbar control like the rest.
@@ -167,32 +86,19 @@ struct NoteView: View {
 
                 Spacer(minLength: 0)
 
-                // Just close and color: New Note lives on ⌘N and the notes list on the pagination
-                // dots, so neither earns a second control here.
-                NoteTintPicker(
+                NoteGlassButton(systemImage: "plus", help: "New Note", action: createNote)
+                    .keyboardShortcut("n", modifiers: .command)
+
+                NoteOptionsMenu(
                     tint: store.selectedNote?.tint, transparency: store.windowTransparency,
-                    select: setTint, setTransparency: store.setWindowTransparency)
+                    hasNote: store.selectedNote != nil, select: setTint,
+                    setTransparency: store.setWindowTransparency, delete: deleteNote)
             }
             .padding(.horizontal, Theme.Spacing.xl)
-            // The retired buttons' shortcuts survive them: ⌘N for a new note, ⌘L for the list.
-            .background {
-                Group {
-                    Button("") { createNote() }
-                        .keyboardShortcut("n", modifiers: .command)
-                    Button("") { toggleNoteList() }
-                        .keyboardShortcut("l", modifiers: .command)
-                }
-                .buttonStyle(.plain)
-                .opacity(0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            }
         }
         .frame(
             maxWidth: .infinity, minHeight: Theme.Size.noteToolbarHeight,
             maxHeight: Theme.Size.noteToolbarHeight)
-        // Belt and braces: the list toggle must never animate this row, whatever transaction is live.
-        .animation(nil, value: showsNoteList)
     }
 
     private var selectedContent: Binding<String> {
@@ -202,9 +108,9 @@ struct NoteView: View {
     }
 
     private func createNote() {
-        query = ""
+        navigationDirection = -1
         store.createNote()
-        closeNoteList()
+        store.requestEditorFocus()
     }
 
     private func setTint(_ tint: NoteTint?) {
@@ -217,7 +123,7 @@ struct NoteView: View {
         let next = store.notes.firstIndex { $0.id == note.id } ?? current
         navigationDirection = next >= current ? 1 : -1
         store.select(note)
-        closeNoteList()
+        store.requestEditorFocus()
     }
 
     private func navigate(_ direction: NoteNavigationDirection) {
@@ -225,18 +131,11 @@ struct NoteView: View {
         _ = store.selectAdjacent(direction)
     }
 
-    private func toggleNoteList() {
-        if showsNoteList {
-            closeNoteList()
-        } else {
-            showsNoteList = true
-            DispatchQueue.main.async { searchIsFocused = true }
-        }
-    }
-
-    private func closeNoteList() {
-        showsNoteList = false
-        searchIsFocused = false
+    private func deleteNote() {
+        guard let note = store.selectedNote else { return }
+        navigationDirection = 1
+        store.delete(note)
+        store.requestEditorFocus()
     }
 }
 
@@ -255,81 +154,10 @@ struct NoteGlassButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .frame(width: Theme.Size.noteGlassButton, height: Theme.Size.noteGlassButton)
+        .focusable(false)
+        .accessibilityLabel(help)
         .glassEffect(.regular.interactive(), in: Circle())
         .help(help)
-    }
-}
-
-private struct NoteListRow: View {
-    let note: SpotterNote
-    let isSelected: Bool
-    let select: () -> Void
-    let delete: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        HStack(spacing: Theme.Spacing.md) {
-            Button(action: select) {
-                HStack(spacing: Theme.Spacing.md) {
-                    if let emoji = note.titleEmoji {
-                        Text(emoji)
-                            .font(.title2)
-                            .fixedSize()
-                            .frame(
-                                minWidth: Theme.Size.noteEmojiIcon,
-                                minHeight: Theme.Size.noteEmojiIcon)
-                            .accessibilityHidden(true)
-                    }
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        HStack(spacing: Theme.Spacing.sm) {
-                            if let tint = note.tint {
-                                Circle()
-                                    .fill(Theme.Colors.noteTintAccent(tint))
-                                    .frame(
-                                        width: Theme.Size.noteTintDot,
-                                        height: Theme.Size.noteTintDot)
-                            }
-                            Text(note.titleWithoutEmoji)
-                                .font(.headline)
-                                .lineLimit(1)
-                        }
-                        Text(metadata)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if hovering || isSelected {
-                Button(role: .destructive, action: delete) {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.borderless)
-                .help("Delete Note")
-                .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, Theme.Spacing.xl)
-        .padding(.vertical, Theme.Spacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
-                .fill(isSelected ? Theme.Colors.selection : hovering ? Theme.Colors.rowHover : .clear)
-        )
-        .contentShape(Rectangle())
-        .contextMenu { Button("Delete Note", role: .destructive, action: delete) }
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.1), value: hovering)
-    }
-
-    private var metadata: String {
-        let characters = note.content.count
-        let count = "\(characters) \(characters == 1 ? "Character" : "Characters")"
-        if isSelected { return "Current · \(count)" }
-        return "Updated \(note.updatedAt.formatted(.relative(presentation: .named))) · \(count)"
     }
 }

@@ -29,7 +29,6 @@ enum EmojiSymbolsPlugin {
             onStart: { [weak core] in
                 guard let core else { return }
                 Task { await core.emojiIndex.load() }
-            },
-            settingsView: { AnyView(EmojiSettingsView()) })
+            })
     }
 }

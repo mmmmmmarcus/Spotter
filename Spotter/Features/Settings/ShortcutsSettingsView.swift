@@ -26,7 +26,7 @@ struct ShortcutsSettingsView: View {
 
     var body: some View {
         // The one pane that is not a `SettingsPane`: its table is every app on the Mac, which needs
-        // a lazy container, and a grouped `Form` is not lazy. A `List` is — and it takes sections,
+        // a lazy container, and a grouped `Form` is not lazy. A `List` is — and it keeps groups,
         // so the summon shortcuts can be the table's first section instead of a second surface
         // above it.
         VStack(alignment: .leading, spacing: 0) {
@@ -51,8 +51,8 @@ struct ShortcutsSettingsView: View {
     /// one thing across the whole table.
     private var globalShortcuts: [GlobalShortcut] {
         let all = [
-            GlobalShortcut(title: "App Launcher", action: .togglePalette),
-            GlobalShortcut(title: "Backup Shortcut", action: .togglePaletteBackup),
+            GlobalShortcut(title: "App Launcher", systemImage: "command", action: .togglePalette),
+            GlobalShortcut(title: "Backup Shortcut", systemImage: "keyboard", action: .togglePaletteBackup),
         ]
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return all }
@@ -123,58 +123,58 @@ struct ShortcutsSettingsView: View {
     /// shortcuts — and its own background is hidden so the table reads as part of the pane rather
     /// than as a box drawn inside it.
     private var table: some View {
-        List {
-            if !globalShortcuts.isEmpty {
+        let visibleSections = sections
+        let visibleGlobals = globalShortcuts
+        return List {
+            if !visibleGlobals.isEmpty {
                 let sectionCollapsed = isCollapsed(Self.globalSectionID)
-                Section {
-                    if !sectionCollapsed {
-                        ForEach(globalShortcuts) { shortcut in
-                            GlobalShortcutRow(title: shortcut.title, action: shortcut.action)
-                                .plainTableRow()
-                        }
-                    }
-                } header: {
-                    DisclosureHeader(
-                        title: Self.globalSectionID, count: globalShortcuts.count,
-                        isCollapsed: sectionCollapsed, font: .headline, indent: 0, topPadding: 0
-                    ) {
-                        toggleCollapsed(Self.globalSectionID)
+                DisclosureHeader(
+                    title: Self.globalSectionID, count: visibleGlobals.count,
+                    isCollapsed: sectionCollapsed, font: .headline, indent: 0, topPadding: 0
+                ) {
+                    toggleCollapsed(Self.globalSectionID)
+                }
+                .plainTableRow()
+                if !sectionCollapsed {
+                    ForEach(visibleGlobals) { shortcut in
+                        GlobalShortcutRow(title: shortcut.title, systemImage: shortcut.systemImage,
+                                          action: shortcut.action)
+                            .plainTableRow()
                     }
                 }
             }
 
-            ForEach(sections) { section in
+            ForEach(visibleSections) { section in
                 let sectionCollapsed = isCollapsed(section.id)
-                Section {
-                    if !sectionCollapsed {
-                        ForEach(section.groups) { group in
-                            let groupID = section.id + "/" + group.id
-                            let groupCollapsed = group.title != nil && isCollapsed(groupID)
-                            if let title = group.title {
-                                DisclosureHeader(
-                                    title: title, count: group.entries.count,
-                                    isCollapsed: groupCollapsed,
-                                    font: Theme.Typography.sectionHeader,
-                                    indent: Theme.Spacing.lg, topPadding: Theme.Spacing.sm
-                                ) {
-                                    toggleCollapsed(groupID)
-                                }
-                                .plainTableRow()
+                DisclosureHeader(
+                    title: section.title, count: section.entryCount,
+                    isCollapsed: sectionCollapsed, font: .headline, indent: 0,
+                    topPadding: visibleGlobals.isEmpty && section.id == visibleSections.first?.id ? 0 : Theme.Spacing.lg
+                ) {
+                    toggleCollapsed(section.id)
+                }
+                .plainTableRow()
+                if !sectionCollapsed {
+                    ForEach(section.groups) { group in
+                        let groupID = section.id + "/" + group.id
+                        let groupCollapsed = group.title != nil && isCollapsed(groupID)
+                        if let title = group.title {
+                            DisclosureHeader(
+                                title: title, count: group.entries.count,
+                                isCollapsed: groupCollapsed,
+                                font: Theme.Typography.sectionHeader,
+                                indent: Theme.Spacing.lg, topPadding: Theme.Spacing.sm
+                            ) {
+                                toggleCollapsed(groupID)
                             }
-                            if !groupCollapsed {
-                                ForEach(group.entries) { entry in
-                                    ShortcutRow(entry: entry)
-                                        .plainTableRow()
-                                }
+                            .plainTableRow()
+                        }
+                        if !groupCollapsed {
+                            ForEach(group.entries) { entry in
+                                ShortcutRow(entry: entry)
+                                    .plainTableRow()
                             }
                         }
-                    }
-                } header: {
-                    DisclosureHeader(
-                        title: section.title, count: section.entryCount,
-                        isCollapsed: sectionCollapsed, font: .headline, indent: 0, topPadding: 0
-                    ) {
-                        toggleCollapsed(section.id)
                     }
                 }
             }
@@ -185,7 +185,7 @@ struct ShortcutsSettingsView: View {
         // Force the thin, auto-hiding overlay scroller so a system-wide "always show scroll bars" setting can't draw a wide legacy one.
         .containerOverlayScroller()
         .overlay {
-            if sections.isEmpty && globalShortcuts.isEmpty {
+            if visibleSections.isEmpty && visibleGlobals.isEmpty {
                 Text(query.isEmpty ? "Nothing here yet." : "No matches for “\(query)”.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -300,10 +300,10 @@ private struct ShortcutSection: Identifiable {
     var entryCount: Int { groups.reduce(0) { $0 + $1.entries.count } }
 }
 
-/// One of the two app-level summon shortcuts. They are not launcher entries, so they carry a title
-/// and an action and nothing else.
+/// One of the two app-level summon shortcuts.
 private struct GlobalShortcut: Identifiable {
     let title: String
+    let systemImage: String
     let action: HotKeyAction
     var id: String { title }
 }
@@ -318,21 +318,24 @@ extension View {
     }
 }
 
-/// A summon shortcut's row. It has no icon, alias or visibility box, but reserves the icon and
-/// visibility columns so its name and its recorder land at the same x as every launcher row's.
+// Summon actions have no launcher visibility toggle; retain its column to align their icons and names.
 private struct GlobalShortcutRow: View {
     let title: String
+    let systemImage: String
     let action: HotKeyAction
     @State private var hovered = false
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Color.clear
+            Color.clear.frame(width: Theme.Size.shortcutVisibilityControl, height: 1)
+            Image(systemName: systemImage)
+                .font(Theme.Typography.rowTitle)
+                .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.shortcutRowIcon, height: Theme.Size.shortcutRowIcon)
+                .accessibilityHidden(true)
             Text(title).lineLimit(1)
             Spacer(minLength: Theme.Spacing.xl)
             ShortcutRecorder(action: action)
-            Color.clear.frame(width: Theme.Size.shortcutVisibilityControl, height: 1)
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)
@@ -400,23 +403,29 @@ private struct ShortcutRow: View {
     @State private var hovered = false
 
     var body: some View {
+        let isVisible = visibility.isItemVisible(entry)
         HStack(spacing: Theme.Spacing.lg) {
-            Image(nsImage: entry.icon)
-                .resizable()
-                .frame(width: Theme.Size.shortcutRowIcon, height: Theme.Size.shortcutRowIcon)
-            Text(entry.name).lineLimit(1)
-            Spacer(minLength: Theme.Spacing.xl)
-            AliasField(entry: entry)
-            if let action = entry.hotKeyAction {
-                ShortcutRecorder(action: action)
-            } else {
-                // A row with nothing to bind still holds the recorder's column open.
-                Color.clear.frame(width: Theme.Size.shortcutRowControl, height: 1)
-            }
-            Toggle("", isOn: itemBinding)
+            Toggle("Show \(entry.name) in Launcher", isOn: itemBinding)
                 .labelsHidden()
                 .toggleStyle(.checkbox)
                 .frame(width: Theme.Size.shortcutVisibilityControl)
+            HStack(spacing: Theme.Spacing.lg) {
+                Image(nsImage: entry.icon)
+                    .resizable()
+                    .frame(width: Theme.Size.shortcutRowIcon, height: Theme.Size.shortcutRowIcon)
+                    .saturation(isVisible ? 1 : 0)
+                Text(entry.name).lineLimit(1)
+                Spacer(minLength: Theme.Spacing.xl)
+                HStack(spacing: Theme.Spacing.md) {
+                    AliasField(entry: entry)
+                    if let action = entry.hotKeyAction {
+                        ShortcutRecorder(action: action)
+                    } else {
+                        Color.clear.frame(width: Theme.Size.shortcutRowControl, height: 1)
+                    }
+                }
+            }
+            .opacity(isVisible ? 1 : 0.45)
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)

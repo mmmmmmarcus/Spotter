@@ -61,7 +61,7 @@ final class CalendarScheduleStore: ObservableObject {
     }
 
     func today() { date = Date(); detailID = nil; refresh() }
-    func showDay(_ day: Date) { date = day; mode = .day; detailID = nil; refresh() }
+    func showWeek(containing day: Date) { date = day; mode = .week; detailID = nil; refresh() }
 
     func matching(_ query: String) -> [DashboardEvent] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)

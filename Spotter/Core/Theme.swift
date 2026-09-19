@@ -6,6 +6,11 @@ import SwiftUI
 enum Theme {
     enum Animation {
         static let quick: TimeInterval = 0.14
+        static let pageSwitch: TimeInterval = 0.16
+    }
+
+    enum Opacity {
+        static let schedulePast: Double = 0.45
     }
 
     enum Spacing {
@@ -72,15 +77,7 @@ enum Theme {
         static let keyCap: CGFloat = 18
         /// Settings shortcut-recorder keycap — smaller than the palette's `keyCap` chip.
         static let recorderKeyCap: CGFloat = 16
-        /// The shortcut row's trailing *column*: the alias field is exactly this wide, and the
-        /// recorder gets a slot this wide to sit trailing-aligned inside. The recorder pill itself
-        /// hugs its content — a fixed-width pill is several times wider than the two chips of a
-        /// `✦ D` binding — so the slot, not the pill, is what keeps the alias field and the
-        /// visibility box at the same x down the whole list. Sized to the realistic maximum a pill
-        /// can reach, measured with an offscreen hosting probe: ⌃⌥⌘ and a key is 110pt with its
-        /// clear button and "Type or double-tap…" 113pt, so 120 carries both with slack. A rarer
-        /// binding (a fourth modifier at 132pt, or a worded key glyph like Space) closes the chip
-        /// spacing instead of pushing its neighbours aside.
+        // Shared fixed width keeps empty, recording and bound fields aligned without layout shifts.
         static let shortcutRowControl: CGFloat = 120
         /// Artwork slot of a Settings ▸ Shortcuts row. The summon rows have no icon and reserve it empty, so every name starts at one x.
         static let shortcutRowIcon: CGFloat = 22
@@ -90,6 +87,7 @@ enum Theme {
         static let clipboardFilterSegmentWidth: CGFloat = 28
         static let scheduleHourHeight: CGFloat = 36
         static let scheduleToolbarHeight: CGFloat = 30
+        static let scheduleHeaderControlHeight: CGFloat = 32
         static let scheduleTimeGutter: CGFloat = 40
         static let scheduleAllDayHeight: CGFloat = 38
         static let clipboardListWidth: CGFloat = 290
@@ -113,27 +111,20 @@ enum Theme {
         static let textReplacementPrefixFieldWidth: CGFloat = 80
         static let textReplacementEditorWidth: CGFloat = 480
         static let textReplacementEditorHeight: CGFloat = 120
+        static let worldClockCityPickerWidth: CGFloat = 320
+        static let worldClockCityPickerHeight: CGFloat = 360
         static let noteWindowWidth: CGFloat = 440
         static let noteWindowHeight: CGFloat = 360
         static let noteWindowMinimumWidth: CGFloat = 360
         static let noteWindowMinimumHeight: CGFloat = 180
-        static let noteListTopInset: CGFloat = 84
         static let noteToolbarHeight: CGFloat = 48
-        /// One glass toolbar control in the Note window — a circle this size holds a 12pt glyph with breathing room.
         static let noteGlassButton: CGFloat = 24
-        /// One tint swatch in the Notes color ramp, and the smaller disc the toolbar button shows.
-        static let noteTintSwatch: CGFloat = 22
-        static let noteTintToolbarSwatch: CGFloat = 14
-        /// The tint dot beside a title in the notes list.
-        static let noteTintDot: CGFloat = 8
-        /// Emoji need their own bearing-safe boxes; Apple Color Emoji exceeds a text glyph's advance.
-        static let noteEmojiIcon: CGFloat = 28
-        static let noteEmojiMarker: CGFloat = 24
-        static let noteTintPanelWidth: CGFloat = 232
-        /// The toolbar's page dots: one per note, the current one larger.
+        static let noteEmojiFont: CGFloat = 14.4
+        // Keep a generous hit target even though the emoji itself is small.
+        static let noteEmojiMarker: CGFloat = 32
         static let noteDot: CGFloat = 5
         static let noteDotSelected: CGFloat = 8
-        static let noteToolbarTitleInset: CGFloat = 112
+        static let noteToolbarTitleInset: CGFloat = 80
         /// Little state indicator dot next to a settings row title (Hyper Key active/needs-permission).
         static let statusDot: CGFloat = 6
         /// Gap between the bottom of the visible screen and the command HUD, clearing the Dock.

@@ -29,33 +29,25 @@ resizing, `.floating` level and all-Spaces visibility, but the plugin never crea
 `NSWindow`. The native window backdrop stays clear while its host neutralizes the title-bar safe-area
 inset, leaving the clipped Note material as the only rounded surface. The surface and toolbar extend
 through one seamless title bar; the window hides its standard buttons entirely, and close is a
-toolbar control like the rest — both toolbar controls (close and note color) are interactive Liquid
-Glass circles, with close leading and ⌘W bound to it. The toolbar's height centers the circles so
-their gap to the top edge equals the row's side padding. New Note and the notes list have no
-buttons: ⌘N and ⌘L keep their shortcuts (hidden buttons carry them) and clicking the pagination
-dots opens the list — a control that duplicates a shortcut and a click target both would be chrome.
-Minimize and zoom controls are hidden. Nothing separates that row from
-the editor — the window is one continuous surface, so a rule under the title would be the only hard
-edge on it. An empty title shows a large `Title` placeholder. The workspace opens as a
-440-point-wide editor with four matching 20-point continuous corners.
-The centered toolbar carries page markers rather than a title — the title is already the first line
-of the note directly beneath it, so what the header can add is *where in the stack you are*. A Note
-whose title contains an Emoji uses its first complete Emoji as the marker and as its list icon; the
-list label omits that first Emoji. Other Notes keep their tint-aware dots. Emoji markers use
-a constant 18-point font with selection indicated only by opacity, inside bearing-safe 24-point slots, and past seven Notes the strip slides around the current one so Apple
-Color Emoji never gets clipped by the centered toolbar lane. Clicking
-anywhere on it opens the notes list. The right side
-holds only the color control. The list starts hidden and opens as an inset material card over the
-editor without changing the window frame. Selecting
-a row returns to the single-note editor. The card holds its search field and the rows and nothing
-else: a "Notes" heading over a list of notes says nothing, and the count is already the number of
-dots in the toolbar. The toolbar row is a sibling *above* the animated container
-holding the editor and that card, never inside it: within it, toggling the list ran the title and its
-buttons through the same animated relayout as the list and they visibly drifted. The title is also
-centred against the full toolbar width rather than its own measured width, so nothing beside it can
-re-centre it. The shared window owner gives Notes a 440×360 default frame and a 360×180 minimum.
-From there the frame belongs entirely to the user: typing, switching Notes and opening the list never
-resize it. AppKit saves the dragged size and position under the bundle identifier and restores them
+toolbar control like the rest. Close, New Note and the options menu use interactive Liquid Glass
+circles. Close sits on the left with ⌘W; New Note sits immediately left of the options menu with ⌘N.
+All three use plain button chrome and a fixed 24 × 24-point outer frame before the glass effect;
+the options menu suppresses its native indicator and extra menu-button sizing.
+The options button opens a native menu with Note Color, Window Transparency and Delete Note.
+Minimize and zoom controls are hidden. The toolbar has no separator from the editor, and an empty
+heading shows a large `Title` placeholder.
+
+The centered toolbar carries one independently clickable marker per Note. A title's first complete
+Emoji supplies its marker; other Notes keep tint-aware dots. Emoji use a constant 14.4-point font
+(20% smaller than the previous 18 points), selection changes opacity only, and each marker has a
+32-point hit target with 8-point gaps. The strip scrolls horizontally when necessary and brings the
+selected Note into view after creation, navigation or reordering. Clicking a marker switches directly
+to that Note and restores editor focus. There is no separate Notes list or ⌘L list shortcut; Note
+titles remain searchable in the Palette.
+
+The shared window owner gives Notes a 440×360 default frame and a 360×180 minimum. From there the
+frame belongs entirely to the user: typing and switching Notes never resize it. AppKit saves the
+dragged size and position under the bundle identifier and restores them
 when the window is reopened or Spotter relaunches. The native overlay scroller appears whenever
 content is taller than the current user-sized viewport.
 
@@ -79,12 +71,11 @@ Restyling after an edit is synchronous, not debounced — a
 deferred pass left a frame where a new line's dash was plain text and the discs below the edit drew
 from stale ranges, a visible list blink on Return and delete; only caret-only moves keep the
 debounce. Text edits update only the document layout inside the frame; the vertical scroller follows
-the live viewport during a user resize. Opening the notes list animates the inset card without
-changing the window frame.
+the live viewport during a user resize.
 Closing the window flushes the latest in-memory snapshot.
 
 While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
-next one. Navigation follows the same newest-first order as the notes list and wraps at either end.
+next one. Navigation follows the same newest-first order as the toolbar markers and wraps at either end.
 The new editor content fades in over 160 ms while moving eight points from the navigation side to
 its resting position once. It never moves away and returns; Reduce Motion makes the switch immediate.
 The toolbar stays fixed. A presentation-layer transform leaves layout and the window frame untouched.
@@ -96,16 +87,14 @@ Imported legacy Notes promote their old first line to the required H1.
 `NoteStore` is `@MainActor` and owned once by `AppCore`. It keeps the ordered note list and active
 selection in memory; the first line is always the note title and later meaningful lines supply the
 list excerpt, so neither is stored as a duplicated field. Creating, editing and deleting notes
-mutate that one store. List-row deletion is immediate rather than confirmation-gated. When the Notes
+mutate that one store. Deletion from the options menu is immediate, matching the former list action, and selects the next available Note. When the Notes
 window closes, whitespace-only Notes are removed in one batch and recorded as normal deletion
 tombstones; any Note containing text is preserved.
 
 ## Tints and window appearance
 
-Each Note can carry one tint from a seven-color ramp (red, orange, yellow, green, blue, purple, pink), chosen from the toolbar's `paintbrush.fill`
-button on the right of the toolbar. A four-column grid includes No Color; older mint and graphite
-Notes retain their saved appearance. That button keeps its own color: a control that wore the note's
-tint would read as a swatch, and an untinted note would leave nothing to point at. The ramp is fixed rather than a free color well because a tint has to
+Each Note can carry one tint from a seven-color ramp (red, orange, yellow, green, blue, purple, pink), chosen from Note Color in the toolbar's native options menu. The submenu includes No Color; older mint and graphite
+Notes retain their saved appearance. The ellipsis button keeps its own color. The ramp is fixed rather than a free color well because a tint has to
 follow the system appearance: `Theme.Colors.noteTintAccent` and `noteTintWash` give every tint its
 own pair of stops, since a hue that reads right over the dark window material turns muddy over the
 light one. Raw strings key the ramp, so reordering `NoteTint` can never repaint existing Notes, and
@@ -115,9 +104,9 @@ The tint shows as a wash over the window surface, laid above `panelScrim`, and t
 selection wear the same color — a system-blue caret on a red note reads as another app's text field.
 The wash is deliberately *not* attenuated by Window Transparency: a tint that dissolved with the
 control would leave the most see-through windows the least identifiable. Editor text and controls are
-untouched. In the notes list a tinted Note shows a small dot beside its title.
+untouched. Notes without an Emoji use a tint-aware toolbar dot.
 
-The same popover is the **only** place the Window Transparency control lives, and Notes Settings does
+The options menu is the **only** place the Window Transparency control lives, and Notes Settings does
 not duplicate it. Transparency fades exactly one
 layer: the adaptive `panelScrim` over the window's frost. The `.hudWindow` material stays at full
 strength at every setting and the tint film keeps its color, so the desktop shows through the scrim's
@@ -126,8 +115,7 @@ a tint that thinned with the control would make the most see-through notes the h
 (owner decision, Sep 2026).
 
 Transparency has three presets: Low (0%), Medium (45%), and High (90%). Legacy continuous
-values snap to the nearest preset. The popover stays open when a tint is chosen so both controls
-can be adjusted together.
+values snap to the nearest preset. Native submenus show the selected value with a checkmark.
 
 There is no frost control. `NSVisualEffectView` publishes a named material, never a blur radius, so
 the only thing Spotter could move is frost *coverage* — the material's own alpha — and the material
@@ -498,7 +486,7 @@ drawing to paint the code panel, the quote bar and the rule hairline behind the 
 whole reason the editor builds its TextKit 1 stack by hand. Nothing about it reaches the note's
 source string, so the file on disk stays the Markdown the user typed.
 
-The minimal toolbar only exposes the color panel, the notes-list toggle and New Note. Formatting stays in the
+The minimal toolbar exposes direct Note markers, New Note and the options menu. Formatting stays in the
 writing flow: Command-B applies visual bold, Command-I applies visual italic and Command-K inserts a
 visual link; their Markdown delimiters are persisted but never shown. Ordinary Markdown markers
 cover strikethrough, inline code, headings, bulleted lists, numbered lists
@@ -513,7 +501,7 @@ titles/list excerpts and handles selections as UTF-16 `NSRange`s so AppKit and t
 identical behavior. There is no separate title field, preview surface, formatting palette,
 word/character counter or save-status footer; persistence remains automatic in the background.
 
-The 0–90% Window Transparency slider lives only in the toolbar's color popover; Notes Settings
+The three Window Transparency presets live only in the toolbar's options menu; Notes Settings
 carries no Appearance card.
 Transparency fades the adaptive `panelScrim` and nothing else: the `.hudWindow` material and the tint
 film hold their strength, and editor content and controls remain fully opaque throughout. The value

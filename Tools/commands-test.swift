@@ -15,6 +15,17 @@ struct CommandsTests {
         }
 
         check("thirty built-in commands", SystemCommandCatalog.all.count == 30)
+        var snapshot = PluginCommandSnapshot<String>()
+        var targets = ["Chrome:100"]
+        check("parameter snapshot records displayed target", snapshot.resolve(query: "kill Chrome") { targets } == ["Chrome:100"])
+        targets = ["Chrome Canary:200"]
+        check("activation cannot silently retarget a repeated query", snapshot.resolve(query: "kill Chrome") { targets } == ["Chrome:100"])
+        check("editing query resolves fresh targets", snapshot.resolve(query: "kill Canary") { targets } == targets)
+        snapshot.reset()
+        targets = []
+        check("reopening clears old parameter targets", snapshot.resolve(query: "kill Canary") { targets }.isEmpty)
+        targets = ["Chrome Canary:300"]
+        check("empty snapshots stay stable too", snapshot.resolve(query: "kill Canary") { targets }.isEmpty)
         check(
             "stable unique launcher ids",
             Set(SystemCommandCatalog.all.map(\.entryID)).count == SystemCommandCatalog.all.count)

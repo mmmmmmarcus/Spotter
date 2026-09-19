@@ -229,12 +229,12 @@ private struct EmojiCell: View {
 /// Actions menu content for an emoji/symbol cell, shown bottom-right on right-click, mirroring `ClipboardActionsMenu`.
 @MainActor
 enum EmojiActionsMenu {
-    static func content(entry: EmojiEntry, core: AppCore, target: PasteTarget?)
+    static func content(entry: EmojiEntry?, core: AppCore, target: PasteTarget?, chooseSkinTone: @escaping () -> Void)
         -> PopoverMenuContent
     {
-        PopoverMenuContent(
-            header: entry.displayName,
-            items: [
+        var items: [PopoverMenuItem] = []
+        if let entry {
+            items = [
                 PopoverMenuItem(
                     title: target?.pasteTitle ?? "Paste",
                     icon: .paste(target, fallback: "doc.on.clipboard"), shortcut: "↵"
@@ -252,6 +252,19 @@ enum EmojiActionsMenu {
                     core.pasteEmojiKeepingWindowOpen(entry)
                 },
             ]
-        )
+        }
+        items.append(PopoverMenuItem(title: "Choose Skin Tone", systemImage: "hand.wave", action: chooseSkinTone))
+        return PopoverMenuContent(header: entry?.displayName, items: items)
+    }
+
+    static func skinTones(settings: AppSettings, back: @escaping () -> Void) -> PopoverMenuContent {
+        let backItem = PopoverMenuItem(title: "Back to Actions", systemImage: "chevron.left", action: back)
+        let tones = EmojiSkinTone.allCases.map { tone in
+            PopoverMenuItem(
+                title: "\(tone.sample)  \(tone.title)",
+                systemImage: settings.emojiSkinTone == tone ? "checkmark.circle.fill" : "circle"
+            ) { settings.emojiSkinTone = tone }
+        }
+        return PopoverMenuContent(header: "Choose Skin Tone", items: [backItem] + tones)
     }
 }

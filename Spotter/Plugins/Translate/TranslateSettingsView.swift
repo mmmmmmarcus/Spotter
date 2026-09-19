@@ -16,7 +16,7 @@ struct TranslateSettingsView: View {
                     tint: .orange)
             }
 
-            Section("Google Cloud Translation") {
+            Section {
                 SettingsRow(
                     title: "API Key",
                     subtitle:
@@ -63,14 +63,17 @@ struct TranslateSettingsView: View {
                         }
                     }
                 }
-
-                SettingsRow(title: "Add a Language") {
+            } header: {
+                Text("Google Cloud Translation")
+            } footer: {
+                SettingsListActions {
                     Menu("Add") {
                         ForEach(translate.availableTargets) { language in
                             Button(language.name) { translate.addTarget(language.code) }
                         }
                     }
-                    .frame(width: 120)
+                    .fixedSize()
+                    .accessibilityLabel("Add a Language")
                     .disabled(translate.availableTargets.isEmpty)
                 }
             }

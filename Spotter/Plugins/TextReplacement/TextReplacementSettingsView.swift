@@ -29,10 +29,19 @@ struct TextReplacementSettingsView: View {
                 }
             }
 
-            Section("Snippets") {
+            Section {
                 if sortedSnippets.isEmpty {
                     SettingsRow(title: "No snippets") { EmptyView() }
                 } else {
+                    SnippetTableColumns {
+                        Text("Trigger")
+                    } content: {
+                        Text("Original Text")
+                    } actions: {
+                        Text("Actions")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
                     ForEach(sortedSnippets) { snippet in
                         SnippetSettingsRow(
                             prefix: store.prefix, snippet: snippet,
@@ -40,9 +49,13 @@ struct TextReplacementSettingsView: View {
                             onDelete: { pendingDeletion = snippet })
                     }
                 }
-                SettingsRow(title: "Add Snippet") {
+            } header: {
+                Text("Snippets")
+            } footer: {
+                SettingsListActions {
                     Button("Add…") { editor = SnippetEditorTarget(snippet: nil) }
                         .controlSize(.small)
+                        .accessibilityLabel("Add Snippet")
                 }
             }
 
@@ -96,6 +109,21 @@ struct TextReplacementSettingsView: View {
     }
 }
 
+private struct SnippetTableColumns<Trigger: View, Content: View, Actions: View>: View {
+    @ViewBuilder var trigger: Trigger
+    @ViewBuilder var content: Content
+    @ViewBuilder var actions: Actions
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.lg) {
+            trigger.frame(width: 160, alignment: .leading)
+            content.frame(maxWidth: .infinity, alignment: .leading)
+            actions.frame(width: 64, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct SnippetSettingsRow: View {
     let prefix: String
     let snippet: Snippet
@@ -103,41 +131,46 @@ private struct SnippetSettingsRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.lg) {
+        SnippetTableColumns {
+            if let keyword = snippet.keyword {
+                Text(prefix + keyword)
+                    .font(.body.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(prefix + keyword)
+                    .accessibilityLabel("Trigger: \(prefix + keyword)")
+            } else {
+                Text("—")
+                    .foregroundStyle(.secondary)
+                    .help("No typing trigger — available in the palette")
+                    .accessibilityLabel("No typing trigger")
+            }
+        } content: {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs / 2) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    Text(snippet.name)
-                        .lineLimit(1)
-                    if let keyword = snippet.keyword {
-                        Text(prefix + keyword)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, Theme.Spacing.sm)
-                            .padding(.vertical, Theme.Spacing.xxs)
-                            .background(
-                                RoundedRectangle(
-                                    cornerRadius: Theme.Radius.keyCap, style: .continuous
-                                )
-                                .fill(Theme.Colors.controlSurface))
-                    }
-                }
                 Text(snippet.content)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .help(snippet.content)
+                Text(snippet.name)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .help(snippet.content)
+                    .help(snippet.name)
             }
-
-            Spacer(minLength: Theme.Spacing.lg)
-            Button(action: onEdit) { Image(systemName: "pencil") }
+        } actions: {
+            HStack(spacing: Theme.Spacing.md) {
+                Button(action: onEdit) { Image(systemName: "pencil").frame(width: 24, height: 24) }
+                    .buttonStyle(.plain)
+                    .help("Edit Snippet")
+                    .accessibilityLabel("Edit \(snippet.name)")
+                Button(action: onDelete) {
+                    Image(systemName: "trash").foregroundStyle(.red).frame(width: 24, height: 24)
+                }
                 .buttonStyle(.plain)
-                .help("Edit Snippet")
-            Button(action: onDelete) {
-                Image(systemName: "trash").foregroundStyle(.red)
+                .help("Delete Snippet")
+                .accessibilityLabel("Delete \(snippet.name)")
             }
-            .buttonStyle(.plain)
-            .help("Delete Snippet")
         }
     }
 }

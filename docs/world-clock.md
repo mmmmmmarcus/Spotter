@@ -82,4 +82,7 @@ The plugin Settings pane searches the macOS city catalog, adds or removes cities
 three defaults. Leaving the screen stops its visible-only clock task and exits an active World Clock
 palette screen.
 
-The Settings city search shows an explicit empty result with Clear Search when no unsaved city matches, including when all matching cities are already saved.
+Settings keeps saved cities in the list and an Add City button in its trailing footer. The button
+opens a focused search popover that excludes saved cities. Clicking a result or pressing Return on
+the first match adds it and closes the popover; Escape or an outside click cancels. No-match searches
+show an empty result state. Restore Defaults sits beside Add City when applicable.

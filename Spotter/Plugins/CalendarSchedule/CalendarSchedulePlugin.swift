@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import SwiftUI
 
@@ -19,7 +20,6 @@ enum CalendarSchedulePlugin {
                 return AnyView(CalendarScheduleView(
                     model: core.calendarSchedule, dashboard: core.dashboardWidgets, context: context))
             },
-            adjustHours: { [weak core] step in core?.calendarSchedule.move(step) },
             handleBack: { [weak core] in
                 guard let model = core?.calendarSchedule, model.detailID != nil else { return false }
                 model.detailID = nil
@@ -55,7 +55,7 @@ enum CalendarSchedulePlugin {
                 id: .calendarSchedule,
                 name: "Schedule",
                 summary:
-                    "Browse your day, week or month inside the launcher.",
+                    "Browse your week or month inside the launcher.",
                 systemImage: "calendar",
                 tint: .red),
             shortcutActions: [PluginActionRegistration(key: .openCalendarSchedule, perform: open)],
@@ -78,7 +78,21 @@ enum CalendarSchedulePlugin {
     static func dayID(_ date: Date) -> String { "day:" + String(date.timeIntervalSince1970) }
 
     static func event(store: CalendarScheduleStore, itemID: String) -> DashboardEvent? {
-        store.events.first { rowID(for: $0) == itemID }
+        let eventID = positions(model: store, query: "").first { $0.id == itemID }?.eventID ?? itemID
+        return store.events.first { rowID(for: $0) == eventID }
+    }
+
+    static func positions(model: CalendarScheduleStore, query: String) -> [ScheduleEventPosition] {
+        let events = model.matching(query)
+        return ScheduleNavigation.ordered(model.days.flatMap { day in
+            events.compactMap { event in
+                guard let block = ScheduleLayout.block(
+                    id: rowID(for: event), start: event.startDate, end: event.endDate,
+                    day: day, calendar: model.calendar) else { return nil }
+                return ScheduleEventPosition(eventID: block.id, day: day,
+                    startMinute: event.isAllDay ? 0 : block.startMinute, isAllDay: event.isAllDay)
+            }
+        })
     }
 
     private static func snapshot(
@@ -119,12 +133,14 @@ enum CalendarSchedulePlugin {
         if model.mode == .month, model.detailID == nil {
             return PluginPaletteSnapshot(sectionTitle: "Schedule", items: model.days.map { day in
                 PluginPaletteItem(id: dayID(day), title: day.formatted(date: .complete, time: .omitted),
-                                  subtitle: "", icon: .symbol("calendar"), primaryActionTitle: "View Day")
+                                  subtitle: "", icon: .symbol("calendar"), primaryActionTitle: "View Week")
             }, emptyMessage: "No events this month.")
         }
-        let visible = model.detailID.map { id in model.events.filter { rowID(for: $0) == id } }
-            ?? model.matching(query)
-        let items = visible.map { event -> PluginPaletteItem in
+        let byID = Dictionary(model.events.map { (rowID(for: $0), $0) }, uniquingKeysWith: { first, _ in first })
+        let visible: [(id: String, eventID: String)] = model.detailID.map { [(id: $0, eventID: $0)] }
+            ?? positions(model: model, query: query).map { (id: $0.id, eventID: $0.eventID) }
+        let items = visible.compactMap { position -> PluginPaletteItem? in
+            guard let event = byID[position.eventID] else { return nil }
             let link = CalendarScheduleEngine.meetingLink(
                 urlString: event.urlString, location: event.location, notes: event.notes)
             var subtitleParts = [
@@ -141,7 +157,7 @@ enum CalendarSchedulePlugin {
                     PluginPaletteAccessory(systemImage: "video.fill", text: link.provider))
             }
             return PluginPaletteItem(
-                id: rowID(for: event),
+                id: position.id,
                 title: event.title,
                 subtitle: subtitleParts.joined(separator: " · "),
                 icon: link == nil
@@ -188,6 +204,46 @@ enum CalendarSchedulePlugin {
 }
 
 extension AppCore {
+    func handleCalendarScheduleKey(_ event: NSEvent) -> Bool {
+        guard palette.mode == .plugin(.calendarSchedule), dashboardWidgets.calendarAccess.canRead else { return false }
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if modifiers == .command {
+            switch event.charactersIgnoringModifiers {
+            case "[": calendarSchedule.move(-1)
+            case "]": calendarSchedule.move(1)
+            default: return false
+            }
+            palette.selection = 0
+            return true
+        }
+        guard modifiers.isEmpty, calendarSchedule.detailID == nil else { return false }
+        let direction: ScheduleDirection
+        switch Int(event.keyCode) {
+        case kVK_UpArrow: direction = .up
+        case kVK_DownArrow: direction = .down
+        case kVK_LeftArrow: direction = .left
+        case kVK_RightArrow: direction = .right
+        default: return false
+        }
+        let items = plugins.paletteSnapshot(for: .calendarSchedule, query: palette.query)?.items ?? []
+        guard !items.isEmpty else { return true }
+        let selection = min(max(palette.selection, 0), items.count - 1)
+        if calendarSchedule.mode == .month {
+            if let next = ScheduleNavigation.monthNeighbor(
+                from: selection, direction: direction, count: items.count) {
+                palette.selection = next
+            }
+        } else {
+            let selectedID = items[selection].id
+            let positions = CalendarSchedulePlugin.positions(model: calendarSchedule, query: palette.query)
+            if let next = ScheduleNavigation.neighbor(in: positions, selectedID: selectedID, direction: direction),
+               let index = items.firstIndex(where: { $0.id == next }) {
+                palette.selection = index
+            }
+        }
+        return true
+    }
+
     func openCalendarSchedule() {
         showPalette(mode: .plugin(.calendarSchedule))
     }
@@ -217,7 +273,7 @@ extension AppCore {
             Permissions.openCalendarSettings()
         default:
             if let day = calendarSchedule.days.first(where: { CalendarSchedulePlugin.dayID($0) == itemID }) {
-                calendarSchedule.showDay(day)
+                calendarSchedule.showWeek(containing: day)
                 return
             }
             guard let event = CalendarSchedulePlugin.event(
