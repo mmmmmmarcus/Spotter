@@ -29,11 +29,19 @@ final class WorldClockStore: ObservableObject {
     var cities: [WorldClockCity] { cityIDs.compactMap(WorldClockEngine.city(id:)) }
 
     /// The system's own tz-database country table, read once — the store may touch the filesystem, the pure engine may not.
-    private nonisolated static let zoneCountries: [String: String] = {
-        let text =
-            (try? String(contentsOfFile: "/usr/share/zoneinfo/zone.tab", encoding: .utf8)) ?? ""
-        return WorldClockEngine.countryCodes(fromZoneTab: text)
-    }()
+    private nonisolated static let zoneTable =
+        (try? String(contentsOfFile: "/usr/share/zoneinfo/zone.tab", encoding: .utf8)) ?? ""
+    private nonisolated static let zoneCountries = WorldClockEngine.countryCodes(fromZoneTab: zoneTable)
+    private nonisolated static let zoneCoordinates = WorldClockMapGeometry.coordinates(fromZoneTab: zoneTable)
+
+    func coordinate(for city: WorldClockCity) -> WorldClockCoordinate? {
+        WorldClockMapGeometry.coordinate(for: city, zones: Self.zoneCoordinates)
+    }
+
+    func mapInstant(for query: String) -> Date {
+        if case .conversion(let conversion) = screenIntent(for: query) { return conversion.instant }
+        return now.addingTimeInterval(TimeInterval(previewOffsetMinutes) * 60)
+    }
 
     /// The row's flag: the zone's country as emoji, or nil for zones the table doesn't place.
     nonisolated func flag(forTimeZoneIdentifier identifier: String) -> String? {
@@ -70,23 +78,55 @@ final class WorldClockStore: ObservableObject {
         persist()
     }
 
-    /// Hour offset the palette screen's ←/→ scrubbing applies to every row; preview-only state.
-    @Published private(set) var previewOffsetHours = 0
+    @Published private(set) var previewOffsetMinutes = 0
+    @Published private var conversionPreviewMinutes = 0
+    private var conversionPreviewQuery = ""
+    private var isDragging = false
+
+    var previewLabel: String {
+        let minutes = abs(previewOffsetMinutes)
+        let duration = minutes < 60 ? "\(minutes) min"
+            : minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(minutes % 60) min"
+        return previewOffsetMinutes == 0 ? "Cities" : "Cities · \(previewOffsetMinutes < 0 ? "−" : "+")\(duration)"
+    }
 
     func adjustPreview(byHours delta: Int) {
-        previewOffsetHours += delta
+        previewOffsetMinutes += delta * 60
     }
+
+    func beginMapDrag(query: String) -> Int {
+        isDragging = true
+        if WorldClockEngine.parseConversion(query) != nil {
+            return conversionPreviewQuery == query ? conversionPreviewMinutes : 0
+        }
+        return previewOffsetMinutes
+    }
+
+    func dragMap(to minutes: Int, query: String) {
+        if WorldClockEngine.parseConversion(query) != nil {
+            guard conversionPreviewQuery != query || conversionPreviewMinutes != minutes else { return }
+            conversionPreviewQuery = query
+            conversionPreviewMinutes = minutes
+        } else if previewOffsetMinutes != minutes {
+            previewOffsetMinutes = minutes
+        }
+    }
+
+    func endMapDrag() { isDragging = false }
 
     func start() {
         guard clockTask == nil else { return }
         // Every open starts at the real present; the scrub offset is a per-visit preview.
-        previewOffsetHours = 0
+        previewOffsetMinutes = 0
+        conversionPreviewQuery = ""
+        conversionPreviewMinutes = 0
+        isDragging = false
         now = nowProvider()
         clockTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled, let self else { return }
-                now = nowProvider()
+                if !isDragging { now = nowProvider() }
             }
         }
     }
@@ -94,6 +134,7 @@ final class WorldClockStore: ObservableObject {
     func stop() {
         clockTask?.cancel()
         clockTask = nil
+        isDragging = false
     }
 
     func result(
@@ -101,19 +142,19 @@ final class WorldClockStore: ObservableObject {
     ) -> WorldClockResult? {
         guard let city = WorldClockEngine.city(id: cityID) else { return nil }
         return WorldClockEngine.result(
-            for: city, now: now.addingTimeInterval(TimeInterval(previewOffsetHours) * 3_600),
+            for: city, now: now.addingTimeInterval(TimeInterval(previewOffsetMinutes) * 60),
             calendar: calendar, locale: locale,
             localTimeZone: .autoupdatingCurrent)
     }
 
-    /// How the palette screen reads its query: city search, or a `8pm in london` conversion. The
-    /// scrub offset is deliberately not applied — a typed time is absolute.
+    // A conversion starts at its typed instant; dragging offsets only that exact query.
     func screenIntent(
         for query: String, calendar: Calendar = .current, locale: Locale = .current
     ) -> WorldClockScreenIntent {
         WorldClockEngine.screenIntent(
             for: query, cities: cities, now: now, calendar: calendar, locale: locale,
-            localTimeZone: .autoupdatingCurrent)
+            localTimeZone: .autoupdatingCurrent,
+            previewOffsetMinutes: conversionPreviewQuery == query ? conversionPreviewMinutes : 0)
     }
 
     private func persist() {

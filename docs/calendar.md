@@ -11,8 +11,8 @@ The Week / Month switch sits at the trailing edge of the shared Palette search h
 Liquid Glass capsule with an immediate selection highlight. It preserves search focus and exposes
 its selected state to VoiceOver. A separate Liquid Glass Today button sits immediately to its left;
 both glass surfaces share the same 32-point height.
-Today uses `calendar.badge.clock`, Week uses `rectangle.split.3x1`, and Month uses `calendar`;
-the controls show only icons, keeping their names in tooltips and accessibility labels.
+Today displays its text label. Week uses `rectangle.split.3x1` and Month uses `calendar`,
+with their names in tooltips and accessibility labels.
 The redundant week-range title is omitted; Month retains its month/year heading. Week displays a
 scrollable 24-hour time grid, a separate all-day lane, local-time labels and a current-time line.
 The left time axis uses only the hour (`0`–`23`), without minutes, leading zeros or AM/PM, regardless of the system's hour-cycle preference.
@@ -47,14 +47,58 @@ uses the shared activation path. Plain arrows navigate even with a filter typed;
 retain text-editing behavior. Menus, confirmations and an active IME composition retain keyboard priority. The shared search field filters events within the displayed period by title,
 calendar name or location. Month retains its date cells while filtering their previews.
 
+Week keyboard focus scrolls only when the selected timed event falls outside the viewport, using its
+actual minute range rather than the layout origin of offset-drawn cards. Visible events preserve the
+viewport; all-day focus only scrolls its separate lane. Command-plus (including Command-equals) and
+Command-minus scale hour heights in bounded 25% steps. Grid height and viewport animate together over
+200 ms, preserving the center time and clamping at midnight/day end. Reduce Motion disables animation.
+Zoom is session-only, leaves the Palette frame unchanged and applies only to the week grid.
+
+Space toggles a preview of the focused week event; hovering an event for three seconds opens the same
+preview. While typing a filter, spaces remain text until arrow navigation explicitly focuses events.
+The preview is anchored to the event and kept within the canvas, with the same calendar tint, leading
+stripe and corner radius, a raised material surface and a short scale/fade animation. It shows the
+original-zone time/date, location, organizer and attendees, including locally extracted imported
+attendee fields; no note body is displayed. Long metadata scrolls inside the preview. Escape, Space,
+clicking outside or leaving the preview dismisses it; paging, scrolling, zooming, filtering, opening
+Actions or leaving Schedule cancel it and any pending hover. Its expand action opens full details.
+
 Selecting an event opens its details in the same canvas; Esc or Back returns to the calendar. The
 meeting button and the shared Actions menu offer explicit Join, Copy Meeting Link, Copy Event Title
 and Open Calendar actions. Only those explicit actions leave the Palette. Meeting-link detection
 continues to recognize the existing trusted conference-host patterns.
 
+## Event details
+
+Details use two columns inside the existing Palette, inset by an additional 12 points. The left column
+scrolls independently and aligns its headline, date, time, location and metadata to one leading edge,
+without per-row horizontal padding. It has a 28-point headline, calendar, date and one time-range line
+in the event's original zone (or Local Time for floating events). All-day events retain date semantics.
+The former converted-time rows are removed. Meeting/event links and available metadata follow.
+
+The right column places `WorldClockMapContent` above a separately scrolling note body without a
+heading. The same component draws World Clock's land, day/night boundary, saved-city markers and time
+labels, with the instant explicitly fixed at the event's start. No live clock or World Clock preview
+offset can shift the event map. It uses up to 45% of the column height, capped at the land's natural
+2:1 aspect; the continents retain their projection scale. The event map is read-only, so scrolling
+continues to navigate notes rather than changing the event time. The extra Back to Schedule row is
+removed; keyboard back navigation and shared Palette controls remain. The month heading is hidden
+in details.
+
+`CalendarEventMetadata` reads organizer, attendees and responses, recurrence rules, alerts,
+availability and event status on the background EventKit reader, returning plain display fields.
+Absent fields are omitted. Calendar URL and structured-location title are retained when available.
+`ScheduleNotes` is Foundation-only and parses HTML anchors, Markdown links, ordinary URLs and HTML
+entities locally. It uses an anchor's supplied title; bare URLs use compact host labels. No web title
+fetch, HTML renderer or remote image request occurs. Scripts/styles are omitted and only http, https
+and mailto links are actionable, through explicit clicks. Link processing runs off the main actor.
+Recognizable organizer/participant/meeting-ID lines from imported notes become left-column metadata;
+native EventKit values take precedence. The remaining note text stays on the right. Neither notes nor
+calendar records are modified, and missing native data is never guessed.
+
 ## Ownership and data
 
-`AppCore.calendarSchedule` owns `CalendarScheduleStore`: the current date, view mode, selected detail,
+`AppCore.calendarSchedule` owns `CalendarScheduleStore`: the current date, view mode, zoom level, selected detail/preview,
 visible event records and refresh tasks. These browsing choices are transient. The store loads only
 the visible week/42-day month range, including past and future dates; the previous 14-day/50-event
 schedule cap no longer applies. Each load uses a background-owned EventKit store, maps events to
@@ -86,7 +130,7 @@ before the field editor can consume them; the shared flat selection remains the 
 `ScheduleLayout.swift` and `CalendarScheduleEngine.swift` stay Foundation-only and pure, with calendar
 and time injected. The harness covers leap months, week boundaries, DST week navigation, elapsed-region boundaries, exclusive
 midnight endings, overnight clipping, overlap columns, spatial navigation, empty-day skipping and
-multi-day selection identities, alongside existing meeting-link
+multi-day selection identities, viewport reveal boundaries and center-preserving zoom, alongside existing meeting-link
 and date-label checks.
 
 Layout references: [Apple Calendar](https://support.apple.com/en-ie/guide/calendar/icl1002/mac) and

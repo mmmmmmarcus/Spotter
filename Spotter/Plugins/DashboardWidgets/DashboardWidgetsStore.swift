@@ -203,7 +203,7 @@ final class DashboardWidgetsStore: ObservableObject {
                     location: event.location?.trimmingCharacters(in: .whitespacesAndNewlines)
                         .nilIfEmpty,
                     urlString: event.url?.absoluteString,
-                    notes: event.notes?.nilIfEmpty)
+                    notes: event.notes?.nilIfEmpty, timeZoneIdentifier: event.timeZone?.identifier)
             }
         // The widget's single reading stays derived from the same fetch, never a second one — with
         // nothing inside 14 days it falls back to the year horizon's soonest event.
@@ -219,7 +219,7 @@ final class DashboardWidgetsStore: ObservableObject {
                     startDate: event.startDate, endDate: event.endDate, isAllDay: event.isAllDay,
                     calendarTitle: event.calendar.title,
                     location: event.location?.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .nilIfEmpty)
+                        .nilIfEmpty, timeZoneIdentifier: event.timeZone?.identifier)
             }
     }
 

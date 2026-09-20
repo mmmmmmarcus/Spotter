@@ -173,3 +173,38 @@ enum ScheduleLayout {
         return result
     }
 }
+
+
+enum ScheduleViewport {
+    static let zoomRange = -2...6
+
+    static func hourHeight(base: Double, zoom: Int) -> Double {
+        base * pow(1.25, Double(min(zoomRange.upperBound, max(zoomRange.lowerBound, zoom))))
+    }
+
+    static func clampedOffset(_ offset: Double, hourHeight: Double, viewportHeight: Double) -> Double {
+        min(max(0, hourHeight * 24 - viewportHeight), max(0, offset))
+    }
+
+    static func revealing(startMinute: Double, endMinute: Double, hourHeight: Double,
+                          offset: Double, viewportHeight: Double) -> Double {
+        let top = startMinute / 60 * hourHeight
+        let bottom = endMinute / 60 * hourHeight
+        let padding = 8.0
+        let target: Double
+        if top >= offset + padding && min(bottom, top + viewportHeight - padding * 2) <= offset + viewportHeight - padding {
+            return offset
+        } else if top < offset + padding || bottom - top > viewportHeight - padding * 2 {
+            target = top - padding
+        } else {
+            target = bottom - viewportHeight + padding
+        }
+        return clampedOffset(target, hourHeight: hourHeight, viewportHeight: viewportHeight)
+    }
+
+    static func zoomedOffset(_ offset: Double, from oldHeight: Double, to newHeight: Double,
+                             viewportHeight: Double) -> Double {
+        clampedOffset((offset + viewportHeight / 2) / oldHeight * newHeight - viewportHeight / 2,
+                      hourHeight: newHeight, viewportHeight: viewportHeight)
+    }
+}

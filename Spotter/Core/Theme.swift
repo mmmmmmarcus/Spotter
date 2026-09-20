@@ -50,6 +50,8 @@ enum Theme {
     }
 
     enum Size {
+        static let scheduleDetailTitle: CGFloat = 28
+        static let scheduleDetailInformationFraction: CGFloat = 0.48
         /// Cut to the widgets strip: five `launcherDashboardHeight` squares, the four gaps between
         /// them, and the launcher list's own horizontal inset on both sides. Derived rather than
         /// written out, so resizing a card or seating a sixth widget moves the window with it.
@@ -112,6 +114,9 @@ enum Theme {
         static let textReplacementEditorWidth: CGFloat = 480
         static let textReplacementEditorHeight: CGFloat = 120
         static let worldClockCityPickerWidth: CGFloat = 320
+        static let worldClockMapAspect: CGFloat = 6
+        static let worldClockMapMarker: CGFloat = 6
+        static let worldClockMapLabel: CGFloat = 10
         static let worldClockCityPickerHeight: CGFloat = 360
         static let noteWindowWidth: CGFloat = 440
         static let noteWindowHeight: CGFloat = 360
@@ -164,6 +169,9 @@ enum Theme {
         /// The scrim laid over the behind-window material to make the panel surface. Dark dims it;
         /// light brightens it, so both keep the desktop showing through rather than turning opaque.
         static let panelScrim = adaptive(dark: .black.opacity(0.40), light: .white.opacity(0.55))
+        static let worldClockOcean = adaptive(dark: .black.opacity(0.35), light: .white.opacity(0.45))
+        static let worldClockLand = adaptive(dark: .white.opacity(0.24), light: .black.opacity(0.18))
+        static let worldClockNight = adaptive(dark: .black.opacity(0.55), light: .black.opacity(0.12))
         /// Selection fill: a soft neutral translucent layer shared by launcher and clipboard so both lists look identical.
         static let selection = adaptive(dark: .white.opacity(0.10), light: .black.opacity(0.08))
         /// Mouse hover — a fainter layer that follows the cursor, visually distinct from selection.

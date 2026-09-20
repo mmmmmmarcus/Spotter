@@ -81,3 +81,69 @@ enum CalendarScheduleEngine {
         return start.formatted(style) + " – " + end.formatted(style)
     }
 }
+
+struct ScheduleTimeZone: Equatable, Sendable {
+    let name: String
+    let identifier: String
+}
+
+struct ScheduleEventTime: Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let dayOffset: Int
+    let date: String
+    let time: String
+    let isPrimary: Bool
+}
+
+extension CalendarScheduleEngine {
+    static func detailTimes(
+        start: Date, end: Date, isAllDay: Bool, eventTimeZoneIdentifier: String?,
+        cities: [ScheduleTimeZone], calendar: Calendar, locale: Locale = .current
+    ) -> [ScheduleEventTime] {
+        let eventZone = eventTimeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+        let primary = isAllDay ? calendar.timeZone : eventZone ?? calendar.timeZone
+        let primaryName = eventZone == nil ? "Local Time"
+            : primary.identifier.split(separator: "/").last.map { String($0).replacingOccurrences(of: "_", with: " ") } ?? "Event Time"
+        var zones: [(String, TimeZone)] = [(primaryName, primary)]
+        var seen = Set([offsetKey(primary, start: start, end: end)])
+        if !isAllDay {
+            for city in cities {
+                guard zones.count < 4 else { break }
+                guard let zone = TimeZone(identifier: city.identifier),
+                      seen.insert(offsetKey(zone, start: start, end: end)).inserted else { continue }
+                zones.append((city.name, zone))
+            }
+        }
+        return zones.enumerated().map { index, entry in
+            let (name, zone) = entry
+            var zoned = calendar
+            zoned.timeZone = zone
+            var dateStyle = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale)
+            dateStyle.calendar = zoned
+            dateStyle.timeZone = zone
+            // All-day end dates are exclusive and must not display an extra calendar day.
+            let displayedEnd = isAllDay && end > start ? end.addingTimeInterval(-1) : end
+            let date = zoned.isDate(start, inSameDayAs: displayedEnd)
+                ? start.formatted(dateStyle)
+                : start.formatted(dateStyle) + " – " + displayedEnd.formatted(dateStyle)
+            var reference = calendar
+            reference.timeZone = primary
+            var neutral = calendar
+            neutral.timeZone = TimeZone(secondsFromGMT: 0)!
+            let sourceDay = neutral.date(from: reference.dateComponents([.era, .year, .month, .day], from: start))!
+            let targetDay = neutral.date(from: zoned.dateComponents([.era, .year, .month, .day], from: start))!
+            let dayOffset = neutral.dateComponents([.day], from: sourceDay, to: targetDay).day ?? 0
+            return ScheduleEventTime(id: zone.identifier, name: name,
+                dayOffset: dayOffset, date: date,
+                time: timeLabel(start: start, end: end, isAllDay: isAllDay, calendar: zoned, locale: locale),
+                isPrimary: index == 0)
+        }
+    }
+
+    private static func offsetKey(_ zone: TimeZone, start: Date, end: Date) -> String {
+        // Equal offsets at both endpoints produce duplicate displayed times, including IANA aliases.
+        "\(zone.secondsFromGMT(for: start))/\(zone.secondsFromGMT(for: end))"
+    }
+
+}

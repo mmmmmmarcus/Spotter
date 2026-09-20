@@ -9,6 +9,9 @@ final class CalendarScheduleStore: ObservableObject {
     @Published private(set) var events: [DashboardEvent] = []
     @Published private(set) var isLoading = false
     @Published var detailID: String?
+    @Published var peekID: String?
+    @Published private(set) var zoom = 0
+    var isNavigatingEvents = false
     private weak var dashboard: DashboardWidgetsStore?
     private var task: Task<Void, Never>?
     private var reader: Task<[DashboardEvent], Never>?
@@ -23,6 +26,8 @@ final class CalendarScheduleStore: ObservableObject {
         self.dashboard = dashboard
         date = Date()
         detailID = nil
+        peekID = nil
+        isNavigatingEvents = false
         refresh()
         timer?.cancel()
         timer = Task { [weak self] in
@@ -44,6 +49,8 @@ final class CalendarScheduleStore: ObservableObject {
         lastRange = nil
         lastPreferences = nil
         detailID = nil
+        peekID = nil
+        isNavigatingEvents = false
         isLoading = false
     }
 
@@ -51,17 +58,27 @@ final class CalendarScheduleStore: ObservableObject {
         guard mode != self.mode else { return }
         self.mode = mode
         detailID = nil
+        peekID = nil
+        isNavigatingEvents = false
         refresh()
     }
 
     func move(_ step: Int) {
         date = ScheduleLayout.moved(date, mode: mode, by: step, calendar: calendar)
         detailID = nil
+        peekID = nil
+        isNavigatingEvents = false
         refresh()
     }
 
-    func today() { date = Date(); detailID = nil; refresh() }
-    func showWeek(containing day: Date) { date = day; mode = .week; detailID = nil; refresh() }
+    func today() { date = Date(); detailID = nil; peekID = nil; refresh() }
+    func showWeek(containing day: Date) { date = day; mode = .week; detailID = nil; peekID = nil; refresh() }
+
+    func changeZoom(by step: Int) {
+        guard mode == .week, detailID == nil else { return }
+        peekID = nil
+        zoom = min(ScheduleViewport.zoomRange.upperBound, max(ScheduleViewport.zoomRange.lowerBound, zoom + step))
+    }
 
     func matching(_ query: String) -> [DashboardEvent] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -97,6 +114,10 @@ final class CalendarScheduleStore: ObservableObject {
             events = result
             if let detailID, !result.contains(where: { CalendarSchedulePlugin.rowID(for: $0) == detailID }) {
                 self.detailID = nil
+                peekID = nil
+            }
+            if let peekID, CalendarSchedulePlugin.event(store: self, itemID: peekID) == nil {
+                self.peekID = nil
             }
             isLoading = false
         }
@@ -121,8 +142,9 @@ final class CalendarScheduleStore: ObservableObject {
                     id: event.eventIdentifier ?? event.calendarItemIdentifier,
                     title: event.title?.isEmpty == false ? event.title : "Untitled event",
                     startDate: event.startDate, endDate: event.endDate, isAllDay: event.isAllDay,
-                    calendarTitle: event.calendar.title, location: event.location,
-                    urlString: event.url?.absoluteString, notes: event.notes)
+                    calendarTitle: event.calendar.title, location: event.location ?? event.structuredLocation?.title,
+                    urlString: event.url?.absoluteString, notes: event.notes,
+                    timeZoneIdentifier: event.timeZone?.identifier, details: CalendarEventMetadata.read(event))
             }.sorted {
                 if $0.isAllDay != $1.isAllDay { return $0.isAllDay }
                 if $0.startDate != $1.startDate { return $0.startDate < $1.startDate }

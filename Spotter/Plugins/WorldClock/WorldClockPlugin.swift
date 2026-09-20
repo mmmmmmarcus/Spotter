@@ -12,6 +12,10 @@ enum WorldClockPlugin {
         let open: () -> Void = { [weak core] in core?.openWorldClock() }
         let screen = PluginPaletteScreenRegistration(
             placeholder: "Search cities, type one to add it, or convert “8pm in London”…",
+            listHeader: { [weak core] query, selectedID in
+                guard let core else { return nil }
+                return AnyView(WorldClockMapView(store: core.worldClock, query: query, selectedID: selectedID))
+            },
             // ←/→ scrub every row by an hour while the query is empty; each open resets to now.
             adjustHours: { [weak core] delta in core?.worldClock.adjustPreview(byHours: delta) },
             snapshot: { [weak core] query in
@@ -176,8 +180,7 @@ enum WorldClockPlugin {
         items: [PluginPaletteItem], store: WorldClockStore, trimmed: String
     ) -> PluginPaletteSnapshot {
         // The scrubbed offset is part of the section header so a shifted list can't read as now.
-        let offset = store.previewOffsetHours
-        let title = offset == 0 ? "Cities" : String(format: "Cities · %+d h", offset)
+        let title = store.previewLabel
         return PluginPaletteSnapshot(
             sectionTitle: title, items: items,
             emptyMessage: trimmed.isEmpty

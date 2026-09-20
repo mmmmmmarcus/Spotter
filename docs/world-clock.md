@@ -31,8 +31,48 @@ The palette screen manages the list in place: saved cities lead, and a non-empty
 up to eight catalog matches as **Add City** rows (`add:<id>`) — ↵ adds and clears the query so the
 grown list shows; ⌘K on a saved city offers Remove City. While the query is empty, **←/→ scrub every
 row by ±1 hour** (the same gesture as the inline card): the offset shows in the section header as
-`Cities · +3 h`, applies through `WorldClockStore.previewOffsetHours`, and resets on the next open.
+`Cities · +3 h`, applies through `WorldClockStore.previewOffsetMinutes`, and resets on the next open.
 The saved list itself syncs as `SettingsBackup.worldClockCities`.
+
+## World map
+
+The shared palette list has a non-selectable 6:1 cropped world map above its city rows, including when the
+saved list is empty. It scrolls with the list and never changes the palette frame or selection order.
+The map draws bundled Natural Earth land outlines, longitude guides, orange saved-city markers and
+a solar day/night overlay. The land retains its original 2:1 projection scale; the shallow viewport
+crops vertically around 30° N, rather than squeezing the continents. Taller viewports move the crop
+center toward the equator so no empty margin appears beyond a pole. Cities outside the crop remain
+in the complete list below. Labels prioritize the focused city and skip collisions; every city keeps
+its dot and its complete time in the list below. Map content is exposed as an accessible summary.
+
+`WorldClockMapContent` is the shared renderer with an explicit instant. World Clock's wrapper adds
+its interactive scrub surface, 6:1 aspect and list spacing. Calendar details reuse the renderer at
+the event's start, above notes, without the gesture surface or a live-clock subscription.
+
+`WorldClockMapGeometry` stays Foundation-only: it parses IANA coordinates and computes an approximate
+solar terminator from the injected instant using NOAA's fractional-year equations. The map uses the
+same 30-second visible-only clock as the list, follows hourly scrubbing and uses the source instant
+for time conversions. Dragging horizontally adjusts the shared preview two minutes per point (right backward, left forward),
+so the daylight boundary follows the pointer.
+It uses the gesture's total translation and its starting offset, without snapping or animation queues.
+Trackpad and Magic Mouse scrolling adjust time from AppKit's already preference-adjusted deltas,
+using the dominant horizontal or vertical axis, retaining fractional minutes and accepting momentum.
+Both input paths use `WorldClockMapGeometry.minutesPerPoint` (2), while displayed times retain
+one-minute precision.
+A local native map surface handles these events without a global monitor or changing search focus;
+scrolling elsewhere continues to scroll the city list. Direct dragging never moves the Palette window.
+Keyboard adjustments add whole hours while retaining the minute remainder. Dragging a conversion
+adjusts its resolved instant, including date rollover, and keeps its rows, labels and copied time in
+sync. A new conversion query starts unshifted. Clock ticks pause during the gesture; the next open
+resets all preview offsets. There is no extra timer, location request, geocoder or network access.
+Coordinates come from the same system `zone.tab` read used for flags, with explicit coordinates for
+San Francisco, Beijing, Mumbai and Delhi because their zones name other cities. Unplaced cities stay
+in the list without a guessed map marker.
+
+The template asset is generated with `python3 Tools/gen-world-clock-map.py <ne_110m_land.geojson>`.
+See `THIRD_PARTY_NOTICES.md` for its public-domain source. The map follows system appearance through
+Theme tokens. Tests cover coordinate parsing, map bounds, solstices/equinox, polar day/night and
+preview/conversion clock alignment; visual sign-off is left to the user.
 
 ## Time conversion
 

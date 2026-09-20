@@ -146,6 +146,7 @@ run_harness() {
         world-clock)
             swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
                 Spotter/Plugins/WorldClock/WorldClockEngine.swift \
+                Spotter/Plugins/WorldClock/WorldClockMapGeometry.swift \
                 Spotter/Plugins/WorldClock/WorldClockStore.swift Tools/world-clock-test.swift \
                 -o "$output" && "$output"
             ;;
@@ -225,6 +226,7 @@ run_harness() {
         calendar-schedule)
             swiftc -swift-version 6 \
                 Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
+                Spotter/Plugins/CalendarSchedule/ScheduleNotes.swift \
                 Spotter/Plugins/CalendarSchedule/ScheduleLayout.swift \
                 Tools/calendar-schedule-test.swift -o "$output" && "$output"
             ;;

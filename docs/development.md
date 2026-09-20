@@ -168,6 +168,7 @@ swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift 
 swiftc -swift-version 6 Spotter/Core/LauncherSections.swift Tools/launcher-sections-test.swift \
     -o /tmp/launcher-sections-test && /tmp/launcher-sections-test # browse section order/visibility
 swiftc -swift-version 6 Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
+    Spotter/Plugins/CalendarSchedule/ScheduleNotes.swift \
     Spotter/Plugins/CalendarSchedule/ScheduleLayout.swift \
     Tools/calendar-schedule-test.swift \
     -o /tmp/calendar-schedule-test && /tmp/calendar-schedule-test # meeting links + calendar geometry
@@ -188,6 +189,7 @@ swiftc -swift-version 6 Spotter/Core/CommandID.swift \
     -o /tmp/commands-test && /tmp/commands-test                    # built-in command catalog + compatibility
 swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
     Spotter/Plugins/WorldClock/WorldClockEngine.swift \
+    Spotter/Plugins/WorldClock/WorldClockMapGeometry.swift \
     Spotter/Plugins/WorldClock/WorldClockStore.swift Tools/world-clock-test.swift \
     -o /tmp/world-clock-test && /tmp/world-clock-test              # world-clock engine + store
 swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \

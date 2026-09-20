@@ -11,3 +11,16 @@ Additional Use Grant. Spotter is not a Screen Capture Service and is distributed
 The complete license is retained at
 [`Spotter/Plugins/Screenshot/Capso-BSL-1.1.txt`](Spotter/Plugins/Screenshot/Capso-BSL-1.1.txt) and
 embedded in the application bundle.
+
+## Natural Earth
+
+The World Clock land silhouette is derived from Natural Earth 1:110m land polygons (version 4.0.0),
+projected equirectangularly and rounded to two decimal places by `Tools/gen-world-clock-map.py`.
+All Natural Earth vector and raster data is in the public domain.
+
+- Source: https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_110m_land.geojson
+- Dataset: https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-land/
+- Terms: https://www.naturalearthdata.com/about/terms-of-use/
+
+Solar day/night geometry uses the approximation documented by NOAA:
+https://gml.noaa.gov/grad/solcalc/solareqns.PDF

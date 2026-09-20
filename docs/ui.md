@@ -633,12 +633,18 @@ name on the left, type and charging state underneath, and the percentage as a tr
 Schedule is a spatial canvas inside the standard Palette shell: a compact period toolbar,
 scrollable week time grid with an all-day lane, and a six-row month grid. The Week / Month switch
 lives at the trailing edge of the Palette search header in a Liquid Glass capsule with no selection animation,
-with a Liquid Glass Today button immediately to its left; both surfaces are 32 points high.
+with a text-labelled Liquid Glass Today button immediately to its left; both surfaces are 32 points high.
 On-screen paging arrows are omitted. Week omits the redundant date-range title and its empty toolbar row;
 Month retains its month/year heading. Event details replace
-the canvas in place. It uses existing semantic Theme colors and never changes the Palette frame.
+the canvas in place: left-aligned event information with one original-zone time line on the left,
+and the shared World Clock map at the event's start above notes on the right. It uses existing
+semantic Theme colors and never changes the Palette frame.
 Calendar page turns share Note's 160 ms ease-out fade and eight-point translation, with the header fixed
 and Reduce Motion respected. Both use `Theme.Animation.pageSwitch` for their duration.
+Schedule's Command-plus/minus hour-grid zoom animates around the visible center time. Arrow navigation
+reveals offscreen events without recentering already visible ones. Space or a three-second event hover
+raises a color-matched preview inside the canvas; time, location and people appear without notes.
+Preview and zoom animations honor Reduce Motion.
 
 Music keeps its cover at rest. Hover crossfades to Calendar-style text: a top-left song title and
 bottom-left artist on the standard card surface. There are no transport controls; clicking anywhere
@@ -660,3 +666,6 @@ Shortcuts group headings are ordinary foldable List rows rather than native sect
 Global Shortcuts and subsequent groups share the same background, separators and scrolling behavior.
 The two global actions have command/keyboard icons aligned with application icons and use the same
 name and recorder columns; they have no launcher visibility checkbox or alias field.
+
+World Clock places an offline 6:1 cropped world map above its shared city list, with saved-city markers,
+a daylight overlay and collision-aware labels. It shares the list scroll and palette frame.

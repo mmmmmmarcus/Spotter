@@ -44,6 +44,12 @@ struct ThemeTests {
                 light.r == (lightWhite ? 1 : 0) && abs(light.a - lightAlpha) < 0.001)
         }
 
+        check("worldClockOcean", Theme.Colors.worldClockOcean,
+              darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.45)
+        check("worldClockLand", Theme.Colors.worldClockLand,
+              darkWhite: true, darkAlpha: 0.24, lightWhite: false, lightAlpha: 0.18)
+        check("worldClockNight", Theme.Colors.worldClockNight,
+              darkWhite: false, darkAlpha: 0.55, lightWhite: false, lightAlpha: 0.12)
         // Dark stops are the pre-light-mode values, verbatim.
         check(
             "panelScrim", Theme.Colors.panelScrim,

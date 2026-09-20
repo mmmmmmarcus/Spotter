@@ -21,7 +21,9 @@ enum CalendarSchedulePlugin {
                     model: core.calendarSchedule, dashboard: core.dashboardWidgets, context: context))
             },
             handleBack: { [weak core] in
-                guard let model = core?.calendarSchedule, model.detailID != nil else { return false }
+                guard let model = core?.calendarSchedule else { return false }
+                if model.peekID != nil { model.peekID = nil; return true }
+                guard model.detailID != nil else { return false }
                 model.detailID = nil
                 return true
             },
@@ -207,6 +209,13 @@ extension AppCore {
     func handleCalendarScheduleKey(_ event: NSEvent) -> Bool {
         guard palette.mode == .plugin(.calendarSchedule), dashboardWidgets.calendarAccess.canRead else { return false }
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if modifiers == .command || modifiers == [.command, .shift] {
+            let key = event.charactersIgnoringModifiers ?? ""
+            if ["+", "=", "-", "_"].contains(key), calendarSchedule.mode == .week, calendarSchedule.detailID == nil {
+                calendarSchedule.changeZoom(by: key == "-" || key == "_" ? -1 : 1)
+                return true
+            }
+        }
         if modifiers == .command {
             switch event.charactersIgnoringModifiers {
             case "[": calendarSchedule.move(-1)
@@ -217,6 +226,16 @@ extension AppCore {
             return true
         }
         guard modifiers.isEmpty, calendarSchedule.detailID == nil else { return false }
+        if Int(event.keyCode) == kVK_Space, calendarSchedule.mode == .week,
+           (palette.query.isEmpty || calendarSchedule.isNavigatingEvents || calendarSchedule.peekID != nil),
+           let items = plugins.paletteSnapshot(for: .calendarSchedule, query: palette.query)?.items,
+           items.indices.contains(palette.selection) {
+            if event.isARepeat { return true }
+            let id = items[palette.selection].id
+            guard CalendarSchedulePlugin.event(store: calendarSchedule, itemID: id) != nil else { return false }
+            calendarSchedule.peekID = calendarSchedule.peekID == id ? nil : id
+            return true
+        }
         let direction: ScheduleDirection
         switch Int(event.keyCode) {
         case kVK_UpArrow: direction = .up
@@ -225,6 +244,8 @@ extension AppCore {
         case kVK_RightArrow: direction = .right
         default: return false
         }
+        calendarSchedule.peekID = nil
+        calendarSchedule.isNavigatingEvents = true
         let items = plugins.paletteSnapshot(for: .calendarSchedule, query: palette.query)?.items ?? []
         guard !items.isEmpty else { return true }
         let selection = min(max(palette.selection, 0), items.count - 1)
@@ -265,6 +286,7 @@ extension AppCore {
     }
 
     func performCalendarScheduleRow(itemID: String) {
+        calendarSchedule.peekID = nil
         switch itemID {
         case "request-access":
             dashboardWidgets.requestCalendarAccess()

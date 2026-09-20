@@ -73,6 +73,11 @@ struct ClockHandAngles: Equatable, Sendable {
     var second: Double
 }
 
+struct DashboardEventDetail: Equatable, Sendable {
+    let name: String
+    let value: String
+}
+
 struct DashboardEvent: Equatable, Sendable {
     let id: String
     let title: String
@@ -84,10 +89,13 @@ struct DashboardEvent: Equatable, Sendable {
     /// The event's own URL field and its notes, carried for the schedule's meeting-link detection.
     let urlString: String?
     let notes: String?
+    let timeZoneIdentifier: String?
+    let details: [DashboardEventDetail]
 
     init(
         id: String, title: String, startDate: Date, endDate: Date, isAllDay: Bool,
-        calendarTitle: String, location: String?, urlString: String? = nil, notes: String? = nil
+        calendarTitle: String, location: String?, urlString: String? = nil, notes: String? = nil,
+        timeZoneIdentifier: String? = nil, details: [DashboardEventDetail] = []
     ) {
         self.id = id
         self.title = title
@@ -98,6 +106,8 @@ struct DashboardEvent: Equatable, Sendable {
         self.location = location
         self.urlString = urlString
         self.notes = notes
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.details = details
     }
 }
 

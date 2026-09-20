@@ -118,6 +118,9 @@ Every registration supplies `metadata` and a standard Settings view. Everything 
 - `queryProvider` contributes a synchronous inline result provider.
 - `paletteScreen` contributes a searchable result-list snapshot, primary row action, ⌘K menu actions
   and visible-only lifecycle to the shared command palette.
+- `paletteScreen.listHeader` supplies optional non-selectable content above the shared rows,
+  inside their existing scroll view. World Clock uses it for its map; row indices and actions stay
+  unchanged and empty lists retain both the header and their empty message.
 - `paletteScreen.livePlaceholder` overrides the static placeholder while the screen is open, for a
   step-by-step flow whose prompt changes between steps (Quicklinks' argument entry). Returning nil
   falls back to `placeholder`.
@@ -380,6 +383,10 @@ reported peripheral with its charge percentage and charging state.
 Schedule supplies an optional `PluginPaletteScreenRegistration.canvas` for its week/month
 calendar geometry. Its context carries the shared snapshot, selected item and activation/Actions
 callbacks; list-based screens keep `PluginPaletteList`. The canvas stays inside the Palette frame.
+Schedule owns its transient zoom/preview state and routes arrow, Command-plus/minus and Space keys
+through the existing Palette navigation hook; preview dismissal uses the registered back handler.
+Calendar details reuse World Clock's `WorldClockMapContent` with an explicit event-start instant;
+World Clock alone adds the time-scrubbing interaction wrapper.
 
 The Note workspace switches documents directly from its scrollable Emoji markers. Its native
 options menu contains appearance settings and Delete Note; New Note is a separate toolbar button.

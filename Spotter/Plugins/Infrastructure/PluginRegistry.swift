@@ -53,6 +53,7 @@ struct PluginPaletteCanvasContext {
 struct PluginPaletteScreenRegistration {
     let placeholder: String
     var canvas: ((PluginPaletteCanvasContext) -> AnyView?)?
+    var listHeader: ((_ query: String, _ selectedID: String?) -> AnyView?)?
     /// Overrides `placeholder` while the screen is open, for a step-by-step flow whose prompt changes (Quicklinks' argument entry). Returning nil falls back to the static one.
     var livePlaceholder: (() -> String?)?
     /// Set by a screen whose rows represent instants (World Clock): ←/→ scrub by ±1 hour while the query is empty.
@@ -269,6 +270,10 @@ final class PluginRegistry: ObservableObject {
 
     func paletteCanvas(pluginID: PluginID, context: PluginPaletteCanvasContext) -> AnyView? {
         registrations[pluginID]?.paletteScreen?.canvas?(context)
+    }
+
+    func paletteListHeader(pluginID: PluginID, query: String, selectedID: String?) -> AnyView? {
+        registrations[pluginID]?.paletteScreen?.listHeader?(query, selectedID)
     }
 
     func paletteActions(pluginID: PluginID, itemID: String) -> PopoverMenuContent? {

@@ -99,7 +99,7 @@ Never break these without an explicit task to do so.
   sources. Both externally-sourced inputs are injected: the clock via `now`/`calendar`, the FX table
   via `rates` (`CurrencyRateStore` owns the fetch). Likewise the catalog and geometry sources in
   `Plugins/EmojiSymbols/` stay AppKit/SwiftUI-free for `Tools/emoji-test.swift`,
-  `Plugins/WorldClock/WorldClockEngine.swift` stays Foundation-only with an injected clock/calendar/
+  `Plugins/WorldClock/WorldClockEngine.swift` and `Plugins/WorldClock/WorldClockMapGeometry.swift` stay Foundation-only with an injected clock/calendar/
   local time zone while `Plugins/WorldClock/WorldClockStore.swift` stays Foundation + Combine,
   `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
   Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift`,
@@ -139,7 +139,7 @@ Never break these without an explicit task to do so.
   stays a pure type in `MoleTypes.swift` while `MoleManager` owns the processes, and one
   confirmation card still buys exactly one queue entry. `Plugins/Coffee/CoffeeTypes.swift` stays Foundation-only and pure for
   `Tools/coffee-test.swift`,
-  `Plugins/CalendarSchedule/CalendarScheduleEngine.swift` and `Plugins/CalendarSchedule/ScheduleLayout.swift` stay Foundation-only and pure (clock,
+  `Plugins/CalendarSchedule/CalendarScheduleEngine.swift`, `Plugins/CalendarSchedule/ScheduleNotes.swift` and `Plugins/CalendarSchedule/ScheduleLayout.swift` stay Foundation-only and pure (clock,
   calendar and locale injected) for `Tools/calendar-schedule-test.swift`, the
   `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
   `ScreenshotColorSampler.swift`, `ScreenshotImageProcessor.swift`, `ScreenshotAnnotation.swift` and

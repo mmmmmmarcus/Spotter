@@ -6,6 +6,9 @@ struct CalendarScheduleView: View {
     @ObservedObject var model: CalendarScheduleStore
     @ObservedObject var dashboard: DashboardWidgetsStore
     let context: PluginPaletteCanvasContext
+    @State private var scrollPosition = ScrollPosition(y: 0)
+    @State private var viewport = CGRect.zero
+    @State private var hoveredEventID: String?
     @State private var positionedPeriod: TimelinePeriod?
     @State private var transitionPeriod: TimelinePeriod?
     @State private var transitionProgress: CGFloat = 1
@@ -21,10 +24,14 @@ struct CalendarScheduleView: View {
         let isLoading: Bool
         var reduceMotion = false
         var isPositioned = true
+        var viewportHeight: CGFloat = 0
     }
     private var events: [DashboardEvent] { model.matching(context.query) }
     private var days: [Date] { model.days }
-    private let hourHeight = Theme.Size.scheduleHourHeight
+    private var hourHeight: CGFloat {
+        ScheduleViewport.hourHeight(base: Theme.Size.scheduleHourHeight, zoom: model.zoom)
+    }
+    private var interactionAnimation: Animation? { reduceMotion ? nil : .easeOut(duration: 0.2) }
 
     private var pagePeriod: TimelinePeriod {
         TimelinePeriod(mode: model.mode,
@@ -43,7 +50,7 @@ struct CalendarScheduleView: View {
 
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
-            if model.mode == .month {
+            if model.mode == .month, model.detailID == nil {
                 Text(model.date.formatted(.dateTime.month(.wide).year()))
                     .font(.headline).lineLimit(1).minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -63,6 +70,33 @@ struct CalendarScheduleView: View {
         .offset(x: (1 - pageProgress) * transitionDirection * Theme.Spacing.md)
         .overlay(alignment: .bottomTrailing) {
             if model.isLoading { ProgressView().controlSize(.small).padding(Theme.Spacing.md) }
+        }
+        .overlayPreferenceValue(ScheduleEventBounds.self) { anchors in
+            GeometryReader { geometry in
+                if let id = model.peekID, let anchor = anchors[id],
+                   let event = CalendarSchedulePlugin.event(store: model, itemID: id) {
+                    peek(event, id: id, source: geometry[anchor], size: geometry.size)
+                }
+            }
+        }
+        .animation(interactionAnimation, value: model.peekID)
+        .onChange(of: context.query) {
+            model.peekID = nil
+            model.isNavigatingEvents = false
+            hoveredEventID = nil
+        }
+        .onChange(of: core.palette.menuOpen) {
+            if core.palette.menuOpen { model.peekID = nil; hoveredEventID = nil }
+        }
+        .onChange(of: context.selectedID) { model.peekID = nil }
+        .onChange(of: model.date) { hoveredEventID = nil }
+        .onChange(of: model.mode) { hoveredEventID = nil }
+        .onChange(of: model.detailID) { hoveredEventID = nil }
+        .task(id: hoveredEventID) {
+            guard let id = hoveredEventID else { return }
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            guard !Task.isCancelled, model.detailID == nil, !core.palette.menuOpen else { return }
+            model.peekID = id
         }
         .onAppear { if !model.isLoading { model.refresh() } }
         .onChange(of: model.mode) { core.palette.focusToken = UUID() }
@@ -190,33 +224,51 @@ struct CalendarScheduleView: View {
                 }
             }
             if events.contains(where: \.isAllDay) { allDayEvents(now: now) }
-            ScrollViewReader { proxy in
-                ScrollView(.vertical) {
-                    GeometryReader { geometry in
-                        timeGrid(width: geometry.size.width, now: now)
-                    }
-                    .frame(height: hourHeight * 24)
+            ScrollView(.vertical) {
+                GeometryReader { geometry in
+                    timeGrid(width: geometry.size.width, now: now)
                 }
-                .task(id: PositionRequest(
-                    period: TimelinePeriod(mode: model.mode, date: model.date), isLoading: model.isLoading
-                )) {
-                    let period = TimelinePeriod(mode: model.mode, date: model.date)
-                    guard !model.isLoading, positionedPeriod != period else { return }
-                    // Wait for the all-day lane and timeline anchors to settle before positioning.
-                    await Task.yield()
-                    guard !Task.isCancelled else { return }
-                    proxy.scrollTo("initial-time", anchor: .center)
-                    positionedPeriod = period
-                }
-                .onDisappear { positionedPeriod = nil }
-                .onChange(of: context.selectedID) {
-                    guard !model.isLoading,
-                          positionedPeriod == TimelinePeriod(mode: model.mode, date: model.date)
-                    else { return }
-                    if let selected = context.selectedID { proxy.scrollTo(selected, anchor: .center) }
-                }
-                .overlayScroller()
+                .frame(height: hourHeight * 24)
             }
+            .scrollPosition($scrollPosition)
+            .onScrollGeometryChange(for: CGRect.self) { $0.visibleRect } action: { _, rect in
+                viewport = rect
+            }
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting || phase == .decelerating {
+                    model.peekID = nil
+                    hoveredEventID = nil
+                }
+            }
+            .task(id: PositionRequest(
+                period: TimelinePeriod(mode: model.mode, date: model.date), isLoading: model.isLoading,
+                viewportHeight: viewport.height
+            )) {
+                let period = TimelinePeriod(mode: model.mode, date: model.date)
+                guard !model.isLoading, positionedPeriod != period, viewport.height > 0 else { return }
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                let minute = ScheduleLayout.initialScrollMinute(
+                    days: days, events: events.map { (start: $0.startDate, end: $0.endDate, isAllDay: $0.isAllDay) },
+                    now: now, calendar: model.calendar)
+                scrollPosition.scrollTo(y: ScheduleViewport.clampedOffset(
+                    minute / 60 * hourHeight - viewport.height / 2,
+                    hourHeight: hourHeight, viewportHeight: viewport.height))
+                positionedPeriod = period
+            }
+            .onDisappear { positionedPeriod = nil }
+            .onChange(of: context.selectedID) { revealSelection() }
+            .onChange(of: model.peekID) {
+                if model.peekID == context.selectedID { revealSelection() }
+            }
+            .onChange(of: model.zoom) { previous, _ in
+                let oldHeight = ScheduleViewport.hourHeight(base: Theme.Size.scheduleHourHeight, zoom: previous)
+                let offset = ScheduleViewport.zoomedOffset(viewport.minY, from: oldHeight,
+                    to: hourHeight, viewportHeight: viewport.height)
+                withAnimation(interactionAnimation) { scrollPosition.scrollTo(y: offset) }
+            }
+            .animation(interactionAnimation, value: model.zoom)
+            .overlayScroller()
             if events.isEmpty, !model.isLoading {
                 Text(context.query.isEmpty ? "No events in this period" : "No matching events")
                     .font(.caption).foregroundStyle(.secondary)
@@ -254,24 +306,12 @@ struct CalendarScheduleView: View {
         let dayWidth = gridWidth / CGFloat(max(1, days.count))
         let containsToday = days.contains { model.calendar.isDate($0, inSameDayAs: now) }
         let minute = ScheduleLayout.elapsedMinutes(on: now, now: now, calendar: model.calendar)
-        let initialMinute = ScheduleLayout.initialScrollMinute(
-            days: days, events: events.map { (start: $0.startDate, end: $0.endDate, isAllDay: $0.isAllDay) },
-            now: now, calendar: model.calendar)
         return ZStack(alignment: .topLeading) {
-            // A layout anchor has a reliable scroll rect; drawing offsets alone do not.
-            VStack(spacing: 0) {
-                Color.clear.frame(height: CGFloat(initialMinute) / 60 * hourHeight)
-                Color.clear.frame(height: 1).id("initial-time")
-                Spacer(minLength: 0)
-            }
-            .frame(height: hourHeight * 24)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
             ForEach(0..<24, id: \.self) { hour in
                 Text(hourLabel(hour)).font(.system(size: 10).monospacedDigit())
                     .foregroundStyle(.secondary)
                     .frame(width: gutter, height: hourHeight, alignment: .topLeading)
-                    .offset(y: CGFloat(hour) * hourHeight).id("hour:\(hour)")
+                    .offset(y: CGFloat(hour) * hourHeight)
             }
             ForEach(Array(days.enumerated()), id: \.offset) { index, day in
                 timeColumn(day, width: dayWidth)
@@ -317,7 +357,7 @@ struct CalendarScheduleView: View {
                         .clipped()
                         .offset(x: CGFloat(block.column) * columnWidth + 1,
                                 y: block.startMinute / 60 * hourHeight)
-                        .id(block.id)
+
                 }
             }
         }
@@ -346,33 +386,58 @@ struct CalendarScheduleView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(event.title + " · " + event.calendarTitle)
+        .anchorPreference(key: ScheduleEventBounds.self, value: .bounds) { [id: $0] }
+        .onHover { inside in
+            if inside { hoveredEventID = id }
+            else if hoveredEventID == id { hoveredEventID = nil }
+        }
+        .accessibilityAction(named: "Preview Event") { model.peekID = id }
         .accessibilityLabel(event.title + ", " + CalendarScheduleEngine.timeLabel(
             start: event.startDate, end: event.endDate, isAllDay: event.isAllDay, calendar: model.calendar))
     }
 
-    private func detail(_ event: DashboardEvent) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                Button { model.detailID = nil } label: { Label("Back to Schedule", systemImage: "chevron.left") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
-                Text(event.title).font(.title2).textSelection(.enabled)
-                Label(event.calendarTitle, systemImage: "calendar").foregroundStyle(accent(event))
-                Text(event.startDate.formatted(date: .complete, time: .omitted))
-                Text(CalendarScheduleEngine.timeLabel(start: event.startDate, end: event.endDate,
-                                                     isAllDay: event.isAllDay, calendar: model.calendar))
-                if let location = event.location, !location.isEmpty { Label(location, systemImage: "mappin") }
-                if let link = CalendarScheduleEngine.meetingLink(
-                    urlString: event.urlString, location: event.location, notes: event.notes) {
-                    Button("Join \(link.provider)") { core.openCalendarMeetingLink(link.urlString) }
-                }
-                if let notes = event.notes, !notes.isEmpty { Text(notes).foregroundStyle(.secondary).textSelection(.enabled) }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Theme.Spacing.xl)
+    private func revealSelection() {
+        guard !model.isLoading, viewport.height > 0,
+              positionedPeriod == TimelinePeriod(mode: model.mode, date: model.date),
+              let id = context.selectedID,
+              let position = CalendarSchedulePlugin.positions(model: model, query: context.query).first(where: { $0.id == id }),
+              !position.isAllDay,
+              let event = CalendarSchedulePlugin.event(store: model, itemID: id),
+              let block = ScheduleLayout.block(id: id, start: event.startDate, end: event.endDate,
+                                               day: position.day, calendar: model.calendar) else { return }
+        // Offset-drawn event views do not have usable ScrollViewReader layout rects.
+        let offset = ScheduleViewport.revealing(startMinute: block.startMinute, endMinute: block.endMinute,
+            hourHeight: hourHeight, offset: viewport.minY, viewportHeight: viewport.height)
+        if abs(offset - viewport.minY) > 0.5 {
+            withAnimation(interactionAnimation) { scrollPosition.scrollTo(y: offset) }
         }
-        .overlayScroller()
     }
+
+    private func peek(_ event: DashboardEvent, id: String, source: CGRect, size: CGSize) -> some View {
+        let width = min(320, size.width)
+        let height = min(280, size.height)
+        let x = min(max(0, source.minX), max(0, size.width - width))
+        let y = min(max(0, source.minY), max(0, size.height - height))
+        let origin = UnitPoint(x: min(1, max(0, (source.midX - x) / width)),
+                               y: min(1, max(0, (source.midY - y) / height)))
+        return ZStack(alignment: .topLeading) {
+            Color.clear.contentShape(Rectangle()).onTapGesture { model.peekID = nil }
+            CalendarEventPeekView(event: event, calendar: model.calendar, accent: accent(event)) {
+                context.activate(id)
+            }
+            .frame(width: width, height: height)
+            .onHover { inside in if !inside { model.peekID = nil } }
+            .transition(.scale(scale: 0.94, anchor: origin).combined(with: .opacity))
+            .offset(x: x, y: y)
+        }
+    }
+
+    private func detail(_ event: DashboardEvent) -> some View {
+        CalendarEventDetailView(event: event, calendar: model.calendar,
+                                worldClock: core.worldClock, accent: accent(event),
+                                joinMeeting: core.openCalendarMeetingLink)
+    }
+
 }
 
 struct ScheduleHeaderControls: View {
@@ -385,12 +450,10 @@ struct ScheduleHeaderControls: View {
         if dashboard.calendarAccess.canRead {
             HStack(spacing: Theme.Spacing.sm) {
                 Button(action: today) {
-                    Label("Today", systemImage: "calendar.badge.clock")
-                        .labelStyle(.iconOnly)
+                    Text("Today")
                         .font(Theme.Typography.bar)
-                        .symbolRenderingMode(.monochrome)
-                        .frame(width: Theme.Size.scheduleHeaderControlHeight,
-                               height: Theme.Size.scheduleHeaderControlHeight)
+                        .padding(.horizontal, Theme.Spacing.xl)
+                        .frame(height: Theme.Size.scheduleHeaderControlHeight)
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -431,5 +494,12 @@ struct ScheduleHeaderControls: View {
         .animation(nil, value: model.mode)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Calendar view")
+    }
+}
+
+private struct ScheduleEventBounds: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }

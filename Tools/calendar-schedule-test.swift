@@ -16,6 +16,77 @@ enum CalendarScheduleTests {
     }
 
     static func main() {
+        check("focus within viewport preserves scroll position", ScheduleViewport.revealing(
+            startMinute: 600, endMinute: 660, hourHeight: 60, offset: 500, viewportHeight: 300) == 500)
+        check("focus below viewport reveals only the missing portion", ScheduleViewport.revealing(
+            startMinute: 900, endMinute: 960, hourHeight: 60, offset: 500, viewportHeight: 300) == 668)
+        check("focus above viewport reveals actual event time, not midnight", ScheduleViewport.revealing(
+            startMinute: 600, endMinute: 660, hourHeight: 60, offset: 900, viewportHeight: 300) == 592)
+        check("long event already filling viewport does not jump", ScheduleViewport.revealing(
+            startMinute: 610, endMinute: 1200, hourHeight: 60, offset: 602, viewportHeight: 300) == 602)
+        check("long event below viewport reveals its start", ScheduleViewport.revealing(
+            startMinute: 900, endMinute: 1400, hourHeight: 60, offset: 500, viewportHeight: 300) == 892)
+        check("midnight focus never produces a negative offset", ScheduleViewport.revealing(
+            startMinute: 0, endMinute: 30, hourHeight: 60, offset: 500, viewportHeight: 300) == 0)
+        check("zoom keeps center time stationary", ScheduleViewport.zoomedOffset(
+            500, from: 60, to: 120, viewportHeight: 300) == 1150)
+        check("zoom out keeps center time stationary", ScheduleViewport.zoomedOffset(
+            1150, from: 120, to: 60, viewportHeight: 300) == 500)
+        check("zoom clamps to end of day", ScheduleViewport.zoomedOffset(
+            1200, from: 60, to: 30, viewportHeight: 300) == 420)
+        check("zoom clamps at minimum and maximum", ScheduleViewport.hourHeight(base: 36, zoom: -100) == 23.04
+            && ScheduleViewport.hourHeight(base: 36, zoom: 100) == ScheduleViewport.hourHeight(base: 36, zoom: 6))
+
+        let noteHTML = ScheduleNotes.parse("Before <a href=\"https://example.com/event?a=1&amp;b=2\"><b>Open Event</b></a><br>组织者: Alice\n参与者 (2): Alice, Bob\n会议 ID: 123\nhttps://example.com/meeting")
+        check("HTML anchor displays its title", noteHTML.runs.contains { $0.text == "Open Event" && $0.url?.absoluteString == "https://example.com/event?a=1&b=2" })
+        check("bare URL becomes compact clickable label", noteHTML.runs.contains { $0.text == "example.com" && $0.url?.path == "/meeting" })
+        check("notes metadata moves to left-side fields", noteHTML.fields.map(\.name) == ["Organizer", "Participants", "Meeting ID"] && !noteHTML.runs.map(\.text).joined().contains("Alice"))
+        let markdownNotes = ScheduleNotes.parse("[Agenda](https://example.org/agenda) and &#x4F60;&#22909; &amp; welcome")
+        check("Markdown link titles are retained", markdownNotes.runs.first?.text == "Agenda" && markdownNotes.runs.first?.url != nil)
+        check("HTML entities decode locally", markdownNotes.runs.map(\.text).joined().contains("你好 & welcome"))
+        let unsafeNotes = ScheduleNotes.parse("<a href='javascript:alert(1)'>Label</a><script>bad()</script><img src='https://example.org/image'>")
+        check("HTML rendering never executes content or loads images", unsafeNotes.runs.map(\.text).joined() == "Label" && unsafeNotes.runs.allSatisfy { $0.url == nil })
+        check("file and script links are not actionable", ScheduleNotes.safeURL("file:///etc/hosts") == nil && ScheduleNotes.safeURL("javascript:run()") == nil)
+        check("ordinary prose remains intact", ScheduleNotes.parse("Hello\nWorld").runs.map(\.text).joined() == "Hello\nWorld")
+        let iso = ISO8601DateFormatter()
+        let detailStart = iso.date(from: "2026-01-15T18:00:00Z")!
+        let detailEnd = detailStart.addingTimeInterval(3600)
+        var detailCalendar = Calendar(identifier: .gregorian)
+        detailCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let detailLocale = Locale(identifier: "en_US_POSIX")
+        let detailCities = [
+            ScheduleTimeZone(name: "San Francisco", identifier: "America/Los_Angeles"),
+            ScheduleTimeZone(name: "Vancouver", identifier: "America/Vancouver"),
+            ScheduleTimeZone(name: "London", identifier: "Europe/London"),
+            ScheduleTimeZone(name: "Shanghai", identifier: "Asia/Shanghai"),
+            ScheduleTimeZone(name: "Hong Kong", identifier: "Asia/Hong_Kong"),
+            ScheduleTimeZone(name: "Tokyo", identifier: "Asia/Tokyo"),
+            ScheduleTimeZone(name: "Sydney", identifier: "Australia/Sydney")
+        ]
+        let detail = CalendarScheduleEngine.detailTimes(start: detailStart, end: detailEnd, isAllDay: false,
+            eventTimeZoneIdentifier: "America/Los_Angeles", cities: detailCities, calendar: detailCalendar, locale: detailLocale)
+        check("detail preserves event timezone rather than Mac timezone", detail.first?.id == "America/Los_Angeles" && detail.first?.time.contains("10:00") == true)
+        check("detail adds three unique World Clock times in saved order", detail.map(\.name) == ["Los Angeles", "London", "Shanghai", "Tokyo"])
+        check("detail omits redundant date but retains day offset", detail[2].dayOffset == 1)
+        check("converted date advances across midnight", detail[2].date.contains("16") && detail[0].date.contains("15"))
+        let floating = CalendarScheduleEngine.detailTimes(start: detailStart, end: detailEnd, isAllDay: false,
+            eventTimeZoneIdentifier: nil, cities: [], calendar: detailCalendar, locale: detailLocale)
+        check("floating event uses explicitly labelled local time", floating.count == 1 && floating[0].name == "Local Time" && floating[0].id == "Asia/Shanghai")
+        let invalid = CalendarScheduleEngine.detailTimes(start: detailStart, end: detailEnd, isAllDay: false,
+            eventTimeZoneIdentifier: "Invalid/Zone", cities: [.init(name: "Invalid", identifier: "No/Zone")], calendar: detailCalendar, locale: detailLocale)
+        check("invalid zones safely fall back or are skipped", invalid == floating)
+        let allDayStart = iso.date(from: "2026-01-14T16:00:00Z")!
+        let allDay = CalendarScheduleEngine.detailTimes(start: allDayStart, end: allDayStart.addingTimeInterval(86400), isAllDay: true,
+            eventTimeZoneIdentifier: nil, cities: detailCities, calendar: detailCalendar, locale: detailLocale)
+        check("all-day events do not manufacture converted clock times", allDay.count == 1 && allDay[0].time == "All day")
+        check("all-day exclusive ending does not add an extra date", allDay[0].date.contains("15") && !allDay[0].date.contains("16"))
+        let detailDST = CalendarScheduleEngine.detailTimes(start: iso.date(from: "2026-03-08T07:30:00Z")!, end: iso.date(from: "2026-03-08T09:30:00Z")!, isAllDay: false,
+            eventTimeZoneIdentifier: "America/Chicago", cities: [.init(name: "Mexico City", identifier: "America/Mexico_City")], calendar: detailCalendar, locale: detailLocale)
+        check("zones matching at start but diverging at DST ending are retained", detailDST.count == 2)
+        check("event crossing DST keeps distinct local times", detailDST[0].time != detailDST[1].time)
+        let nepal = CalendarScheduleEngine.detailTimes(start: detailStart, end: detailEnd, isAllDay: false,
+            eventTimeZoneIdentifier: "Asia/Kathmandu", cities: [], calendar: detailCalendar, locale: detailLocale)
+        check("quarter-hour zones retain exact time", nepal[0].time.contains("11:45"))
         var layoutCalendar = Calendar(identifier: .gregorian)
         layoutCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
         layoutCalendar.firstWeekday = 2

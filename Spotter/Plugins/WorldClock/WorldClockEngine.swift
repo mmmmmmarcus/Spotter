@@ -262,16 +262,17 @@ enum WorldClockEngine {
     /// The screen's whole read of its query: search, a resolved conversion, or a city it can't place.
     static func screenIntent(
         for raw: String, cities: [WorldClockCity], now: Date, calendar: Calendar = .current,
-        locale: Locale = .current, localTimeZone: TimeZone
+        locale: Locale = .current, localTimeZone: TimeZone, previewOffsetMinutes: Int = 0
     ) -> WorldClockScreenIntent {
         guard let parsed = parseConversion(raw) else { return .citySearch }
         guard let location = locationsByAlias[normalized(parsed.cityPhrase)],
             let sourceZone = TimeZone(identifier: location.city.timeZoneIdentifier),
-            let instant = instant(
+            let baseInstant = instant(
                 hour: parsed.hour, minute: parsed.minute, in: sourceZone, on: now,
                 calendar: calendar)
         else { return .unresolvedCity(phrase: parsed.cityPhrase) }
 
+        let instant = baseInstant.addingTimeInterval(TimeInterval(previewOffsetMinutes) * 60)
         let source = formatted(
             instant, timeZone: sourceZone, calendar: calendar, locale: locale)
         var rows: [WorldClockConversionRow] = []

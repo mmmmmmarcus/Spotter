@@ -1095,6 +1095,9 @@ struct RootPaletteView: View {
                 )
             }
         case .plugin(let pluginID):
+            let listHeader = plugins.paletteListHeader(
+                pluginID: pluginID, query: vm.query,
+                selectedID: plugin?.items.indices.contains(selection) == true ? plugin?.items[selection].id : nil)
             if let plugin, let canvas = plugins.paletteCanvas(
                 pluginID: pluginID,
                 context: PluginPaletteCanvasContext(
@@ -1115,7 +1118,7 @@ struct RootPaletteView: View {
                 EmptyResults(text: error)
             } else if plugin?.isLoading == true, plugin?.items.isEmpty == true {
                 EmptyResults(text: plugin?.loadingMessage ?? "Loading…")
-            } else if let plugin, plugin.items.isEmpty {
+            } else if let plugin, plugin.items.isEmpty, listHeader == nil {
                 EmptyResults(text: plugin.emptyMessage)
             } else if let plugin {
                 let selected = plugin.items.indices.contains(selection) ? plugin.items[selection] : nil
@@ -1131,7 +1134,7 @@ struct RootPaletteView: View {
                     onActions: { item in
                         if let index = plugin.items.firstIndex(of: item) { vm.selection = index }
                         openActions()
-                    })
+                    }, header: listHeader, emptyMessage: plugin.emptyMessage)
             } else {
                 EmptyResults(text: "Plugin unavailable")
             }

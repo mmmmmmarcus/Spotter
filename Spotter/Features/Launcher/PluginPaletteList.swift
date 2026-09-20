@@ -8,6 +8,8 @@ struct PluginPaletteList: View {
     let scroll: ScrollIntent
     let onActivate: (PluginPaletteItem) -> Void
     let onActions: (PluginPaletteItem) -> Void
+    var header: AnyView? = nil
+    var emptyMessage: String = ""
 
     private var selectedIsFirst: Bool {
         selectedID != nil && selectedID == items.first?.id
@@ -46,7 +48,9 @@ struct PluginPaletteList: View {
 
     @ViewBuilder
     private var rowContent: some View {
+        if let header { header }
         SectionHeader(title: sectionTitle, isFirst: true)
+        if items.isEmpty { EmptyResults(text: emptyMessage) }
         ForEach(items) { item in
             PluginPaletteRow(item: item, selected: item.id == selectedID)
                 .id(item.id)
