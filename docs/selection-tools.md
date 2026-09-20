@@ -29,7 +29,10 @@ first `await`, then captures in tiers:
 1. `SelectedTextReader` reads the focused control through Accessibility.
 2. Chromium accessibility attributes are enabled temporarily and retried while its tree appears.
 3. A guarded synthetic ⌘C snapshots and restores the pasteboard when canvas or web surfaces expose
-   no Accessibility selection.
+   no Accessibility selection. Empty/whitespace-only Chromium marker results are treated as unavailable,
+   so they cannot suppress the fallback. `SelectionCopyCapture` uses an isolated event source and the
+   Hyper tap's synthetic-event marker; its copy chord carries only Command. It waits up to 1.2 seconds
+   for nonempty text, including clipboard formats that arrive before their text payload.
 
 The fallback is suppressed from clipboard history for its whole lifetime and stamps the restored
 pasteboard with Spotter's internal marker. Captured snapshots keep only the selected text, source
@@ -60,3 +63,9 @@ rowless idle/failure screens.
 
 Leaving the screen returns an active plugin
 screen to the launcher.
+
+`Tools/selected-text-capture-test.swift` exercises the real selection resolution and copy fallback
+with a private named pasteboard: empty Chromium ranges, staged clipboard updates, rich-data restoration,
+stale clipboard rejection, cancellation and the synthetic copy chord. It posts no keys, requests no
+permissions and never reads or changes the user's general clipboard. Live Figma selection compatibility
+still requires checking the selected text in Figma itself.

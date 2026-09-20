@@ -496,3 +496,14 @@ swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.
 The real store uses an injected forecast response, fake location callbacks and a temporary cache.
 Tests cover the location-to-refresh feedback loop, success, retry backoff, coarse-fix jitter, a moved
 place and denied authorization. This harness never contacts a provider or asks macOS for location.
+
+### Selected text capture regression
+
+```sh
+swiftc -swift-version 6 Spotter/Core/SelectedTextReader.swift \
+    Spotter/Core/SelectionCopyCapture.swift Tools/selected-text-capture-test.swift \
+    -o /tmp/selected-text-capture-test && /tmp/selected-text-capture-test
+```
+
+Uses a private pasteboard and constructed (never posted) CGEvents to check empty Chromium selections,
+asynchronous copy payloads, clipboard restoration and Hyper-safe copy modifiers.

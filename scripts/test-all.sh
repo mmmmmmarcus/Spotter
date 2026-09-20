@@ -24,6 +24,7 @@ TESTS=(
     kill-process
     change-case
     selection-tools
+    selected-text-capture
     translate
     image-modification
     note
@@ -157,6 +158,11 @@ run_harness() {
         change-case)
             swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
                 Tools/change-case-test.swift -o "$output" && "$output"
+            ;;
+        selected-text-capture)
+            swiftc -swift-version 6 Spotter/Core/SelectedTextReader.swift \
+                Spotter/Core/SelectionCopyCapture.swift Tools/selected-text-capture-test.swift \
+                -o "$output" && "$output"
             ;;
         selection-tools)
             swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \

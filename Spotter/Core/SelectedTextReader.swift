@@ -96,14 +96,19 @@ enum SelectedTextReader {
     }
 
     private static func selectedText(from element: AXUIElement) -> String? {
-        var selectedValue: CFTypeRef?
-        if AXUIElementCopyAttributeValue(
-            element, kAXSelectedTextAttribute as CFString, &selectedValue) == .success,
-            let selectedText = selectedValue as? String, !selectedText.isEmpty
-        {
-            return selectedText
-        }
-        return markerRangeSelectedText(from: element)
+        resolveSelection(primary: {
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &value) == .success
+            else { return nil }
+            return value as? String
+        }, marker: { markerRangeSelectedText(from: element) })
+    }
+
+    static func resolveSelection(primary: () -> String?, marker: () -> String?) -> String? {
+        if let text = primary(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return text }
+        if let text = marker(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return text }
+        // Empty Chromium marker ranges are not a successful selection; continue to the copy fallback.
+        return nil
     }
 
     /// Chromium/WebKit expose the selection as an opaque marker range resolved through a parameterized attribute.
