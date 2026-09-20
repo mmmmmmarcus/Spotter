@@ -674,3 +674,7 @@ name and recorder columns; they have no launcher visibility checkbox or alias fi
 
 World Clock places an offline 6:1 cropped world map above its shared city list, with saved-city markers,
 a daylight overlay and collision-aware labels. It shares the list scroll and palette frame.
+
+Screenshot selection overlays never become key or main and accept pointer input without taking
+first responder. This preserves menu tracking across Option changes. Escape, Space and Tab are
+claimed through the shared transient shortcut mechanism only while the selection is visible.

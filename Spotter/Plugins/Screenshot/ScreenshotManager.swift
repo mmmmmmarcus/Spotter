@@ -41,28 +41,6 @@ struct ScreenshotCapturePayload: Sendable {
     }
 }
 
-/// One selection session, three outputs: Space cycles what a capture produces. Screenshot mode is
-/// where every session starts — a left drag selects a region, a right click captures the window
-/// under the pointer, and Tab captures the whole display.
-enum ScreenshotCaptureMode: CaseIterable {
-    case screenshot
-    /// Drag a region and keep only the text inside it.
-    case ocr
-    /// Click a pixel and copy its hex value.
-    case colorPicker
-
-    var next: ScreenshotCaptureMode {
-        switch self {
-        case .screenshot: .ocr
-        case .ocr: .colorPicker
-        case .colorPicker: .screenshot
-        }
-    }
-
-    /// Whether the user draws an area, as opposed to clicking a single point.
-    var isDragSelection: Bool { self == .screenshot || self == .ocr }
-}
-
 private enum ScreenshotCaptureFailure: LocalizedError {
     case displayUnavailable
     case windowUnavailable
@@ -115,7 +93,6 @@ final class ScreenshotManager: ObservableObject {
     private var pins: [ScreenshotPinWindow] = []
     private unowned let hotKeys: HotKeyManager
     private let defaults: UserDefaults
-    private static let escapeKeyID = "screenshot.selection.escape"
 
     @Published var roundedCorners: Bool {
         didSet {
@@ -232,15 +209,12 @@ final class ScreenshotManager: ObservableObject {
         selectionStartedAt = Date()
         for panel in panels { panel.activate() }
         for panel in panels { panel.prepareForPresentation() }
-        // The view's own keyDown only fires when the overlay actually holds keyboard focus, which
-        // depends on what was frontmost when the shortcut fired. Escape is the one key that must
-        // always work, so it is claimed system-wide for the life of the selection and released
-        // with the panels.
-        hotKeys.holdTransientKey(
-            id: Self.escapeKeyID,
-            shortcut: KeyShortcut(carbonKeyCode: kVK_Escape, carbonModifiers: 0)
-        ) { [weak self] in
-            self?.cancel()
+        for key in ScreenshotSelectionKey.allCases {
+            hotKeys.holdTransientKey(
+                id: key.id, shortcut: KeyShortcut(carbonKeyCode: key.rawValue, carbonModifiers: 0)
+            ) { [weak self] in
+                self?.handleSelectionKey(key)
+            }
         }
 
         let frames = panels.map { NSStringFromRect($0.frame) }.joined(separator: ", ")
@@ -386,7 +360,7 @@ final class ScreenshotManager: ObservableObject {
             screenFrame: screen.frame,
             visibleFrame: screen.visibleFrame,
             roundedCorners: roundedCorners)
-        let panel = ScreenshotSelectionPanel(screen: screen, contentView: view)
+        let panel = ScreenshotSelectionPanel(screenFrame: screen.frame, contentView: view)
         view.onSelection = { [weak self, weak screen] localRect in
             guard let self, let screen else { return }
             finishSelection(localRect, on: screen)
@@ -397,9 +371,18 @@ final class ScreenshotManager: ObservableObject {
         }
         view.onWindowCapture = { [weak self] in self?.captureWindowUnderPointer() }
         view.onScreenCapture = { [weak self] in self?.captureScreenUnderPointer() }
-        view.onToggleMode = { [weak self] in self?.toggleMode() }
         view.onCancel = { [weak self] in self?.cancel() }
         return panel
+    }
+
+    private func handleSelectionKey(_ key: ScreenshotSelectionKey) {
+        guard !panels.isEmpty else { return }
+        switch key {
+        case .escape: cancel()
+        case .space: toggleMode()
+        case .tab:
+            panels.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }?.captureScreenIfIdle()
+        }
     }
 
     private func toggleMode() {
@@ -508,10 +491,7 @@ final class ScreenshotManager: ObservableObject {
         }
     }
 
-    /// Tab reaches whichever overlay panel happens to be key, which need not be the display the
-    /// pointer is on — so the captured screen is resolved from the live pointer, never from the
-    /// panel that received the keystroke. `NSMouseInRect`, not `contains`: a pointer on a display's
-    /// topmost row belongs to that display, not the one stacked above (the palette's same trap).
+    // Resolve the display from the pointer because none of the selection panels owns keyboard focus.
     private func captureScreenUnderPointer() {
         let mouse = NSEvent.mouseLocation
         guard
@@ -735,7 +715,7 @@ final class ScreenshotManager: ObservableObject {
 
     private func dismissPanels() {
         selectionStartedAt = nil
-        hotKeys.releaseTransientKey(id: Self.escapeKeyID)
+        for key in ScreenshotSelectionKey.allCases { hotKeys.releaseTransientKey(id: key.id) }
         for panel in panels { panel.deactivate() }
         panels = []
         previousCursor?.set()
@@ -770,257 +750,6 @@ private enum BackgroundCursor {
         _ = unsafeBitCast(propertySymbol, to: SetConnectionProperty.self)(
             connection, connection, "SetsCursorInBackground" as CFString,
             allowed ? kCFBooleanTrue as CFTypeRef : kCFBooleanFalse as CFTypeRef)
-    }
-}
-
-private final class ScreenshotSelectionPanel: NSPanel {
-    private let selectionView: ScreenshotSelectionView
-
-    init(screen: NSScreen, contentView: ScreenshotSelectionView) {
-        selectionView = contentView
-        super.init(
-            contentRect: screen.frame,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false)
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = false
-        hidesOnDeactivate = false
-        level = .screenSaver
-        animationBehavior = .none
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        isMovable = false
-        isReleasedWhenClosed = false
-        ignoresMouseEvents = false
-        acceptsMouseMovedEvents = true
-        self.contentView = contentView
-
-        let preventsActivation = NSSelectorFromString("_setPreventsActivation:")
-        if responds(to: preventsActivation) {
-            perform(preventsActivation, with: NSNumber(value: true))
-        }
-    }
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-
-    func activate() {
-        orderFrontRegardless()
-        makeKey()
-        makeFirstResponder(selectionView)
-    }
-
-    func prepareForPresentation() {
-        selectionView.prepareForPresentation()
-    }
-
-    func apply(mode: ScreenshotCaptureMode) {
-        selectionView.apply(mode: mode)
-    }
-
-    func deactivate() {
-        orderOut(nil)
-    }
-}
-
-private final class ScreenshotSelectionView: NSView {
-    var onSelection: ((CGRect) -> Void)?
-    var onColorPick: ((CGPoint) -> Void)?
-    var onWindowCapture: (() -> Void)?
-    var onScreenCapture: (() -> Void)?
-    var onToggleMode: (() -> Void)?
-    var onCancel: (() -> Void)?
-
-    private let roundedCorners: Bool
-    private let screenFrame: CGRect
-    private var mode: ScreenshotCaptureMode = .screenshot
-    private var cursor: NSCursor { ScreenshotCursor.cursor(for: mode) }
-    private var dragStart: CGPoint?
-    private var selection: CGRect?
-    private static let selectionStrokeWidthPixels: CGFloat = 1
-
-    init(screenFrame: CGRect, visibleFrame: CGRect, roundedCorners: Bool) {
-        self.roundedCorners = roundedCorners
-        self.screenFrame = screenFrame
-        super.init(frame: NSRect(origin: .zero, size: screenFrame.size))
-        addTrackingArea(NSTrackingArea(
-            rect: bounds,
-            options: [
-                .mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .activeAlways, .inVisibleRect,
-            ],
-            owner: self,
-            userInfo: nil))
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    override var acceptsFirstResponder: Bool { true }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        addCursorRect(bounds, cursor: cursor)
-    }
-
-    override func cursorUpdate(with event: NSEvent) {
-        setPointerCursor()
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        setPointerCursor()
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        setPointerCursor()
-    }
-
-    func prepareForPresentation() {
-        refreshCursorRects()
-    }
-
-    func apply(mode: ScreenshotCaptureMode) {
-        guard mode != self.mode else { return }
-        self.mode = mode
-        dragStart = nil
-        selection = nil
-        refreshCursorRects()
-        needsDisplay = true
-    }
-
-    private func setPointerCursor() {
-        cursor.set()
-    }
-
-    private func localPointerLocation() -> CGPoint {
-        CGPoint(
-            x: NSEvent.mouseLocation.x - screenFrame.minX,
-            y: NSEvent.mouseLocation.y - screenFrame.minY)
-    }
-
-    /// Rebuilding the cursor rects is what stops a later pointer move from restoring the previous
-    /// symbol — but AppKit drops the live pointer back to the arrow while it rebuilds, and only
-    /// re-applies a rect's cursor once the pointer moves into it. A stationary pointer would sit on
-    /// the arrow until the user twitched the mouse, so the cursor is set again after the rebuild has
-    /// been processed as well as before it.
-    private func refreshCursorRects() {
-        window?.invalidateCursorRects(for: self)
-        setCursorIfPointerInside()
-        DispatchQueue.main.async { [weak self] in self?.setCursorIfPointerInside() }
-    }
-
-    /// NSMouseInRect, not `contains`: on the top edge the pointer's y sits exactly on `frame.maxY`,
-    /// which a plain rect-contains misses.
-    private func setCursorIfPointerInside() {
-        guard let window, NSMouseInRect(NSEvent.mouseLocation, window.frame, false) else { return }
-        setPointerCursor()
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        guard event.buttonNumber == 0 else { return }
-        window?.makeKey()
-        window?.makeFirstResponder(self)
-        cursor.set()
-        guard mode.isDragSelection else { return }
-        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
-        dragStart = point
-        selection = .zero
-        needsDisplay = true
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard mode.isDragSelection, let dragStart else { return }
-        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
-        selection = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
-        cursor.set()
-        needsDisplay = true
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        guard event.buttonNumber == 0 else { return }
-        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
-        if mode == .colorPicker {
-            onColorPick?(point)
-            return
-        }
-        guard let dragStart else { return }
-        let rect = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
-        self.dragStart = nil
-        selection = nil
-        if ScreenshotGeometry.isCapturable(rect) {
-            onSelection?(rect)
-        } else {
-            onCancel?()
-        }
-    }
-
-    /// A right click is the window capture, hit-tested where it lands. It no longer cancels in any
-    /// mode — Escape and a second shortcut press remain the ways out — and it is inert mid-drag and
-    /// outside screenshot mode, where a window picture would be a surprise.
-    override func rightMouseDown(with event: NSEvent) {
-        guard mode == .screenshot, dragStart == nil else { return }
-        onWindowCapture?()
-    }
-
-    override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 53:
-            onCancel?()
-        case 49:
-            onToggleMode?()
-        // Tab is the keyboard's screen button: the whole display, only where the button itself shows (screenshot mode, no drag in flight).
-        case 48 where mode == .screenshot && dragStart == nil:
-            onScreenCapture?()
-        default:
-            super.keyDown(with: event)
-        }
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        drawHitSurface()
-        if let selection, ScreenshotGeometry.isCapturable(selection) {
-            drawSelection(selection)
-        }
-    }
-
-    private func drawHitSurface() {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        context.saveGState()
-        context.setFillColor(NSColor(Theme.Colors.screenshotHitSurface).cgColor)
-        context.fill(bounds)
-        context.restoreGState()
-    }
-
-    private func drawSelection(_ selection: CGRect) {
-        let scale = max(window?.backingScaleFactor ?? 1, 1)
-        let strokeWidth = Self.selectionStrokeWidthPixels / scale
-        let borderRect = selection.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
-        let radius = roundedCorners
-            ? ScreenshotGeometry.roundedCornerRadius(
-                forPixelSize: CGSize(
-                    width: selection.width * scale, height: selection.height * scale)) / scale
-            : 0
-        let fillPath = CGPath(
-            roundedRect: selection,
-            cornerWidth: radius,
-            cornerHeight: radius,
-            transform: nil)
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        context.saveGState()
-        context.setBlendMode(.copy)
-        context.setFillColor(NSColor(Theme.Colors.screenshotSelectionOverlay).cgColor)
-        context.addPath(fillPath)
-        context.fillPath()
-        context.restoreGState()
-
-        let border = radius > 0
-            ? NSBezierPath(roundedRect: borderRect, xRadius: radius, yRadius: radius)
-            : NSBezierPath(rect: borderRect)
-        border.lineWidth = strokeWidth
-        NSColor(Theme.Colors.screenshotSelectionBorder).setStroke()
-        border.stroke()
     }
 }
 

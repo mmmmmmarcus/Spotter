@@ -7,8 +7,7 @@ Screen Recording permission declaration and Settings pane.
 ## Entry points
 
 `Capture Screenshot` is available from the launcher and defaults to Option-Z on a fresh install.
-The default is seeded once: changing or clearing the binding is respected on later launches. Turning
-the plugin off preserves its binding, cancels an active selection and makes the shortcut a no-op.
+The default is seeded once: changing or clearing the binding is respected on later launches.
 The Carbon callback schedules capture on the next main-run-loop turn so panel creation starts after
 the hotkey event has returned.
 Pressing the shortcut again while a selection is up **cancels** it: the overlay is deliberately
@@ -18,7 +17,7 @@ which must not tear the panels down and rebuild them under the pointer. A press 
 capture that follows a selection is ignored too.
 The menu-bar menu also exposes `Capture Screenshot` as a direct click target. It deliberately routes
 through the registered shortcut action, including its deferred handoff, so this entry exercises the
-same enabled-state and capture path as Option-Z instead of bypassing shortcut dispatch.
+same capture path as Option-Z instead of bypassing shortcut dispatch.
 
 ## Region selection
 
@@ -26,8 +25,13 @@ Invoking capture creates one borderless panel per display at the screen-saver wi
 does not activate: each overlay is a `.nonactivatingPanel`, explicitly receives mouse events and
 accepts the first click while the user's current app remains frontmost. Its content rect is the
 display's global frame, with no second screen-relative offset, so displays left of or below the
-primary remain covered. Each panel uses Capso's prevents-activation window flag before becoming key,
-so AppKit routes pointer and Escape events without bringing Spotter to the front.
+primary remain covered. The overlay and its view live in `ScreenshotSelectionView.swift` so their
+real AppKit focus and drag behavior is exercised by `Tools/screenshot-interaction-test.swift`.
+Panels cannot become key or main, and their views neither request key-panel status nor become first
+responder. Presentation and mouse-down never call `makeKey` or `makeFirstResponder`. A nonactivating
+panel can otherwise still steal keyboard focus, disrupting a menu when the next modifier transition
+arrives. Keeping the previous focus owner also preserves the original menu while Option is pressed
+or released. No app activation, synthetic input, accessibility requirement or event tap is added.
 
 The selection view replaces the system pointer for the bounded session, then restores the exact
 previous cursor on every exit path. The pointers are built once from SF Symbols — `dot.crosshair`
@@ -58,11 +62,11 @@ appearance — white on dark, black on light — since a black outline disappear
 use a four-physical-pixel radius on every display scale. Releasing the button accepts any region at
 least one point in both dimensions. Escape or a zero-area click cancels without touching the
 clipboard — a right click deliberately does not: it is the window capture (below) — and every exit
-path restores the cursor before removing the panels. Escape
-arrives two ways: the selection view's own `keyDown`, which only fires when the overlay actually
-holds keyboard focus, and — because that depends on what was frontmost when the shortcut fired — a
-transient Carbon key held for the life of the selection and released with the panels, the same
-mechanism the preview thumbnail uses for Return.
+path restores the cursor when removing the panels. Escape, Space and Tab use transient Carbon
+registrations held only while selection panels exist and released together on every dismissal path.
+The overlay has no `keyDown` responder path. Tab resolves the panel under the pointer and stays inert
+outside screenshot mode or during a drag. The preview thumbnail continues using its own independent
+Return registration. No keyboard monitor remains active after selection ends.
 
 ## One picking mode, three outputs
 
@@ -209,9 +213,8 @@ Four preferences shape what a capture produces. All persist under bundle-scoped
   shadow to include.
 - **Hide Spotter While Capturing** — off by default. On, the launcher is dismissed and
   `closeAuxiliaryWindows()` closes Settings, About and every plugin workspace before the selection
-  panels appear, so none of Spotter's own windows can land in the shot. Off, they all stay — which
-  takes more than skipping the dismissal: the overlay takes key across every display, and the
-  launcher hides on `windowDidResignKey`. `PaletteWindowController` therefore ignores a resign while
+  panels appear, so none of Spotter's own windows can land in the shot. Off, they all stay. Selection
+  overlays no longer take key; `PaletteWindowController` also retains its defensive resign guard while
   `screenshot.isCapturing`, read live rather than through a flag so no exit path can leave it stuck.
   The HUDs are short-lived enough not to matter. It closes rather than merely hiding, so window state stays consistent — which
   includes the mark-up editor, discarding any annotations not yet copied or saved. That is the same

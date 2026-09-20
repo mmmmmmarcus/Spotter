@@ -508,3 +508,19 @@ swiftc -swift-version 6 Spotter/Core/SelectedTextReader.swift \
 
 Uses a private pasteboard and constructed (never posted) CGEvents to check empty Chromium selections,
 asynchronous copy payloads, clipboard restoration and Hyper-safe copy modifiers.
+
+### Screenshot focus regression
+
+```sh
+swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
+    Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
+    Spotter/Plugins/Screenshot/ScreenshotCursor.swift \
+    Spotter/Plugins/Screenshot/ScreenshotSelectionView.swift \
+    Tools/screenshot-interaction-test.swift -o /tmp/screenshot-interaction-test
+/tmp/screenshot-interaction-test
+```
+
+The real AppKit overlay is presented offscreen to verify that showing it, starting a drag and
+closing it preserve keyboard focus and the active application. Constructed mouse events exercise
+region selection and Tab guards without posting input, recording the screen or writing clipboard data.
+The harness is included in `scripts/test-all.sh`.

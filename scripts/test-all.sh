@@ -47,6 +47,7 @@ TESTS=(
     hotkey
     menu-typeahead
     screenshot
+    screenshot-interaction
 )
 
 usage() {
@@ -288,6 +289,13 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Core/SearchRelevance.swift \
                 Spotter/Core/PaletteMenuTypeahead.swift Tools/menu-typeahead-test.swift \
                 -o "$output" && "$output"
+            ;;
+        screenshot-interaction)
+            swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
+                Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
+                Spotter/Plugins/Screenshot/ScreenshotCursor.swift \
+                Spotter/Plugins/Screenshot/ScreenshotSelectionView.swift \
+                Tools/screenshot-interaction-test.swift -o "$output" && "$output"
             ;;
         screenshot)
             swiftc -swift-version 6 -framework CoreGraphics -framework CoreText \

@@ -393,3 +393,7 @@ with its peek view; search changes event emphasis without removing background la
 The Note workspace switches documents directly from its scrollable Emoji markers. Its native
 options menu contains appearance settings and Delete Note; New Note is a separate toolbar button.
 The former in-window Notes list and its ⌘L shortcut are removed; Palette Note search remains available.
+
+Screenshot selection panels never take keyboard focus. Their short-lived Escape/Space/Tab claims
+use the shared transient Carbon registrations, released with the panels; pointer-only selection and
+mode guards are tested against the actual AppKit overlay without capturing the user's screen.
