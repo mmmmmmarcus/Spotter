@@ -26,7 +26,7 @@ struct CalendarScheduleView: View {
         var isPositioned = true
         var viewportHeight: CGFloat = 0
     }
-    private var events: [DashboardEvent] { model.matching(context.query) }
+    private var events: [DashboardEvent] { model.events }
     private var days: [Date] { model.days }
     private var hourHeight: CGFloat {
         ScheduleViewport.hourHeight(base: Theme.Size.scheduleHourHeight, zoom: model.zoom)
@@ -181,6 +181,8 @@ struct CalendarScheduleView: View {
 
     private func monthCell(_ day: Date) -> some View {
         let dayEvents = onDay(day)
+        let matchingEvents = dayEvents.filter { model.matches($0, query: context.query) }
+        let previewEvents = matchingEvents.isEmpty ? dayEvents : matchingEvents
         let selected = context.selectedID == CalendarSchedulePlugin.dayID(day)
         let inMonth = model.calendar.isDate(day, equalTo: model.date, toGranularity: .month)
         return Button { context.activate(CalendarSchedulePlugin.dayID(day)) } label: {
@@ -188,13 +190,15 @@ struct CalendarScheduleView: View {
                 HStack(spacing: Theme.Spacing.xxs) {
                     dayLabel(day, weekday: false)
                     Spacer(minLength: 0)
-                    if dayEvents.count > 1 {
-                        Text("+\(dayEvents.count - 1)").font(.system(size: 9)).foregroundStyle(.secondary)
+                    if previewEvents.count > 1 {
+                        Text("+\(previewEvents.count - 1)").font(.system(size: 9)).foregroundStyle(.secondary)
+                            .opacity(matchingEvents.isEmpty ? Theme.Opacity.scheduleUnmatched : 1)
                     }
                 }
-                if let event = dayEvents.first {
+                if let event = previewEvents.first {
                     Text(event.title).font(.system(size: 10)).lineLimit(1)
                         .foregroundStyle(accent(event))
+                        .opacity(model.matches(event, query: context.query) ? 1 : Theme.Opacity.scheduleUnmatched)
                 }
                 Spacer(minLength: 0)
             }
@@ -269,7 +273,7 @@ struct CalendarScheduleView: View {
             }
             .animation(interactionAnimation, value: model.zoom)
             .overlayScroller()
-            if events.isEmpty, !model.isLoading {
+            if model.matching(context.query).isEmpty, !model.isLoading {
                 Text(context.query.isEmpty ? "No events in this period" : "No matching events")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -368,7 +372,8 @@ struct CalendarScheduleView: View {
     }
 
     private func eventButton(_ event: DashboardEvent, id: String) -> some View {
-        Button { context.activate(id) } label: {
+        let matches = model.matches(event, query: context.query)
+        return Button { context.activate(id) } label: {
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(event.title).font(.system(size: 10, weight: .medium)).lineLimit(2)
             }
@@ -386,6 +391,9 @@ struct CalendarScheduleView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .opacity(matches ? 1 : Theme.Opacity.scheduleUnmatched)
+        .allowsHitTesting(matches)
+        .accessibilityHidden(!matches)
         .anchorPreference(key: ScheduleEventBounds.self, value: .bounds) { [id: $0] }
         .onHover { inside in
             if inside { hoveredEventID = id }
@@ -447,7 +455,7 @@ struct ScheduleHeaderControls: View {
     let select: (ScheduleViewMode) -> Void
 
     var body: some View {
-        if dashboard.calendarAccess.canRead {
+        if dashboard.calendarAccess.canRead, model.detailID == nil {
             HStack(spacing: Theme.Spacing.sm) {
                 Button(action: today) {
                     Text("Today")

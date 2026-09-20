@@ -16,6 +16,12 @@ enum CalendarScheduleTests {
     }
 
     static func main() {
+        check("blank search matches all events", CalendarScheduleEngine.matches(query: "  ", title: "Planning", calendarTitle: "Work", location: nil))
+        check("title matching ignores case and surrounding spaces", CalendarScheduleEngine.matches(query: " PLAN ", title: "Planning", calendarTitle: "Work", location: nil))
+        check("calendar name remains searchable", CalendarScheduleEngine.matches(query: "work", title: "Planning", calendarTitle: "Work", location: nil))
+        check("location remains searchable", CalendarScheduleEngine.matches(query: "上海", title: "Planning", calendarTitle: "Work", location: "上海办公室"))
+        check("unrelated event is only background context", !CalendarScheduleEngine.matches(query: "design", title: "Planning", calendarTitle: "Work", location: nil))
+
         check("focus within viewport preserves scroll position", ScheduleViewport.revealing(
             startMinute: 600, endMinute: 660, hourHeight: 60, offset: 500, viewportHeight: 300) == 500)
         check("focus below viewport reveals only the missing portion", ScheduleViewport.revealing(
@@ -37,6 +43,25 @@ enum CalendarScheduleTests {
         check("zoom clamps at minimum and maximum", ScheduleViewport.hourHeight(base: 36, zoom: -100) == 23.04
             && ScheduleViewport.hourHeight(base: 36, zoom: 100) == ScheduleViewport.hourHeight(base: 36, zoom: 6))
 
+        var linkCalendar = Calendar(identifier: .gregorian)
+        linkCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let eventInstant = ISO8601DateFormatter().date(from: "2026-09-20T20:30:00Z")!
+        func destination(_ url: String?, notes: String? = nil) -> ScheduleCalendarDestination {
+            CalendarScheduleEngine.googleCalendarDestination(urlString: url, notes: notes, start: eventInstant,
+                timeZoneIdentifier: "Asia/Shanghai", calendar: linkCalendar)
+        }
+        let eventURL = "https://calendar.google.com/calendar/event?eid=abc"
+        check("return target preserves an actual Google event link", destination(eventURL).url.absoluteString == eventURL && destination(eventURL).opensEvent)
+        check("eventedit links preserve recurring occurrence identity", destination("https://calendar.google.com/calendar/u/0/r/eventedit/abc123").opensEvent)
+        check("Google links in HTML notes decode query separators", destination(nil, notes: "<a href='https://www.google.com/calendar/event?eid=abc&amp;ctz=UTC'>Event</a>").url.query == "eid=abc&ctz=UTC")
+        check("event URL wins over a notes link", destination(eventURL, notes: "https://calendar.google.com/calendar/event?eid=other").url.absoluteString == eventURL)
+        check("conference link cannot masquerade as calendar event", !destination("https://meet.google.com/abc-defg-hij").opensEvent)
+        check("lookalike host cannot masquerade as calendar event", !destination("https://calendar.google.com.evil.example/calendar/event?eid=abc").opensEvent)
+        check("calendar homepage is not an event link", !destination("https://calendar.google.com/calendar/r").opensEvent)
+        let dayLink = destination(nil)
+        check("fallback opens event-zone date rather than Mac date", dayLink.url.path == "/calendar/r/day/2026/9/21")
+        check("fallback carries explicit event timezone", URLComponents(url: dayLink.url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value == "Asia/Shanghai")
+        check("date fallback is labelled honestly", dayLink.title == "Open Date in Google Calendar")
         let noteHTML = ScheduleNotes.parse("Before <a href=\"https://example.com/event?a=1&amp;b=2\"><b>Open Event</b></a><br>组织者: Alice\n参与者 (2): Alice, Bob\n会议 ID: 123\nhttps://example.com/meeting")
         check("HTML anchor displays its title", noteHTML.runs.contains { $0.text == "Open Event" && $0.url?.absoluteString == "https://example.com/event?a=1&b=2" })
         check("bare URL becomes compact clickable label", noteHTML.runs.contains { $0.text == "example.com" && $0.url?.path == "/meeting" })

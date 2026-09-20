@@ -44,8 +44,10 @@ select the closest start time on the nearest populated date, preferring the same
 and skipping dates without matching events. Navigation stops at the visible range's edges rather than
 paging. Month arrows move between date cells: one day horizontally, seven days vertically. Return
 uses the shared activation path. Plain arrows navigate even with a filter typed; modified arrows
-retain text-editing behavior. Menus, confirmations and an active IME composition retain keyboard priority. The shared search field filters events within the displayed period by title,
-calendar name or location. Month retains its date cells while filtering their previews.
+retain text-editing behavior. Menus, confirmations and an active IME composition retain keyboard priority. The shared search field matches events within the displayed period by title,
+calendar name or location. All events remain in the grid, with nonmatches at 12% opacity and excluded
+from event activation, hover previews and keyboard navigation. Overlap columns and viewport remain stable.
+Month retains every date and gives matching previews priority, fading previews on days without matches.
 
 Week keyboard focus scrolls only when the selected timed event falls outside the viewport, using its
 actual minute range rather than the layout origin of offset-drawn cards. Visible events preserve the
@@ -65,29 +67,38 @@ Actions or leaving Schedule cancel it and any pending hover. Its expand action o
 
 Selecting an event opens its details in the same canvas; Esc or Back returns to the calendar. The
 meeting button and the shared Actions menu offer explicit Join, Copy Meeting Link, Copy Event Title
-and Open Calendar actions. Only those explicit actions leave the Palette. Meeting-link detection
+and Open System Calendar actions. Return in details opens Google Calendar: an existing Google event
+link from the event URL or notes opens that event; otherwise the action explicitly says Open Date in
+Google Calendar and opens its date in the event's time zone. EventKit identifiers are not converted
+into Google event IDs. The same destination is available in Actions. Only explicit actions leave the Palette. Meeting-link detection
 continues to recognize the existing trusted conference-host patterns.
 
 ## Event details
 
 Details use two columns inside the existing Palette, inset by an additional 12 points. The left column
-scrolls independently and aligns its headline, date, time, location and metadata to one leading edge,
-without per-row horizontal padding. It has a 28-point headline, calendar, date and one time-range line
+scrolls independently beneath its headline. Date, time, calendar, location, organizer, participants,
+repeat and status fields share an icon column and a leading-aligned content column. Text headings are
+replaced with SF Symbols, retaining tooltips and accessibility labels. Meeting ID, Alerts and
+Availability are not displayed. It has a 28-point headline, calendar and one combined date/time field
 in the event's original zone (or Local Time for floating events). All-day events retain date semantics.
 The former converted-time rows are removed. Meeting/event links and available metadata follow.
 
-The right column places `WorldClockMapContent` above a separately scrolling note body without a
-heading. The same component draws World Clock's land, day/night boundary, saved-city markers and time
+The right column places `WorldClockMapContent` and the note body without a heading inside one
+ScrollView, so the map scrolls away with the notes. The same component draws World Clock's land, day/night boundary, saved-city markers and time
 labels, with the instant explicitly fixed at the event's start. No live clock or World Clock preview
-offset can shift the event map. It uses up to 45% of the column height, capped at the land's natural
-2:1 aspect; the continents retain their projection scale. The event map is read-only, so scrolling
+offset can shift the event map. It uses half the previous height: up to 22.5% of the column height, capped at a
+4:1 aspect; the continents retain their projection scale. Compact city/time labels share a horizontal
+strip over the map instead of being omitted by geographic collision avoidance; overflow scrolls horizontally.
+Every saved city remains available, including ones outside the cropped map or without coordinates. The event map is read-only, so scrolling
 continues to navigate notes rather than changing the event time. The extra Back to Schedule row is
 removed; keyboard back navigation and shared Palette controls remain. The month heading is hidden
-in details.
+in details, as are Today and the Week/Month switch.
 
-`CalendarEventMetadata` reads organizer, attendees and responses, recurrence rules, alerts,
-availability and event status on the background EventKit reader, returning plain display fields.
-Absent fields are omitted. Calendar URL and structured-location title are retained when available.
+`CalendarEventMetadata` reads organizer, attendees and responses, recurrence rules
+and event status on the background EventKit reader, returning plain display fields.
+People display only names; accepted native responses append an SF Symbol checkmark. Unknown names
+use an unnamed-person label rather than an email address; imported names never imply an accepted RSVP.
+The same people presentation is shared by details and peek. Absent fields are omitted. Calendar URL and structured-location title are retained when available.
 `ScheduleNotes` is Foundation-only and parses HTML anchors, Markdown links, ordinary URLs and HTML
 entities locally. It uses an anchor's supplied title; bare URLs use compact host labels. No web title
 fetch, HTML renderer or remote image request occurs. Scripts/styles are omitted and only http, https
@@ -123,7 +134,7 @@ handling remain owned by the Palette. List plugins continue to use `PluginPalett
 Month snapshots contain one selectable item per date, in row order; previews and overflow counts
 are not extra selectable items. Week snapshots contain all-day placements first, then timed placements, ordered by day and start time.
 Each placement adds its day to the recurring occurrence's identifier-plus-start-time identity, so a
-multi-day event has only one highlighted placement and every visible placement is keyboard-reachable.
+multi-day event has only one highlighted placement and every matching placement is keyboard-reachable.
 Event details and actions still resolve to the original occurrence. PalettePanel routes calendar keys
 before the field editor can consume them; the shared flat selection remains the sole selection state.
 

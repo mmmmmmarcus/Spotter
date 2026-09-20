@@ -636,8 +636,13 @@ lives at the trailing edge of the Palette search header in a Liquid Glass capsul
 with a text-labelled Liquid Glass Today button immediately to its left; both surfaces are 32 points high.
 On-screen paging arrows are omitted. Week omits the redundant date-range title and its empty toolbar row;
 Month retains its month/year heading. Event details replace
-the canvas in place: left-aligned event information with one original-zone time line on the left,
-and the shared World Clock map at the event's start above notes on the right. It uses existing
+the canvas in place and hide Today and the view switch: event information uses a shared SF Symbol
+column with a combined date/time field and people aligned beside it. People show names only, with an
+SF Symbol checkmark after accepted attendees. The shared World Clock map at
+the event's start scrolls with notes on the right, capped at a 4:1 aspect and 22.5% of the column height;
+its compact city/time strip retains every saved city. Searching fades nonmatching events to 12% opacity
+while preserving their positions; event selection and activation use matching events only.
+Return opens Google Calendar's event link or, when unavailable, its date. It uses existing
 semantic Theme colors and never changes the Palette frame.
 Calendar page turns share Note's 160 ms ease-out fade and eight-point translation, with the header fixed
 and Reduce Motion respected. Both use `Theme.Animation.pageSwitch` for their duration.

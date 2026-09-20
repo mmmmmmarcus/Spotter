@@ -76,6 +76,29 @@ struct ClockHandAngles: Equatable, Sendable {
 struct DashboardEventDetail: Equatable, Sendable {
     let name: String
     let value: String
+    var people: [DashboardEventPerson] = []
+
+    var displayPeople: [DashboardEventPerson] {
+        people.isEmpty ? DashboardEventPerson.imported(value) : people
+    }
+}
+
+struct DashboardEventPerson: Equatable, Sendable {
+    let name: String
+    var accepted = false
+
+    static func displayName(_ raw: String?) -> String {
+        let text = (raw ?? "").replacingOccurrences(of: #"(?i)(?:mailto:)?[^\s<>(),;]+@[^\s<>(),;]+"#,
+            with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "<>(),;\"")))
+        return text.isEmpty ? "Unnamed participant" : text
+    }
+
+    static func imported(_ text: String) -> [Self] {
+        text.components(separatedBy: CharacterSet(charactersIn: ",;，；\n"))
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map { Self(name: displayName($0)) }
+    }
 }
 
 struct DashboardEvent: Equatable, Sendable {

@@ -37,6 +37,40 @@ enum CalendarScheduleEngine {
         return nil
     }
 
+    static func matches(query: String, title: String, calendarTitle: String, location: String?) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty || [title, calendarTitle, location ?? ""].contains { $0.localizedCaseInsensitiveContains(query) }
+    }
+
+    static func googleCalendarDestination(
+        urlString: String?, notes: String?, start: Date, timeZoneIdentifier: String?, calendar: Calendar
+    ) -> ScheduleCalendarDestination {
+        for field in [urlString, notes] {
+            guard let field else { continue }
+            for candidate in urls(in: field) {
+                let address = candidate.replacingOccurrences(of: "&amp;", with: "&")
+                guard let url = URL(string: address), url.scheme == "https",
+                      let host = url.host?.lowercased(), ["calendar.google.com", "www.google.com"].contains(host),
+                      url.user == nil, url.password == nil,
+                      url.path.hasPrefix("/calendar/") else { continue }
+                let parts = url.path.split(separator: "/")
+                let hasEventID = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+                    .contains { $0.name == "eid" && $0.value?.isEmpty == false } == true
+                let hasEventPath = parts.firstIndex(of: "eventedit").map { $0 + 1 < parts.count } ?? false
+                if hasEventID || hasEventPath {
+                    return ScheduleCalendarDestination(url: url, opensEvent: true)
+                }
+            }
+        }
+        // EventKit identifiers are not Google event IDs; never manufacture an event link from one.
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = timeZoneIdentifier.flatMap(TimeZone.init(identifier:)) ?? calendar.timeZone
+        let date = gregorian.dateComponents([.year, .month, .day], from: start)
+        var components = URLComponents(string: "https://calendar.google.com/calendar/r/day/\(date.year!)/\(date.month!)/\(date.day!)")!
+        components.queryItems = [URLQueryItem(name: "ctz", value: gregorian.timeZone.identifier)]
+        return ScheduleCalendarDestination(url: components.url!, opensEvent: false)
+    }
+
     private static func urls(in text: String) -> [String] {
         let range = NSRange(location: 0, length: (text as NSString).length)
         return urlPattern.matches(in: text, range: range).map {
@@ -146,4 +180,10 @@ extension CalendarScheduleEngine {
         "\(zone.secondsFromGMT(for: start))/\(zone.secondsFromGMT(for: end))"
     }
 
+}
+
+struct ScheduleCalendarDestination: Equatable, Sendable {
+    let url: URL
+    let opensEvent: Bool
+    var title: String { opensEvent ? "Open in Google Calendar" : "Open Date in Google Calendar" }
 }

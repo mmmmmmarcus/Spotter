@@ -11,6 +11,7 @@ enum Theme {
 
     enum Opacity {
         static let schedulePast: Double = 0.45
+        static let scheduleUnmatched: Double = 0.12
     }
 
     enum Spacing {

@@ -27,6 +27,7 @@ struct WorldClockMapContent: View {
     @ObservedObject var store: WorldClockStore
     let instant: Date
     var selectedID: String? = nil
+    var compactLabels = false
 
     var body: some View {
         let night = WorldClockMapGeometry.nightPolygon(at: instant)
@@ -66,10 +67,35 @@ struct WorldClockMapContent: View {
             }
           }
         }
+        .overlay(alignment: .bottom) {
+            if compactLabels {
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: Theme.Spacing.xl) {
+                        ForEach(store.cities) { city in
+                            if let result = WorldClockEngine.result(for: city, now: instant, localTimeZone: .autoupdatingCurrent) {
+                                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                                    Text(city.name).fontWeight(.medium)
+                                    Text(result.time).monospacedDigit()
+                                }
+                                .fixedSize()
+                            }
+                        }
+                    }
+                    .font(.system(size: Theme.Size.worldClockMapLabel))
+                    .padding(Theme.Spacing.xs)
+                }
+                .scrollIndicators(.hidden)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Theme.Colors.worldClockOcean.opacity(0.85))
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.row))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("World map with day and night regions")
-        .accessibilityValue(markers.map { "\($0.city.name), \($0.time)" }.joined(separator: "; "))
+        .accessibilityValue(store.cities.compactMap { city in
+            WorldClockEngine.result(for: city, now: instant, localTimeZone: .autoupdatingCurrent)
+                .map { "\($0.city), \($0.time)" }
+        }.joined(separator: "; "))
     }
 
     private struct Marker {
@@ -96,6 +122,7 @@ struct WorldClockMapContent: View {
             context.fill(Path(ellipseIn: CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2,
                                                  width: diameter, height: diameter)), with: .color(.orange))
         }
+        guard !compactLabels else { return }
         // Prioritize the focused city, then omit overlapping labels while retaining every location dot.
         var occupied: [CGRect] = markers.map { marker in
             let point = projected(marker.coordinate, size: size)

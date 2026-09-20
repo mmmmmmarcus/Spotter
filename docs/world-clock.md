@@ -36,6 +36,11 @@ The saved list itself syncs as `SettingsBackup.worldClockCities`.
 
 ## World map
 
+Calendar details use the shared map with compact labels: every saved city/time stays in a horizontally
+scrollable strip within the map, even if the short crop or label collisions would hide its geographic label.
+The map and event notes scroll together; the instant remains fixed at event start.
+
+
 The shared palette list has a non-selectable 6:1 cropped world map above its city rows, including when the
 saved list is empty. It scrolls with the list and never changes the palette frame or selection order.
 The map draws bundled Natural Earth land outlines, longitude guides, orange saved-city markers and

@@ -166,28 +166,38 @@ enum CalendarSchedulePlugin {
                     ? .tintedSymbol("calendar", tint: .red)
                     : .tintedSymbol("video.fill", tint: .green),
                 accessories: accessories,
-                primaryActionTitle: model.detailID == nil ? "View Event" : "Back to Schedule")
+                primaryActionTitle: model.detailID == nil ? "View Event" : googleCalendarDestination(for: event, calendar: calendar).title)
         }
         return PluginPaletteSnapshot(
             sectionTitle: "Schedule", items: items,
             isLoading: model.isLoading, emptyMessage: "No events in this period.")
     }
 
+    static func googleCalendarDestination(for event: DashboardEvent, calendar: Calendar) -> ScheduleCalendarDestination {
+        CalendarScheduleEngine.googleCalendarDestination(urlString: event.urlString, notes: event.notes,
+            start: event.startDate, timeZoneIdentifier: event.timeZoneIdentifier, calendar: calendar)
+    }
+
     private static func menu(core: AppCore, itemID: String) -> PopoverMenuContent? {
         guard let event = event(store: core.calendarSchedule, itemID: itemID) else { return nil }
         let link = CalendarScheduleEngine.meetingLink(
             urlString: event.urlString, location: event.location, notes: event.notes)
-        var items: [PopoverMenuItem] = []
+        let destination = googleCalendarDestination(for: event, calendar: core.calendarSchedule.calendar)
+        var items: [PopoverMenuItem] = [
+            PopoverMenuItem(title: destination.title, systemImage: "calendar",
+                            shortcut: core.calendarSchedule.detailID == nil ? nil : "↵") {
+                core.openCalendarMeetingLink(destination.url.absoluteString)
+            }
+        ]
         if let link {
             items.append(
-                PopoverMenuItem(title: "Join \(link.provider)", systemImage: "video", shortcut: "↵") {
+                PopoverMenuItem(title: "Join \(link.provider)", systemImage: "video") {
                     core.openCalendarMeetingLink(link.urlString)
                 })
         }
         items.append(
             PopoverMenuItem(
-                title: "Open Calendar", systemImage: "calendar",
-                shortcut: link == nil ? "↵" : nil
+                title: "Open System Calendar", systemImage: "calendar"
             ) { core.openCalendarApp() })
         if let link {
             items.append(
@@ -301,8 +311,12 @@ extension AppCore {
             guard let event = CalendarSchedulePlugin.event(
                 store: calendarSchedule, itemID: itemID)
             else { return }
-            calendarSchedule.detailID = calendarSchedule.detailID == nil
-                ? CalendarSchedulePlugin.rowID(for: event) : nil
+            if calendarSchedule.detailID != nil {
+                let destination = CalendarSchedulePlugin.googleCalendarDestination(for: event, calendar: calendarSchedule.calendar)
+                openCalendarMeetingLink(destination.url.absoluteString)
+            } else {
+                calendarSchedule.detailID = CalendarSchedulePlugin.rowID(for: event)
+            }
         }
     }
 }

@@ -48,10 +48,7 @@ struct CalendarEventPeekView: View {
                     }
                     ForEach(people, id: \.name) { field in
                         Label {
-                            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                                Text(field.name).foregroundStyle(.secondary)
-                                Text(field.value)
-                            }
+                            CalendarEventPeopleView(people: field.displayPeople)
                         } icon: { Image(systemName: field.name == "Organizer" ? "person" : "person.2") }
                     }
                 }
@@ -75,6 +72,19 @@ struct CalendarEventPeekView: View {
             let fields = await Task.detached(priority: .userInitiated) { ScheduleNotes.parse(notes).fields }.value
             guard !Task.isCancelled else { return }
             importedFields = fields
+        }
+    }
+}
+
+struct CalendarEventPeopleView: View {
+    let people: [DashboardEventPerson]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            ForEach(Array(people.enumerated()), id: \.offset) { _, person in
+                let label = person.accepted ? Text("\(person.name) \(Image(systemName: "checkmark"))") : Text(person.name)
+                label.accessibilityLabel(person.name + (person.accepted ? ", Accepted" : ""))
+            }
         }
     }
 }

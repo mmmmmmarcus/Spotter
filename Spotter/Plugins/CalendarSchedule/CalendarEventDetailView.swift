@@ -19,9 +19,9 @@ struct CalendarEventDetailView: View {
         let nativeNames = Set(event.details.map(\.name))
         let all = event.details + notes.fields.filter { !nativeNames.contains($0.name) }
             .map { DashboardEventDetail(name: $0.name, value: $0.value) }
-        let leading = ["Organizer", "Participants", "Meeting ID"]
+        let leading = ["Organizer", "Participants"]
         return leading.flatMap { name in all.filter { $0.name == name } }
-            + all.filter { !leading.contains($0.name) }
+            + all.filter { !leading.contains($0.name) && !["Meeting ID", "Alerts", "Availability"].contains($0.name) }
     }
 
     private var attributedNotes: AttributedString {
@@ -46,11 +46,11 @@ struct CalendarEventDetailView: View {
                 .overlayScroller()
                 .frame(width: informationWidth)
                 Rectangle().fill(Theme.Colors.separator).frame(width: 1)
-                VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                    WorldClockMapContent(store: worldClock, instant: event.startDate)
-                        .frame(height: min(geometry.size.height * 0.45, notesWidth / 2))
-                        .help("World Clock cities at the start of this event")
-                    ScrollView {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+                        WorldClockMapContent(store: worldClock, instant: event.startDate, compactLabels: true)
+                            .frame(height: min(geometry.size.height * 0.45, notesWidth / 2) / 2)
+                            .help("World Clock cities at the start of this event")
                         Group {
                             if notes.runs.isEmpty {
                                 Text("No notes").foregroundStyle(.secondary)
@@ -63,8 +63,8 @@ struct CalendarEventDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.bottom, Theme.Spacing.xl)
                     }
-                    .overlayScroller()
                 }
+                .overlayScroller()
                 .frame(width: notesWidth, alignment: .leading)
             }
         }
@@ -88,36 +88,66 @@ struct CalendarEventDetailView: View {
                 .font(.system(size: Theme.Size.scheduleDetailTitle, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
-            Label(event.calendarTitle, systemImage: "calendar")
-                .font(.subheadline).foregroundStyle(accent)
-            if let primary = primaryTime {
-                Text(primary.date).font(.subheadline).textSelection(.enabled)
-                Text(primary.time + (event.isAllDay ? "" : " · " + primary.name))
-                    .font(.callout.weight(.semibold)).monospacedDigit()
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if let location = event.location, !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(location)
-                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-            }
-            if let link = CalendarScheduleEngine.meetingLink(
-                urlString: event.urlString, location: event.location, notes: event.notes) {
-                Button("Join \(link.provider)") { joinMeeting(link.urlString) }
-            }
-            if let address = event.urlString, let url = ScheduleNotes.safeURL(address) {
-                Link(url.host ?? "Event Link", destination: url)
-            }
-            ForEach(Array(details.enumerated()), id: \.offset) { _, field in
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Text(field.name).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    Text(field.value).font(.subheadline).textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+                informationRow("Calendar", symbol: "calendar") {
+                    Text(event.calendarTitle).foregroundStyle(accent)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                if let primary = primaryTime {
+                    informationRow("Date and Time", symbol: "clock") {
+                        Text(primary.date + " · " + primary.time + (event.isAllDay ? "" : " · " + primary.name))
+                            .monospacedDigit()
+                    }
+                }
+                if let location = event.location, !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    informationRow("Location", symbol: "mappin.and.ellipse") { Text(location) }
+                }
+                if let link = CalendarScheduleEngine.meetingLink(
+                    urlString: event.urlString, location: event.location, notes: event.notes) {
+                    informationRow("Meeting", symbol: "video") {
+                        Button("Join \(link.provider)") { joinMeeting(link.urlString) }.buttonStyle(.link)
+                    }
+                }
+                if let address = event.urlString, let url = ScheduleNotes.safeURL(address) {
+                    informationRow("Event Link", symbol: "link") { Link(url.host ?? "Event Link", destination: url) }
+                }
+                ForEach(Array(details.enumerated()), id: \.offset) { _, field in
+                    informationRow(field.name, symbol: symbol(for: field.name)) {
+                        if ["Organizer", "Participants"].contains(field.name) {
+                            CalendarEventPeopleView(people: field.displayPeople)
+                        } else { Text(field.value) }
+                    }
+                }
             }
+            .font(.subheadline)
         }
         .multilineTextAlignment(.leading)
+    }
+
+    private func informationRow<Content: View>(
+        _ title: String, symbol: String, @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.md) {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+                .frame(width: Theme.Size.headerIconSlot)
+                .help(title)
+                .accessibilityHidden(true)
+            content()
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+    }
+
+    private func symbol(for field: String) -> String {
+        switch field {
+        case "Organizer": "person"
+        case "Participants": "person.2"
+        case "Repeats": "repeat"
+        case "Status": "checkmark.circle"
+        default: "info.circle"
+        }
     }
 }

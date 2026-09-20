@@ -386,7 +386,9 @@ callbacks; list-based screens keep `PluginPaletteList`. The canvas stays inside 
 Schedule owns its transient zoom/preview state and routes arrow, Command-plus/minus and Space keys
 through the existing Palette navigation hook; preview dismissal uses the registered back handler.
 Calendar details reuse World Clock's `WorldClockMapContent` with an explicit event-start instant;
-World Clock alone adds the time-scrubbing interaction wrapper.
+its compact labels retain all saved cities, and the map scrolls with notes. World Clock alone adds
+the time-scrubbing interaction wrapper. Schedule shares structured participant names and acceptance
+with its peek view; search changes event emphasis without removing background layout context.
 
 The Note workspace switches documents directly from its scrollable Emoji markers. Its native
 options menu contains appearance settings and Delete Note; New Note is a separate toolbar button.

@@ -81,12 +81,12 @@ final class CalendarScheduleStore: ObservableObject {
     }
 
     func matching(_ query: String) -> [DashboardEvent] {
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return events.filter {
-            query.isEmpty || $0.title.localizedCaseInsensitiveContains(query)
-                || $0.calendarTitle.localizedCaseInsensitiveContains(query)
-                || $0.location?.localizedCaseInsensitiveContains(query) == true
-        }
+        events.filter { matches($0, query: query) }
+    }
+
+    func matches(_ event: DashboardEvent, query: String) -> Bool {
+        CalendarScheduleEngine.matches(query: query, title: event.title,
+            calendarTitle: event.calendarTitle, location: event.location)
     }
 
     func refresh() {

@@ -308,7 +308,8 @@ and the square-corner opt-out without requesting Screen Recording access or read
 
 The Widgets harness compiles the real Foundation-only engine. It pins widget preference
 fallbacks, calendar-account/all-day filtering, time-zone resolution and analog-clock hand geometry
-without touching EventKit or the user's files.
+without touching EventKit or the user's files. Participant cases also pin name-only display,
+email stripping, native acceptance and imported names without invented RSVP status.
 
 Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
 real Foundation-only transformer. Search tests URLComponents encoding without opening a browser, and

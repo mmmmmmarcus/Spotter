@@ -6,6 +6,17 @@ struct DashboardWidgetsTests {
     private static var failures = 0
 
     static func main() {
+        check(DashboardEventPerson.displayName("Mina <mina@example.com>") == "Mina", "people hide email alongside a name")
+        check(DashboardEventPerson.displayName("mina@example.com") == "Unnamed participant", "email-only attendee never exposes an address or guesses a name")
+        check(DashboardEventPerson.displayName(nil) == "Unnamed participant", "missing participant name has a neutral fallback")
+        check(DashboardEventPerson.displayName("李明") == "李明", "participant names preserve non-Latin characters")
+        let accepted = DashboardEventPerson(name: "Mina", accepted: true)
+        let people = DashboardEventDetail(name: "Participants", value: "unused", people: [accepted])
+        check(people.displayPeople == [accepted], "structured RSVP survives to the display model")
+        let imported = DashboardEventDetail(name: "Participants", value: "Mina <mina@example.com>, 李明")
+        check(imported.displayPeople.map(\.name) == ["Mina", "李明"], "imported people keep names and strip emails")
+        check(imported.displayPeople.allSatisfy { !$0.accepted }, "imported names do not invent acceptance")
+
         check(
             DashboardWidgetsEngine.widgetOrder(from: nil) == DashboardWidgetKind.allCases,
             "no saved arrangement should fall back to the catalog order")
