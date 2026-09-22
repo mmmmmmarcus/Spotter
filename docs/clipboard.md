@@ -1,7 +1,7 @@
 # Clipboard history
 
 Clipboard is a self-contained native plugin under `Spotter/Plugins/Clipboard/`. The directory owns
-`ClipboardPlugin`, `ClipboardManager`, `ClipboardStore`, the palette view and its Settings view;
+`ClipboardPlugin`, `ClipboardManager`, `ClipboardStore`, the palette view, Quick Clipboard History and its Settings view;
 `AppCore` remains the sole owner of the long-lived manager and store instances.
 
 Screenshot writes its captured TIFF directly to the system pasteboard with the same private
@@ -13,6 +13,14 @@ being re-captured as a duplicate Clipboard-history entry.
 `ClipboardManager` runs a 0.5s `Timer` watching `NSPasteboard.general.changeCount`. To avoid
 re-capturing Spotter's own writes, every write stamps a private `internalType` marker on the
 pasteboard and the poller skips anything carrying it.
+
+`ClipboardCapture` snapshots the advertised representations before any background work. A single
+copied local image file takes priority over its preview; otherwise valid PNG, TIFF or other ImageIO
+image data takes priority over accompanying text. Image decoding and PNG conversion run off-main.
+Only when no usable image exists does capture fall back to text or a URL string. Copying an image URL
+alone stays a link and never fetches it. Mixed representations produce one history item, not both an
+image and its filename. Secret/internal markers and excluded source apps still skip the entire copy.
+The history format remains text/image; old entries that only retained text cannot recover discarded pixels.
 
 Its plugin lifecycle starts this timer once, from `onStart`, with the current pasteboard change
 count so contents present before launch are not re-captured.
@@ -62,7 +70,7 @@ Text rows use `textformat.alt`, links use `link`, numbers use `number.sign`, and
 keep their distinct `at` symbol. Images retain their thumbnails. Numbers must occupy the entire
 trimmed entry: signed integers, decimals, correctly grouped thousands, scientific notation and
 percentages are accepted. Mixed strings such as `50080C`, expressions and version strings remain
-text. This is presentation-only classification; persisted kinds remain text/image.
+text. The detail pane uses the same classification for its Type label instead of calling every textual payload Text. Persisted kinds remain text/image.
 
 **Screenshots are derived too, off the file name.** Spotter names its own captures
 `<App>_SpotterScreenshot_<yyMMddHHmm>.png`, and `ClipboardItem.isScreenshot` looks for that marker in
@@ -136,3 +144,72 @@ partial index on `pinned_at` (`Tools/clipboard-test.swift` covers the shape). Th
 `pinned_at IS NOT NULL OR rowid >= ?` form reads better but cannot be driven from an index while
 holding row order, so it scans the whole table — ~12ms against ~1ms at 200k rows, on the main actor
 at launch.
+
+## Quick Clipboard History
+
+`Quick Clipboard History` is a launcher command and an assignable global action in Settings → Shortcuts.
+It defaults to **⌃⌘Z** under `KeyboardShortcuts_plugin.clipboard.quick-history`, participating in trusted
+shortcut backup/sync. Before hotkeys register, a one-time migration transfers an existing ⌃⌘Z from
+Clipboard History if Quick Clipboard History has no binding. Custom bindings stay intact. The migration
+marker and existing default-seeding marker preserve later deliberate changes or unbinding; full
+Clipboard History remains available from the palette with no shipped default shortcut. The sync
+writer’s `pluginActionIDs` catalog distinguishes an unknown new action from an explicit unbind;
+older snapshots cannot erase the quick action just by omitting its binding.
+
+The user-requested exception to palette-first interaction is a nonactivating, non-key panel owned by
+`AppCore` through `QuickClipboardController`. `AppCore` captures the global AppKit mouse position at
+invocation. `QuickClipboardAnchor` prefers the active editable NSTextView's insertion caret, then
+reads the target application's focused text element and zero-length selection bounds through AX.
+External AX reads run off-main with bounded messaging timeouts and never prompt, activate an app,
+change its selection, or read its text. Missing permission, unsupported caret bounds, nonempty
+selections and invalid/offscreen geometry fall back to the captured mouse point. AX coordinates are
+converted using the primary display origin, including on other displays. The resolved anchor determines
+the display, placement and both animation directions. Caret menus align directly above the caret;
+mouse menus prefer above/right. Both flip below/left as necessary and leave 12 points at the anchor
+and at least 8 points inside the screen's visible frame.
+
+The five recent entries share a horizontal three-item viewport with independent native `NSGlassEffectView` pills, 40 points high with 20-point corners,
+left aligned and sized to each native button’s content plus 11-point horizontal insets, capped at 240 points,
+inside one `NSGlassEffectContainerView`, with 8-point gaps and no auxiliary buttons. All use regular glass; `effectIsInteractive` is enabled on macOS 27 when compiled with its SDK (Swift 6.4+); Xcode 26 releases retain native button feedback. macOS 26 still uses native glass and native button feedback. The system owns
+appearance, contrast and Reduce Transparency. Symbols use 14-point medium `labelColor`. Selected text has full opacity;
+unselected text has 50% opacity, applied to the title only. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 24 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors, and fall back to a photo symbol for unreadable files.
+
+The resting shadow briefly hides during scrolling, then fades back in so its fixed hollow regions
+cannot contaminate moving glass.
+
+The panel cannot become key or main, and buttons never request key status. Click or ←/→ then Return
+pastes; Escape or repeating the shortcut cancels. Moving right beyond the third visible pill scrolls the
+strip left by the outgoing pill’s width plus its gap over 0.18 seconds; moving left reverses it. A bounded display
+link updates each native glass effect view’s frame, carrying its background, corners, symbol and text
+together; it never translates only an ancestor backing layer. Repeated navigation starts from the
+currently displayed offset. The clipping viewport animates its width with the same progress to fit exactly three variable-width pills; the transparent panel canvas stays fixed. Reduce Motion changes the visible range immediately. Offscreen rows are hidden
+from hit testing and accessibility. Mouse selection waits for the scroll to settle. Bare keys are claimed only while presented,
+through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
+clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
+palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
+
+`QuickClipboardMotion` scales the whole group from 0.20 to 1 using mass 1, stiffness 500, damping 35.78
+and a 0.455-second spring. The initial center is `anchor + 0.2 × (finalCenter − anchor)`, with both
+position and scale animated together on an independent driver layer. A display link applies its
+presentation to the actual menu `frame` with fixed `bounds`; AppKit retains ownership of native
+backing-layer anchors and geometry, so glass and clipping stay in the same coordinate space. The
+initial small frame and animations are installed before ordering the panel front. Driver opacity
+sets **window composition alpha**, never glass or its ancestors, for a 0.145-second ease-out fade. Closing samples presentation scale, position and opacity
+and shrinks/fades for 0.20 seconds; a pre-first-frame close uses the analytical spring state as fallback.
+Reduce Motion keeps only a 0.12-second fade. Display links exist only during the bounded opening/closing animation, with task
+cleanup even when a display link stops producing frames. Input ends immediately on dismissal and the
+departing panel ignores mouse events. Screenshot's Hide Spotter path closes these panels immediately.
+
+WindowServer shadow is disabled. `QuickClipboardShadow` renders a Gaussian-blurred union of all pill
+outlines off-main (black at 22%, radius 18, 8-point downward offset), then knocks every glass interior out
+of all four premultiplied channels using rounded-rectangle signed distance and a one-device-pixel fringe.
+This unified bitmap sits **above** glass, so adjacent shadows cannot pollute another pill's backdrop.
+The latest width/scale combination caches a matching bitmap for each of the at most three visible ranges; in-flight work is shared across rapid reopenings. Live content changes resize the glass and hit areas together and regenerate the hollow shadows off-main. Old shadows are hidden until their replacement is ready.
+
+Store, mouse and app-activation observers exist only during a session. Same-size updates preserve
+selection by ID; entry-count changes keep the current menu geometry until the next summon, and deleting
+a displayed entry dismisses it. No new polling, network access, history duplication or persistence is
+introduced. `QuickClipboardPresentation` stays pure Foundation + CoreGraphics; the shadow renderer adds
+Accelerate for separable convolution. The clipboard harness covers content/order/positioning, and the
+quick-clipboard harness validates real bitmap interiors/edges at 1× and 2×, native surface focus/material
+invariants, animation setup/reversal fallback and Reduce Motion without visual UI acceptance.

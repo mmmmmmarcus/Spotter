@@ -92,16 +92,25 @@ Every binding, in `hotkeys`: palette and backup palette (`togglePalette`, `toggl
 per-app (`apps`), per-settings-pane (`panes`), every plugin action (`pluginActions`, keyed
 `<plugin-id>.<action-id>`, so a new plugin syncs with no format change), custom commands
 (`customCommands`), quicklinks (`quicklinks`), AI commands (`aiCommands`) and Spotter's own built-in
-commands (`builtInCommands`). Empty binding maps are authoritative, so unbinding propagates. A
+commands (`builtInCommands`). Plugin exports also include `pluginActionIDs`, the complete catalog
+including unbound actions. An empty plugin binding map clears only the actions that writer knows. A
 per-item binding is applied only once its item exists, which is why quicklinks, custom commands and
 AI commands are restored before the shortcut map is.
 
 An absent shortcut map means the file predates that category and leaves the receiving Mac's newer
-bindings alone; a present empty map is authoritative and clears that category. The one-time app
+bindings alone; a present empty map is authoritative and clears that category, except plugin actions
+whose catalog does not include that action. Legacy files without `pluginActionIDs` update explicit
+bindings only: their missing entries cannot distinguish a deliberate clear from an unknown new
+feature. `PluginShortcutSync` keeps that decision pure and covered by the Settings Sync harness.
+Current writers propagate both reassignment and deliberate unbinding. The one-time app
 identity repair recovers the two Translate shortcut keys from the former `com.spotter.app` domain
 when the original migration marker already exists, and protects those recovered bindings through
 Settings Sync merges from older writers. Current snapshots carry a migration marker, which is what
 lets a later explicit unbind remain authoritative instead of being mistaken for legacy data loss.
+
+Reloads remember the incoming file revision without rewriting it when applying an older snapshot
+leaves the effective local state unchanged. This avoids a write loop between different catalogs;
+the next actual local edit still exports the full current catalog and bindings.
 
 ### Credentials and networked features
 

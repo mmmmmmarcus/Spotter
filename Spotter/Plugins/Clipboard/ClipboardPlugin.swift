@@ -1,7 +1,15 @@
 import SwiftUI
+import Carbon.HIToolbox
+
+extension PluginActionKey {
+    static let quickClipboard = standard(pluginID: .clipboard, actionID: "quick-history",
+        title: "Quick Clipboard History")
+}
 
 @MainActor
 enum ClipboardPlugin {
+    static let quickHistoryShortcut = KeyShortcut(carbonKeyCode: Int(kVK_ANSI_Z), carbonModifiers: controlKey | cmdKey)
+
     static func registration(core: AppCore) -> PluginRegistration {
         PluginRegistration(
             metadata: PluginMetadata(
@@ -14,6 +22,9 @@ enum ClipboardPlugin {
             shortcutActions: [
                 PluginActionRegistration(key: .openClipboard) { [weak core] in
                     core?.toggleClipboard()
+                },
+                PluginActionRegistration(key: .quickClipboard, defaultShortcut: quickHistoryShortcut) { [weak core] in
+                    core?.toggleQuickClipboard()
                 }
             ],
             launcherCommands: [
@@ -24,10 +35,22 @@ enum ClipboardPlugin {
                     actionKey: .openClipboard
                 ) { [weak core] in
                     core?.toggleClipboard()
+                },
+                PluginCommandRegistration(
+                    id: "command:quick-clipboard-history",
+                    name: "Quick Clipboard History",
+                    systemImage: "doc.on.clipboard",
+                    actionKey: .quickClipboard
+                ) { [weak core] in
+                    core?.toggleQuickClipboard()
                 }
             ],
             onStart: { [weak core] in
                 guard let core else { return }
+                ClipboardShortcutMigration.apply(defaults: .standard,
+                    legacyKey: PluginActionKey.openClipboard.defaultsKey,
+                    quickKey: PluginActionKey.quickClipboard.defaultsKey,
+                    legacyUsesDefault: core.hotKeys.shortcut(for: .plugin(.openClipboard)) == quickHistoryShortcut)
                 Task { core.clipboardStore.load() }
                 core.clipboardManager.start()
             },

@@ -46,6 +46,8 @@ struct SettingsBackup: Codable, Sendable {
         var aiCommands: [String: HotKeyBinding]?
         /// Every bound plugin shortcut, keyed `<plugin-id>.<action-id>` — new plugins sync automatically.
         var pluginActions: [String: HotKeyBinding]?
+        // Includes unbound actions so absence from pluginActions means an explicit clear only for a known action.
+        var pluginActionIDs: [String]?
     }
 
     struct TextReplacementBackup: Codable, Sendable {
@@ -146,6 +148,9 @@ extension SettingsBackup {
         var hotkeys = HotkeyBackup()
         hotkeys.togglePalette = hk.binding(for: .togglePalette)
         hotkeys.togglePaletteBackup = hk.binding(for: .togglePaletteBackup)
+        hotkeys.pluginActionIDs = core.plugins.shortcutActions.map {
+            "\($0.pluginID.rawValue).\($0.actionID)"
+        }.sorted()
         // Covers every plugin action, clipboard/emoji included — their legacy fields are import-only now.
         hotkeys.pluginActions = Dictionary(
             uniqueKeysWithValues: core.plugins.shortcutActions.compactMap { key in
@@ -606,6 +611,19 @@ extension SettingsBackup {
     ) -> Int {
         let hk = core.hotKeys
         var count = 0
+        let replacementIDs = PluginShortcutSync.replacementIDs(
+            knownActionIDs: hotkeys.pluginActionIDs,
+            bindingIDs: hotkeys.pluginActions.map { Array($0.keys) })
+        func identifiers(for key: PluginActionKey) -> [String] {
+            let currentID = "\(key.pluginID.rawValue).\(key.actionID)"
+            if key.pluginID == .translate {
+                return [currentID, "selection-tools.\(key.actionID)", "ai-chat.\(key.actionID)"]
+            }
+            if key.pluginID == .commands, key.actionID.hasPrefix("system.") {
+                return [currentID, "system-commands." + String(key.actionID.dropFirst("system.".count))]
+            }
+            return [currentID]
+        }
         let recoveredTranslateBindings: [(HotKeyAction, HotKeyBinding)] =
             (mode == .replace
                 ? AppIdentityMigration.translateShortcutJSONForSyncRepair(
@@ -634,7 +652,10 @@ extension SettingsBackup {
             hk.setBinding(nil, for: .togglePalette)
             hk.setBinding(nil, for: .togglePaletteBackup)
             if hotkeys.pluginActions != nil {
-                for key in core.plugins.shortcutActions { hk.setBinding(nil, for: .plugin(key)) }
+                for key in core.plugins.shortcutActions
+                where !replacementIDs.isDisjoint(with: identifiers(for: key)) {
+                    hk.setBinding(nil, for: .plugin(key))
+                }
             } else {
                 if hotkeys.toggleClipboard != nil { hk.setBinding(nil, for: .plugin(.openClipboard)) }
                 if hotkeys.toggleEmoji != nil { hk.setBinding(nil, for: .plugin(.openEmoji)) }
@@ -679,21 +700,7 @@ extension SettingsBackup {
         if let pluginActions = hotkeys.pluginActions {
             // Resolve through the registry so a binding only lands on an action this build actually has.
             for key in core.plugins.shortcutActions {
-                let currentID = "\(key.pluginID.rawValue).\(key.actionID)"
-                let legacyIDs: [String]
-                if key.pluginID == .translate {
-                    // Translation has lived under both owners; newest spelling first.
-                    legacyIDs = ["selection-tools.\(key.actionID)", "ai-chat.\(key.actionID)"]
-                } else if key.pluginID == .commands, key.actionID.hasPrefix("system.") {
-                    legacyIDs = [
-                        "system-commands." + String(key.actionID.dropFirst("system.".count))
-                    ]
-                } else {
-                    legacyIDs = []
-                }
-                if let s = pluginActions[currentID]
-                    ?? legacyIDs.lazy.compactMap({ pluginActions[$0] }).first
-                {
+                if let s = identifiers(for: key).lazy.compactMap({ pluginActions[$0] }).first {
                     apply(s, .plugin(key))
                 }
             }

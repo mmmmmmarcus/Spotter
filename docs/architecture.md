@@ -12,7 +12,7 @@ commands (including built-in system commands), mole, coffee, screenshot).
 ## Single-owner core
 
 `AppCore.shared` (`Core/AppCore.swift`) is a `@MainActor` singleton that owns every long-lived
-manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `HotKeyManager`, `HyperKeyTap`,
+manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `QuickClipboardController`, `HotKeyManager`, `HyperKeyTap`,
 `AppSettings`, `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`, `CurrencyRateStore`, `EmojiIndex`, `FrequentEmojiStore`,
 `RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`, `ChangeCaseStore`,

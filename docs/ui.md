@@ -678,3 +678,18 @@ a daylight overlay and collision-aware labels. It shares the list scroll and pal
 Screenshot selection overlays never become key or main and accept pointer input without taking
 first responder. This preserves menu tracking across Option changes. Escape, Space and Tab are
 claimed through the shared transient shortcut mechanism only while the selection is visible.
+
+## Quick Clipboard History
+
+An explicit exception to the shared palette surface: a horizontal three-item viewport over the five most recent native Liquid Glass pills, each
+40 points high, hugging its text and icon (or an aspect-fit image thumbnail) up to 240 points wide, left aligned with 8-point gaps and 20-point corners. Image previews have 8-point vertical padding and their own 4-point corners. Left/right arrows navigate, Return pastes, and Escape dismisses. There are no auxiliary buttons. The active text insertion caret is the preferred anchor, with the invocation-time mouse position as fallback and above/below placement
+and 8-point screen safety. The panel and buttons cannot take keyboard focus. There is no enclosing
+plate, header, search field or footer. Row scrolling moves the actual glass effect views and their
+content together on each display frame, with no separate text-only translation.
+
+The whole glass group grows from the anchor using a shared 0.455-second spring on an independent
+driver layer, sampled into native view frame/bounds without rewriting AppKit backing-layer anchors; a 0.20-second collapse
+can reverse from any presentation frame. Reduce Motion uses 0.12-second fades only. Glass ancestors
+always stay at alpha 1; fade applies to window composition. A single custom hollow shadow bitmap sits
+above glass, with fully transparent pill interiors and an antialiased distance fringe. WindowServer
+shadow is off. The system owns glass appearance/contrast/transparency. See [clipboard.md](clipboard.md).

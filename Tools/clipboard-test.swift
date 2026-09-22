@@ -5,6 +5,7 @@
 // see or touch a real clipboard history.
 
 import Foundation
+import CoreGraphics
 
 @main
 @MainActor
@@ -13,6 +14,8 @@ struct ClipboardTests {
     static var passes = 0
 
     static func main() async {
+        shortcutMigration()
+        quickPresentation()
         pinOrder()
         unpinRejoinsAsNewest()
         pasteLeavesPinsAlone()
@@ -31,6 +34,75 @@ struct ClipboardTests {
 
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
+    }
+
+    static func shortcutMigration() {
+        let suite = "com.spotter.tests.clipboard-shortcut." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let old = "legacy", new = "quick"
+        let binding = #"{"carbonKeyCode":6,"carbonModifiers":4352}"#
+        func migrate(_ isDefault: Bool = true) {
+            ClipboardShortcutMigration.apply(defaults: defaults, legacyKey: old, quickKey: new, legacyUsesDefault: isDefault)
+        }
+        defaults.set(binding, forKey: old)
+        migrate()
+        expect(defaults.string(forKey: new) == binding && defaults.object(forKey: old) == nil,
+            "default clipboard chord transfers without duplicate ownership")
+        defaults.removeObject(forKey: new)
+        defaults.set(binding, forKey: old)
+        migrate()
+        expect(defaults.object(forKey: new) == nil && defaults.string(forKey: old) == binding,
+            "subsequent explicit unbind or reassignment survives restart")
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(binding, forKey: old)
+        defaults.set("custom quick binding", forKey: new)
+        migrate()
+        expect(defaults.string(forKey: new) == "custom quick binding" && defaults.string(forKey: old) == binding,
+            "existing quick shortcut is not overwritten")
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set("custom legacy binding", forKey: old)
+        migrate(false)
+        expect(defaults.string(forKey: old) == "custom legacy binding" && defaults.object(forKey: new) == nil,
+            "custom full-history binding is not transferred")
+        defaults.removePersistentDomain(forName: suite)
+        migrate()
+        expect(defaults.object(forKey: new) == nil && defaults.bool(forKey: ClipboardShortcutMigration.marker),
+            "fresh install leaves default seeding to the shortcut registry")
+    }
+
+    static func quickPresentation() {
+        let items = (0..<8).map { ClipboardItem(text: "Entry \($0)", sourceBundleID: nil) }
+        for (value, title) in [("hello", "Text"), ("https://example.com", "Link"), ("123", "Number"), ("name@example.com", "Email")] {
+            expect(ClipboardItem(text: value, sourceBundleID: nil).typeTitle == title, "details describe the classified content type")
+        }
+        expect(ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil).typeTitle == "Image", "image details keep their content type")
+        expect(QuickClipboardPresentation.recentItems(items).map(\.id) == Array(items.prefix(5)).map(\.id),
+            "quick history keeps the five newest entries in store order")
+        expect(QuickClipboardPresentation.recentItems([]).isEmpty, "empty quick history stays empty")
+        let multiline = ClipboardItem(text: "hello\n  world\t你好", sourceBundleID: nil)
+        expect(QuickClipboardPresentation.title(for: multiline) == "hello world 你好", "preview collapses line breaks")
+        let long = ClipboardItem(text: String(repeating: "👨‍👩‍👧‍👦", count: 170), sourceBundleID: nil)
+        let preview = QuickClipboardPresentation.title(for: long)
+        expect(preview.count == 161 && preview.hasSuffix("…"), "preview truncates at whole graphemes")
+        expect(long.text?.count == 170, "preview never truncates the payload to paste")
+        for (text, symbol) in [("Words", "textformat.alt"), ("https://example.com", "link"), ("123", "number.sign")] {
+            expect(QuickClipboardPresentation.symbol(for: ClipboardItem(text: text, sourceBundleID: nil)) == symbol,
+                "quick history reuses the \(symbol) classifier")
+        }
+        expect(QuickClipboardPresentation.symbol(for: ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil)) == "photo",
+            "images retain their type symbol")
+        let screen = CGRect(x: -1440, y: 100, width: 1440, height: 900)
+        let right = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, count: 5)
+        expect(right.minX == -988, "picker opens to the pointer's right on a secondary screen")
+        let left = QuickClipboardPresentation.frame(anchor: CGRect(x: -5, y: 800, width: 0, height: 0), screen: screen, count: 5)
+        expect(left.maxX == -17, "picker flips left at the right edge")
+        for pointer in [CGPoint(x: -1440, y: 100), CGPoint(x: -1, y: 1000), CGPoint(x: -900, y: 110)] {
+            let frame = QuickClipboardPresentation.frame(anchor: CGRect(origin: pointer, size: .zero), screen: screen, count: 5)
+            expect(screen.insetBy(dx: 8, dy: 8).contains(frame), "picker stays within the visible screen at \(pointer)")
+        }
+        let empty = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, count: 0)
+        expect(empty.height == QuickClipboardPresentation.rowHeight, "empty history uses one placeholder pill")
     }
 
     static func incrementalSync() async {

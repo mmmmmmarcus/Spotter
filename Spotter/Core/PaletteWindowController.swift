@@ -67,10 +67,12 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
         // Drop the multi-MB clipboard preview bitmaps now the window is gone, so idle RAM returns near baseline (row thumbnails stay cached).
         ImageThumbnail.purgePreviews()
         schedulePopToRoot()
-        if restoreFocus {
-            if let localPasteTarget { localPasteTarget.restoreFocus() }
-            else { previousApp?.activate() }
-        }
+        if restoreFocus { restorePasteFocus() }
+    }
+
+    func restorePasteFocus() {
+        if let localPasteTarget { localPasteTarget.restoreFocus() }
+        else { previousApp?.activate() }
     }
 
     /// Pop to Root Search: reset immediately (also releases heavy sub-screens — a fully scrolled emoji grid is ~2k realized views), or keep state and reset after the configured delay unless a reopen consumes it first.

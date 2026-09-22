@@ -70,6 +70,16 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
 }
 
 extension ClipboardItem {
+    var typeTitle: String {
+        if kind == .image { return isScreenshot ? "Screenshot" : "Image" }
+        switch textForm {
+        case .link: return "Link"
+        case .email: return "Email"
+        case .number: return "Number"
+        case .plain, nil: return "Text"
+        }
+    }
+
     /// Read off the file name rather than a stored column, the same way `textForm` is derived:
     /// Spotter names its own captures, so the name is the marker, and improving the rule stays a
     /// code change instead of a column, a migration and a backfill.

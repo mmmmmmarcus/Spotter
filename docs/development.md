@@ -160,9 +160,23 @@ swiftc Spotter/Core/Calculator/*.swift \
     Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift Tools/calc-test.swift \
     -o /tmp/calc-test && /tmp/calc-test                           # calculator engine
 swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
+    Spotter/Plugins/Clipboard/ClipboardShortcutMigration.swift \
     Spotter/Plugins/Clipboard/ClipboardFilter.swift \
+    Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
     Spotter/Plugins/Screenshot/ScreenshotFileName.swift Tools/clipboard-test.swift \
     -o /tmp/clipboard-test && /tmp/clipboard-test                 # clipboard store
+swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardCapture.swift \
+    Tools/clipboard-capture-test.swift -o /tmp/clipboard-capture-test && /tmp/clipboard-capture-test
+swiftc -swift-version 6 Spotter/Core/ImageThumbnail.swift \
+    Spotter/Plugins/Clipboard/ClipboardStore.swift \
+    Spotter/Plugins/Clipboard/ClipboardFilter.swift \
+    Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
+    Spotter/Plugins/Clipboard/QuickClipboardAnchor.swift \
+    Spotter/Plugins/Clipboard/QuickClipboardShadow.swift \
+    Spotter/Plugins/Clipboard/QuickClipboardMenuView.swift \
+    Spotter/Plugins/Clipboard/QuickClipboardMotion.swift \
+    Spotter/Plugins/Screenshot/ScreenshotFileName.swift Tools/quick-clipboard-test.swift \
+    -o /tmp/quick-clipboard-test && /tmp/quick-clipboard-test     # glass, motion, shadow and focus invariants
 swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift \
     -o /tmp/scopes-test && /tmp/scopes-test                       # launcher search scopes
 swiftc -swift-version 6 Spotter/Core/LauncherSections.swift Tools/launcher-sections-test.swift \
@@ -228,6 +242,7 @@ swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.sw
     Spotter/Plugins/TextReplacement/TextReplacementStore.swift Tools/text-replacement-test.swift \
     -o /tmp/text-replacement-test && /tmp/text-replacement-test
 swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
+    Spotter/Core/Backup/PluginShortcutSync.swift \
     Spotter/Core/Backup/SettingsBackupData.swift Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
 swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
@@ -334,6 +349,8 @@ The Settings Sync harness exercises the real coordinated JSON reader/writer agai
 and validates the digest revision and file metadata guards, including sibling changes, duplicate
 notifications, same-size replacements, in-place edits, missing files and retries after failed applies.
 
+`Tools/clipboard-capture-test.swift` uses an isolated named pasteboard, never the user's general clipboard, to validate mixed image/text priority, JPEG/TIFF conversion, Finder image files, URL-only copies, invalid-image fallback, privacy markers, and snapshot stability during background decoding.
+
 The clipboard harness likewise compiles the real `ClipboardStore.swift` and `ClipboardFilter.swift`,
 including portable text/image sync snapshots and the type filter's derived link/email classifier, so
 both files must keep to Foundation (plus SQLite3) and depend on no other app source. Each case drives a store rooted in a
@@ -341,6 +358,12 @@ throwaway temp directory (`ClipboardStore(directory:)`), so a run can never reac
 Sync regressions verify zero writes for identical snapshots, image inode/mtime preservation on text
 updates, changed/deleted blobs, bounded image caching, and local edits made during remote decoding.
 Mapped snapshot checks cover atomic replacement/unlink lifetime and copying externally mutable files.
+The same harness compiles `QuickClipboardPresentation.swift` (Foundation + CoreGraphics) and checks
+five-entry ordering, horizontal three-item carrier/text motion, scroll reversal and hit testing, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping, native layout throughout the opening transform,
+and one-time shortcut transfer with custom bindings and later unbinding preserved.
+`Tools/quick-clipboard-test.swift` checks caret priority, mouse fallback, cross-display coordinate conversion, above/below placement, actual hollow-shadow pixels at 1×/2×,
+native non-key panel and glass invariants, spring/reversal setup and Reduce Motion. Image fixtures cover padded and rounded aspect-fit previews, untinted colors, shared-cache immutability, and live image/text replacement. It creates offscreen
+AppKit objects without displaying a menu or accepting visual appearance.
 
 The custom-command harness spawns **real `/bin/zsh`** processes. Its shell-environment cases point
 `ZDOTDIR` at a throwaway fixture directory (and unset `TERM_PROGRAM`), so a run can never read or write

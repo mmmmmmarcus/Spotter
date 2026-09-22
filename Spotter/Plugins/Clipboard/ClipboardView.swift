@@ -400,7 +400,7 @@ private struct ClipboardInfoSection: View {
         }
         switch item.kind {
         case .text:
-            rows.append(InfoRow(label: "Type", value: "Text"))
+            rows.append(InfoRow(label: "Type", value: item.typeTitle))
             if let characters = details.characters {
                 rows.append(InfoRow(label: "Characters", value: characters.formatted()))
             }
@@ -408,7 +408,7 @@ private struct ClipboardInfoSection: View {
                 rows.append(InfoRow(label: "Words", value: words.formatted()))
             }
         case .image:
-            rows.append(InfoRow(label: "Type", value: "Image"))
+            rows.append(InfoRow(label: "Type", value: item.typeTitle))
             if let size = details.pixelSize {
                 rows.append(
                     InfoRow(label: "Dimensions", value: "\(Int(size.width))×\(Int(size.height))"))

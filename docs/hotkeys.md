@@ -171,3 +171,15 @@ Alias and Hotkey fields sit eight points apart. Launcher-row visibility checkbox
 icon; unchecked rows have desaturated icons and faded content, while their checkbox remains fully
 visible and editable. This remains launcher visibility, not a new hotkey-enable flag: saved
 bindings and favorites are preserved. Global summon rows reserve the same leading columns.
+
+## Quick Clipboard History default
+
+Quick Clipboard History owns the shipped ⌃⌘Z default. `ClipboardShortcutMigration` runs in Clipboard's
+`onStart`, before hotkey registration, and transfers the full-history binding only when it is exactly
+⌃⌘Z and the quick action is unbound. Existing custom shortcuts are preserved. Its one-time marker and
+`HotKeyManager`'s default-seeding marker prevent later changes or deliberate unbinding from being undone.
+The stable legacy full-history key is retained for settings, backup and sync compatibility.
+
+Sync snapshots include the writer’s complete `pluginActionIDs` catalog. Missing bindings clear only
+actions in that catalog; legacy files without it update explicit bindings and preserve absent ones.
+This prevents an older writer from erasing Quick Clipboard History after its one-time default seed.

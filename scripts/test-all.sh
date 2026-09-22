@@ -15,6 +15,8 @@ TESTS=(
     launcher-sections
     calc
     clipboard
+    clipboard-capture
+    quick-clipboard
     scopes
     file-search
     emoji
@@ -112,9 +114,27 @@ run_harness() {
                 Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
                 Tools/calc-test.swift -o "$output" && "$output"
             ;;
+        clipboard-capture)
+            swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardCapture.swift \
+                Tools/clipboard-capture-test.swift -o "$output" && "$output"
+            ;;
+        quick-clipboard)
+            swiftc -swift-version 6 Spotter/Core/ImageThumbnail.swift \
+                Spotter/Plugins/Clipboard/ClipboardStore.swift \
+                Spotter/Plugins/Clipboard/ClipboardFilter.swift \
+                Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
+                Spotter/Plugins/Clipboard/QuickClipboardAnchor.swift \
+                Spotter/Plugins/Clipboard/QuickClipboardShadow.swift \
+                Spotter/Plugins/Clipboard/QuickClipboardMenuView.swift \
+                Spotter/Plugins/Clipboard/QuickClipboardMotion.swift \
+                Spotter/Plugins/Screenshot/ScreenshotFileName.swift \
+                Tools/quick-clipboard-test.swift -o "$output" && "$output"
+            ;;
         clipboard)
             swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
+                Spotter/Plugins/Clipboard/ClipboardShortcutMigration.swift \
                 Spotter/Plugins/Clipboard/ClipboardFilter.swift \
+                Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
                 Spotter/Plugins/Screenshot/ScreenshotFileName.swift \
                 Tools/clipboard-test.swift -o "$output" && "$output"
             ;;
@@ -208,6 +228,7 @@ run_harness() {
             ;;
         settings-sync)
             swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
+                Spotter/Core/Backup/PluginShortcutSync.swift \
                 Spotter/Core/Backup/SettingsBackupData.swift \
                 Tools/settings-sync-test.swift -o "$output" && "$output"
             ;;

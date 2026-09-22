@@ -234,6 +234,7 @@ final class AppCore: ObservableObject {
     var coffeeScreen: CoffeeScreen = .status
 
     private lazy var windowController = PaletteWindowController(core: self)
+    private lazy var quickClipboard = QuickClipboardController(store: clipboardStore, hotKeys: hotKeys)
     private lazy var auxWindows = AuxWindowController { [weak self] in
         self?.syncActivationPolicy()
     }
@@ -466,6 +467,63 @@ final class AppCore: ObservableObject {
         }
     }
 
+    func toggleQuickClipboard() {
+        if quickClipboard.isVisible {
+            quickClipboard.dismiss(restoringFocus: true)
+            return
+        }
+        guard !screenshot.isCapturing else { return }
+        let mouse = NSEvent.mouseLocation
+        if windowController.isVisible {
+            hidePalette(restoreFocus: true)
+            quickClipboard.show(anchor: QuickClipboardAnchor.request(application: windowController.previousApp, mouse: mouse), application: windowController.previousApp, paste: { [weak self] item in
+                guard let self else { return }
+                if !windowController.paste(item, store: clipboardStore) {
+                    windowController.restorePasteFocus()
+                    quickClipboardPasteFailed()
+                }
+            }, restoreFocus: { [weak self] in self?.windowController.restorePasteFocus() })
+            return
+        }
+        let targetApp = NSWorkspace.shared.frontmostApplication
+        let targetWindow = NSApp.keyWindow
+        let targetResponder = targetWindow?.firstResponder
+        let localTarget = (targetResponder as? NSTextView).flatMap(LocalTextPasteTarget.init(editor:))
+        let restore: () -> Void = { [weak targetWindow, weak targetResponder] in
+            if let localTarget {
+                localTarget.restoreFocus()
+            } else if targetApp?.processIdentifier == ProcessInfo.processInfo.processIdentifier,
+                let targetWindow, targetWindow.isVisible {
+                targetWindow.makeKeyAndOrderFront(nil)
+                targetWindow.makeFirstResponder(targetResponder)
+            } else {
+                targetApp?.activate()
+            }
+        }
+        quickClipboard.show(anchor: QuickClipboardAnchor.request(application: targetApp, mouse: mouse), application: targetApp, paste: { [weak self] item in
+            guard let self else { return }
+            if let localTarget {
+                guard let text = item.text, localTarget.insert(text, restoringFocus: true),
+                    Paster.copy(item, store: clipboardStore) else {
+                    restore()
+                    quickClipboardPasteFailed()
+                    return
+                }
+            } else {
+                restore()
+                guard let targetApp, !targetApp.isTerminated,
+                    Paster.paste(item, store: clipboardStore, previousApp: targetApp) else {
+                    quickClipboardPasteFailed()
+                    return
+                }
+            }
+        }, restoreFocus: restore)
+    }
+
+    private func quickClipboardPasteFailed() {
+        hud.show(title: "Unable to Paste", symbol: "exclamationmark.triangle", isNoOp: true)
+    }
+
     func toggleEmoji() {
         if windowController.isVisible, palette.mode == .emoji {
             hidePalette()
@@ -476,6 +534,7 @@ final class AppCore: ObservableObject {
 
     /// Shows the palette, honoring Pop to Root Search: a reopen within the timeout restores the pre-close state — any mode for the generic summon (`restoreAnyMode`), else only when the preserved mode already matches the requested one.
     func showPalette(mode: PaletteMode, restoreAnyMode: Bool = false) {
+        quickClipboard.dismiss(restoringFocus: true)
         let preserved = windowController.consumePreservedState()
         if !(preserved && (restoreAnyMode || palette.mode == mode)) {
             palette.prepare(mode: mode)
@@ -613,6 +672,7 @@ final class AppCore: ObservableObject {
     /// Closes Settings, About and every plugin workspace — used before a capture so Spotter's own
     /// windows cannot end up in the shot.
     func closeAuxiliaryWindows() {
+        quickClipboard.dismiss(restoringFocus: true, animated: false)
         auxWindows.closeAll()
     }
 

@@ -64,7 +64,37 @@ struct SettingsSyncTests {
         testUnknownFieldsAreIgnored()
         testRetiredImageFormatIsIgnored()
         testEmptyObjectDecodesToAllUnset()
+        testPluginShortcutVersions()
         print("Settings Sync: ALL PASSED")
+    }
+
+    private static func testPluginShortcutVersions() {
+        let quick = "clipboard.quick-history"
+        let history = "clipboard.open"
+        let local: [String: String] = [quick: "ctrl+cmd+z", history: "custom"]
+        func replacing(_ bindings: [String: String]?, known: [String]?) -> [String: String] {
+            var result = local
+            let ids = PluginShortcutSync.replacementIDs(
+                knownActionIDs: known, bindingIDs: bindings.map { Array($0.keys) })
+            for id in ids { result[id] = nil }
+            for (id, value) in bindings ?? [:] { result[id] = value }
+            return result
+        }
+        precondition(replacing([:], known: nil) == local,
+            "legacy empty maps must not erase shortcuts the writer might not know")
+        let legacy = replacing([history: "legacy"], known: nil)
+        precondition(legacy[quick] == local[quick] && legacy[history] == "legacy",
+            "legacy files still update explicit bindings while preserving new actions")
+        precondition(replacing([:], known: [history]) == [quick: "ctrl+cmd+z"],
+            "an older catalog can clear its own actions, not newer actions")
+        precondition(replacing([:], known: [history, quick]).isEmpty,
+            "a current writer must propagate intentional unbinding")
+        precondition(replacing([quick: "custom-quick"], known: [history, quick]) == [quick: "custom-quick"],
+            "a current writer can reassign the quick clipboard shortcut")
+        precondition(replacing(nil, known: [history, quick]) == local,
+            "a missing map remains non-destructive")
+        precondition(PluginShortcutSync.replacementIDs(knownActionIDs: [], bindingIDs: [quick]) == [quick],
+            "explicit bindings remain authoritative even with an incomplete catalog")
     }
 
     private static func waitForChange(_ semaphore: DispatchSemaphore) -> Bool {

@@ -331,6 +331,7 @@ final class SettingsSyncManager: ObservableObject {
             guard revision != fingerprint else { return }
             let backup = try await SettingsBackup.decodedOffMain(data)
             let local = try await capture(core: core)
+            let localData = try await local.backup.encodedOffMain()
             let changes = try await backup.changes(comparedTo: local.backup)
             try Task.checkCancellation()
             isWorking = true
@@ -343,9 +344,12 @@ final class SettingsSyncManager: ObservableObject {
             let effective = try await capture(core: core)
             let effectiveData = try await effective.backup.encodedOffMain()
             try Task.checkCancellation()
-            if effectiveData != data { try await io.write(effectiveData, to: fileURL) }
+            // Do not fight an older writer when its missing fields leave our effective state unchanged.
+            let shouldWrite = effectiveData != data && effectiveData != localData
+            if shouldWrite { try await io.write(effectiveData, to: fileURL) }
             try Task.checkCancellation()
-            let effectiveRevision = await CoordinatedFileRevision.fingerprint(effectiveData)
+            let effectiveRevision = shouldWrite
+                ? await CoordinatedFileRevision.fingerprint(effectiveData) : fingerprint
             try Task.checkCancellation()
             revision = effectiveRevision
             remember(effective)
