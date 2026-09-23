@@ -15,11 +15,15 @@ click before any installation starts.
 `project.yml` is the release version's single source of truth. CI publishes both
 `Spotter-<version>.dmg` for manual installation and `Spotter-<version>.zip` for the in-app updater.
 The zip contains the same Developer ID-signed, notarized and stapled app as the DMG.
+CI creates a draft, uploads and checks both assets, then publishes it. If GitHub's releases list
+still omits the ZIP, the updater queries that release's dedicated assets endpoint before offering
+manual installation. A failed asset lookup reports a retryable check failure instead of pretending
+the release has no updater. Automatic consent and cancellation are checked around both requests.
 
 ## Consent and network behavior
 
 **Check for Updates** in the launcher and **Settings → General → Check for Updates** are consent for
-one feed request. The launcher command opens the complete Software Update flow inside the palette: it checks immediately,
+one update check, including an asset lookup when the release list omits the updater ZIP. The launcher command opens the complete Software Update flow inside the palette: it checks immediately,
 reports the active channel and current result, offers the verified in-app install when a zip exists,
 and falls back to the release page for a DMG-only release. Escape and the header back button both
 return to a fresh launcher root. The automatic daily check ships disabled;

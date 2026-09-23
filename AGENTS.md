@@ -338,9 +338,9 @@ Never break these without an explicit task to do so.
   to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
   and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
   Quick Clipboard History is an explicit owner-requested exception (Sep 2026): five recent caret-anchored (mouse fallback)
-  Liquid Glass pills, three visible horizontally at a time, in a non-key panel owned by `AppCore`, with input only while visible.
-  Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. The system regular glass
-  preset owns the material, without custom tint or raster shadows; glass ancestors stay fully opaque. Dismissal ends input immediately while a mouse-ignoring panel animates out.
+  Liquid Glass pills, all visible horizontally with a final circular full-history button and no paging, in a non-key panel owned by `AppCore`, with input only while visible.
+  Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. Native NSButton `.glass` bezels with `.capsule` border shapes
+  own the material without custom tint; glass ancestors stay fully opaque. One shared region shadow is masked out of every visible pill and follows the complete row geometry. Dismissal ends input immediately while a mouse-ignoring panel animates out.
 - **Confirmations are in-palette.** Every destructive palette flow (Mole actions, built-in Commands,
   custom commands, Quit All) asks through `AppCore.confirmInPalette` / `ConfirmationCard`, never an
   `NSAlert`, and the card's highlight always starts on Cancel — a reflexive second ↵ must never be

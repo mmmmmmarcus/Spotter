@@ -119,17 +119,30 @@ final class UpdateStore: ObservableObject {
         guard let current = currentVersion else { return false }
         status = .checking
         do {
-            let data = try await Self.fetchFeed()
+            let data = try await Self.fetchJSON(from: Self.feedURL)
+            try Task.checkCancellation()
             guard !requiresAutoConsent || autoCheckEnabled else {
                 status = .idle
                 return false
             }
-            defaults.set(Date(), forKey: Self.lastCheckKey)
-            if let release = UpdateFeed.latestUpdate(in: data, channel: channel, current: current) {
+            let releases = try JSONDecoder().decode([UpdateFeed.GitHubRelease].self, from: data)
+            if var release = UpdateFeed.select(from: releases, channel: channel, current: current) {
+                if release.zipAssetURL == nil {
+                    // GitHub's releases list can lag behind its dedicated asset endpoint after publication.
+                    let url = URL(string: "https://api.github.com/repos/mmmmmmarcus/Spotter/releases/\(release.id)/assets?per_page=100")!
+                    let assets = try await Self.fetchJSON(from: url)
+                    try Task.checkCancellation()
+                    guard !requiresAutoConsent || autoCheckEnabled else {
+                        status = .idle
+                        return false
+                    }
+                    release = try UpdateFeed.resolvingAssets(assets, for: release)
+                }
                 status = .available(release)
             } else {
                 status = .upToDate
             }
+            defaults.set(Date(), forKey: Self.lastCheckKey)
             return true
         } catch {
             if Task.isCancelled || (requiresAutoConsent && !autoCheckEnabled) {
@@ -177,8 +190,9 @@ final class UpdateStore: ObservableObject {
         return URLSession(configuration: config)
     }()
 
-    private nonisolated static func fetchFeed() async throws -> Data {
-        var request = URLRequest(url: feedURL, timeoutInterval: 20)
+    private nonisolated static func fetchJSON(from url: URL) async throws -> Data {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 20)
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

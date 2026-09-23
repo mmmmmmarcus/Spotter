@@ -3,8 +3,6 @@ import CoreGraphics
 
 enum QuickClipboardPresentation {
     static let limit = 5
-    static let visibleLimit = 3
-    static let scrollDuration = 0.18
     static let width: CGFloat = 120
     static let rowHeight: CGFloat = 40
     static let cornerRadius: CGFloat = rowHeight / 2
@@ -14,20 +12,6 @@ enum QuickClipboardPresentation {
     static let initialScale: CGFloat = 0.20
     static let openingDuration = 0.455
     static let closingDuration = 0.20
-
-    static func scrollProgress(elapsed: Double) -> CGFloat {
-        let progress = max(0, min(1, elapsed / scrollDuration))
-        guard progress > 0 && progress < 1 else { return CGFloat(progress) }
-        // Solve the entry curve's time coordinate before evaluating its displacement.
-        var low = 0.0
-        var high = 1.0
-        for _ in 0..<20 {
-            let t = (low + high) / 2
-            let x = 3 * (1 - t) * (1 - t) * t * 0.23 + 3 * (1 - t) * t * t * 0.32 + t * t * t
-            if x < progress { low = t } else { high = t }
-        }
-        return CGFloat(1 - pow(1 - (low + high) / 2, 3))
-    }
 
     static func recentItems(_ items: [ClipboardItem]) -> [ClipboardItem] {
         Array(items.prefix(limit))
@@ -45,12 +29,12 @@ enum QuickClipboardPresentation {
     }
 
     static func size(count: Int) -> CGSize {
-        let columns = CGFloat(max(1, min(visibleLimit, count)))
-        return CGSize(width: columns * width + (columns - 1) * spacing, height: rowHeight)
+        let columns = CGFloat(max(0, min(limit, count)))
+        return CGSize(width: columns * (width + spacing) + rowHeight, height: rowHeight)
     }
 
     static func rowFrames(count: Int) -> [CGRect] {
-        rowFrames(widths: Array(repeating: width, count: max(1, min(visibleLimit, count))))
+        rowFrames(widths: Array(repeating: width, count: max(0, min(limit, count))) + [rowHeight])
     }
 
     static func rowFrames(widths: [CGFloat]) -> [CGRect] {
@@ -61,22 +45,8 @@ enum QuickClipboardPresentation {
         }
     }
 
-    static func scrollOffset(first: Int, widths: [CGFloat]) -> CGFloat {
-        widths.prefix(first).reduce(0) { $0 + $1 + spacing }
-    }
-
-    static func visibleWidth(first: Int, widths: [CGFloat]) -> CGFloat {
-        let visible = widths.dropFirst(first).prefix(visibleLimit)
-        return visible.reduce(0, +) + CGFloat(max(0, visible.count - 1)) * spacing
-    }
-
-    static func firstVisibleIndex(selection: Int, current: Int, count: Int) -> Int {
-        let count = max(0, min(limit, count))
-        let selection = max(0, min(selection, count - 1))
-        let current = max(0, min(current, count - visibleLimit))
-        if selection < current { return selection }
-        if selection >= current + visibleLimit { return selection - visibleLimit + 1 }
-        return current
+    static func totalWidth(_ widths: [CGFloat]) -> CGFloat {
+        widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * spacing
     }
 
     static func frame(anchor: CGRect, screen: CGRect, count: Int, contentWidth: CGFloat? = nil) -> CGRect {

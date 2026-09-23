@@ -240,7 +240,7 @@ jobs:
           if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then
             PRERELEASE_FLAG="--prerelease"
           fi
-          gh release create "$TAG" \
+          gh release create "$TAG" --draft \
             "dist/${{ steps.meta.outputs.dmg_file }}" \
             "dist/Spotter-${{ steps.meta.outputs.full_version }}.zip" \
             --title "${{ steps.meta.outputs.display_name }} ${{ steps.meta.outputs.full_version }}" \
@@ -251,3 +251,11 @@ jobs:
 
           Download the DMG below and drag Spotter to Applications. This build is signed with Developer ID and notarized by Apple, so it opens directly without clearing quarantine attributes." \
             $PRERELEASE_FLAG
+          RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | .id")"
+          ASSET_NAMES="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '[.[] | select(.state == "uploaded") | .name] | sort | join(",")')"
+          EXPECTED="Spotter-${{ steps.meta.outputs.full_version }}.dmg,Spotter-${{ steps.meta.outputs.full_version }}.zip"
+          if [ "$ASSET_NAMES" != "$EXPECTED" ]; then
+            echo "::error::Release assets are incomplete; leaving the release as a draft."
+            exit 1
+          fi
+          gh release edit "$TAG" --draft=false

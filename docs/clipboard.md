@@ -168,23 +168,16 @@ the display, placement and both animation directions. Caret menus align directly
 mouse menus prefer above/right. Both flip below/left as necessary and leave 12 points at the anchor
 and at least 8 points inside the screen's visible frame.
 
-The five recent entries share a horizontal three-item viewport with independent native `NSGlassEffectView` pills, 40 points high with 20-point corners,
+Up to five recent entries are visible together in one fixed horizontal row with native `NSButton` pills using `.glass` bezel style and `.capsule` border shape, 40 points high,
 left aligned and sized to each native button’s content plus 11-point horizontal insets, capped at 120 points,
-inside one `NSGlassEffectContainerView`, with 8-point gaps and no auxiliary buttons. All use regular glass; `effectIsInteractive` is enabled on macOS 27 when compiled with its SDK (Swift 6.4+); Xcode 26 releases retain native button feedback. macOS 26 still uses native glass and native button feedback. The system owns
+inside one `NSGlassEffectContainerView`, with 8-point gaps. A final 40-point circular `ellipsis` button opens the complete clipboard history in the shared palette, clearing any old query/filter. It remains available when history is empty. The native button renders its own bezel and interaction feedback on macOS 26+, rather than placing a borderless button inside a generic glass effect. Preview content is a non-interactive child view, leaving hit testing and accessibility on the button. The system owns
 appearance, contrast and Reduce Transparency. Symbols use 14-point medium `labelColor`. Selected text has full opacity;
-unselected text has 35% opacity and symbols 50%. Text and symbols resolve semantic label colors in the effective drawing appearance, including appearance changes. Symbols keep their native 14-point size and pixel-aligned origins; the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 24 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors, and fall back to a photo symbol for unreadable files.
+unselected text has 35% opacity and symbols 50%. Text and symbols resolve semantic label colors in the effective drawing appearance, including appearance changes. Symbols keep their native 14-point size and pixel-aligned origins; the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 24 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors with full opacity when selected and 50% when unselected, and fall back to a photo symbol for unreadable files.
 
-Paging uses a 180ms ease-out curve (0.23, 1, 0.32, 1). The incoming glass outline grows from the viewport edge while the departing outline contracts at the opposite edge, with a short content reveal. Glyphs retain their size throughout; glass and its ancestors stay opaque. Interrupted navigation resumes from the current offset, and Reduce Motion skips movement.
-
-Material uses the system regular Liquid Glass preset without custom tint, raster shadows or blur overlays. Outer containers do not clip the system-rendered glass edges; only pill content clips to its glass outline.
+Material uses the system glass button preset without custom tint, raster shadows or blur overlays. Outer containers do not clip the system-rendered glass edges; only pill content clips to its glass outline.
 
 The panel cannot become key or main, and buttons never request key status. Click or ←/→ then Return
-pastes; Escape or repeating the shortcut cancels. Moving right beyond the third visible pill scrolls the
-strip left by the outgoing pill’s width plus its gap over 0.18 seconds; moving left reverses it. A bounded display
-link updates each native glass effect view’s frame, carrying its background, corners, symbol and text
-together; it never translates only an ancestor backing layer. Repeated navigation starts from the
-currently displayed offset. The clipping viewport animates its width with the same progress to fit exactly three variable-width pills; the transparent panel canvas stays fixed. Reduce Motion changes the visible range immediately. Offscreen rows are hidden
-from hit testing and accessibility. Mouse selection waits for the scroll to settle. Bare keys are claimed only while presented,
+pastes; on the final circle, Return opens full history. Escape or repeating the shortcut cancels. Arrow navigation changes selection only: all entries stay visible and there is no paging state, timer or translation. Bare keys are claimed only while presented,
 through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
@@ -201,7 +194,7 @@ Reduce Motion keeps only a 0.12-second fade. Display links exist only during the
 cleanup even when a display link stops producing frames. Input ends immediately on dismissal and the
 departing panel ignores mouse events. Screenshot's Hide Spotter path closes these panels immediately.
 
-WindowServer shadow is disabled to avoid adding a second shadow to the system material. The native glass preset owns its edges, lighting and backdrop treatment. Live content changes resize the native surfaces and hit areas directly, with no shadow rasterization or cache.
+WindowServer shadow remains disabled. A single Core Animation area shadow follows the visible group: 22% opacity, 14-point radius and a 6-point downward offset. It has an explicit rounded region path and sits above the glass with an even-odd mask removing every visible pill interior. The path and cutouts include the history circle and update together on live width changes. Native buttons still own their material and edges; no per-frame bitmap generation or shadow cache is needed.
 
 Store, mouse and app-activation observers exist only during a session. Same-size updates preserve
 selection by ID; entry-count changes keep the current menu geometry until the next summon, and deleting

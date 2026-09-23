@@ -681,13 +681,12 @@ claimed through the shared transient shortcut mechanism only while the selection
 
 ## Quick Clipboard History
 
-An explicit exception to the shared palette surface: a horizontal three-item viewport over the five most recent native Liquid Glass pills, each
-40 points high, hugging its text and icon (or an aspect-fit image thumbnail) up to 120 points wide, left aligned with 8-point gaps and 20-point corners. Image previews have 8-point vertical padding and their own 4-point corners. Left/right arrows navigate, Return pastes, and Escape dismisses. There are no auxiliary buttons. The active text insertion caret is the preferred anchor, with the invocation-time mouse position as fallback and above/below placement
+An explicit exception to the shared palette surface: a fixed horizontal row of up to five recent native Liquid Glass pills, each
+40 points high, hugging its text and icon (or an aspect-fit image thumbnail) up to 120 points wide, left aligned with 8-point gaps and 20-point corners. Image previews have 8-point vertical padding and their own 4-point corners. Left/right arrows navigate, Return pastes, and Escape dismisses. A final circular `ellipsis` button opens full clipboard history; arrows can focus it and Return activates it. Empty history still shows this button. The active text insertion caret is the preferred anchor, with the invocation-time mouse position as fallback and above/below placement
 and 8-point screen safety. The panel and buttons cannot take keyboard focus. There is no enclosing
-plate, header, search field or footer. Row scrolling moves the actual glass effect views and their
-content together on each display frame. At viewport edges the rounded glass outline grows/contracts while glyphs stay at their native size. A 180ms ease-out transition is interruptible and has no movement under Reduce Motion. Selected labels/icons remain fully opaque; unselected text is 35% and icons 50%, resolved against the effective system appearance.
+plate, header, search field or footer. There is no paging or selection translation. Selected labels/icons remain fully opaque; unselected text is 35%, icons and image previews 50%, resolved against the effective system appearance.
 
 The whole glass group grows from the anchor using a shared 0.455-second spring on an independent
 driver layer, sampled into native view frame/bounds without rewriting AppKit backing-layer anchors; a 0.20-second collapse
 can reverse from any presentation frame. Reduce Motion uses 0.12-second fades only. Glass ancestors
-always stay at alpha 1; fade applies to window composition. The system regular glass preset is untinted, with no custom shadow or blur overlays. Outer containers leave its native edges unclipped. WindowServer shadow is off. The system owns glass appearance/contrast/transparency. See [clipboard.md](clipboard.md).
+always stay at alpha 1; fade applies to window composition. The native NSButton uses the untinted `.glass` bezel and `.capsule` shape, without tint or blur overlays. One soft region shadow surrounds the visible group, with pill-shaped holes protecting the glass interiors; its paths include the history circle and follow live widths. Outer containers leave its native edges unclipped. WindowServer shadow is off. The system owns glass appearance/contrast/transparency. See [clipboard.md](clipboard.md).

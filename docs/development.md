@@ -358,10 +358,10 @@ Sync regressions verify zero writes for identical snapshots, image inode/mtime p
 updates, changed/deleted blobs, bounded image caching, and local edits made during remote decoding.
 Mapped snapshot checks cover atomic replacement/unlink lifetime and copying externally mutable files.
 The same harness compiles `QuickClipboardPresentation.swift` (Foundation + CoreGraphics) and checks
-five-entry ordering, horizontal three-item carrier/text motion, scroll reversal and hit testing, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping, native layout throughout the opening transform,
+five-entry ordering, fixed five-entry layout plus the circular history action, empty-history access and hit testing, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping, native layout throughout the opening transform,
 and one-time shortcut transfer with custom bindings and later unbinding preserved.
-`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the 120-point width cap, edge emergence and interrupted paging, editable web roles, caret priority, mouse fallback, cross-display coordinate conversion, above/below placement, untinted system glass,
-native non-key panel and glass invariants, spring/reversal setup and Reduce Motion. Image fixtures cover padded and rounded aspect-fit previews, untinted colors, shared-cache immutability, and live image/text replacement. It creates offscreen
+`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the 120-point width cap, stationary keyboard selection and history activation, editable web roles, caret priority, mouse fallback, cross-display coordinate conversion, above/below placement, untinted native glass buttons and their click routing, the unified area shadow and 1×/2× cutout pixels for the complete group,
+native non-key panel and glass invariants, spring/reversal setup and Reduce Motion. Image fixtures cover padded and rounded aspect-fit previews, untinted colors, image selection opacity, shared-cache immutability, and live image/text replacement. It creates offscreen
 AppKit objects without displaying a menu or accepting visual appearance.
 
 The custom-command harness spawns **real `/bin/zsh`** processes. Its shell-environment cases point

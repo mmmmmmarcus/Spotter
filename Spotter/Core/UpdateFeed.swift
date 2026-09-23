@@ -59,6 +59,7 @@ enum UpdateChannel: Sendable {
 
 /// One GitHub release reduced to what the updater needs.
 struct UpdateRelease: Equatable, Sendable {
+    let id: Int
     let version: SemanticVersion
     let tag: String
     let pageURL: URL
@@ -78,6 +79,7 @@ enum UpdateFeed {
             }
         }
 
+        let id: Int
         let tagName: String
         let prerelease: Bool
         let draft: Bool
@@ -85,6 +87,7 @@ enum UpdateFeed {
         let assets: [Asset]
 
         enum CodingKeys: String, CodingKey {
+            case id
             case tagName = "tag_name"
             case prerelease
             case draft
@@ -118,9 +121,17 @@ enum UpdateFeed {
         }
         guard let best = candidates.max(by: { $0.1 < $1.1 }), best.1 > current else { return nil }
         return UpdateRelease(
+            id: best.0.id,
             version: best.1,
             tag: best.0.tagName,
             pageURL: best.0.htmlURL,
             zipAssetURL: best.0.assets.first { $0.name.hasSuffix(".zip") }?.browserDownloadURL)
+    }
+
+    static func resolvingAssets(_ data: Data, for release: UpdateRelease) throws -> UpdateRelease {
+        let assets = try JSONDecoder().decode([GitHubRelease.Asset].self, from: data)
+        return UpdateRelease(id: release.id, version: release.version, tag: release.tag,
+            pageURL: release.pageURL,
+            zipAssetURL: assets.first { $0.name == "Spotter-\(release.version).zip" }?.browserDownloadURL)
     }
 }

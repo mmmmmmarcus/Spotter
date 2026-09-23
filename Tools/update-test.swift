@@ -43,20 +43,20 @@ struct UpdateTests {
         // Selection
         let feed = """
         [
-          {"tag_name": "v0.7.0-beta.2", "prerelease": true, "draft": false,
+          {"id": 123, "tag_name": "v0.7.0-beta.2", "prerelease": true, "draft": false,
            "html_url": "https://github.com/x/y/releases/tag/v0.7.0-beta.2",
            "assets": [{"name": "Spotter-0.7.0-beta.2.zip",
                        "browser_download_url": "https://example.com/beta.zip"}]},
-          {"tag_name": "v0.6.0", "prerelease": false, "draft": false,
+          {"id": 123, "tag_name": "v0.6.0", "prerelease": false, "draft": false,
            "html_url": "https://github.com/x/y/releases/tag/v0.6.0",
            "assets": [{"name": "Spotter-0.6.0.dmg",
                        "browser_download_url": "https://example.com/stable.dmg"},
                       {"name": "Spotter-0.6.0.zip",
                        "browser_download_url": "https://example.com/stable.zip"}]},
-          {"tag_name": "v0.8.0", "prerelease": false, "draft": true,
+          {"id": 123, "tag_name": "v0.8.0", "prerelease": false, "draft": true,
            "html_url": "https://github.com/x/y/releases/tag/v0.8.0",
            "assets": []},
-          {"tag_name": "v0.5.0", "prerelease": false, "draft": false,
+          {"id": 123, "tag_name": "v0.5.0", "prerelease": false, "draft": false,
            "html_url": "https://github.com/x/y/releases/tag/v0.5.0",
            "assets": []}
         ]
@@ -80,11 +80,11 @@ struct UpdateTests {
 
         let mixedChannels = """
         [
-          {"tag_name": "v1.1.0", "prerelease": false, "draft": false,
+          {"id": 123, "tag_name": "v1.1.0", "prerelease": false, "draft": false,
            "html_url": "https://github.com/x/y/releases/tag/v1.1.0",
            "assets": [{"name": "Spotter-1.1.0.zip",
                        "browser_download_url": "https://example.com/stable-1.1.zip"}]},
-          {"tag_name": "v1.0.0-beta.8", "prerelease": true, "draft": false,
+          {"id": 123, "tag_name": "v1.0.0-beta.8", "prerelease": true, "draft": false,
            "html_url": "https://github.com/x/y/releases/tag/v1.0.0-beta.8",
            "assets": [{"name": "Spotter-1.0.0-beta.8.zip",
                        "browser_download_url": "https://example.com/beta-1.0.zip"}]}
@@ -101,7 +101,7 @@ struct UpdateTests {
                 == v("1.1.0"))
 
         let dmgOnly = """
-        [{"tag_name": "v0.9.0", "prerelease": false, "draft": false,
+        [{"id": 123, "tag_name": "v0.9.0", "prerelease": false, "draft": false,
           "html_url": "https://github.com/x/y/releases/tag/v0.9.0",
           "assets": [{"name": "Spotter-0.9.0.dmg",
                       "browser_download_url": "https://example.com/only.dmg"}]}]
@@ -110,6 +110,19 @@ struct UpdateTests {
         check("dmg-only release still reports, without a zip asset", pageFallback != nil && pageFallback?.zipAssetURL == nil)
 
         check("malformed feed returns nil", UpdateFeed.latestUpdate(in: Data("junk".utf8), channel: .stable, current: v("0.1.0")) == nil)
+
+        let recoveredAssets = """
+        [{"name":"Spotter-0.9.0.zip", "browser_download_url":"https://example.com/recovered.zip"}]
+        """.data(using: .utf8)!
+        let recovered = try? UpdateFeed.resolvingAssets(recoveredAssets, for: pageFallback!)
+        check("missing list ZIP is recovered from dedicated assets response", recovered?.zipAssetURL?.lastPathComponent == "recovered.zip")
+        check("recovery preserves release identity", recovered?.id == pageFallback?.id && recovered?.version == pageFallback?.version && recovered?.pageURL == pageFallback?.pageURL)
+        let unrelatedAssets = """
+        [{"name":"Spotter-1.0.0.zip", "browser_download_url":"https://example.com/wrong.zip"}]
+        """.data(using: .utf8)!
+        check("recovery refuses another version's ZIP", (try? UpdateFeed.resolvingAssets(unrelatedAssets, for: pageFallback!))?.zipAssetURL == nil)
+        check("confirmed empty asset list retains manual fallback", (try? UpdateFeed.resolvingAssets(Data("[]".utf8), for: pageFallback!)) == pageFallback)
+        check("malformed assets fail rather than becoming a manual-only release", (try? UpdateFeed.resolvingAssets(Data("junk".utf8), for: pageFallback!)) == nil)
 
         print(failures == 0 ? "\nUpdate feed: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)

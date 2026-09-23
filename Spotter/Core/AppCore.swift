@@ -482,7 +482,8 @@ final class AppCore: ObservableObject {
                     windowController.restorePasteFocus()
                     quickClipboardPasteFailed()
                 }
-            }, restoreFocus: { [weak self] in self?.windowController.restorePasteFocus() })
+            }, restoreFocus: { [weak self] in self?.windowController.restorePasteFocus() },
+                openHistory: { [weak self] in self?.openClipboardFromQuickHistory() })
             return
         }
         let targetApp = NSWorkspace.shared.frontmostApplication
@@ -517,7 +518,12 @@ final class AppCore: ObservableObject {
                     return
                 }
             }
-        }, restoreFocus: restore)
+        }, restoreFocus: restore, openHistory: { [weak self] in self?.openClipboardFromQuickHistory() })
+    }
+
+    private func openClipboardFromQuickHistory() {
+        palette.prepare(mode: .clipboard)
+        showPalette(mode: .clipboard)
     }
 
     private func quickClipboardPasteFailed() {

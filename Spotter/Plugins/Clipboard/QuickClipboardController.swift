@@ -18,6 +18,7 @@ final class QuickClipboardController {
     private var activation: NotificationToken?
     private var paste: ((ClipboardItem) -> Void)?
     private var restoreFocus: (() -> Void)?
+    private var openHistory: (() -> Void)?
     private var generation = UUID()
     private(set) var isVisible = false
     private static let keys: [UInt16] = [53, 123, 124, 36, 76]
@@ -36,10 +37,11 @@ final class QuickClipboardController {
         for animation in departing.values { animation.stop() }
     }
 
-    func show(anchor request: QuickClipboardAnchor.Request, application: NSRunningApplication? = NSWorkspace.shared.frontmostApplication, paste: @escaping (ClipboardItem) -> Void, restoreFocus: @escaping () -> Void) {
+    func show(anchor request: QuickClipboardAnchor.Request, application: NSRunningApplication? = NSWorkspace.shared.frontmostApplication, paste: @escaping (ClipboardItem) -> Void, restoreFocus: @escaping () -> Void, openHistory: @escaping () -> Void) {
         dismiss()
         self.paste = paste
         self.restoreFocus = restoreFocus
+        self.openHistory = openHistory
         items = QuickClipboardPresentation.recentItems(store.items)
         selection = 0
         isVisible = true
@@ -64,9 +66,8 @@ final class QuickClipboardController {
 
     private func present(anchor: CGRect, screen: CGRect) {
         let currentWidths = QuickClipboardMenuView.widths(for: items)
-        let widestWindow = (0...max(0, currentWidths.count - QuickClipboardPresentation.visibleLimit))
-            .map { QuickClipboardPresentation.visibleWidth(first: $0, widths: currentWidths) }.max() ?? 0
-        let target = QuickClipboardPresentation.frame(anchor: anchor, screen: screen, count: items.count, contentWidth: widestWindow)
+        let target = QuickClipboardPresentation.frame(anchor: anchor, screen: screen, count: items.count,
+            contentWidth: QuickClipboardPresentation.totalWidth(currentWidths))
         let point = CGPoint(x: anchor.midX, y: anchor.midY)
         let margin = QuickClipboardPresentation.canvasMargin
         let canvas = CGRect(origin: target.origin, size: QuickClipboardPresentation.size(count: items.count))
@@ -148,6 +149,7 @@ final class QuickClipboardController {
         items = []
         paste = nil
         restoreFocus = nil
+        openHistory = nil
         restore?()
     }
 
@@ -156,9 +158,10 @@ final class QuickClipboardController {
             guard let self, isVisible else { return }
             let recent = QuickClipboardPresentation.recentItems(latest)
             if recent.count == items.count {
+                let selectedHistory = selection == items.count
                 let selectedID = items.indices.contains(selection) ? items[selection].id : nil
                 items = recent
-                selection = selectedID.flatMap { id in recent.firstIndex { $0.id == id } } ?? 0
+                selection = selectedHistory ? recent.count : (selectedID.flatMap { id in recent.firstIndex { $0.id == id } } ?? 0)
                 menu?.update(items, selection: selection)
             } else {
                 let ids = Set(latest.map(\.id))
@@ -166,18 +169,15 @@ final class QuickClipboardController {
             }
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
-            let scrolling = MainActor.assumeIsolated {
-                guard let self else { return false }
+            MainActor.assumeIsolated {
+                guard let self else { return }
                 if event.window !== self.panel {
                     self.dismiss()
-                } else if self.menu?.isScrolling == true {
-                    return true
                 } else if let menu = self.menu, !menu.containsGlass(menu.convert(event.locationInWindow, from: nil)) {
                     self.dismiss()
                 }
-                return false
             }
-            return scrolling ? nil : event
+            return event
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated { self?.dismiss() }
@@ -194,8 +194,8 @@ final class QuickClipboardController {
 
     private func move(_ offset: Int) {
         guard isVisible else { return }
-        selection = min(max(0, selection + offset), max(0, items.count - 1))
-        menu?.select(selection, animated: true)
+        selection = min(max(0, selection + offset), items.count)
+        menu?.select(selection)
     }
 
     private func handle(_ key: UInt16) {
@@ -210,7 +210,14 @@ final class QuickClipboardController {
     }
 
     private func activate(_ index: Int) {
-        guard isVisible, items.indices.contains(index),
+        guard isVisible else { return }
+        if index == items.count {
+            let action = openHistory
+            dismiss(restoringFocus: true)
+            action?()
+            return
+        }
+        guard items.indices.contains(index),
             let current = store.items.first(where: { $0.id == items[index].id }) else { return }
         let action = paste
         dismiss()

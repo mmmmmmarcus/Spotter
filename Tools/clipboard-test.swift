@@ -102,7 +102,7 @@ struct ClipboardTests {
             expect(screen.insetBy(dx: 8, dy: 8).contains(frame), "picker stays within the visible screen at \(pointer)")
         }
         let empty = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, count: 0)
-        expect(empty.height == QuickClipboardPresentation.rowHeight, "empty history uses one placeholder pill")
+        expect(empty.height == QuickClipboardPresentation.rowHeight, "empty history uses one history button")
     }
 
     static func incrementalSync() async {
