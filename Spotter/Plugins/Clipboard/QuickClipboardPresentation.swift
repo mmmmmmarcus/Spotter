@@ -9,15 +9,20 @@ enum QuickClipboardPresentation {
     static let spacing: CGFloat = 8
     static let safety: CGFloat = 8
     static let canvasMargin: CGFloat = 64
-    static let initialScale: CGFloat = 0.20
-    static let openingDuration = 0.455
-    static let closingDuration = 0.20
+    static let initialScale: CGFloat = 0.50
+    static let closingScale: CGFloat = 0.20
+    static let openingDuration = 0.15
+    static let closingDuration = 0.08
+    // Retime the original spring without changing its damping ratio or overshoot.
+    static let springStiffness = 500 * pow(0.455 / openingDuration, 2)
+    static let springDamping = 1.6 * sqrt(springStiffness)
 
     static func recentItems(_ items: [ClipboardItem]) -> [ClipboardItem] {
         Array(items.prefix(limit))
     }
 
     static func title(for item: ClipboardItem) -> String {
+        if item.kind == .files { return String(item.fileTitle.prefix(160)) }
         guard let text = item.text else { return item.isScreenshot ? "Screenshot" : "Image" }
         let prefix = text.prefix(161)
         let preview = prefix.prefix(160).split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -25,7 +30,8 @@ enum QuickClipboardPresentation {
     }
 
     static func symbol(for item: ClipboardItem) -> String {
-        item.textForm?.systemImage ?? (item.isScreenshot ? "camera.viewfinder" : "photo")
+        if item.kind == .files { return item.fileSymbol }
+        return item.textForm?.systemImage ?? (item.isScreenshot ? "camera.viewfinder" : "photo")
     }
 
     static func size(count: Int) -> CGSize {
@@ -79,14 +85,14 @@ enum QuickClipboardPresentation {
     static func springProgress(elapsed: Double) -> CGFloat {
         guard elapsed > 0 else { return 0 }
         guard elapsed < openingDuration else { return 1 }
-        let frequency = sqrt(500.0)
+        let frequency = sqrt(springStiffness)
         let damped = frequency * 0.6
         return CGFloat(1 - exp(-0.8 * frequency * elapsed) * (cos(damped * elapsed) + 0.8 / 0.6 * sin(damped * elapsed)))
     }
 
-    static func collapsedCenter(center: CGPoint, anchor: CGPoint) -> CGPoint {
-        CGPoint(x: anchor.x + initialScale * (center.x - anchor.x),
-            y: anchor.y + initialScale * (center.y - anchor.y))
+    static func collapsedCenter(center: CGPoint, anchor: CGPoint, scale: CGFloat = initialScale) -> CGPoint {
+        CGPoint(x: anchor.x + scale * (center.x - anchor.x),
+            y: anchor.y + scale * (center.y - anchor.y))
     }
 
     static func signedDistance(_ point: CGPoint, to rect: CGRect, radius: CGFloat = QuickClipboardPresentation.cornerRadius) -> CGFloat {

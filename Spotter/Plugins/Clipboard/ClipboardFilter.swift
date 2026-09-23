@@ -5,6 +5,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
     case all
     case text
     case image
+    case files
     case screenshot
     case link
     case email
@@ -15,6 +16,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .all: return "All Types"
         case .text: return "Text Only"
         case .image: return "Images Only"
+        case .files: return "Files Only"
         case .screenshot: return "Screenshots Only"
         case .link: return "Links Only"
         case .email: return "Emails Only"
@@ -28,6 +30,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .all: return "line.3.horizontal.decrease"
         case .text: return "textformat.alt"
         case .image: return "photo"
+        case .files: return "doc"
         case .screenshot: return "camera.viewfinder"
         case .link: return "link"
         case .email: return "at"
@@ -41,6 +44,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .all: return "Clipboard history is empty"
         case .text: return "No text in clipboard history"
         case .image: return "No images in clipboard history"
+        case .files: return "No files in clipboard history"
         case .screenshot: return "No screenshots in clipboard history"
         case .link: return "No links in clipboard history"
         case .email: return "No email addresses in clipboard history"
@@ -55,6 +59,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         switch self {
         case .all: return true
         case .image: return item.kind == .image
+        case .files: return item.kind == .files
         case .screenshot: return item.isScreenshot
         case .text: return item.textForm == .plain
         case .link: return item.textForm == .link
@@ -71,6 +76,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
 
 extension ClipboardItem {
     var typeTitle: String {
+        if kind == .files { return fileURLs.count == 1 ? "File" : "Files" }
         if kind == .image { return isScreenshot ? "Screenshot" : "Image" }
         switch textForm {
         case .link: return "Link"

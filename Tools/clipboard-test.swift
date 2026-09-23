@@ -27,6 +27,7 @@ struct ClipboardTests {
         persistence()
         migrationFromShippedDatabase()
         await portableSnapshot()
+        await fileReferences()
         await incrementalSync()
         await imageSnapshotCache()
         await mappedImageLifetime()
@@ -517,6 +518,8 @@ struct ClipboardTests {
         let store = ClipboardStore(directory: dir)
         store.load()
         expect(texts(store) == ["newer", "older"], "existing history survives the migration")
+        expect(sqlite(db, "SELECT name FROM pragma_table_info('items')").contains("file_urls"),
+            "shipped databases gain the file-reference column without losing existing rows")
 
         store.addText("after", sourceBundleID: nil)
         store.togglePinned(item(store, "older"))
@@ -569,6 +572,50 @@ struct ClipboardTests {
         expect(restoredURL.path.hasPrefix(destinationDir.path), "sync rewrites image paths locally")
         expect((try? Data(contentsOf: restoredURL)) == imageData, "sync restores clipboard image bytes")
         expect(image.isPinned, "sync restores clipboard pin state")
+    }
+
+    static func fileReferences() async {
+        let dir = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let certificate = dir.appendingPathComponent("密钥 test.p12")
+        let folder = dir.appendingPathComponent("folder", isDirectory: true)
+        try? Data("synthetic test fixture".utf8).write(to: certificate)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let store = ClipboardStore(directory: dir)
+        store.addText("existing history", sourceBundleID: nil)
+        store.addFiles([certificate, folder], sourceBundleID: "com.apple.finder")
+        store.addFiles([certificate, folder], sourceBundleID: "com.apple.finder")
+        expect(store.items.count == 2, "identical consecutive file selections are deduplicated")
+        let files = store.items[0]
+        expect(files.kind == .files && files.text == nil && files.imagePath == nil && files.fileURLs == [certificate, folder],
+            "file payloads stay separate from plain text and managed image data")
+        expect(store.search("p12").first?.id == files.id && store.search("密钥").first?.id == files.id,
+            "file names participate in both FTS and short-query search")
+        expect(store.search("", filter: .files).map(\.id) == [files.id]
+            && store.search("", filter: .text).count == 1, "file and text filters stay distinct")
+        expect(QuickClipboardPresentation.title(for: files).contains("test.p12")
+            && QuickClipboardPresentation.symbol(for: files) == "doc.on.doc", "quick file pills show names and the file-selection symbol")
+        store.togglePinned(files)
+        let reopened = ClipboardStore(directory: dir)
+        reopened.load()
+        expect(reopened.items.first?.fileURLs == [certificate, folder] && reopened.items.first?.isPinned == true,
+            "file URLs and pins survive a database reopen")
+        let snapshot = await reopened.syncSnapshot()
+        expect(snapshot.count == 1 && snapshot[0].kind == .text, "portable backups never export local file references or file contents")
+        await reopened.replace(with: [])
+        expect(reopened.items.count == 1 && reopened.items.first?.fileURLs == [certificate, folder],
+            "sync deletion leaves local file references intact")
+        reopened.remove(reopened.items[0])
+        expect(FileManager.default.fileExists(atPath: certificate.path) && FileManager.default.fileExists(atPath: folder.path),
+            "deleting a file history entry leaves originals untouched")
+        reopened.addFiles([certificate], sourceBundleID: nil)
+        reopened.clearAll()
+        expect(FileManager.default.fileExists(atPath: certificate.path), "clearing history never deletes referenced files")
+        store.addFiles([URL(string: "https://example.com/file.p12")!], sourceBundleID: nil)
+        expect(store.items.count == 2, "the store refuses non-local file references")
+        expect(ClipboardItem(fileURLs: [folder], sourceBundleID: nil).fileSymbol == "folder", "directories have a folder symbol")
+        expect(sqlite(dir.appendingPathComponent("clipboard.sqlite3"), "SELECT name FROM pragma_table_info('items')").contains("file_urls"),
+            "file URLs have an explicit persisted column")
     }
 
     // MARK: - Harness

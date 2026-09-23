@@ -284,7 +284,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   ships with its rate download **off**: `CurrencyRateStore` owns consent and the daily table, and its
   Settings switch is that consent act rather than a plugin switch. Without it nothing is contacted
   and no conversion resolves.
-- **Clipboard** (`Spotter/Plugins/Clipboard/`) — image-first pasteboard capture (including copied local image files) with a persisted history;
+- **Clipboard** (`Spotter/Plugins/Clipboard/`) — image-first pasteboard capture (including copied local image files) and generic file/folder references with a persisted history;
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
   The palette's type filters share one Liquid Glass capsule and preserve search-field focus.
   Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for five recent entries, all visible in native Clear glass pills capped at 120 points, followed by a circular full-history action and surrounded by a shared region shadow,

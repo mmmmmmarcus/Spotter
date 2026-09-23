@@ -10,6 +10,7 @@ final class QuickClipboardMotion: NSObject {
     private let restingBounds: CGRect
     private let center: CGPoint
     private let collapsed: CGPoint
+    private let closingCenter: CGPoint
     private let now: () -> CFTimeInterval
     private var displayLink: CADisplayLink?
     private var startedAt: CFTimeInterval = 0
@@ -34,6 +35,7 @@ final class QuickClipboardMotion: NSObject {
         restingBounds = menu.bounds
         center = CGPoint(x: menu.frame.midX, y: menu.frame.midY)
         collapsed = QuickClipboardPresentation.collapsedCenter(center: center, anchor: anchor)
+        closingCenter = QuickClipboardPresentation.collapsedCenter(center: center, anchor: anchor, scale: QuickClipboardPresentation.closingScale)
         super.init()
         animationLayer.bounds = CGRect(x: 0, y: 0, width: 1, height: 1)
         animationLayer.position = center
@@ -66,9 +68,9 @@ final class QuickClipboardMotion: NSObject {
         isClosing = true
         self.completion = completion
         sourceScale = current.scale
-        targetScale = reduceMotion ? current.scale : QuickClipboardPresentation.initialScale
+        targetScale = reduceMotion ? current.scale : QuickClipboardPresentation.closingScale
         sourcePosition = current.position
-        targetPosition = reduceMotion ? current.position : collapsed
+        targetPosition = reduceMotion ? current.position : closingCenter
         sourceOpacity = current.opacity
         targetOpacity = 0
         duration = reduceMotion ? 0.12 : QuickClipboardPresentation.closingDuration
@@ -119,8 +121,8 @@ final class QuickClipboardMotion: NSObject {
         if spring {
             let value = CASpringAnimation(keyPath: key)
             value.mass = 1
-            value.stiffness = 500
-            value.damping = 2 * 0.8 * sqrt(500)
+            value.stiffness = QuickClipboardPresentation.springStiffness
+            value.damping = QuickClipboardPresentation.springDamping
             value.initialVelocity = 0
             animation = value
         } else {

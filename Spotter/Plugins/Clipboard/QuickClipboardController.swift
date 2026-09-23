@@ -49,7 +49,7 @@ final class QuickClipboardController {
         let token = generation
         installObservers(sourcePID: application?.processIdentifier)
         preparation = Task { [weak self] in
-            let anchor = await Task.detached(priority: .userInitiated) { await request.resolve() }.value
+            let anchor = await request.resolve()
             guard !Task.isCancelled, let self, isVisible, generation == token else { return }
             let point = CGPoint(x: anchor.midX, y: anchor.midY)
             guard let display = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }) ?? NSScreen.main else {
@@ -57,8 +57,6 @@ final class QuickClipboardController {
                 return
             }
             let screen = display.visibleFrame
-            await QuickClipboardMenuView.prepareThumbnails(for: items)
-            guard !Task.isCancelled, isVisible, generation == token else { return }
             present(anchor: anchor, screen: screen)
             preparation = nil
         }

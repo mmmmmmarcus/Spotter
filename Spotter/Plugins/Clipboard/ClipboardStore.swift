@@ -4,13 +4,14 @@ import SQLite3
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 struct ClipboardItem: Identifiable, Hashable, Sendable {
-    enum Kind: String, Sendable { case text, image }
+    enum Kind: String, Sendable { case text, image, files }
 
     let id: UUID
     let kind: Kind
     let text: String?
     /// Absolute path to the image on disk. Files under the store's own `imagesDir` are owned (pruned/deleted with the row); external references (e.g. imported from another app's cache) are left untouched on delete.
     let imagePath: String?
+    let fileURLs: [URL]
     let createdAt: Date
     /// Bundle ID of the app frontmost when the copy was captured (see `ClipboardManager.poll`).
     let sourceBundleID: String?
@@ -32,14 +33,28 @@ struct ClipboardItem: Identifiable, Hashable, Sendable {
             sourceBundleID: sourceBundleID)
     }
 
+    init(fileURLs: [URL], sourceBundleID: String?) {
+        self.init(id: UUID(), kind: .files, text: nil, imagePath: nil, createdAt: Date(),
+            sourceBundleID: sourceBundleID, fileURLs: fileURLs)
+    }
+
+    var fileTitle: String { fileURLs.map(\.lastPathComponent).joined(separator: ", ") }
+    var fileSymbol: String { fileURLs.count > 1 ? "doc.on.doc" : (fileURLs.first?.hasDirectoryPath == true ? "folder" : "doc") }
+    var searchText: String? { kind == .files ? fileURLs.map(\.path).joined(separator: "\n") : text }
+    fileprivate var encodedFileURLs: String? {
+        guard kind == .files, let data = try? JSONEncoder().encode(fileURLs.map(\.absoluteString)) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     init(
         id: UUID, kind: Kind, text: String?, imagePath: String?, createdAt: Date,
-        sourceBundleID: String?, pinnedAt: Date? = nil
+        sourceBundleID: String?, pinnedAt: Date? = nil, fileURLs: [URL] = []
     ) {
         self.id = id
         self.kind = kind
         self.text = text
         self.imagePath = imagePath
+        self.fileURLs = fileURLs.filter { $0.isFileURL && ($0.host == nil || $0.host == "" || $0.host == "localhost") }
         self.createdAt = createdAt
         self.sourceBundleID = sourceBundleID
         self.pinnedAt = pinnedAt
@@ -50,12 +65,12 @@ struct ClipboardItem: Identifiable, Hashable, Sendable {
         ClipboardItem(
             id: id, kind: kind, text: text, imagePath: imagePath,
             createdAt: createdAt ?? self.createdAt, sourceBundleID: sourceBundleID,
-            pinnedAt: pinnedAt)
+            pinnedAt: pinnedAt, fileURLs: fileURLs)
     }
 
     /// Case-insensitive substring match — how the store filters without FTS: short queries, the no-database path, and the pinned block.
     func matches(_ query: String) -> Bool {
-        text?.localizedCaseInsensitiveContains(query) ?? false
+        searchText?.localizedCaseInsensitiveContains(query) ?? false
     }
 }
 
@@ -138,7 +153,8 @@ final class ClipboardStore: ObservableObject {
           image_path TEXT,
           created_at REAL NOT NULL,
           source_app TEXT,
-          pinned_at REAL
+          pinned_at REAL,
+          file_urls TEXT
         );
         CREATE INDEX IF NOT EXISTS items_created_at ON items(created_at);
         CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
@@ -231,6 +247,13 @@ final class ClipboardStore: ObservableObject {
         insert(ClipboardItem(text: text, sourceBundleID: sourceBundleID))
     }
 
+    func addFiles(_ urls: [URL], sourceBundleID: String?) {
+        let item = ClipboardItem(fileURLs: urls, sourceBundleID: sourceBundleID)
+        guard !item.fileURLs.isEmpty else { return }
+        if items.first?.kind == .files, items.first?.fileURLs == item.fileURLs { return }
+        insert(item)
+    }
+
     /// `name` is the file's stem, without an extension. A Spotter screenshot passes its own name
     /// here; that name is also what marks the entry as a screenshot, so it must reach disk intact.
     func addImage(_ data: Data, named name: String? = nil, sourceBundleID: String?) {
@@ -277,6 +300,10 @@ final class ClipboardStore: ObservableObject {
                     continue
                 }
                 seenText.insert(text)
+            case .files:
+                guard !item.fileURLs.isEmpty, let encoded = item.encodedFileURLs,
+                    !seenPath.contains(encoded), !exists(column: "file_urls", value: encoded) else { continue }
+                seenPath.insert(encoded)
             case .image:
                 guard let path = item.imagePath, !seenPath.contains(path), !imagePathExists(path)
                 else { continue }
@@ -344,7 +371,7 @@ final class ClipboardStore: ObservableObject {
         let currentByID = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
         // Clipboard capture continues during blob IO; edits made after the snapshot belong to the local user.
         let locallyChanged = Set(baselineByID.keys).union(currentByID.keys).filter {
-            baselineByID[$0] != currentByID[$0]
+            baselineByID[$0] != currentByID[$0] || currentByID[$0]?.kind == .files
         }
         var resolved = entries.filter { !locallyChanged.contains($0.id) }
         resolved.append(contentsOf: current.filter { locallyChanged.contains($0.id) })
@@ -405,7 +432,7 @@ final class ClipboardStore: ObservableObject {
     private func allItemsForSync() -> [ClipboardItem] {
         guard
             let stmt = prepare(
-                "SELECT id, kind, text, image_path, created_at, source_app, pinned_at "
+                "SELECT id, kind, text, image_path, created_at, source_app, pinned_at, file_urls "
                     + "FROM items ORDER BY rowid DESC")
         else { return items }
         defer { sqlite3_finalize(stmt) }
@@ -519,7 +546,7 @@ final class ClipboardStore: ObservableObject {
     private func bindAndInsert(_ stmt: OpaquePointer, _ item: ClipboardItem) {
         sqlite3_bind_text(stmt, 1, item.id.uuidString, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, item.kind.rawValue, -1, SQLITE_TRANSIENT)
-        if let text = item.text {
+        if let text = item.searchText {
             sqlite3_bind_text(stmt, 3, text, -1, SQLITE_TRANSIENT)
         } else {
             sqlite3_bind_null(stmt, 3)
@@ -540,18 +567,24 @@ final class ClipboardStore: ObservableObject {
         } else {
             sqlite3_bind_null(stmt, 7)
         }
+        if let files = item.encodedFileURLs {
+            sqlite3_bind_text(stmt, 8, files, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 8)
+        }
         sqlite3_step(stmt)
         sqlite3_reset(stmt)
         sqlite3_clear_bindings(stmt)
     }
 
-    private func textExists(_ text: String) -> Bool { exists(column: "text", value: text) }
+    private func textExists(_ text: String) -> Bool { exists(column: "text", value: text, kind: .text) }
     private func imagePathExists(_ path: String) -> Bool {
         exists(column: "image_path", value: path)
     }
 
-    private func exists(column: String, value: String) -> Bool {
-        guard let stmt = prepare("SELECT 1 FROM items WHERE \(column) = ? LIMIT 1") else {
+    private func exists(column: String, value: String, kind: ClipboardItem.Kind? = nil) -> Bool {
+        let kindFilter = kind.map { " AND kind = '\($0.rawValue)'" } ?? ""
+        guard let stmt = prepare("SELECT 1 FROM items WHERE \(column) = ?\(kindFilter) LIMIT 1") else {
             return false
         }
         defer { sqlite3_finalize(stmt) }
@@ -616,6 +649,9 @@ final class ClipboardStore: ObservableObject {
         if !columnExists("pinned_at", in: "items") {
             sqlite3_exec(db, "ALTER TABLE items ADD COLUMN pinned_at REAL", nil, nil, nil)
         }
+        if !columnExists("file_urls", in: "items") {
+            guard sqlite3_exec(db, "ALTER TABLE items ADD COLUMN file_urls TEXT", nil, nil, nil) == SQLITE_OK else { return false }
+        }
         // Created after the migration rather than in `schema`, since the column may not exist yet on an older database.
         sqlite3_exec(
             db,
@@ -623,14 +659,14 @@ final class ClipboardStore: ObservableObject {
             nil, nil, nil)
         insertStmt = prepare(
             """
-            INSERT INTO items(id, kind, text, image_path, created_at, source_app, pinned_at)
-            VALUES(?,?,?,?,?,?,?)
+            INSERT INTO items(id, kind, text, image_path, created_at, source_app, pinned_at, file_urls)
+            VALUES(?,?,?,?,?,?,?,?)
             """
         )
         // Every pinned row plus the newest `memoryWindow` unpinned ones, keyed off the floor rowid `windowFloor` looks up. Two indexed branches rather than one `pinned_at IS NOT NULL OR rowid >= ?`: the planner can't drive an OR from an index while holding the row order, so that form reads the whole table.
         loadStmt = prepare(
             """
-            SELECT id, kind, text, image_path, created_at, source_app, pinned_at FROM (
+            SELECT id, kind, text, image_path, created_at, source_app, pinned_at, file_urls FROM (
               SELECT rowid AS rid, * FROM items WHERE rowid >= ?1
               UNION ALL
               SELECT rowid AS rid, * FROM items WHERE pinned_at IS NOT NULL AND rowid < ?1
@@ -640,7 +676,7 @@ final class ClipboardStore: ObservableObject {
             "SELECT rowid FROM items WHERE pinned_at IS NULL ORDER BY rowid DESC LIMIT 1 OFFSET ?")
         searchStmt = prepare(
             """
-            SELECT i.id, i.kind, i.text, i.image_path, i.created_at, i.source_app, i.pinned_at
+            SELECT i.id, i.kind, i.text, i.image_path, i.created_at, i.source_app, i.pinned_at, i.file_urls
             FROM items_fts f JOIN items i ON i.rowid = f.rowid
             WHERE items_fts MATCH ? ORDER BY f.rowid DESC LIMIT 200
             """)
@@ -695,10 +731,12 @@ final class ClipboardStore: ObservableObject {
             let kindString = columnString(stmt, 1),
             let kind = ClipboardItem.Kind(rawValue: kindString)
         else { return nil }
+        let files = columnString(stmt, 7).flatMap { $0.data(using: .utf8) }
+            .flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? []
         return ClipboardItem(
-            id: id, kind: kind, text: columnString(stmt, 2), imagePath: columnString(stmt, 3),
+            id: id, kind: kind, text: kind == .files ? nil : columnString(stmt, 2), imagePath: columnString(stmt, 3),
             createdAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4)),
-            sourceBundleID: columnString(stmt, 5), pinnedAt: columnDate(stmt, 6))
+            sourceBundleID: columnString(stmt, 5), pinnedAt: columnDate(stmt, 6), fileURLs: files.compactMap { URL(string: $0) })
     }
 
     private static func columnDate(_ stmt: OpaquePointer?, _ index: Int32) -> Date? {
@@ -781,6 +819,7 @@ actor ClipboardSyncImages {
             if let old = cache.removeValue(forKey: path) { cachedBytes -= old.size }
         }
         return rows.compactMap { item in
+            guard item.kind != .files else { return nil }
             let data = item.imagePath.flatMap { read($0) }
             if item.kind == .image && data == nil { return nil }
             return ClipboardSyncItem(

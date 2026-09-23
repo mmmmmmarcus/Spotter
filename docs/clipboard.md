@@ -15,12 +15,11 @@ re-capturing Spotter's own writes, every write stamps a private `internalType` m
 pasteboard and the poller skips anything carrying it.
 
 `ClipboardCapture` snapshots the advertised representations before any background work. A single
-copied local image file takes priority over its preview; otherwise valid PNG, TIFF or other ImageIO
-image data takes priority over accompanying text. Image decoding and PNG conversion run off-main.
+copied local image file takes priority over its preview. Other local file URLs (including folders and multi-file selections) become one `files` entry before any icon preview or accompanying filename text is considered. Standard file-URL items and legacy Finder filename lists are supported. Otherwise valid PNG, TIFF or other ImageIO image data takes priority over accompanying text. Image decoding and PNG conversion run off-main.
 Only when no usable image exists does capture fall back to text or a URL string. Copying an image URL
 alone stays a link and never fetches it. Mixed representations produce one history item, not both an
 image and its filename. Secret/internal markers and excluded source apps still skip the entire copy.
-The history format remains text/image; old entries that only retained text cannot recover discarded pixels.
+The history stores text, images and file references; old entries cannot recover discarded file URLs or image pixels. Previously missed files must be copied again after updating.
 
 Its plugin lifecycle starts this timer once, from `onStart`, with the current pasteboard change
 count so contents present before launch are not re-captured.
@@ -35,13 +34,15 @@ FTS search reaches older rows.
 A database that won't open is deleted and recreated (worst case the store degrades to session-only
 in-memory history).
 
+File selections persist an ordered JSON URL list in `items.file_urls`, added in place for existing databases. Their paths feed the existing FTS index, but `ClipboardItem.text` stays nil so a local text editor never receives a filename disguised as the original payload. Files are referenced, not read or duplicated; retention, deletion and Clear History never remove the originals. Standard file URLs are restored on paste, with an internal marker on every item. Missing originals refuse the whole paste before clearing the pasteboard. Both history surfaces show filenames and file/folder symbols; the full preview lists paths and reports unavailable originals.
+
 Image capture (TIFF→PNG re-encode + blob write) runs off the main actor via detached tasks; row
 inserts, search, and pruning stay on the main actor.
 
 Trusted v3 backups and automatic sync include the complete text/image history and pin stamps. Image
 bytes are embedded in the JSON and written into the destination Mac's own cache, so machine-local
 absolute paths never cross devices. A synced deletion replaces the destination history rather than
-merging old rows back in.
+merging old rows back in. File references are device-local and excluded from portable backup/sync; applying a snapshot preserves existing local file entries.
 
 Sync reads reuse image bytes in an off-main cache capped at 32 MiB, validating each cached file's
 inode, modification date and size. Removed or changed files invalidate their cached bytes; oversized
@@ -59,10 +60,10 @@ over that incoming snapshot. The wire format and retention rules are unchanged.
 ## Type filter
 
 The trailing edge of the clipboard search bar carries a Liquid Glass segmented control for **All Types,
-Text Only, Images Only, Screenshots Only, Links Only, Emails Only, Numbers Only**. Each segment
+Text Only, Images Only, Files Only, Screenshots Only, Links Only, Emails Only, Numbers Only**. Each segment
 shows its SF Symbol, with a tooltip and accessible name. Clicking a segment keeps the search
 field focused, resets selection to the first result and scrolls to the top. **⌘P** cycles forward
-and **⇧⌘P** cycles backward; the filter no longer opens a menu. The seven segments share one
+and **⇧⌘P** cycles backward; the filter no longer opens a menu. The eight segments share one
 interactive glass capsule using `Theme.frosted(in:)`, with an immediate, unanimated selection highlight.
 Buttons stay out of keyboard focus traversal and expose their selected state to VoiceOver.
 
@@ -70,7 +71,7 @@ Text rows use `textformat.alt`, links use `link`, numbers use `number.sign`, and
 keep their distinct `at` symbol. Images retain their thumbnails. Numbers must occupy the entire
 trimmed entry: signed integers, decimals, correctly grouped thousands, scientific notation and
 percentages are accepted. Mixed strings such as `50080C`, expressions and version strings remain
-text. The detail pane uses the same classification for its Type label instead of calling every textual payload Text. Persisted kinds remain text/image.
+text. The detail pane uses the same classification for its Type label instead of calling every textual payload Text. Persisted kinds are text/image/files.
 
 **Screenshots are derived too, off the file name.** Spotter names its own captures
 `<App>_SpotterScreenshot_<yyMMddHHmm>.png`, and `ClipboardItem.isScreenshot` looks for that marker in
@@ -81,8 +82,7 @@ keeps it and Screenshots Only is the narrower slice. An image capture reaches hi
 marker, which is what stops the poller from recording a second, differently-named copy of the same
 pixels. A capture from an app the user excluded from history is excluded here too.
 
-**Links, emails and numbers are derived, never stored.** `ClipboardItem.Kind` stays `text`/`image` — the two
-things capture can actually tell apart — and `ClipboardFilter` reads `ClipboardItem.textForm`
+**Links, emails and numbers are derived, never stored.** `ClipboardItem.Kind` separates `text`, `image` and `files`, while `ClipboardFilter` reads `ClipboardItem.textForm`
 (`plain`/`link`/`email`/`number`) off the text on demand. No column, no migration, no backfill: improving the
 classifier stays a code change. Because the whole list reclassifies on every render, the classifier is
 guarded cheapest-first — over 2048 UTF-8 bytes is prose by definition (`utf8.count` is O(1), `count`
@@ -159,7 +159,7 @@ older snapshots cannot erase the quick action just by omitting its binding.
 The user-requested exception to palette-first interaction is a nonactivating, non-key panel owned by
 `AppCore` through `QuickClipboardController`. `AppCore` captures the global AppKit mouse position at
 invocation. `QuickClipboardAnchor` prefers the active editable NSTextView's insertion caret, then
-reads the target application's focused editable element and zero-length selection bounds through AX. Both application and system-wide focus are checked against the target PID; explicitly editable web elements are accepted even with a nonstandard role. If needed, Chromium accessibility is temporarily requested, with a bounded asynchronous wait for the lazy tree, and its prior flags restored. The bounded retry also runs when accessibility was already enabled. Editable controls try numeric insertion-range bounds first, then collapsed text-marker bounds; the fallback checks marker length without reading the selected text. A Spotter search field never overrides another application's caret.
+reads the target application's focused editable element and zero-length selection bounds through AX. Both application and system-wide focus are checked against the target PID; explicitly editable web elements are accepted even with a nonstandard role. If needed, Chromium accessibility is temporarily requested, with a bounded asynchronous wait for the lazy tree, and its prior flags restored. The bounded retry also runs when accessibility was already enabled. External lookup has a 50 ms presentation deadline; late results are discarded and the captured mouse is used without moving an already-visible menu. Cancelling presentation cancels lookup, including lazy-tree retries. Editable controls try numeric insertion-range bounds first, then collapsed text-marker bounds; the fallback checks marker length without reading the selected text. Empty Chromium editors can report their whole box for a collapsed marker: when the numeric insertion offset is zero and the character count is zero or one (a placeholder newline), the menu uses the reported box’s top-leading edge as an input-area anchor. This is explicitly a fallback anchor, not a fabricated precise caret; editors with longer content still require narrow caret geometry. A Spotter search field never overrides another application's caret.
 External AX reads run off-main with bounded messaging timeouts and never prompt, activate an app,
 change its selection, or read its text. Missing permission, unsupported caret bounds, nonempty
 selections and invalid/offscreen geometry fall back to the captured mouse point. AX coordinates are
@@ -172,7 +172,7 @@ Up to five recent entries are visible together in one fixed horizontal row with 
 left aligned and sized to each native button’s content plus 11-point horizontal insets, capped at 120 points,
 inside one `NSGlassEffectContainerView`, with 8-point gaps. A final 32-point circular `ellipsis` button opens the complete clipboard history in the shared palette, clearing any old query/filter. It remains available when history is empty. Each glass view owns a borderless action button as its `contentView`, avoiding a second glass bezel. Clear is the explicitly selected material for this menu, without an added tint or dimming layer. Preview content is a non-interactive child view, leaving hit testing and accessibility on the button. The system owns
 appearance, contrast and Reduce Transparency. Symbols use 14-point medium `labelColor`. Selected text has full opacity;
-unselected text has 35% opacity and symbols 50%. Text and symbols resolve semantic label colors in the effective drawing appearance, including appearance changes. Symbols keep their native 14-point size and pixel-aligned origins; the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 16 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors with full opacity when selected and 50% when unselected, and fall back to a photo symbol for unreadable files.
+unselected text has 35% opacity and symbols 50%. Text and symbols resolve semantic label colors in the effective drawing appearance, including appearance changes. Symbols keep their native 14-point size and pixel-aligned origins; the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 16 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. Loading runs asynchronously alongside the opening animation, with a photo symbol until a cold preview is ready. Cold image pills reserve their maximum width so late decoding cannot grow the row beyond its screen-clamped placement. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors with full opacity when selected and 50% when unselected, and fall back to a photo symbol for unreadable files.
 
 Material uses the system Clear glass preset without custom tint, raster shadows or blur overlays. Outer containers do not clip the system-rendered glass edges; only pill content clips to its glass outline.
 
@@ -182,14 +182,14 @@ through `HotKeyManager`'s existing transient Carbon registrations, so the input 
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
 
-`QuickClipboardMotion` scales the whole group from 0.20 to 1 using mass 1, stiffness 500, damping 35.78
-and a 0.455-second spring. The initial center is `anchor + 0.2 × (finalCenter − anchor)`, with both
+`QuickClipboardMotion` scales the whole group from 0.50 to 1 using mass 1, stiffness 4600.56, damping 108.52
+and a 0.150-second spring, preserving the original damping ratio and overshoot. The initial center is `anchor + 0.5 × (finalCenter − anchor)`, with both
 position and scale animated together on an independent driver layer. A display link applies its
 presentation to the actual menu `frame` with fixed `bounds`; AppKit retains ownership of native
 backing-layer anchors and geometry, so glass and clipping stay in the same coordinate space. The
 initial small frame and animations are installed before ordering the panel front. Driver opacity
 sets **window composition alpha**, never glass or its ancestors, for a 0.145-second ease-out fade. Closing samples presentation scale, position and opacity
-and shrinks/fades for 0.20 seconds; a pre-first-frame close uses the analytical spring state as fallback.
+and shrinks to 0.20 around the same anchor while fading for 0.08 seconds; a pre-first-frame close uses the analytical spring state as fallback.
 Reduce Motion keeps only a 0.12-second fade. Display links exist only during the bounded opening/closing animation, with task
 cleanup even when a display link stops producing frames. Input ends immediately on dismissal and the
 departing panel ignores mouse events. Screenshot's Hide Spotter path closes these panels immediately.

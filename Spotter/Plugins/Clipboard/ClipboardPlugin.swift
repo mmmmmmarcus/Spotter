@@ -15,7 +15,7 @@ enum ClipboardPlugin {
             metadata: PluginMetadata(
                 id: .clipboard,
                 name: "Clipboard",
-                summary: "Keep searchable text and image clipboard history.",
+                summary: "Keep searchable text, image and file clipboard history.",
                 systemImage: "doc.on.clipboard",
                 tint: .orange),
             permissions: [.accessibility],

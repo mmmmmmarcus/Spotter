@@ -79,7 +79,7 @@ enum Paster {
         return true
     }
 
-    /// Returns whether content was actually written; if the item's text/image is gone, the pasteboard is left untouched (never cleared to empty) and the caller skips the paste.
+    /// Returns whether content was actually written; if the item's content or original file is gone, the pasteboard is left untouched (never cleared to empty) and the caller skips the paste.
     @MainActor @discardableResult
     private static func write(_ item: ClipboardItem, store: ClipboardStore) -> Bool {
         let pb = NSPasteboard.general
@@ -89,6 +89,8 @@ enum Paster {
             pb.clearContents()
             pb.declareTypes([.string, ClipboardManager.internalType], owner: nil)
             pb.setString(text, forType: .string)
+        case .files:
+            guard ClipboardCapture.writeFiles(item.fileURLs, to: pb) else { return false }
         case .image:
             guard let url = store.imageURL(for: item), let data = try? Data(contentsOf: url) else {
                 return false

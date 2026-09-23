@@ -193,6 +193,10 @@ final class QuickClipboardMenuView: NSView {
     static func widths(for items: [ClipboardItem]) -> [CGFloat] {
         let button = QuickClipboardButton(frame: .zero)
         return items.prefix(QuickClipboardPresentation.limit).map { item in
+            if item.kind == .image, let path = item.imagePath,
+               ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 128) == nil {
+                return QuickClipboardPresentation.width
+            }
             configure(button, for: item)
             let width = item.kind == .image ? (button.content.image?.size.width ?? 14) : button.content.intrinsicContentSize.width
             return min(QuickClipboardPresentation.width, max(QuickClipboardPresentation.rowHeight, ceil(width + 22)))

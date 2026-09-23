@@ -14,16 +14,19 @@ enum ClipboardCapture {
     enum Payload: Sendable {
         case image(Data)
         case text(String)
+        case files([URL])
     }
 
     struct Snapshot: Sendable {
         let images: [Data]
         let imageFile: URL?
         let text: String?
+        var fileURLs: [URL] = []
 
         func resolve() -> Payload? {
             if let imageFile, let data = try? Data(contentsOf: imageFile),
                let png = ClipboardCapture.png(data: data) { return .image(png) }
+            if !fileURLs.isEmpty { return .files(fileURLs) }
             for data in images {
                 if let png = ClipboardCapture.png(data: data) { return .image(png) }
             }
@@ -42,17 +45,30 @@ enum ClipboardCapture {
         let others = types.filter { supported.contains($0.rawValue) && $0 != .png && $0 != .tiff }
         let imageTypes = ([NSPasteboard.PasteboardType.png, .tiff] + others).filter { types.contains($0) }
         let images = imageTypes.compactMap { pasteboard.data(forType: $0) }
-        var imageFile: URL?
-        if types.contains(.fileURL),
-           let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
-           urls.count == 1, let url = urls.first, url.isFileURL,
-           UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) == true {
-            imageFile = url
+        var urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        if urls.isEmpty, let paths = pasteboard.propertyList(forType: .init("NSFilenamesPboardType")) as? [String] {
+            urls = paths.filter { $0.hasPrefix("/") }.map { URL(fileURLWithPath: $0) }
         }
+        urls = urls.filter { $0.isFileURL && ($0.host == nil || $0.host == "" || $0.host == "localhost") }
+        let imageFile = urls.count == 1 && UTType(filenameExtension: urls[0].pathExtension)?.conforms(to: .image) == true ? urls[0] : nil
         let text = pasteboard.string(forType: .string) ?? pasteboard.string(forType: .URL)
         // A promised representation can replace the pasteboard while being requested; never combine different copies.
         guard pasteboard.changeCount == change else { return nil }
-        return Snapshot(images: images, imageFile: imageFile, text: text)
+        return Snapshot(images: images, imageFile: imageFile, text: text, fileURLs: urls)
+    }
+
+    @MainActor
+    static func writeFiles(_ urls: [URL], to pasteboard: NSPasteboard) -> Bool {
+        guard !urls.isEmpty, urls.allSatisfy({ $0.isFileURL && ($0.host == nil || $0.host == "" || $0.host == "localhost")
+            && FileManager.default.fileExists(atPath: $0.path) }) else { return false }
+        let entries = urls.map { url in
+            let entry = NSPasteboardItem()
+            entry.setString(url.absoluteString, forType: .fileURL)
+            entry.setData(Data(), forType: internalType)
+            return entry
+        }
+        pasteboard.clearContents()
+        return pasteboard.writeObjects(entries)
     }
 
     private static func png(data: Data) -> Data? {

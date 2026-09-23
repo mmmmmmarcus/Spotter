@@ -480,7 +480,7 @@ final class AppCore: ObservableObject {
                 guard let self else { return }
                 if !windowController.paste(item, store: clipboardStore) {
                     windowController.restorePasteFocus()
-                    quickClipboardPasteFailed()
+                    clipboardPasteFailed()
                 }
             }, restoreFocus: { [weak self] in self?.windowController.restorePasteFocus() },
                 openHistory: { [weak self] in self?.openClipboardFromQuickHistory() })
@@ -507,14 +507,14 @@ final class AppCore: ObservableObject {
                 guard let text = item.text, localTarget.insert(text, restoringFocus: true),
                     Paster.copy(item, store: clipboardStore) else {
                     restore()
-                    quickClipboardPasteFailed()
+                    clipboardPasteFailed()
                     return
                 }
             } else {
                 restore()
                 guard let targetApp, !targetApp.isTerminated,
                     Paster.paste(item, store: clipboardStore, previousApp: targetApp) else {
-                    quickClipboardPasteFailed()
+                    clipboardPasteFailed()
                     return
                 }
             }
@@ -526,7 +526,7 @@ final class AppCore: ObservableObject {
         showPalette(mode: .clipboard)
     }
 
-    private func quickClipboardPasteFailed() {
+    private func clipboardPasteFailed() {
         hud.show(title: "Unable to Paste", symbol: "exclamationmark.triangle", isNoOp: true)
     }
 
@@ -1007,12 +1007,16 @@ final class AppCore: ObservableObject {
         // A successful write promotes the item to the head of its section; follow it so any preserved (pop-to-root) or open clipboard state highlights the row that moved.
         if windowController.paste(item, store: clipboardStore) {
             selectClip(item)
+        } else {
+            clipboardPasteFailed()
         }
     }
 
     func pasteKeepingWindowOpen(_ item: ClipboardItem) {
         if windowController.pasteKeepingWindowOpen(item, store: clipboardStore) {
             selectClip(item)
+        } else {
+            clipboardPasteFailed()
         }
     }
 
@@ -1020,13 +1024,16 @@ final class AppCore: ObservableObject {
         hidePalette(restoreFocus: false)
         if Paster.copy(item, store: clipboardStore) {
             selectClip(item)
+        } else {
+            hud.show(title: "Unable to Copy", symbol: "exclamationmark.triangle", isNoOp: true)
         }
     }
 
-    func revealClipboardImage(_ item: ClipboardItem) {
-        guard let url = clipboardStore.imageURL(for: item) else { return }
+    func revealClipboardItem(_ item: ClipboardItem) {
+        let urls = item.kind == .files ? item.fileURLs : clipboardStore.imageURL(for: item).map { [$0] } ?? []
+        guard !urls.isEmpty else { return }
         hidePalette(restoreFocus: false)
-        AppLauncher.showInFinder(url)
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 
     /// Pin or unpin a clipboard entry: the row jumps into (or out of) the Pinned section at the top, so the selection and the scroll follow it.

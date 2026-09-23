@@ -146,10 +146,10 @@ enum ClipboardActionsMenu {
                     core.togglePinnedClip(item)
                 })
         }
-        if item.kind == .image {
+        if item.kind == .image || item.kind == .files {
             items.append(
                 PopoverMenuItem(title: "Show in Finder", systemImage: "folder") {
-                    core.revealClipboardImage(item)
+                    core.revealClipboardItem(item)
                 })
         }
         items.append(
@@ -173,6 +173,7 @@ enum ClipboardActionsMenu {
                 separator: " ")
             return String(oneLine.prefix(40))
         case .image: return "Image"
+        case .files: return item.fileTitle
         }
     }
 }
@@ -215,12 +216,15 @@ private struct ClipboardRow: View {
             return String((item.text ?? "").prefix(200)).trimmingCharacters(
                 in: .whitespacesAndNewlines)
         case .image: return "Image"
+        case .files: return item.fileTitle
         }
     }
 
     @ViewBuilder
     private var thumbnail: some View {
         switch item.kind {
+        case .files:
+            glyphTile(item.fileSymbol)
         case .text:
             glyphTile(item.textForm?.systemImage ?? "textformat.alt")
         case .image:
@@ -306,6 +310,24 @@ struct ClipboardPreview: View {
     @ViewBuilder
     private func content(for item: ClipboardItem) -> some View {
         switch item.kind {
+        case .files:
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                    ForEach(Array(item.fileURLs.enumerated()), id: \.offset) { _, url in
+                        HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                            Image(systemName: url.hasDirectoryPath ? "folder" : "doc")
+                                .font(.title2).foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                                Text(url.lastPathComponent).font(.headline)
+                                Text(url.path).font(.caption).foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .overlayScroller()
+            }
         case .text:
             ScrollView {
                 Text(item.text ?? "")
@@ -347,6 +369,7 @@ private struct ClipboardInfoSection: View {
         var words: Int?
         var pixelSize: CGSize?
         var fileBytes: Int?
+        var missingFiles: Int?
     }
 
     private struct InfoRow: Identifiable {
@@ -399,6 +422,12 @@ private struct ClipboardInfoSection: View {
             rows.append(InfoRow(label: "Source", value: source.name, icon: source.icon))
         }
         switch item.kind {
+        case .files:
+            rows.append(InfoRow(label: "Type", value: item.typeTitle))
+            rows.append(InfoRow(label: "Files", value: item.fileURLs.count.formatted()))
+            if let missing = details.missingFiles {
+                rows.append(InfoRow(label: "Availability", value: missing == 0 ? "Available" : "\(missing) unavailable"))
+            }
         case .text:
             rows.append(InfoRow(label: "Type", value: item.typeTitle))
             if let characters = details.characters {
@@ -435,11 +464,15 @@ private struct ClipboardInfoSection: View {
     private func loadDetails() async {
         let text = item.text
         let url = imageURL
+        let files = item.fileURLs
         details = await Task.detached(priority: .userInitiated) {
             var details = Details()
             if let text {
                 details.characters = text.count
                 details.words = Self.wordCount(text)
+            }
+            if !files.isEmpty {
+                details.missingFiles = files.filter { !FileManager.default.fileExists(atPath: $0.path) }.count
             }
             if let url {
                 details.pixelSize = ImageThumbnail.pixelSize(of: url)

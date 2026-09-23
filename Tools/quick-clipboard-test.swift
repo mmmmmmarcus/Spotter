@@ -14,7 +14,9 @@ struct QuickClipboardTests {
     static func main() async {
         geometry()
         await caretAnchors()
+        await caretDeadline()
         webCaretBounds()
+        emptyWebEditorAnchor()
         await imagePreviews()
         await nativeSurface()
         print("\(passes)/\(passes + failures) passed")
@@ -55,6 +57,30 @@ struct QuickClipboardTests {
             "a visible caret on another display remains valid")
     }
 
+    static func caretDeadline() async {
+        let request = QuickClipboardAnchor.Request(mouse: CGPoint(x: 100, y: 100), localCaret: nil, processID: 123,
+            primaryTop: 900, screens: [CGRect(x: 0, y: 0, width: 1440, height: 900)])
+        let quartz = CGRect(x: 300, y: 400, width: 1, height: 18)
+        let ready = await request.resolve { _ in quartz }
+        expect(ready == QuickClipboardAnchor.appKitRect(quartz: quartz, primaryTop: 900),
+            "a promptly available external caret wins over the mouse deadline")
+        let start = ContinuousClock.now
+        let slow = await request.resolve { _ in
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.4) { continuation.resume(returning: quartz) }
+            }
+        }
+        expect(slow == CGRect(origin: request.mouse, size: .zero) && start.duration(to: .now) < .milliseconds(200),
+            "a noncancellable AX read cannot delay presentation until it completes")
+        let cancelled = Task { await request.resolve { _ in
+            try? await Task.sleep(for: .seconds(1))
+            return quartz
+        } }
+        cancelled.cancel()
+        expect(await cancelled.value == CGRect(origin: request.mouse, size: .zero),
+            "cancelling menu preparation terminates anchor resolution")
+    }
+
     static func webCaretBounds() {
         var selection = CFRange(location: 5, length: 0)
         var expected = CGRect(x: 500, y: 250, width: 1, height: 20)
@@ -68,7 +94,7 @@ struct QuickClipboardTests {
         var role = "AXTextArea"
         var markerReads = 0
         func read() -> CGRect? {
-            QuickClipboardAnchor.caret(attribute: { name in
+            QuickClipboardAnchor.insertionAnchor(attribute: { name in
                 switch name {
                 case "AXRole": return role as CFString
                 case "AXSelectedTextRange": return numericRange
@@ -102,6 +128,45 @@ struct QuickClipboardTests {
         expect(read() == nil, "read-only web text cannot supply an insertion caret")
     }
 
+    static func emptyWebEditorAnchor() {
+        var selection = CFRange(location: 0, length: 0)
+        var box = CGRect(x: 300, y: 400, width: 500, height: 80)
+        var count: NSNumber = 0
+        let marker = "empty-editor-marker" as CFString
+        func read() -> CGRect? {
+            QuickClipboardAnchor.insertionAnchor(attribute: { name in
+                switch name {
+                case "AXRole": return "AXTextArea" as CFString
+                case "AXSelectedTextRange": return AXValueCreate(.cfRange, &selection)
+                case "AXSelectedTextMarkerRange": return marker
+                case "AXNumberOfCharacters": return count
+                default: return nil
+                }
+            }, parameterized: { name, _ in
+                switch name {
+                case "AXLengthForTextMarkerRange": return 0 as CFNumber
+                case "AXBoundsForTextMarkerRange": return AXValueCreate(.cgRect, &box)
+                default: return nil
+                }
+            })
+        }
+        let expected = CGRect(x: 300, y: 400, width: 0, height: 1)
+        expect(read() == expected, "empty web editors anchor at their top edge instead of the mouse")
+        count = 1
+        expect(read() == expected, "a placeholder newline in an empty rich editor can use its box anchor")
+        count = 2
+        expect(read() == nil, "editors with multiple characters never substitute their entire box for a precise caret")
+        count = 0
+        selection.location = 1
+        expect(read() == nil, "the empty-editor fallback requires insertion at the beginning")
+        selection.location = 0
+        selection.length = 1
+        expect(read() == nil, "selected text cannot trigger the empty-editor fallback")
+        selection.length = 0
+        box.size.height = 0
+        expect(read() == nil, "zero-size web bounds do not create a false input anchor")
+    }
+
     static func geometry() {
         let screen = CGRect(x: -1440, y: -400, width: 1440, height: 1000)
         let mouse = CGRect(x: -900, y: -200, width: 0, height: 0)
@@ -118,10 +183,10 @@ struct QuickClipboardTests {
         let center = CGPoint(x: 380, y: 720)
         let collapsed = QuickClipboardPresentation.collapsedCenter(center: center, anchor: anchor)
         let corner = CGPoint(x: 200, y: 640)
-        let transformed = CGPoint(x: collapsed.x + 0.2 * (corner.x - center.x), y: collapsed.y + 0.2 * (corner.y - center.y))
-        expect(abs(transformed.x - (anchor.x + 0.2 * (corner.x - anchor.x))) < 0.001,
+        let transformed = CGPoint(x: collapsed.x + 0.5 * (corner.x - center.x), y: collapsed.y + 0.5 * (corner.y - center.y))
+        expect(abs(transformed.x - (anchor.x + 0.5 * (corner.x - anchor.x))) < 0.001,
             "collapsed x really scales around the anchor instead of menu center")
-        expect(abs(transformed.y - (anchor.y + 0.2 * (corner.y - anchor.y))) < 0.001,
+        expect(abs(transformed.y - (anchor.y + 0.5 * (corner.y - anchor.y))) < 0.001,
             "collapsed y really scales around the anchor instead of menu center")
         let rects = QuickClipboardPresentation.rowFrames(count: 5)
         expect(rects.count == 6 && rects.last!.size == CGSize(width: 32, height: 32),
@@ -134,8 +199,10 @@ struct QuickClipboardTests {
             && QuickClipboardPresentation.size(count: 0).width == 32,
             "empty history still offers the full-history circle")
         expect(rects[1].minX - rects[0].maxX == 8, "pill spacing stays eight points")
-        let peak = (0...455).map { QuickClipboardPresentation.springProgress(elapsed: Double($0) / 1000) }.max()!
+        let peak = (0...150).map { QuickClipboardPresentation.springProgress(elapsed: Double($0) / 1000) }.max()!
         expect(peak > 1 && peak < 1.016, "spring overshoot keeps final scale within about 1.2 percent")
+        expect(abs(QuickClipboardPresentation.springProgress(elapsed: 0.149) - 1) < 0.001,
+            "the faster spring settles before its final frame without a visible snap")
         expect(QuickClipboardPresentation.fadeProgress(elapsed: 0, duration: 0.145, easeIn: false) == 0,
             "opacity fallback begins transparent before presentation exists")
         expect(QuickClipboardPresentation.fadeProgress(elapsed: 0.145, duration: 0.145, easeIn: false) == 1,
@@ -360,41 +427,42 @@ struct QuickClipboardTests {
         motion.prepareOpening(reduceMotion: false)
         let spring = motion.animationLayer.animation(forKey: "transform.scale") as? CASpringAnimation
         let movement = motion.animationLayer.animation(forKey: "position") as? CASpringAnimation
-        expect(spring?.mass == 1 && spring?.stiffness == 500 && abs((spring?.damping ?? 0) - 35.777) < 0.01,
-            "opening uses the specified lightly underdamped spring")
-        expect(spring?.duration == 0.455 && movement?.duration == spring?.duration,
+        expect(spring?.mass == 1 && abs((spring?.stiffness ?? 0) - 4600.556) < 0.01 && abs((spring?.damping ?? 0) - 108.523) < 0.01,
+            "opening retimes the spring while preserving its damping ratio")
+        expect(spring?.duration == 0.15 && movement?.duration == spring?.duration,
             "position and scale have one shared opening duration")
         expect(panel.alphaValue == 0 && !panel.isVisible, "animations are installed before the window can flash visible")
         expect(menu.layer?.anchorPoint == backingAnchor, "animation never rewrites AppKit's backing-layer anchor")
         expect(menu.layer?.animation(forKey: "position") == nil && menu.layer?.animation(forKey: "transform.scale") == nil,
             "spring animation lives on an independent driver, not AppKit's geometry")
         root.layoutSubtreeIfNeeded()
-        let expectedOrigin = CGPoint(x: anchor.x + 0.2 * (restingFrame.minX - anchor.x),
-            y: anchor.y + 0.2 * (restingFrame.minY - anchor.y))
+        let expectedOrigin = CGPoint(x: anchor.x + 0.5 * (restingFrame.minX - anchor.x),
+            y: anchor.y + 0.5 * (restingFrame.minY - anchor.y))
         expect(abs(menu.frame.minX - expectedOrigin.x) < 0.001 && abs(menu.frame.minY - expectedOrigin.y) < 0.001
-            && abs(menu.frame.width - 0.2 * restingFrame.width) < 0.001,
+            && abs(menu.frame.width - 0.5 * restingFrame.width) < 0.001,
             "native layout preserves the true anchor-grown first frame")
         expect(abs(menu.bounds.width - restingBounds.width) < 0.001
             && abs(menu.bounds.height - restingBounds.height) < 0.001
             && menu.bounds.origin == restingBounds.origin, "scaling keeps the menu's content coordinates fixed")
         let shownGlassFrame = menu.glassContainer.convert(menu.glassContainer.bounds, to: root)
-        expect(abs(shownGlassFrame.minX - (anchor.x + 0.2 * (originalGlassFrame.minX - anchor.x))) < 0.001
-            && abs(shownGlassFrame.minY - (anchor.y + 0.2 * (originalGlassFrame.minY - anchor.y))) < 0.001,
+        expect(abs(shownGlassFrame.minX - (anchor.x + 0.5 * (originalGlassFrame.minX - anchor.x))) < 0.001
+            && abs(shownGlassFrame.minY - (anchor.y + 0.5 * (originalGlassFrame.minY - anchor.y))) < 0.001,
             "native glass and its clipping region share the same animated coordinates")
-        time += 0.075
+        time += QuickClipboardPresentation.openingDuration * 0.3
         motion.close(reduceMotion: false) {}
         let closingScale = motion.animationLayer.animation(forKey: "transform.scale") as? CABasicAnimation
         let closingPosition = motion.animationLayer.animation(forKey: "position") as? CABasicAnimation
         let fromScale = closingScale?.fromValue as? CGFloat ?? 0
         let fromPosition = closingPosition?.fromValue as? CGPoint ?? .zero
-        expect(fromScale > 0.2 && fromScale < 1,
+        expect(fromScale > 0.5 && fromScale < 1,
             "closing resumes a partially opened scale instead of assuming one")
         expect(abs(fromPosition.x - (anchor.x + fromScale * (restingFrame.midX - anchor.x))) < 0.001
             && abs(fromPosition.y - (anchor.y + fromScale * (restingFrame.midY - anchor.y))) < 0.001,
             "closing position and scale stay on the same anchor-grown trajectory")
         expect(abs(menu.frame.width - restingFrame.width * fromScale) < 0.001,
             "the native view starts closing from the sampled intermediate frame")
-        expect(closingScale?.duration == 0.2, "closing is a 200ms ease-in")
+        expect(closingScale?.duration == 0.08 && closingPosition?.duration == 0.08
+            && closingScale?.toValue as? CGFloat == 0.2, "closing keeps its 20 percent endpoint and shared 80ms ease-in")
         motion.stop()
         let reduced = QuickClipboardMotion(panel: panel, menu: menu, anchor: anchor)
         reduced.prepareOpening(reduceMotion: true)
@@ -410,7 +478,7 @@ struct QuickClipboardTests {
         immediate.prepareOpening(reduceMotion: false)
         immediate.close(reduceMotion: false) {}
         let reversal = immediate.animationLayer.animation(forKey: "transform.scale") as? CABasicAnimation
-        expect((reversal?.fromValue as? CGFloat ?? 1) < 0.3,
+        expect((reversal?.fromValue as? CGFloat ?? 1) >= 0.5 && (reversal?.fromValue as? CGFloat ?? 1) < 0.6,
             "closing before the first presentation frame never jumps to full size")
         immediate.stop()
     }
