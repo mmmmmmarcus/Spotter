@@ -256,6 +256,10 @@ run_audit() {
     local prerelease
     local release_name
     local asset_names
+    local asset_metadata
+    local release_id
+    local dmg_asset_id
+    local zip_asset_id
     local repository
     local dmg_digest
     local zip_digest
@@ -271,22 +275,25 @@ run_audit() {
     dmg_name="Spotter-$version.dmg"
     zip_name="Spotter-$version.zip"
 
-    metadata="$(gh release view "$tag" --json tagName,isDraft,isPrerelease,name,assets \
-        --jq '[.tagName, .isDraft, .isPrerelease, .name, ([.assets[].name] | sort | join(","))] | @tsv')"
-    IFS=$'\t' read -r release_tag draft prerelease release_name asset_names <<< "$metadata"
+    repository="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
+    release_id="$(gh api "repos/$repository/releases/tags/$tag" --jq '.id')"
+    [[ "$release_id" =~ ^[0-9]+$ ]] || { echo "✗ Missing release ID for $tag." >&2; exit 1; }
+    metadata="$(gh api "repos/$repository/releases/$release_id" \
+        --jq '[.tag_name, .draft, .prerelease, .name] | @tsv')"
+    IFS=$'\t' read -r release_tag draft prerelease release_name <<< "$metadata"
     [ "$release_tag" = "$tag" ] || { echo "✗ Expected release tag $tag." >&2; exit 1; }
     [ "$draft" = false ] || { echo "✗ $tag is still a draft." >&2; exit 1; }
     [ "$prerelease" = false ] || { echo "✗ $tag is marked prerelease." >&2; exit 1; }
     [ "$release_name" = "Spotter $version" ] \
         || { echo "✗ Unexpected release name: $release_name" >&2; exit 1; }
+    # Tag and release-list responses can retain an empty draft asset list after publication.
+    asset_metadata="$(gh api "repos/$repository/releases/$release_id/assets?per_page=100" \
+        --jq "[([.[].name] | sort | join(\",\")), (.[] | select(.name == \"$dmg_name\" and .state == \"uploaded\") | .id, .digest), (.[] | select(.name == \"$zip_name\" and .state == \"uploaded\") | .id, .digest)] | @tsv")"
+    IFS=$'\t' read -r asset_names dmg_asset_id dmg_digest zip_asset_id zip_digest <<< "$asset_metadata"
     [ "$asset_names" = "$dmg_name,$zip_name" ] \
         || { echo "✗ Unexpected release assets: $asset_names" >&2; exit 1; }
-
-    repository="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
-    dmg_digest="$(gh api "repos/$repository/releases/tags/$tag" \
-        --jq ".assets[] | select(.name == \"$dmg_name\") | .digest")"
-    zip_digest="$(gh api "repos/$repository/releases/tags/$tag" \
-        --jq ".assets[] | select(.name == \"$zip_name\") | .digest")"
+    [[ "$dmg_asset_id" =~ ^[0-9]+$ && "$zip_asset_id" =~ ^[0-9]+$ ]] \
+        || { echo "✗ Release assets are missing or not uploaded." >&2; exit 1; }
     [[ "$dmg_digest" =~ ^sha256:[0-9a-f]{64}$ ]] \
         || { echo "✗ GitHub did not report a SHA-256 digest for $dmg_name." >&2; exit 1; }
     [[ "$zip_digest" =~ ^sha256:[0-9a-f]{64}$ ]] \
@@ -298,10 +305,10 @@ run_audit() {
     trap cleanup_audit EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
-    gh release download "$tag" --dir "$AUDIT_DIR" \
-        --pattern "$dmg_name" --pattern "$zip_name"
     dmg="$AUDIT_DIR/$dmg_name"
     zip="$AUDIT_DIR/$zip_name"
+    gh api "repos/$repository/releases/assets/$dmg_asset_id" -H 'Accept: application/octet-stream' > "$dmg"
+    gh api "repos/$repository/releases/assets/$zip_asset_id" -H 'Accept: application/octet-stream' > "$zip"
     dmg_sha="$(shasum -a 256 "$dmg" | awk '{print $1}')"
     zip_sha="$(shasum -a 256 "$zip" | awk '{print $1}')"
     [ "sha256:$dmg_sha" = "$dmg_digest" ] || { echo "✗ DMG digest mismatch." >&2; exit 1; }

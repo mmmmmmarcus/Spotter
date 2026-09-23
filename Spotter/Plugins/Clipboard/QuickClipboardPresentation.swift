@@ -4,7 +4,7 @@ import CoreGraphics
 enum QuickClipboardPresentation {
     static let limit = 5
     static let width: CGFloat = 120
-    static let rowHeight: CGFloat = 40
+    static let rowHeight: CGFloat = 32
     static let cornerRadius: CGFloat = rowHeight / 2
     static let spacing: CGFloat = 8
     static let safety: CGFloat = 8

@@ -14,6 +14,7 @@ final class QuickClipboardMenuView: NSView {
     private var displayedItems: [ClipboardItem] = []
     private var selectedIndex = 0
     private var rowButtons: [QuickClipboardButton] = []
+    private var rowGlass: [NSGlassEffectView] = []
     var onSelect: ((Int) -> Void)?
     var onHighlight: ((Int) -> Void)?
     init(items: [ClipboardItem]) {
@@ -34,9 +35,9 @@ final class QuickClipboardMenuView: NSView {
         rowsView.clipsToBounds = false
         glassContent.addSubview(rowsView)
         addSubview(glassContainer)
-        groupShadow.shadowOpacity = 0.22
-        groupShadow.shadowRadius = 14
-        groupShadow.shadowOffset = CGSize(width: 0, height: -6)
+        groupShadow.shadowOpacity = 0.18
+        groupShadow.shadowRadius = 24
+        groupShadow.shadowOffset = CGSize(width: 0, height: -4)
         groupShadow.zPosition = 100
         groupShadow.mask = shadowMask
         shadowMask.fillRule = .evenOdd
@@ -46,7 +47,10 @@ final class QuickClipboardMenuView: NSView {
         let frames = QuickClipboardPresentation.rowFrames(widths: rowWidths)
         for index in 0..<rowCount {
             let rect = frames[index]
-            let button = QuickClipboardButton(frame: rect)
+            let glass = NSGlassEffectView(frame: rect)
+            glass.style = .clear
+            glass.cornerRadius = rect.height / 2
+            let button = QuickClipboardButton(frame: glass.bounds)
             button.content.frame = button.bounds.insetBy(dx: 11, dy: 0)
             if items.indices.contains(index) {
                 Self.configure(button, for: items[index])
@@ -68,7 +72,9 @@ final class QuickClipboardMenuView: NSView {
                 button.hoverHandler = { [weak self] in self?.onHighlight?(index) }
             }
             rowButtons.append(button)
-            rowsView.addSubview(button)
+            glass.contentView = button
+            rowGlass.append(glass)
+            rowsView.addSubview(glass)
         }
         renderRows()
         update(items, selection: 0)
@@ -122,8 +128,10 @@ final class QuickClipboardMenuView: NSView {
         rowsView.setFrameSize(size)
         let frames = QuickClipboardPresentation.rowFrames(widths: rowWidths)
         for (index, button) in rowButtons.enumerated() {
-            button.frame = frames[index]
-            button.content.frame = button.bounds.insetBy(dx: 11, dy: 0)
+            let glass = rowGlass[index]
+            glass.frame = frames[index]
+            button.frame = glass.bounds
+            button.content.frame = index == rowButtons.count - 1 ? button.bounds : button.bounds.insetBy(dx: 11, dy: 0)
         }
         glassContainer.layoutSubtreeIfNeeded()
         updateShadowGeometry()
@@ -177,7 +185,7 @@ final class QuickClipboardMenuView: NSView {
     func containsGlass(_ point: CGPoint) -> Bool {
         let margin = QuickClipboardPresentation.canvasMargin
         let local = CGPoint(x: point.x - margin, y: point.y - margin)
-        return rowsView.bounds.contains(local) && rowButtons.contains {
+        return rowsView.bounds.contains(local) && rowGlass.contains {
             !$0.isHidden && QuickClipboardPresentation.signedDistance(local, to: $0.frame) <= 0
         }
     }
@@ -207,7 +215,7 @@ final class QuickClipboardMenuView: NSView {
             if let path = item.imagePath,
                let cached = ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 128),
                let preview = cached.copy() as? NSImage {
-                let ratio = min((QuickClipboardPresentation.width - 22) / max(1, preview.size.width), 24 / max(1, preview.size.height))
+                let ratio = min((QuickClipboardPresentation.width - 22) / max(1, preview.size.width), (QuickClipboardPresentation.rowHeight - 16) / max(1, preview.size.height))
                 preview.size = CGSize(width: preview.size.width * ratio, height: preview.size.height * ratio)
                 content.image = preview
             } else {
@@ -239,10 +247,9 @@ final class QuickClipboardButton: NSButton {
     override init(frame: NSRect) {
         super.init(frame: frame)
         title = ""
-        bezelStyle = .glass
         borderShape = .capsule
         controlSize = .large
-        isBordered = true
+        isBordered = false
         focusRingType = .none
         setButtonType(.momentaryPushIn)
         target = self

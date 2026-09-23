@@ -51,17 +51,20 @@ enum QuickClipboardAnchor {
         AXUIElementSetMessagingTimeout(application, 0.08)
         if let rect = focusedCaret(application: application, processID: processID) { return rect }
         var restored: [String] = []
+        var accessibilityEnabled = false
         // Chromium exposes its focused editor only after accessibility has been requested.
         for name in ["AXManualAccessibility", "AXEnhancedUserInterface"] {
-            if (attribute(name, of: application) as? NSNumber)?.boolValue != true,
-               AXUIElementSetAttributeValue(application, name as CFString, kCFBooleanTrue) == .success {
+            if (attribute(name, of: application) as? NSNumber)?.boolValue == true {
+                accessibilityEnabled = true
+            } else if AXUIElementSetAttributeValue(application, name as CFString, kCFBooleanTrue) == .success {
+                accessibilityEnabled = true
                 restored.append(name)
             }
         }
         defer {
             for name in restored { AXUIElementSetAttributeValue(application, name as CFString, kCFBooleanFalse) }
         }
-        guard !restored.isEmpty else { return nil }
+        guard accessibilityEnabled else { return nil }
         // Electron builds its accessibility tree lazily; an immediate retry misses the editor.
         for _ in 0..<6 {
             do { try await Task.sleep(for: .milliseconds(60)) }
@@ -91,19 +94,37 @@ enum QuickClipboardAnchor {
     }
 
     private static func caret(of element: AXUIElement) -> CGRect? {
-        guard let rawRange = attribute(kAXSelectedTextRangeAttribute, of: element),
-              CFGetTypeID(rawRange) == AXValueGetTypeID() else { return nil }
-        let value = rawRange as! AXValue
-        var range = CFRange()
-        guard AXValueGetType(value) == .cfRange, AXValueGetValue(value, .cfRange, &range),
-              isEditableCaret(role: attribute(kAXRoleAttribute, of: element) as? String,
-                editable: (attribute("AXEditable", of: element) as? NSNumber)?.boolValue, range: range) else { return nil }
-        var bounds: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(element, kAXBoundsForRangeParameterizedAttribute as CFString,
-            value, &bounds) == .success, let bounds, CFGetTypeID(bounds) == AXValueGetTypeID() else { return nil }
-        let rectValue = bounds as! AXValue
+        caret(attribute: { attribute($0, of: element) }, parameterized: { name, parameter in
+            var result: CFTypeRef?
+            guard AXUIElementCopyParameterizedAttributeValue(element, name as CFString, parameter, &result) == .success else { return nil }
+            return result
+        })
+    }
+
+    static func caret(attribute: (String) -> CFTypeRef?, parameterized: (String, CFTypeRef) -> CFTypeRef?) -> CGRect? {
+        let role = attribute(kAXRoleAttribute) as? String
+        let editable = (attribute("AXEditable") as? NSNumber)?.boolValue
+        guard isEditableCaret(role: role, editable: editable, range: CFRange(location: 0, length: 0)) else { return nil }
+        if let rawRange = attribute(kAXSelectedTextRangeAttribute), CFGetTypeID(rawRange) == AXValueGetTypeID() {
+            let value = rawRange as! AXValue
+            var range = CFRange()
+            guard AXValueGetType(value) == .cfRange, AXValueGetValue(value, .cfRange, &range),
+                  range.location >= 0, range.length == 0 else { return nil }
+            if let rect = caretBounds(parameterized(kAXBoundsForRangeParameterizedAttribute, value)) { return rect }
+        }
+        // Web editors may expose valid marker bounds even when the numeric range has no geometry.
+        guard let marker = attribute("AXSelectedTextMarkerRange"),
+              let length = parameterized("AXLengthForTextMarkerRange", marker) as? NSNumber,
+              length.doubleValue == 0 else { return nil }
+        return caretBounds(parameterized("AXBoundsForTextMarkerRange", marker))
+    }
+
+    private static func caretBounds(_ raw: CFTypeRef?) -> CGRect? {
+        guard let raw, CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        let value = raw as! AXValue
         var rect = CGRect.zero
-        guard AXValueGetType(rectValue) == .cgRect, AXValueGetValue(rectValue, .cgRect, &rect),
+        guard AXValueGetType(value) == .cgRect, AXValueGetValue(value, .cgRect, &rect),
+              rect.origin.x.isFinite, rect.origin.y.isFinite, rect.width.isFinite, rect.height.isFinite,
               rect.width >= 0, rect.width <= 8, rect.height >= 1, rect.height <= 200 else { return nil }
         return rect
     }
