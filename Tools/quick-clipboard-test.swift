@@ -13,31 +13,30 @@ struct QuickClipboardTests {
 
     static func main() async {
         geometry()
-        caretAnchors()
-        let start = Date()
-        let image = await Task.detached { QuickClipboardShadow.render(widths: [80, 240, 140], scale: 2) }.value
-        print("2x shadow generation: \(Date().timeIntervalSince(start)) seconds")
-        guard let image else { print("Shadow generation failed"); exit(1) }
-        shadowPixels(image, scale: 2, widths: [80, 240, 140])
-        let single = await Task.detached { QuickClipboardShadow.render(widths: [90], scale: 1) }.value
-        if let single { shadowPixels(single, scale: 1, widths: [90]) }
-        else { expect(false, "single-entry shadow generated") }
+        await caretAnchors()
         await imagePreviews()
         await nativeSurface()
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
     }
 
-    static func caretAnchors() {
+    static func caretAnchors() async {
+        expect(QuickClipboardAnchor.isEditableCaret(role: "AXGroup", editable: true, range: CFRange(location: 2, length: 0)),
+            "contenteditable fields need not use a standard text role")
+        expect(!QuickClipboardAnchor.isEditableCaret(role: "AXStaticText", editable: nil, range: CFRange(location: 2, length: 0)),
+            "read-only text cannot be mistaken for an active input")
+        expect(!QuickClipboardAnchor.isEditableCaret(role: "AXTextArea", editable: false, range: CFRange(location: 2, length: 0))
+            && !QuickClipboardAnchor.isEditableCaret(role: "AXTextArea", editable: true, range: CFRange(location: 2, length: 3)),
+            "read-only editors and text selections are not insertion carets")
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         let mouse = CGPoint(x: 900, y: 300)
         let caret = CGRect(x: 300, y: 400, width: 0, height: 18)
         let request = QuickClipboardAnchor.Request(mouse: mouse, localCaret: caret, processID: nil,
             primaryTop: 900, screens: [screen])
-        expect(request.resolve() == caret, "an active insertion caret takes priority over the mouse")
+        expect(await request.resolve() == caret, "an active insertion caret takes priority over the mouse")
         let fallback = QuickClipboardAnchor.Request(mouse: mouse, localCaret: nil, processID: nil,
             primaryTop: 900, screens: [screen])
-        expect(fallback.resolve() == CGRect(origin: mouse, size: .zero), "no caret falls back to the originally captured mouse position")
+        expect(await fallback.resolve() == CGRect(origin: mouse, size: .zero), "no caret falls back to the originally captured mouse position")
         let above = QuickClipboardPresentation.frame(anchor: caret, screen: screen, count: 3, contentWidth: 250)
         expect(above.minX == caret.minX && above.minY == caret.maxY + 12, "caret menu opens directly above the insertion point")
         let high = CGRect(x: 300, y: 875, width: 1, height: 18)
@@ -46,7 +45,7 @@ struct QuickClipboardTests {
         for invalid in [CGRect.zero, CGRect(x: 0, y: 0, width: 400, height: 18), CGRect(x: 2000, y: 0, width: 1, height: 18)] {
             let rejected = QuickClipboardAnchor.Request(mouse: mouse, localCaret: invalid, processID: nil,
                 primaryTop: 900, screens: [screen])
-            expect(rejected.resolve() == CGRect(origin: mouse, size: .zero), "empty, element-sized and offscreen bounds cannot become caret anchors")
+            expect(await rejected.resolve() == CGRect(origin: mouse, size: .zero), "empty, element-sized and offscreen bounds cannot become caret anchors")
         }
         let quartz = CGRect(x: -500, y: -200, width: 1, height: 18)
         let converted = QuickClipboardAnchor.appKitRect(quartz: quartz, primaryTop: 900)
@@ -95,9 +94,9 @@ struct QuickClipboardTests {
         expect(QuickClipboardPresentation.firstVisibleIndex(selection: 0, current: 2, count: 0) == 0,
             "empty history resets the viewport")
         expect(QuickClipboardPresentation.scrollProgress(elapsed: 0) == 0
-            && QuickClipboardPresentation.scrollProgress(elapsed: QuickClipboardPresentation.scrollDuration / 2) == 0.5
+            && QuickClipboardPresentation.scrollProgress(elapsed: QuickClipboardPresentation.scrollDuration / 2) > 0.9
             && QuickClipboardPresentation.scrollProgress(elapsed: 1) == 1,
-            "carrier scrolling has a bounded, symmetric easing curve")
+            "carrier scrolling has a bounded ease-out entry curve")
         expect(rects[1].minX - rects[0].maxX == 8, "pill spacing stays eight points")
         let peak = (0...455).map { QuickClipboardPresentation.springProgress(elapsed: Double($0) / 1000) }.max()!
         expect(peak > 1 && peak < 1.016, "spring overshoot keeps final scale within about 1.2 percent")
@@ -108,39 +107,6 @@ struct QuickClipboardTests {
         expect(QuickClipboardPresentation.fadeProgress(elapsed: 0.5, duration: 1, easeIn: true) < 0.5
             && QuickClipboardPresentation.fadeProgress(elapsed: 0.5, duration: 1, easeIn: false) > 0.5,
             "opacity fallbacks preserve ease-in and ease-out timing")
-    }
-
-    static func shadowPixels(_ image: CGImage, scale: CGFloat, widths: [CGFloat]) {
-        let bytes = Array((image.dataProvider!.data! as Data))
-        let margin = QuickClipboardPresentation.shadowMargin
-        let rects = QuickClipboardPresentation.rowFrames(widths: widths).map { $0.offsetBy(dx: margin, dy: margin) }
-        var interiorClear = true
-        var premultiplied = true
-        var hasShadow = false
-        for y in 0..<image.height {
-            for x in 0..<image.width {
-                let point = CGPoint(x: (CGFloat(x) + 0.5) / scale, y: (CGFloat(image.height - 1 - y) + 0.5) / scale)
-                let index = y * image.bytesPerRow + x * 4
-                let alpha = bytes[index + 3]
-                let inside = rects.contains { QuickClipboardPresentation.signedDistance(point, to: $0) <= 0 }
-                if inside && (0..<4).contains(where: { bytes[index + $0] != 0 }) { interiorClear = false }
-                if (0..<3).contains(where: { bytes[index + $0] > alpha }) { premultiplied = false }
-                if !inside && alpha > 0 { hasShadow = true }
-            }
-        }
-        expect(interiorClear, "every \(scale)x glass interior is transparent in all RGBA channels")
-        expect(premultiplied, "\(scale)x shadow remains premultiplied")
-        expect(hasShadow, "\(scale)x shadow still exists outside the glass")
-        func alpha(_ point: CGPoint) -> UInt8 {
-            let x = Int(point.x * scale)
-            let y = image.height - 1 - Int(point.y * scale)
-            return bytes[y * image.bytesPerRow + x * 4 + 3]
-        }
-        let bottom = rects.last!
-        expect(alpha(CGPoint(x: bottom.midX, y: bottom.minY - 1 / scale)) > 0,
-            "\(scale)x shadow starts in the first pixel outside the contour, with no moat")
-        expect(alpha(CGPoint(x: bottom.midX, y: bottom.minY - 4)) > alpha(CGPoint(x: bottom.midX, y: bottom.minY - 50)),
-            "\(scale)x shadow decays away from the edge")
     }
 
     static func imagePreviews() async {
@@ -157,7 +123,7 @@ struct QuickClipboardTests {
         await QuickClipboardMenuView.prepareThumbnails(for: [item])
         let widths = QuickClipboardMenuView.widths(for: [item])
         expect(widths == [70], "image pill hugs a 48-by-24 aspect-fit preview plus horizontal padding")
-        let menu = QuickClipboardMenuView(items: [item], shadowImages: [])
+        let menu = QuickClipboardMenuView(items: [item])
         let glass = menu.glassContainer.contentView!.subviews[0].subviews[0] as! NSGlassEffectView
         let button = glass.contentView!.subviews[0] as! NSButton
         expect(button.title.isEmpty && button.imagePosition == .imageOnly, "image rows show no filename or text label")
@@ -188,23 +154,64 @@ struct QuickClipboardTests {
         let panel = QuickClipboardPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false
         expect(!panel.canBecomeKey && !panel.canBecomeMain, "picker cannot take keyboard focus")
-        let items = ["Hi", "A slightly longer preview", String(repeating: "Long text ", count: 40), "1234", "你好 👋"]
+        let items = ["Hi", "Hello", String(repeating: "Long text ", count: 40), "1234", "你好 👋"]
             .map { ClipboardItem(text: $0, sourceBundleID: nil) }
         let widths = QuickClipboardMenuView.widths(for: items)
-        let shadows = await Task.detached { QuickClipboardShadow.renderWindows(widths: widths, scale: 2) }.value
-        expect(shadows.count == 3, "every visible range has its own matching shadow")
         var scrollTime = 100.0
-        let menu = QuickClipboardMenuView(items: items, shadowImages: shadows, now: { scrollTime })
+        let menu = QuickClipboardMenuView(items: items, now: { scrollTime })
         expect(menu.alphaValue == 1 && menu.glassContainer.alphaValue == 1, "glass ancestors keep full alpha")
         let rows = menu.glassContainer.contentView!.subviews[0]
         let glass = rows.subviews.compactMap { $0 as? NSGlassEffectView }
-        expect(glass.count == 5 && glass.allSatisfy { $0.style == .regular && $0.cornerRadius == 20 },
-            "all five independent surfaces use native regular glass with 20-point corners")
-        expect(glass[0].frame.width < glass[1].frame.width && glass[1].frame.width < 240,
+        expect(glass.count == 5 && glass.allSatisfy { $0.style == .regular && $0.cornerRadius == 20 && $0.tintColor == nil },
+            "all five surfaces use untinted native regular glass with 20-point corners")
+        expect(glass[0].frame.width < glass[1].frame.width && glass[1].frame.width < 120,
             "each short pill hugs its own native content width")
-        expect(glass[2].frame.width == 240 && glass.allSatisfy { $0.frame.minY == 0 && $0.frame.height == 40 },
-            "long content is capped at 240 points while pills share a horizontal baseline")
+        expect(glass[2].frame.width == 120 && glass.allSatisfy { $0.frame.minY == 0 && $0.frame.height == 40 },
+            "long content is capped at 120 points while pills share a horizontal baseline")
         expect(glass.filter { !$0.isHidden }.count == 3, "offscreen pills start hidden")
+        let selectedButton = glass[0].contentView!.subviews[0] as! QuickClipboardButton
+        let unselectedButton = glass[1].contentView!.subviews[0] as! QuickClipboardButton
+        expect(selectedButton.textColor.alphaComponent == 1 && selectedButton.symbolColor.alphaComponent == 1
+            && unselectedButton.textColor.alphaComponent == 0.35 && unselectedButton.symbolColor.alphaComponent == 0.5,
+            "selection changes both text and symbol emphasis without fading glass")
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            selectedButton.appearance = NSAppearance(named: name)
+            selectedButton.effectiveAppearance.performAsCurrentDrawingAppearance {
+                let color = selectedButton.textColor.usingColorSpace(.deviceRGB)!
+                expect(name == .aqua ? color.redComponent < 0.25 : color.redComponent > 0.75,
+                    "text resolves to a contrasting semantic label in \(name)")
+            }
+        }
+        let renderedButton = QuickClipboardButton(frame: CGRect(x: 0, y: 0, width: 98, height: 40))
+        renderedButton.title = "Readable"
+        renderedButton.font = .systemFont(ofSize: 12)
+        renderedButton.imagePosition = .imageLeading
+        renderedButton.image = NSImage(systemSymbolName: "textformat.alt", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .medium))
+        renderedButton.isSelected = true
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            renderedButton.appearance = NSAppearance(named: name)
+            let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 98, pixelsHigh: 40,
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                bytesPerRow: 0, bitsPerPixel: 0)!
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+            renderedButton.draw(renderedButton.bounds)
+            NSGraphicsContext.restoreGraphicsState()
+            for columns in [0..<16, 22..<98] {
+                var samples: [CGFloat] = []
+                for y in 0..<40 {
+                    for x in columns {
+                        let color = bitmap.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+                        if color.alphaComponent > 0.8 { samples.append(color.redComponent) }
+                    }
+                }
+                expect(!samples.isEmpty && samples.allSatisfy { name == .aqua ? $0 < 0.25 : $0 > 0.75 },
+                    "rendered symbol and text pixels contrast correctly in \(name)")
+            }
+        }
+        selectedButton.appearance = nil
+        expect(selectedButton.imageScaling == .scaleNone, "symbols never shrink to fit long text")
         menu.select(3)
         expect(menu.firstVisibleIndex == 1 && glass[0].isHidden && !glass[3].isHidden && glass[4].isHidden,
             "fourth selection exposes the correct three entries")
@@ -225,13 +232,14 @@ struct QuickClipboardTests {
                 "scroll starts at the displayed pill position instead of jumping its material")
             scrollTime += QuickClipboardPresentation.scrollDuration / 2
             menu.advanceScroll()
-            let distance = (widths[0] + QuickClipboardPresentation.spacing) / 2
-            expect(abs(glass[0].frame.minX - originalPill.minX + distance) < 0.001,
-                "the actual glass carrier moves during the middle frame")
+            let distance = (widths[0] + QuickClipboardPresentation.spacing)
+                * QuickClipboardPresentation.scrollProgress(elapsed: QuickClipboardPresentation.scrollDuration / 2)
+            expect(glass[0].isHidden || glass[0].frame.width < originalPill.width,
+                "outgoing glass shrinks away at the left edge")
             expect(abs(label.convert(label.bounds, to: rows).minX - originalLabel.minX + distance) < 0.001,
-                "text and the glass carrier move by the same distance")
-            expect(glass[3].frame.minX < rows.bounds.maxX && glass[3].frame.maxX > rows.bounds.maxX && !glass[3].isHidden,
-                "the incoming fourth pill enters through the right edge of the viewport")
+                "text slides at its original size inside the evolving glass outline")
+            expect(glass[3].frame.minX < rows.bounds.maxX && abs(glass[3].frame.maxX - rows.bounds.maxX) < 0.001 && !glass[3].isHidden && glass[3].frame.width < widths[3],
+                "incoming glass grows from the right with its rounded outline inside the viewport")
             let interrupted = glass[0].frame
             menu.select(0, animated: true)
             expect(glass[0].frame == interrupted, "reversing scroll continues from the currently displayed carrier")
@@ -247,7 +255,7 @@ struct QuickClipboardTests {
             && glass.suffix(3).allSatisfy { !$0.isHidden },
             "rapid navigation settles on the newest requested range")
         menu.select(0)
-        let margin = QuickClipboardPresentation.shadowMargin
+        let margin = QuickClipboardPresentation.canvasMargin
         expect(!menu.containsGlass(CGPoint(x: 5, y: 5)), "shadow padding is outside menu hit areas")
         expect(menu.containsGlass(CGPoint(x: margin + 30, y: margin + 18)), "pill interior remains clickable")
         expect(!menu.containsGlass(CGPoint(x: margin + glass[0].frame.maxX + 4, y: margin + glass[0].frame.midY)),
@@ -255,7 +263,7 @@ struct QuickClipboardTests {
         var updated = items
         updated[0] = ClipboardItem(text: String(repeating: "New content ", count: 30), sourceBundleID: nil)
         menu.update(updated, selection: 0)
-        expect(glass[0].frame.width == 240 && glass[0].contentView!.subviews[0].frame.width == 218,
+        expect(glass[0].frame.width == 120 && glass[0].contentView!.subviews[0].frame.width == 98,
             "live history updates resize both glass and content")
         menu.update(items, selection: 0)
         expect(glass[0].frame.width == widths[0], "live content can shrink a pill back to its intrinsic width")

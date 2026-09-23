@@ -159,7 +159,7 @@ older snapshots cannot erase the quick action just by omitting its binding.
 The user-requested exception to palette-first interaction is a nonactivating, non-key panel owned by
 `AppCore` through `QuickClipboardController`. `AppCore` captures the global AppKit mouse position at
 invocation. `QuickClipboardAnchor` prefers the active editable NSTextView's insertion caret, then
-reads the target application's focused text element and zero-length selection bounds through AX.
+reads the target application's focused editable element and zero-length selection bounds through AX. Both application and system-wide focus are checked against the target PID; explicitly editable web elements are accepted even with a nonstandard role. If needed, Chromium accessibility is temporarily requested, with a bounded asynchronous wait for the lazy tree, and its prior flags restored. A Spotter search field never overrides another application's caret.
 External AX reads run off-main with bounded messaging timeouts and never prompt, activate an app,
 change its selection, or read its text. Missing permission, unsupported caret bounds, nonempty
 selections and invalid/offscreen geometry fall back to the captured mouse point. AX coordinates are
@@ -169,13 +169,14 @@ mouse menus prefer above/right. Both flip below/left as necessary and leave 12 p
 and at least 8 points inside the screen's visible frame.
 
 The five recent entries share a horizontal three-item viewport with independent native `NSGlassEffectView` pills, 40 points high with 20-point corners,
-left aligned and sized to each native button’s content plus 11-point horizontal insets, capped at 240 points,
+left aligned and sized to each native button’s content plus 11-point horizontal insets, capped at 120 points,
 inside one `NSGlassEffectContainerView`, with 8-point gaps and no auxiliary buttons. All use regular glass; `effectIsInteractive` is enabled on macOS 27 when compiled with its SDK (Swift 6.4+); Xcode 26 releases retain native button feedback. macOS 26 still uses native glass and native button feedback. The system owns
 appearance, contrast and Reduce Transparency. Symbols use 14-point medium `labelColor`. Selected text has full opacity;
-unselected text has 50% opacity, applied to the title only. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 24 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors, and fall back to a photo symbol for unreadable files.
+unselected text has 35% opacity and symbols 50%. Text and symbols resolve semantic label colors in the effective drawing appearance, including appearance changes. Symbols keep their native 14-point size and pixel-aligned origins; the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 24 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors, and fall back to a photo symbol for unreadable files.
 
-The resting shadow briefly hides during scrolling, then fades back in so its fixed hollow regions
-cannot contaminate moving glass.
+Paging uses a 180ms ease-out curve (0.23, 1, 0.32, 1). The incoming glass outline grows from the viewport edge while the departing outline contracts at the opposite edge, with a short content reveal. Glyphs retain their size throughout; glass and its ancestors stay opaque. Interrupted navigation resumes from the current offset, and Reduce Motion skips movement.
+
+Material uses the system regular Liquid Glass preset without custom tint, raster shadows or blur overlays. Outer containers do not clip the system-rendered glass edges; only pill content clips to its glass outline.
 
 The panel cannot become key or main, and buttons never request key status. Click or ←/→ then Return
 pastes; Escape or repeating the shortcut cancels. Moving right beyond the third visible pill scrolls the
@@ -200,16 +201,11 @@ Reduce Motion keeps only a 0.12-second fade. Display links exist only during the
 cleanup even when a display link stops producing frames. Input ends immediately on dismissal and the
 departing panel ignores mouse events. Screenshot's Hide Spotter path closes these panels immediately.
 
-WindowServer shadow is disabled. `QuickClipboardShadow` renders a Gaussian-blurred union of all pill
-outlines off-main (black at 22%, radius 18, 8-point downward offset), then knocks every glass interior out
-of all four premultiplied channels using rounded-rectangle signed distance and a one-device-pixel fringe.
-This unified bitmap sits **above** glass, so adjacent shadows cannot pollute another pill's backdrop.
-The latest width/scale combination caches a matching bitmap for each of the at most three visible ranges; in-flight work is shared across rapid reopenings. Live content changes resize the glass and hit areas together and regenerate the hollow shadows off-main. Old shadows are hidden until their replacement is ready.
+WindowServer shadow is disabled to avoid adding a second shadow to the system material. The native glass preset owns its edges, lighting and backdrop treatment. Live content changes resize the native surfaces and hit areas directly, with no shadow rasterization or cache.
 
 Store, mouse and app-activation observers exist only during a session. Same-size updates preserve
 selection by ID; entry-count changes keep the current menu geometry until the next summon, and deleting
 a displayed entry dismisses it. No new polling, network access, history duplication or persistence is
-introduced. `QuickClipboardPresentation` stays pure Foundation + CoreGraphics; the shadow renderer adds
-Accelerate for separable convolution. The clipboard harness covers content/order/positioning, and the
-quick-clipboard harness validates real bitmap interiors/edges at 1× and 2×, native surface focus/material
+introduced. `QuickClipboardPresentation` stays pure Foundation + CoreGraphics. The clipboard harness covers content/order/positioning, and the
+quick-clipboard harness validates native surface focus/material
 invariants, animation setup/reversal fallback and Reduce Motion without visual UI acceptance.

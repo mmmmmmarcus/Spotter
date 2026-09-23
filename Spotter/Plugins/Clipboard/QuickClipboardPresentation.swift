@@ -5,19 +5,28 @@ enum QuickClipboardPresentation {
     static let limit = 5
     static let visibleLimit = 3
     static let scrollDuration = 0.18
-    static let width: CGFloat = 240
+    static let width: CGFloat = 120
     static let rowHeight: CGFloat = 40
     static let cornerRadius: CGFloat = rowHeight / 2
     static let spacing: CGFloat = 8
     static let safety: CGFloat = 8
-    static let shadowMargin: CGFloat = 64
+    static let canvasMargin: CGFloat = 64
     static let initialScale: CGFloat = 0.20
     static let openingDuration = 0.455
     static let closingDuration = 0.20
 
     static func scrollProgress(elapsed: Double) -> CGFloat {
         let progress = max(0, min(1, elapsed / scrollDuration))
-        return CGFloat(progress * progress * (3 - 2 * progress))
+        guard progress > 0 && progress < 1 else { return CGFloat(progress) }
+        // Solve the entry curve's time coordinate before evaluating its displacement.
+        var low = 0.0
+        var high = 1.0
+        for _ in 0..<20 {
+            let t = (low + high) / 2
+            let x = 3 * (1 - t) * (1 - t) * t * 0.23 + 3 * (1 - t) * t * t * 0.32 + t * t * t
+            if x < progress { low = t } else { high = t }
+        }
+        return CGFloat(1 - pow(1 - (low + high) / 2, 3))
     }
 
     static func recentItems(_ items: [ClipboardItem]) -> [ClipboardItem] {

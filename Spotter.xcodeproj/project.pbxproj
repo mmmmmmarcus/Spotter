@@ -164,7 +164,6 @@
 		9888236B43FD57B6553294A2 /* ScreenshotColorSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285F564EAE1C2E7706B5C84E /* ScreenshotColorSampler.swift */; };
 		9A902E54548EA948D25C22A5 /* Bundle+AppName.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9C9C5A900B9FD315A6D58F /* Bundle+AppName.swift */; };
 		9B90649F3F54F2D036C08214 /* NoteEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153205CD1057E24782EA9A43 /* NoteEngine.swift */; };
-		9CF43E8AC581B67FC927C86C /* QuickClipboardShadow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B600BA0A029B26222C4C94B5 /* QuickClipboardShadow.swift */; };
 		9F76DD0794F1B8B63DA1EB2A /* CalendarScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21BB824E4969C30B78948080 /* CalendarScheduleStore.swift */; };
 		9F9A281BB20783D92CE7FE96 /* CalendarSchedulePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060C7F004CD9699AAA1B8099 /* CalendarSchedulePlugin.swift */; };
 		A059071A015B9B1B3983FFA5 /* CoffeeTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFDD89FB9F6E2D228D27A01 /* CoffeeTypes.swift */; };
@@ -486,7 +485,6 @@
 		B4ADAAF0E7643B2886D05E41 /* SettingsBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBackup.swift; sourceTree = "<group>"; };
 		B4EC6D4EEA70F7417040D5AB /* ScreenshotPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPlugin.swift; sourceTree = "<group>"; };
 		B578FB7AD0ACF30B9EBC161E /* AppCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCore.swift; sourceTree = "<group>"; };
-		B600BA0A029B26222C4C94B5 /* QuickClipboardShadow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickClipboardShadow.swift; sourceTree = "<group>"; };
 		B8099CA0EA9AD1C088844170 /* AppIdentityMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentityMigration.swift; sourceTree = "<group>"; };
 		B86F0BE33EC12D76308E7A98 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		BAA6729A8C71A37B8800DB8A /* ScreenshotManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotManager.swift; sourceTree = "<group>"; };
@@ -1109,7 +1107,6 @@
 				E2B77FEF044354D9DD8D2779 /* QuickClipboardMenuView.swift */,
 				F83CD97A519C6974AAFC1633 /* QuickClipboardMotion.swift */,
 				9A4ED7A6F86E198661E690ED /* QuickClipboardPresentation.swift */,
-				B600BA0A029B26222C4C94B5 /* QuickClipboardShadow.swift */,
 			);
 			path = Clipboard;
 			sourceTree = "<group>";
@@ -1428,7 +1425,6 @@
 				FE574088E63923CA809606CD /* QuickClipboardMenuView.swift in Sources */,
 				7E637433B5F15BB1A7BF784C /* QuickClipboardMotion.swift in Sources */,
 				9650BA63D2F19BBBEB4A9075 /* QuickClipboardPresentation.swift in Sources */,
-				9CF43E8AC581B67FC927C86C /* QuickClipboardShadow.swift in Sources */,
 				3675DCC361B14FE2CA0EBB8B /* QuicklinkManager.swift in Sources */,
 				23D88A95358AF8E68B1428E8 /* QuicklinkStore.swift in Sources */,
 				951BCA3C18064DB55FD90A15 /* QuicklinkTypes.swift in Sources */,
@@ -1578,7 +1574,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.16;
+				MARKETING_VERSION = 1.6.17;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1650,7 +1646,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.16;
+				MARKETING_VERSION = 1.6.17;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

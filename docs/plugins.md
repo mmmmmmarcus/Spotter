@@ -287,7 +287,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — image-first pasteboard capture (including copied local image files) with a persisted history;
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
   The palette's type filters share one Liquid Glass capsule and preserve search-field focus.
-  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for five recent entries, three visible at a time with animated keyboard scrolling,
+  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for five recent entries, three visible at a time in content-hugging pills capped at 120 points, with animated glass-edge emergence,
   above the active text caret (falling back to the captured mouse position), an explicit user-requested exception to palette-first interaction.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated

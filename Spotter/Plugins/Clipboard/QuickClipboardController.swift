@@ -18,8 +18,6 @@ final class QuickClipboardController {
     private var activation: NotificationToken?
     private var paste: ((ClipboardItem) -> Void)?
     private var restoreFocus: (() -> Void)?
-    private var shadowWork: (widths: [CGFloat], scale: CGFloat, task: Task<[CGImage], Never>)?
-    private var shadowCache: (widths: [CGFloat], scale: CGFloat, images: [CGImage])?
     private var generation = UUID()
     private(set) var isVisible = false
     private static let keys: [UInt16] = [53, 123, 124, 36, 76]
@@ -49,49 +47,28 @@ final class QuickClipboardController {
         let token = generation
         installObservers(sourcePID: application?.processIdentifier)
         preparation = Task { [weak self] in
-            let anchor = await Task.detached(priority: .userInitiated) { request.resolve() }.value
+            let anchor = await Task.detached(priority: .userInitiated) { await request.resolve() }.value
             guard !Task.isCancelled, let self, isVisible, generation == token else { return }
             let point = CGPoint(x: anchor.midX, y: anchor.midY)
             guard let display = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }) ?? NSScreen.main else {
                 dismiss()
                 return
             }
-            let scale = display.backingScaleFactor
             let screen = display.visibleFrame
             await QuickClipboardMenuView.prepareThumbnails(for: items)
             guard !Task.isCancelled, isVisible, generation == token else { return }
-            let widths = QuickClipboardMenuView.widths(for: items)
-            let images: [CGImage]
-            if let cache = shadowCache, cache.widths == widths, cache.scale == scale {
-                images = cache.images
-            } else {
-                if shadowWork?.widths != widths || shadowWork?.scale != scale {
-                    shadowWork = (widths, scale, Task.detached(priority: .userInitiated) {
-                        QuickClipboardShadow.renderWindows(widths: widths, scale: scale)
-                    })
-                }
-                images = await shadowWork?.task.value ?? []
-            }
-            guard !Task.isCancelled, isVisible, generation == token else { return }
-            guard images.count == max(1, widths.count - QuickClipboardPresentation.visibleLimit + 1) else {
-                AppLog.error("clipboard", "Unable to render quick clipboard shadow")
-                dismiss()
-                return
-            }
-            shadowCache = (widths, scale, images)
-            shadowWork = nil
-            present(anchor: anchor, screen: screen, images: images, widths: widths, scale: scale)
+            present(anchor: anchor, screen: screen)
             preparation = nil
         }
     }
 
-    private func present(anchor: CGRect, screen: CGRect, images: [CGImage], widths: [CGFloat], scale: CGFloat) {
+    private func present(anchor: CGRect, screen: CGRect) {
         let currentWidths = QuickClipboardMenuView.widths(for: items)
         let widestWindow = (0...max(0, currentWidths.count - QuickClipboardPresentation.visibleLimit))
             .map { QuickClipboardPresentation.visibleWidth(first: $0, widths: currentWidths) }.max() ?? 0
         let target = QuickClipboardPresentation.frame(anchor: anchor, screen: screen, count: items.count, contentWidth: widestWindow)
         let point = CGPoint(x: anchor.midX, y: anchor.midY)
-        let margin = QuickClipboardPresentation.shadowMargin
+        let margin = QuickClipboardPresentation.canvasMargin
         let canvas = CGRect(origin: target.origin, size: QuickClipboardPresentation.size(count: items.count))
         let windowFrame = canvas.insetBy(dx: -margin - 8, dy: -margin - 8)
             .union(CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16)).integral
@@ -109,7 +86,7 @@ final class QuickClipboardController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         let root = NSView(frame: CGRect(origin: .zero, size: windowFrame.size))
         root.wantsLayer = true
-        let menu = QuickClipboardMenuView(items: items, shadowImages: QuickClipboardMenuView.widths(for: items) == widths ? images : [], scale: scale)
+        let menu = QuickClipboardMenuView(items: items)
         menu.update(items, selection: selection)
         menu.frame.origin = CGPoint(x: target.minX - margin - windowFrame.minX, y: target.minY - margin - windowFrame.minY)
         root.addSubview(menu)

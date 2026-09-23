@@ -124,7 +124,6 @@ run_harness() {
                 Spotter/Plugins/Clipboard/ClipboardFilter.swift \
                 Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
                 Spotter/Plugins/Clipboard/QuickClipboardAnchor.swift \
-                Spotter/Plugins/Clipboard/QuickClipboardShadow.swift \
                 Spotter/Plugins/Clipboard/QuickClipboardMenuView.swift \
                 Spotter/Plugins/Clipboard/QuickClipboardMotion.swift \
                 Spotter/Plugins/Screenshot/ScreenshotFileName.swift \

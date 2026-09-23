@@ -178,6 +178,7 @@ final class QuickClipboardMotion: NSObject {
         completionTask?.cancel()
         completionTask = nil
         render(scale: targetScale, position: targetPosition, opacity: targetOpacity)
+        menu.refreshGlyphs()
         displayLink?.invalidate()
         displayLink = nil
         if isClosing {

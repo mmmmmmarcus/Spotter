@@ -6,11 +6,7 @@ final class QuickClipboardMenuView: NSView {
     let glassContainer = NSGlassEffectContainerView()
     private let glassContent = NSView()
     private let rowsView = NSView()
-    private let shadowLayer = CALayer()
-    private var shadowImages: [CGImage]
-    private var shadowPreparation: Task<Void, Never>?
     private var rowWidths: [CGFloat]
-    private let backingScale: CGFloat
     private var thumbnailPreparation: Task<Void, Never>?
     private var requestedImagePaths: [String] = []
     private var displayedItems: [ClipboardItem] = []
@@ -31,13 +27,11 @@ final class QuickClipboardMenuView: NSView {
     private(set) var firstVisibleIndex = 0
     private(set) var isScrolling = false
 
-    init(items: [ClipboardItem], shadowImages: [CGImage], scale: CGFloat = 2, now: @escaping () -> CFTimeInterval = CACurrentMediaTime) {
+    init(items: [ClipboardItem], now: @escaping () -> CFTimeInterval = CACurrentMediaTime) {
         self.now = now
-        self.shadowImages = shadowImages
-        self.backingScale = scale
         self.rowWidths = Self.widths(for: items)
         let size = QuickClipboardPresentation.size(count: items.count)
-        let margin = QuickClipboardPresentation.shadowMargin
+        let margin = QuickClipboardPresentation.canvasMargin
         super.init(frame: CGRect(origin: .zero, size: CGSize(width: size.width + margin * 2, height: size.height + margin * 2)))
         wantsLayer = true
         glassContainer.frame = CGRect(origin: CGPoint(x: margin, y: margin), size: size)
@@ -45,17 +39,18 @@ final class QuickClipboardMenuView: NSView {
         glassContainer.spacing = 0
         glassContainer.contentView = glassContent
         glassContainer.wantsLayer = true
-        glassContainer.layer?.masksToBounds = true
+        glassContainer.clipsToBounds = false
         let rowCount = max(1, items.count)
         rowsView.frame = glassContent.bounds
         rowsView.wantsLayer = true
-        rowsView.clipsToBounds = true
+        rowsView.clipsToBounds = false
         glassContent.addSubview(rowsView)
         addSubview(glassContainer)
         let frames = QuickClipboardPresentation.rowFrames(widths: rowWidths)
         for index in 0..<rowCount {
             let rect = frames[index]
             let content = NSView(frame: CGRect(origin: .zero, size: rect.size))
+            content.clipsToBounds = true
             let button = Self.makeButton()
             button.frame = content.bounds.insetBy(dx: 11, dy: 0)
             if items.indices.contains(index) {
@@ -77,12 +72,6 @@ final class QuickClipboardMenuView: NSView {
             rowButtons.append(button)
             rowGlass.append(addGlass(rect: rect, content: content))
         }
-        shadowLayer.zPosition = 100
-        shadowLayer.frame = bounds
-        shadowLayer.contents = shadowImages.first
-        shadowLayer.contentsGravity = .resize
-        // The hollow shadow sits above the glass without entering any glass sampling region.
-        layer?.addSublayer(shadowLayer)
         renderRows(offset: 0, viewportWidth: QuickClipboardPresentation.visibleWidth(first: 0, widths: rowWidths))
         update(items, selection: 0)
     }
@@ -91,7 +80,6 @@ final class QuickClipboardMenuView: NSView {
 
     isolated deinit {
         scrollTask?.cancel()
-        shadowPreparation?.cancel()
         thumbnailPreparation?.cancel()
         scrollDisplayLink?.invalidate()
     }
@@ -113,10 +101,8 @@ final class QuickClipboardMenuView: NSView {
             }
         }
         let widths = Self.widths(for: items)
-        if widths != rowWidths || shadowImages.isEmpty {
+        if widths != rowWidths {
             rowWidths = widths
-            shadowImages = []
-            shadowLayer.contents = nil
             for (index, glass) in rowGlass.enumerated() {
                 glass.setFrameSize(CGSize(width: widths[index], height: QuickClipboardPresentation.rowHeight))
                 glass.contentView?.frame = glass.bounds
@@ -128,32 +114,15 @@ final class QuickClipboardMenuView: NSView {
             isScrolling = false
             renderRows(offset: QuickClipboardPresentation.scrollOffset(first: firstVisibleIndex, widths: widths),
                 viewportWidth: QuickClipboardPresentation.visibleWidth(first: firstVisibleIndex, widths: widths))
-            shadowLayer.opacity = 1
-            shadowPreparation?.cancel()
-            let scale = backingScale
-            shadowPreparation = Task { [weak self] in
-                let images = await Task.detached(priority: .userInitiated) {
-                    QuickClipboardShadow.renderWindows(widths: widths, scale: scale)
-                }.value
-                guard !Task.isCancelled, let self, rowWidths == widths else { return }
-                shadowImages = images
-                updateShadow()
-            }
         }
         select(selection)
     }
 
     func select(_ index: Int, animated: Bool = false) {
         selectedIndex = index
-        for (offset, glass) in rowGlass.enumerated() {
-            glass.tintColor = offset == index ? .selectedContentBackgroundColor.withAlphaComponent(0.12) : nil
+        for offset in rowButtons.indices {
             let button = rowButtons[offset]
-            if !button.title.isEmpty {
-                let title = NSMutableAttributedString(attributedString: button.attributedTitle)
-                title.addAttribute(.foregroundColor, value: NSColor.labelColor.withAlphaComponent(offset == index ? 1 : 0.5),
-                    range: NSRange(location: 0, length: title.length))
-                button.attributedTitle = title
-            }
+            button.isSelected = offset == index
             button.setAccessibilityValue(offset == index ? "Selected" : "")
         }
         scroll(to: index, animated: animated)
@@ -175,13 +144,6 @@ final class QuickClipboardMenuView: NSView {
         scrollStartedAt = now()
         let shouldAnimate = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         isScrolling = shouldAnimate
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for glass in rowGlass { glass.isHidden = false }
-        shadowLayer.removeAnimation(forKey: "clipboard.shadow")
-        // The resting bitmap's hollow regions must never overlap glass moving between rows.
-        shadowLayer.opacity = shouldAnimate ? 0 : 1
-        CATransaction.commit()
         guard shouldAnimate else {
             scrollDisplayLink?.invalidate()
             scrollDisplayLink = nil
@@ -223,7 +185,17 @@ final class QuickClipboardMenuView: NSView {
         rowsView.setFrameSize(size)
         let frames = QuickClipboardPresentation.rowFrames(widths: rowWidths)
         for (index, glass) in rowGlass.enumerated() {
-            glass.setFrameOrigin(CGPoint(x: frames[index].minX - offset, y: 0))
+            let full = frames[index].offsetBy(dx: -offset, dy: 0)
+            let visible = full.intersection(CGRect(origin: .zero, size: size))
+            // Grow the native glass outline at the edge; keep glyphs at their original size.
+            let rect = visible.isNull ? full : visible
+            glass.frame = rect
+            glass.cornerRadius = min(QuickClipboardPresentation.cornerRadius, rect.width / 2)
+            glass.contentView?.frame = glass.bounds
+            rowButtons[index].frame = CGRect(x: full.minX - rect.minX + 11, y: 0,
+                width: full.width - 22, height: full.height)
+            rowButtons[index].revealOpacity = visible.isNull ? 0 : min(1, visible.width / min(24, full.width))
+            glass.isHidden = visible.isNull
         }
         glassContainer.layoutSubtreeIfNeeded()
         CATransaction.commit()
@@ -238,33 +210,20 @@ final class QuickClipboardMenuView: NSView {
         renderRows(offset: scrollTarget, viewportWidth: targetViewportWidth)
         isScrolling = false
         hideOffscreenRows()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        shadowLayer.opacity = 1
-        CATransaction.commit()
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
-        fade.toValue = 1
-        fade.duration = 0.1
-        shadowLayer.add(fade, forKey: "clipboard.shadow")
-    }
-
-    private func updateShadow() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        shadowLayer.contents = shadowImages.indices.contains(firstVisibleIndex) ? shadowImages[firstVisibleIndex] : nil
-        CATransaction.commit()
     }
 
     private func hideOffscreenRows() {
-        updateShadow()
         for (index, glass) in rowGlass.enumerated() {
             glass.isHidden = index < firstVisibleIndex || index >= firstVisibleIndex + QuickClipboardPresentation.visibleLimit
         }
     }
 
+    func refreshGlyphs() {
+        for button in rowButtons { button.needsDisplay = true }
+    }
+
     func containsGlass(_ point: CGPoint) -> Bool {
-        let margin = QuickClipboardPresentation.shadowMargin
+        let margin = QuickClipboardPresentation.canvasMargin
         let local = CGPoint(x: point.x - margin, y: point.y - margin)
         return rowsView.bounds.contains(local) && rowGlass.contains {
             !$0.isHidden && QuickClipboardPresentation.signedDistance(local, to: $0.frame) <= 0
@@ -308,7 +267,7 @@ final class QuickClipboardMenuView: NSView {
 
     private static func configure(_ button: QuickClipboardButton, for item: ClipboardItem) {
         button.setAccessibilityLabel("Paste \(QuickClipboardPresentation.title(for: item))")
-        button.imageScaling = .scaleProportionallyDown
+        button.imageScaling = .scaleNone
         if item.kind == .image {
             button.title = ""
             button.imagePosition = .imageOnly
@@ -316,14 +275,14 @@ final class QuickClipboardMenuView: NSView {
             if let path = item.imagePath,
                let cached = ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 128),
                let preview = cached.copy() as? NSImage {
-                let ratio = min(218 / max(1, preview.size.width), 24 / max(1, preview.size.height))
+                let ratio = min((QuickClipboardPresentation.width - 22) / max(1, preview.size.width), 24 / max(1, preview.size.height))
                 preview.size = CGSize(width: preview.size.width * ratio, height: preview.size.height * ratio)
                 button.image = preview
             } else {
                 button.image = symbol("photo")
             }
         } else {
-            button.title = "  " + QuickClipboardPresentation.title(for: item)
+            button.title = QuickClipboardPresentation.title(for: item)
             button.imagePosition = .imageLeading
             button.contentTintColor = .labelColor
             button.image = symbol(QuickClipboardPresentation.symbol(for: item))
@@ -347,7 +306,11 @@ final class QuickClipboardMenuView: NSView {
 }
 
 @MainActor
-private final class QuickClipboardButton: NSButton {
+final class QuickClipboardButton: NSButton {
+    var isSelected = false { didSet { needsDisplay = true } }
+    var revealOpacity: CGFloat = 1 { didSet { needsDisplay = true } }
+    var textColor: NSColor { .labelColor.withAlphaComponent(isSelected ? 1 : 0.35) }
+    var symbolColor: NSColor { .labelColor.withAlphaComponent(isSelected ? 1 : 0.5) }
     var actionHandler: (() -> Void)?
     var hoverHandler: (() -> Void)?
     private var hoverTracking: NSTrackingArea?
@@ -365,9 +328,51 @@ private final class QuickClipboardButton: NSButton {
     }
 
     required init?(coder: NSCoder) { nil }
+    override var intrinsicContentSize: NSSize {
+        guard imagePosition != .imageOnly else { return super.intrinsicContentSize }
+        let width = (title as NSString).size(withAttributes: [.font: font ?? NSFont.systemFont(ofSize: 12)]).width
+        return CGSize(width: 16 + 6 + ceil(width), height: QuickClipboardPresentation.rowHeight)
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        needsDisplay = true
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
+        effectiveAppearance.performAsCurrentDrawingAppearance { drawContents() }
+    }
+
+    private func pixelAligned(_ rect: CGRect) -> CGRect {
+        let origin = convertToBacking(rect.origin)
+        return CGRect(origin: convertFromBacking(CGPoint(x: origin.x.rounded(), y: origin.y.rounded())), size: rect.size)
+    }
+
+    private func drawContents() {
         guard imagePosition == .imageOnly, let image, !image.isTemplate else {
-            super.draw(dirtyRect)
+            if let image {
+                let size = image.size
+                let origin = CGPoint(x: imagePosition == .imageOnly ? bounds.midX - size.width / 2 : 8 - size.width / 2,
+                    y: bounds.midY - size.height / 2)
+                let rect = pixelAligned(CGRect(origin: origin, size: size))
+                let colored = image.withSymbolConfiguration(.init(paletteColors: [symbolColor])) ?? image
+                colored.draw(in: rect, from: .zero, operation: .sourceOver, fraction: revealOpacity, respectFlipped: true, hints: nil)
+            }
+            if !title.isEmpty {
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.lineBreakMode = .byTruncatingTail
+                let font = font ?? NSFont.systemFont(ofSize: 12)
+                let height = ceil(font.ascender - font.descender)
+                let rect = pixelAligned(CGRect(x: 22, y: bounds.midY - height / 2,
+                    width: max(0, bounds.width - 22), height: height))
+                (title as NSString).draw(in: rect, withAttributes: [.font: font,
+                    .foregroundColor: textColor.withAlphaComponent(textColor.alphaComponent * revealOpacity), .paragraphStyle: paragraph])
+            }
             return
         }
         let available = bounds.insetBy(dx: 0, dy: 8)
@@ -376,7 +381,7 @@ private final class QuickClipboardButton: NSButton {
         let rect = CGRect(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2, width: size.width, height: size.height)
         NSGraphicsContext.saveGraphicsState()
         NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).addClip()
-        image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: revealOpacity, respectFlipped: true, hints: nil)
         NSGraphicsContext.restoreGraphicsState()
     }
 
