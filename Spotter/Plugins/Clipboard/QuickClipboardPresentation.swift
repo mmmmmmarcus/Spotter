@@ -3,10 +3,12 @@ import CoreGraphics
 
 enum QuickClipboardPresentation {
     static let limit = 5
-    static let width: CGFloat = 120
+    static let width: CGFloat = 276
     static let rowHeight: CGFloat = 32
-    static let cornerRadius: CGFloat = rowHeight / 2
-    static let spacing: CGFloat = 8
+    static let cornerRadius: CGFloat = 16
+    static let rowCornerRadius: CGFloat = 10
+    static let inset: CGFloat = 6
+    static let historyGap: CGFloat = 8
     static let safety: CGFloat = 8
     static let canvasMargin: CGFloat = 64
     static let initialScale: CGFloat = 0.50
@@ -35,30 +37,23 @@ enum QuickClipboardPresentation {
     }
 
     static func size(count: Int) -> CGSize {
-        let columns = CGFloat(max(0, min(limit, count)))
-        return CGSize(width: columns * (width + spacing) + rowHeight, height: rowHeight)
+        let rows = max(0, min(limit, count))
+        return CGSize(width: width, height: inset * 2 + CGFloat(rows + 1) * rowHeight + (rows > 0 ? historyGap : 0))
     }
 
     static func rowFrames(count: Int) -> [CGRect] {
-        rowFrames(widths: Array(repeating: width, count: max(0, min(limit, count))) + [rowHeight])
-    }
-
-    static func rowFrames(widths: [CGFloat]) -> [CGRect] {
-        var x: CGFloat = 0
-        return widths.map { width in
-            defer { x += width + spacing }
-            return CGRect(x: x, y: 0, width: width, height: rowHeight)
+        let rows = max(0, min(limit, count))
+        let height = size(count: rows).height
+        return (0...rows).map { index in
+            let gap = index == rows && rows > 0 ? historyGap : 0
+            return CGRect(x: inset, y: height - inset - CGFloat(index + 1) * rowHeight - gap,
+                width: width - inset * 2, height: rowHeight)
         }
     }
 
-    static func totalWidth(_ widths: [CGFloat]) -> CGFloat {
-        widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * spacing
-    }
-
-    static func frame(anchor: CGRect, screen: CGRect, count: Int, contentWidth: CGFloat? = nil) -> CGRect {
+    static func frame(anchor: CGRect, screen: CGRect, count: Int) -> CGRect {
         let safe = screen.insetBy(dx: safety, dy: safety)
-        var size = size(count: count)
-        if let contentWidth { size.width = min(size.width, contentWidth) }
+        let size = size(count: count)
         let preferredX = anchor.height > 0 ? anchor.minX : anchor.maxX + 12
         let x = preferredX + size.width <= safe.maxX ? preferredX : anchor.maxX - (anchor.height > 0 ? 0 : 12) - size.width
         let y = anchor.maxY + 12 + size.height <= safe.maxY ? anchor.maxY + 12 : anchor.minY - 12 - size.height

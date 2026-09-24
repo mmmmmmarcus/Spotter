@@ -168,16 +168,28 @@ the display, placement and both animation directions. Caret menus align directly
 mouse menus prefer above/right. Both flip below/left as necessary and leave 12 points at the anchor
 and at least 8 points inside the screen's visible frame.
 
-Up to five recent entries are visible together in one fixed horizontal row with native `NSGlassEffectView` pills using the `.clear` style and capsule corners, 32 points high,
-left aligned and sized to each native button’s content plus 11-point horizontal insets, capped at 120 points,
-inside one `NSGlassEffectContainerView`, with 8-point gaps. A final 32-point circular `ellipsis` button opens the complete clipboard history in the shared palette, clearing any old query/filter. It remains available when history is empty. Each glass view owns a borderless action button as its `contentView`, avoiding a second glass bezel. Clear is the explicitly selected material for this menu, without an added tint or dimming layer. Preview content is a non-interactive child view, leaving hit testing and accessibility on the button. The system owns
-appearance, contrast and Reduce Transparency. Symbols use 14-point medium `labelColor`. Selected text has full opacity;
-unselected text has 35% opacity and symbols 50%. Text and symbols resolve semantic label colors in the effective drawing appearance, including appearance changes. Symbols keep their native 14-point size and pixel-aligned origins; the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse whitespace and truncate; pastes retain the full payload. Image entries show an aspect-fit thumbnail instead of a filename or text label, up to 16 points high, with 8 points of vertical padding, 11 points of horizontal padding, and 4-point image corners. Loading runs asynchronously alongside the opening animation, with a photo symbol until a cold preview is ready. Cold image pills reserve their maximum width so late decoding cannot grow the row beyond its screen-clamped placement. They reuse the bounded 128-pixel row cache in `ImageThumbnail`, decode off-main, preserve their original colors with full opacity when selected and 50% when unselected, and fall back to a photo symbol for unreadable files.
+Up to five recent entries appear top to bottom in a 276-point-wide vertical menu. All rows share
+one native `NSGlassEffectView` using `.clear` with 16-point corners; there are no per-row glass
+surfaces. The menu has 6-point outer insets, 32-point equal-width rows and an 8-point gap before the
+final **Open Clipboard History** row. That action opens the complete history in the shared palette,
+clearing any old query/filter, and remains available when history is empty. Borderless buttons live
+directly in the glass content view, with a subtle rounded row highlight for selection. The menu width
+stays fixed while content or thumbnails update, so the screen-clamped placement never shifts.
 
-Material uses the system Clear glass preset without custom tint, raster shadows or blur overlays. Outer containers do not clip the system-rendered glass edges; only pill content clips to its glass outline.
+Clear remains the selected material without a tint or dimming layer. Preview content is a
+non-interactive child view, leaving hit testing and accessibility on each button. The system owns
+appearance, contrast and Reduce Transparency. Symbols use 14-point medium `labelColor`. Selected
+text has full opacity; unselected text has 35% opacity and symbols 50%. Text and symbols resolve
+semantic label colors in the effective drawing appearance. Symbols retain pixel-aligned origins;
+the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse
+whitespace and truncate; pastes retain the full payload. Image entries show leading aspect-fit
+thumbnails without filenames, up to 16 points high, with 8-point vertical padding and 4-point image
+corners. Loading is asynchronous and reuses the bounded 128-pixel cache in `ImageThumbnail`, with a
+photo symbol for cold or unreadable previews. Images retain their original colors, with full opacity
+when selected and 50% when unselected. Outer containers leave native glass edges unclipped.
 
-The panel cannot become key or main, and buttons never request key status. Click or ←/→ then Return
-pastes; on the final circle, Return opens full history. Escape or repeating the shortcut cancels. Arrow navigation changes selection only: all entries stay visible and there is no paging state, timer or translation. Bare keys are claimed only while presented,
+The panel cannot become key or main, and buttons never request key status. Click or ↑/↓ then Return
+pastes; on the final row, Return opens full history. Escape or repeating the shortcut cancels. Arrow navigation changes selection only: all entries stay visible and there is no paging state, timer or translation. Bare keys are claimed only while presented,
 through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
@@ -194,7 +206,7 @@ Reduce Motion keeps only a 0.12-second fade. Display links exist only during the
 cleanup even when a display link stops producing frames. Input ends immediately on dismissal and the
 departing panel ignores mouse events. Screenshot's Hide Spotter path closes these panels immediately.
 
-WindowServer shadow remains disabled. A single Core Animation area shadow follows the visible group: 18% opacity, 24-point radius and a 4-point downward offset. It has an explicit rounded region path and sits above the glass with an even-odd mask removing every visible pill interior. The path and cutouts include the history circle and update together on live width changes. Native glass views still own their material and edges; no per-frame bitmap generation or shadow cache is needed.
+WindowServer shadow remains disabled. A single Core Animation shadow follows the rounded menu outline: 18% opacity, 24-point radius and a 4-point downward offset. It sits above the glass with an even-odd mask removing the entire menu interior, including row gaps and insets, so it cannot darken the glass backdrop. No per-frame bitmap generation or shadow cache is needed.
 
 Store, mouse and app-activation observers exist only during a session. Same-size updates preserve
 selection by ID; entry-count changes keep the current menu geometry until the next summon, and deleting

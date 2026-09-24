@@ -14,7 +14,7 @@ enum AIChatPlugin {
                 id: .aiChat,
                 name: "AI Chat & Command",
                 summary:
-                    "Chat through OpenRouter or hand a prompt to ChatGPT on the web, plus define and proofread selected text.",
+                    "Chat through OpenRouter, use MCP and Cua tools, or define and proofread selected text.",
                 systemImage: "sparkles",
                 tint: .purple,
                 settingsPlacement: .system),
@@ -48,7 +48,7 @@ enum AIChatActionsMenu {
         var items: [PopoverMenuItem] = []
         if core.aiChat.isWaiting {
             items.append(
-                PopoverMenuItem(title: "Stop Waiting", systemImage: "stop.circle") {
+                PopoverMenuItem(title: core.aiTools.isRunning ? "Stop Tools" : "Stop Waiting", systemImage: "stop.circle") {
                     core.aiChat.stop()
                 })
         }

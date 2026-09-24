@@ -16,7 +16,7 @@ manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `QuickClipboardCon
 `AppSettings`, `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`, `CurrencyRateStore`, `EmojiIndex`, `FrequentEmojiStore`,
 `RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`, `ChangeCaseStore`,
-`OpenRouterStore`, `SelectionToolsManager`, `TranslateManager`, `ImageModificationManager`, `TextReplacementStore`,
+`OpenRouterStore`, `AIToolStore`, `SelectionToolsManager`, `TranslateManager`, `ImageModificationManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `NoteSyncManager`, `QuicklinkStore`, `QuicklinkManager`,
 `WindowMover`,
 `MoleManager`, `CoffeeManager`, `ScreenshotManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,

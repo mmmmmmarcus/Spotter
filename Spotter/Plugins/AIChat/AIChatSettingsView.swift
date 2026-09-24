@@ -41,6 +41,8 @@ struct AIChatSettingsView: View {
                 }
             }
 
+            AIToolSettingsSection()
+
             Section("Web Search") {
                 SettingsRow(title: "Search the Web") {
                     Toggle(

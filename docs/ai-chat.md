@@ -51,6 +51,10 @@ plumbing without being presented as an optional plugin.
 | --- | --- |
 | `AIChatTypes.swift` | Foundation-only, pure: portable message/session models, derived session title, the request status vocabulary, system prompt, transcript windowing and ChatGPT web URL. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
+| `AIToolTypes.swift` | Foundation-only JSON values, MCP configuration validation, tool calls and multimodal result conversion. |
+| `AIMCPConnection.swift` | Per-request MCP client: stdio processes and cacheless Streamable HTTP/SSE. |
+| `AIToolStore.swift` | AppCore-owned consent, tool discovery, bounded model/tool loop and approval continuations. |
+| `AIToolSettingsView.swift` | Device-local MCP configuration editor, Cua preset and consent. |
 | `AIChatSelectionPrompts.swift` | Foundation-only: the prompts the two shipped AI commands start with. |
 | `AICommand.swift` | Foundation-only, pure: the AI command record, built-in identity, `{selection}` substitution and list repair. |
 | `AICommandStore.swift` | Foundation + Combine: the saved commands, their validation and the upgrade from the old prompt/model keys. |
@@ -240,3 +244,64 @@ optional `sourceSystemImage` travels with the session in backup/sync. Earlier se
 field recover the three shipped selection-action icons from their fixed `titleOverride` values;
 ordinary message text never determines the icon. The Sessions menu uses the same source icons,
 with the current session still marked by a check.
+
+
+## MCP and Cua experiment
+
+Settings → AI Chat & Command → **MCP & Computer Use · Experimental** configures tools. Fresh
+installs and upgrades leave tools off. Configure uses the common `mcpServers` JSON shape:
+
+```json
+{
+  "mcpServers": {
+    "local": { "command": "/absolute/path/to/server", "args": ["--stdio"], "env": {} },
+    "remote": { "url": "https://example.com/mcp", "headers": { "Authorization": "Bearer …" } }
+  }
+}
+```
+
+Only Streamable HTTP is supported for remote servers; legacy standalone SSE and OAuth discovery
+are not implemented. Only tools are exposed to the model; resources, prompts, sampling and elicitation
+are not implemented. Bounded initialization notes are supplied as untrusted reference context. HTTPS is required except on localhost. HTTP redirects are refused so configured
+credentials cannot be forwarded to another endpoint. Local commands use argv without a shell, a
+small explicit environment, and the user's home as working directory. Commands execute as the user:
+only trusted servers belong in this configuration. Header/environment secrets are stored with local
+settings, not in Keychain. `ai-chat.mcp-configuration` and `ai-chat.tools-consent` live in the app's
+bundle defaults domain and are excluded from backup and sync. Saving any configuration revokes tool
+consent, including when replacing an existing endpoint.
+
+**Add Cua** inserts a `cua` server with the installed `cua-driver` executable and `["mcp"]` arguments.
+Install [Cua Driver](https://cua.ai/docs/how-to-guides/driver/connect-your-agent) separately; Spotter
+does not bundle or auto-update it. CuaDriver.app owns its Accessibility and Screen Recording grants;
+Spotter never grants them or treats Spotter's grants as Cua's. This preset operates the current Mac,
+not a VM. Driver installation and a model that supports both tools and images are required for the
+complete Computer Use flow. Missing executables, denied driver permissions and unsupported model
+parameters surface as errors. There is no fallback to another computer-use implementation.
+
+Enabling tools explains that configured processes/servers are contacted during chat requests only,
+and their descriptions, arguments, results and Cua screenshots may reach OpenRouter and the selected
+model provider. The OpenRouter key gate also applies. No MCP connection is opened at launch or from
+merely editing configuration. Define/Grammar and other selected-text commands retain ordinary chat
+for their first answer; they do not execute tools. Normal chat remains streaming. In tool mode, each
+model round returns a complete message before requesting a tool; up to 12 rounds and 128 discovered
+tools are supported, with one tool call per round.
+
+Every tool call displays its server, tool name and JSON arguments through `confirmInPalette`.
+Cancel is selected initially. Closing that card, dismissing the palette, stopping the background
+request, changing the key, changing configuration or revoking consent prevents further calls.
+Confirmation hides the palette and restores focus before executing Cua. Stop cancels network work
+and closes the per-request MCP processes; an action already dispatched to an external server cannot
+be rolled back. Connections and consent are checked on both sides of every asynchronous step.
+
+The transcript exposes a collapsible tool activity list and current progress with Stop. Activities
+are bounded to 100 in-memory entries and cleared when consent is revoked. Text results are bounded;
+PNG/JPEG/WebP image blocks go to the model as multimodal observations, with only the newest tool's
+images retained. Images, tool arguments, raw results and model reasoning are not added to saved chat
+sessions or sync. Follow-up requests start new MCP connections and fresh observations. The system
+prompt treats tool, page and screen contents as untrusted data and requires observed targets and
+verification rather than guessed coordinates or success claims from dispatch alone.
+
+`Tools/ai-tools-test.swift` compiles the real configuration, transport and tool store against a
+scripted model and `Tools/Fixtures/ai-mcp-server.py`. It covers stdio, HTTP JSON/SSE, session headers,
+server ping, pagination, RPC errors, redirects, multimodal conversion, approvals, cancellation and
+consent/key revocation without contacting a model or reading the desktop.

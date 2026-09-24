@@ -94,6 +94,9 @@ struct PaletteConfirmation {
     let actionTitle: String
     /// Tints the action red. Selection defaults to Cancel either way.
     var isDestructive = true
+    var requestID: UUID? = nil
+    var details: String? = nil
+    var onCancel: (() -> Void)? = nil
     let onConfirm: () -> Void
 }
 
@@ -126,7 +129,18 @@ final class PaletteViewModel: ObservableObject {
     /// The app a paste would land in, mirrored from `PaletteWindowController.previousApp` on every show. Deliberately *not* cleared by `prepare` — pop-to-root resets the screen, not the paste target.
     @Published var pasteTarget: PasteTarget?
     /// A pending in-palette yes/no. While set, the overlay owns ↵ / Esc / ←→ and typing is frozen through the same mechanism as an open footer menu.
-    @Published var confirmation: PaletteConfirmation?
+    private var resolvingConfirmation = false
+    @Published var confirmation: PaletteConfirmation? {
+        didSet { if !resolvingConfirmation { oldValue?.onCancel?() } }
+    }
+
+    func resolveConfirmation(_ confirmed: Bool) {
+        guard let pending = confirmation else { return }
+        resolvingConfirmation = true
+        confirmation = nil
+        resolvingConfirmation = false
+        if confirmed { pending.onConfirm() } else { pending.onCancel?() }
+    }
     /// Gates the mouse-hover highlight: true only while the pointer is physically moving (armed on `.mouseMoved`, disarmed on any `.keyDown` in `PalettePanel.sendEvent`). Plain, not `@Published` — read at hover time, never drives a re-render.
     var hoverHighlightArmed = false
     /// True while a footer popover menu (⌘K Actions or the app menu) is open, so `PalettePanel.sendEvent` swallows text-editing keystrokes the field editor would otherwise consume — the query must stay frozen while a menu owns the keyboard (matches Raycast). Plain, not `@Published` — read at event time, mirrored from the view's menu state.
@@ -219,6 +233,7 @@ final class AppCore: ObservableObject {
     /// Deliberately unstarted: the CloudKit engine is kept whole but has no entry point since Notes
     /// moved to a folder of Markdown files. See `NoteSyncManager`.
     let noteSync: NoteSyncManager
+    let aiTools = AIToolStore()
     let aiChat: AIChatStore
     let aiCommands = AICommandStore()
     let quicklinks = QuicklinkStore()
@@ -252,7 +267,7 @@ final class AppCore: ObservableObject {
         self.notes = notes
         noteFolderSync = NoteFolderSyncManager(store: notes)
         noteSync = NoteSyncManager(store: notes)
-        aiChat = AIChatStore(openRouter: openRouter)
+        aiChat = AIChatStore(openRouter: openRouter, tools: aiTools)
         quicklinkManager = QuicklinkManager(store: quicklinks)
         for registration in BuiltInPlugins.registrations(core: self) {
             plugins.register(registration)
@@ -373,6 +388,24 @@ final class AppCore: ObservableObject {
             self?.backgroundTasks.discard(id: taskID)
         }
 
+        openRouter.onCredentialsChanged = { [weak self] in self?.aiChat.stop() }
+        aiTools.onConfigurationChanged = { [weak self] in self?.aiChat.stop() }
+        aiTools.onApproval = { [weak self] approval in
+            guard let self else { return }
+            if let sessionID = aiChat.waitingSessionID { openAIChat(sessionID: sessionID) }
+            confirmInPalette(PaletteConfirmation(title: approval.title,
+                message: "Review the arguments. Run this tool on the configured server?",
+                actionTitle: "Run Tool", isDestructive: false, requestID: approval.id, details: approval.arguments,
+                onCancel: { [weak self] in self?.aiTools.resolveApproval(approval.id, allowed: false) }) { [weak self] in
+                    guard let self else { return }
+                    hidePalette(restoreFocus: true)
+                    aiTools.resolveApproval(approval.id, allowed: true)
+                })
+        }
+        aiTools.onApprovalEnded = { [weak self] id in
+            guard let self, palette.confirmation?.requestID == id else { return }
+            palette.confirmation = nil
+        }
         aiChat.onRequestStarted = { [weak self] sessionID, sessionTitle in
             guard let self else { return UUID() }
             // The conversation names the row and the status is the subtitle, so several finished
@@ -380,7 +413,8 @@ final class AppCore: ObservableObject {
             return self.backgroundTasks.begin(
                 title: sessionTitle, detail: AIChatEngine.waitingStatus,
                 systemImage: "sparkles",
-                onOpen: { [weak self] in self?.openAIChat(sessionID: sessionID) })
+                onOpen: { [weak self] in self?.openAIChat(sessionID: sessionID) },
+                onCancel: { [weak self] in self?.aiChat.stop() })
         }
         aiChat.onRequestFinished = { [weak self] taskID, sessionID, succeeded, detail in
             guard let self else { return }
@@ -703,6 +737,7 @@ final class AppCore: ObservableObject {
     /// `PaletteWindowController` is the only writer: it is the one choke point every summon and
     /// every dismissal passes through, including the click-away that never reaches `hidePalette`.
     func paletteVisibilityDidChange(to visible: Bool) {
+        if !visible, palette.confirmation?.requestID != nil { palette.resolveConfirmation(false) }
         guard isPaletteVisible != visible else { return }
         isPaletteVisible = visible
         if !visible { backgroundTasks.dismissSeenCompletions() }

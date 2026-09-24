@@ -18,6 +18,15 @@ struct ConfirmationCard: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            if let details = confirmation.details {
+                ScrollView {
+                    Text(details)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 140)
+            }
             HStack(spacing: Theme.Spacing.md) {
                 button("Cancel", index: 0, destructive: false) { onActivate(false) }
                 button(confirmation.actionTitle, index: 1, destructive: confirmation.isDestructive) {

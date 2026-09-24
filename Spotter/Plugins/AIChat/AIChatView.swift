@@ -4,6 +4,7 @@ import SwiftUI
 /// composer — this view only renders the transcript, in the palette's own list chrome.
 struct AIChatView: View {
     @ObservedObject var chat: AIChatStore
+    @ObservedObject private var tools = AppCore.shared.aiTools
     let selectedID: AIChatSession.ID?
     let scroll: ScrollIntent
     let onActivate: (AIChatSession) -> Void
@@ -64,6 +65,8 @@ struct AIChatView: View {
         }
     }
 
+    private var toolActivities: [AIToolActivity] { tools.activities.filter { $0.sessionID == chat.currentID } }
+
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -71,7 +74,27 @@ struct AIChatView: View {
                     ForEach(chat.messages) { message in
                         AIChatRow(message: message, isStreaming: message.id == chat.streamingReply?.id)
                     }
-                    if chat.phase == .waiting {
+                    if !toolActivities.isEmpty {
+                        DisclosureGroup("Tool activity · \(toolActivities.count)") {
+                            ForEach(toolActivities) { activity in
+                                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                                    Text(activity.title).font(.caption.weight(.semibold))
+                                    Text(activity.detail).font(.caption).foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, Theme.Spacing.xs)
+                            }
+                        }
+                        .padding(.horizontal, Theme.Spacing.md)
+                    }
+                    if chat.phase == .waiting, tools.isRunning {
+                        HStack {
+                            AIChatStatusRow(symbol: "wrench.and.screwdriver", text: tools.status, pulses: true)
+                            Spacer()
+                            Button("Stop") { chat.stop() }.controlSize(.small)
+                        }
+                    } else if chat.phase == .waiting {
                         AIChatStatusRow(
                             symbol: "ellipsis", text: chat.streamingReply == nil ? AIChatEngine.waitingStatus : "Generating…", pulses: true)
                     }
@@ -106,6 +129,9 @@ struct AIChatView: View {
                 withAnimation(.easeOut(duration: Theme.Animation.quick)) {
                     proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
                 }
+            }
+            .onChange(of: tools.status) {
+                if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
             .onChange(of: chat.phase) {
                 if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }

@@ -40,10 +40,10 @@ struct QuickClipboardTests {
         let fallback = QuickClipboardAnchor.Request(mouse: mouse, localCaret: nil, processID: nil,
             primaryTop: 900, screens: [screen])
         expect(await fallback.resolve() == CGRect(origin: mouse, size: .zero), "no caret falls back to the originally captured mouse position")
-        let above = QuickClipboardPresentation.frame(anchor: caret, screen: screen, count: 3, contentWidth: 250)
+        let above = QuickClipboardPresentation.frame(anchor: caret, screen: screen, count: 3)
         expect(above.minX == caret.minX && above.minY == caret.maxY + 12, "caret menu opens directly above the insertion point")
         let high = CGRect(x: 300, y: 875, width: 1, height: 18)
-        let below = QuickClipboardPresentation.frame(anchor: high, screen: screen, count: 3, contentWidth: 250)
+        let below = QuickClipboardPresentation.frame(anchor: high, screen: screen, count: 3)
         expect(below.maxY == high.minY - 12, "a caret near the top edge flips the menu below")
         for invalid in [CGRect.zero, CGRect(x: 0, y: 0, width: 400, height: 18), CGRect(x: 2000, y: 0, width: 1, height: 18)] {
             let rejected = QuickClipboardAnchor.Request(mouse: mouse, localCaret: invalid, processID: nil,
@@ -177,8 +177,8 @@ struct QuickClipboardTests {
         expect(below.maxY == high.minY - 12, "menu flips below when above is full")
         expect(screen.insetBy(dx: 8, dy: 8).contains(below), "flipped menu respects screen safety")
         let compact = QuickClipboardPresentation.frame(anchor: CGRect(x: -5, y: 0, width: 0, height: 0),
-            screen: screen, count: 5, contentWidth: 210)
-        expect(compact.width == 210 && compact.maxX == -17, "short horizontal pills anchor using real content width at screen edges")
+            screen: screen, count: 5)
+        expect(compact.width == 276 && compact.maxX == -17, "the complete menu flips left at the screen edge")
         let anchor = CGPoint(x: 120, y: 420)
         let center = CGPoint(x: 380, y: 720)
         let collapsed = QuickClipboardPresentation.collapsedCenter(center: center, anchor: anchor)
@@ -189,16 +189,20 @@ struct QuickClipboardTests {
         expect(abs(transformed.y - (anchor.y + 0.5 * (corner.y - anchor.y))) < 0.001,
             "collapsed y really scales around the anchor instead of menu center")
         let rects = QuickClipboardPresentation.rowFrames(count: 5)
-        expect(rects.count == 6 && rects.last!.size == CGSize(width: 32, height: 32),
-            "five recent entries are followed by one circular history button")
-        expect(QuickClipboardPresentation.totalWidth([70, 90, 120, 32]) == 336,
-            "fixed layout includes the history circle and all gaps")
-        expect(QuickClipboardPresentation.size(count: 5).width == 672,
-            "the complete strip reserves space for five capped pills and history")
-        expect(QuickClipboardPresentation.rowFrames(count: 0).count == 1
-            && QuickClipboardPresentation.size(count: 0).width == 32,
-            "empty history still offers the full-history circle")
-        expect(rects[1].minX - rects[0].maxX == 8, "pill spacing stays eight points")
+        expect(rects.count == 6 && rects.allSatisfy { $0.size == CGSize(width: 264, height: 32) },
+            "five entries and the history action share one menu row width")
+        expect(QuickClipboardPresentation.size(count: 5) == CGSize(width: 276, height: 212),
+            "the menu contains five entries, history, outer insets and a history gap")
+        expect(QuickClipboardPresentation.rowFrames(count: 0) == [CGRect(x: 6, y: 6, width: 264, height: 32)]
+            && QuickClipboardPresentation.size(count: 0) == CGSize(width: 276, height: 44),
+            "empty history keeps a full-width history row")
+        expect(zip(rects, rects.dropFirst()).allSatisfy { $0.minY >= $1.maxY },
+            "store order runs top to bottom without overlapping hit targets")
+        expect(rects.first!.maxY == 206 && rects.last!.minY == 6 && rects[4].minY - rects[5].maxY == 8,
+            "menu rows keep equal outer insets and separate the history action")
+        expect(QuickClipboardPresentation.rowFrames(count: 50) == rects
+            && QuickClipboardPresentation.rowFrames(count: -1) == QuickClipboardPresentation.rowFrames(count: 0),
+            "geometry clamps oversized and negative entry counts")
         let peak = (0...150).map { QuickClipboardPresentation.springProgress(elapsed: Double($0) / 1000) }.max()!
         expect(peak > 1 && peak < 1.016, "spring overshoot keeps final scale within about 1.2 percent")
         expect(abs(QuickClipboardPresentation.springProgress(elapsed: 0.149) - 1) < 0.001,
@@ -224,12 +228,9 @@ struct QuickClipboardTests {
         try! bitmap.representation(using: .png, properties: [:])!.write(to: url)
         let item = ClipboardItem(imagePath: url.path, sourceBundleID: nil)
         await QuickClipboardMenuView.prepareThumbnails(for: [item])
-        let widths = QuickClipboardMenuView.widths(for: [item])
-        expect(widths == [54, 32], "image pill hugs a 32-by-16 aspect-fit preview plus horizontal padding")
         let other = ClipboardItem(text: "Other entry", sourceBundleID: nil)
         let menu = QuickClipboardMenuView(items: [item, other])
-        let surface = menu.glassContainer.contentView!.subviews[0].subviews[0] as! NSGlassEffectView
-        let glass = surface.contentView as! QuickClipboardButton
+        let glass = menu.glassView.contentView!.subviews[0] as! QuickClipboardButton
         let button = glass.content
         expect(button.title.isEmpty && button.imagePosition == .imageOnly, "image rows show no filename or text label")
         expect(button.image?.size == CGSize(width: 32, height: 16) && button.image?.isTemplate == false,
@@ -266,22 +267,22 @@ struct QuickClipboardTests {
 
     static func groupShadow(_ menu: QuickClipboardMenuView) {
         let shadows = menu.layer!.sublayers!.filter { $0.shadowOpacity > 0 }
-        expect(shadows.count == 1, "all pills share one area shadow")
+        expect(shadows.count == 1, "the menu uses one area shadow")
         guard let shadow = shadows.first, let mask = shadow.mask as? CAShapeLayer, let path = mask.path else {
             expect(false, "area shadow has a glass cutout mask")
             return
         }
-        let rows = menu.glassContainer.contentView!.subviews[0]
-        let pills = rows.subviews.compactMap { ($0 as? NSGlassEffectView)?.contentView as? QuickClipboardButton }.filter { !$0.isHidden }
-        expect(mask.fillRule == .evenOdd && shadow.zPosition > menu.glassContainer.layer!.zPosition,
+        let rows = menu.glassView.contentView!
+        let buttons = rows.subviews.compactMap { $0 as? QuickClipboardButton }
+        expect(mask.fillRule == .evenOdd && shadow.zPosition > menu.glassView.layer!.zPosition,
             "shadow is above the glass with transparent cutouts")
-        expect(pills.allSatisfy { pill in
-            let rect = pill.convert(pill.bounds, to: menu)
+        expect(buttons.allSatisfy { button in
+            let rect = button.convert(button.bounds, to: menu)
             return !path.contains(CGPoint(x: rect.midX, y: rect.midY), using: .evenOdd)
-        }, "every visible pill is excluded from the area shadow, including the history circle")
-        let region = menu.glassContainer.frame
+        }, "every menu row is excluded from the area shadow")
+        let region = menu.glassView.frame
         expect(shadow.shadowPath!.boundingBoxOfPath == region,
-            "one shadow follows the width of the whole visible region")
+            "one shadow follows the whole menu outline")
         expect(path.contains(CGPoint(x: region.midX, y: region.minY - 6), using: .evenOdd),
             "soft drop shadow remains visible below the region")
         for scale in [1, 2] {
@@ -296,8 +297,8 @@ struct QuickClipboardTests {
             let exteriorY = Int((region.minY - 6) * CGFloat(scale))
             expect(pixels[(exteriorY * width + exteriorX) * 4 + 3] > 250,
                 "rendered \(scale)x mask retains the exterior shadow region")
-            expect(pills.allSatisfy { pill in
-                let rect = pill.convert(pill.bounds, to: menu)
+            expect(buttons.allSatisfy { button in
+                let rect = button.convert(button.bounds, to: menu)
                 let x = Int(rect.midX * CGFloat(scale))
                 let y = Int(rect.midY * CGFloat(scale))
                 return pixels[(y * width + x) * 4 + 3] == 0
@@ -312,20 +313,18 @@ struct QuickClipboardTests {
         expect(!panel.canBecomeKey && !panel.canBecomeMain, "picker cannot take keyboard focus")
         let items = ["Hi", "Hello", String(repeating: "Long text ", count: 40), "1234", "你好 👋"]
             .map { ClipboardItem(text: $0, sourceBundleID: nil) }
-        let widths = QuickClipboardMenuView.widths(for: items)
         let menu = QuickClipboardMenuView(items: items)
-        expect(menu.alphaValue == 1 && menu.glassContainer.alphaValue == 1, "glass ancestors keep full alpha")
-        let rows = menu.glassContainer.contentView!.subviews[0]
-        let glass = rows.subviews.compactMap { ($0 as? NSGlassEffectView)?.contentView as? QuickClipboardButton }
-        let surfaces = rows.subviews.compactMap { $0 as? NSGlassEffectView }
-        expect(surfaces.count == 6 && surfaces.allSatisfy { $0.style == .clear && $0.cornerRadius == 16 && $0.tintColor == nil && $0.alphaValue == 1 },
-            "every pill and history circle uses untinted native Clear glass")
-        expect(glass.count == 6 && glass.allSatisfy { !$0.isBordered && $0.alphaValue == 1 },
-            "borderless actions live inside the glass without a second glass bezel")
-        expect(glass[0].frame.width < glass[1].frame.width && glass[1].frame.width < 120,
-            "each short pill hugs its own native content width")
-        expect(glass[2].frame.width == 120 && glass.allSatisfy { $0.frame.minY == 0 && $0.frame.height == 32 },
-            "long content is capped at 120 points while pills share a horizontal baseline")
+        expect(menu.alphaValue == 1 && menu.glassView.alphaValue == 1, "glass ancestors keep full alpha")
+        let rows = menu.glassView.contentView!
+        let glass = rows.subviews.compactMap { $0 as? QuickClipboardButton }
+        expect(menu.subviews.compactMap { $0 as? NSGlassEffectView }.count == 1
+            && menu.glassView.style == .clear && menu.glassView.cornerRadius == 16
+            && menu.glassView.tintColor == nil && menu.glassView.alphaValue == 1,
+            "the complete list shares one untinted native Clear glass surface")
+        expect(rows.subviews.count == 6 && glass.count == 6 && glass.allSatisfy { !$0.isBordered && $0.alphaValue == 1 },
+            "all actions live directly in the one glass surface without row bezels")
+        expect(glass.map(\.frame) == QuickClipboardPresentation.rowFrames(count: 5),
+            "native buttons use top-to-bottom equal-width menu geometry")
         expect(glass.allSatisfy { !$0.isHidden }, "all five entries and history stay visible")
         groupShadow(menu)
         let selectedButton = glass[0].content
@@ -371,28 +370,28 @@ struct QuickClipboardTests {
         }
         selectedButton.appearance = nil
         expect(glass[0].title.isEmpty && glass[0].image == nil, "native bezel does not duplicate the custom preview content")
-        let originalFrames = surfaces.map(\.frame)
+        let originalFrames = glass.map(\.frame)
         var activated: Int?
         menu.onSelect = { activated = $0 }
         menu.select(4)
-        expect(surfaces.map(\.frame) == originalFrames && glass[4].content.isSelected,
+        expect(glass.map(\.frame) == originalFrames && glass[4].isSelected && !glass[0].isSelected,
             "keyboard selection never scrolls or moves the five entries")
         menu.select(5)
         let more = glass[5]
-        expect(more.borderShape == .circle && more.frame.size == CGSize(width: 32, height: 32)
-            && more.content.title.isEmpty && more.content.imagePosition == .imageOnly && more.content.image != nil,
-            "the final entry is a circular symbol-only history control")
-        expect(more.content.isSelected, "keyboard selection reaches full history")
+        expect(more.frame.width == glass[0].frame.width && more.content.title == "Open Clipboard History"
+            && more.content.imagePosition == .imageLeading && more.content.image != nil,
+            "the final menu row labels the full-history action")
+        expect(more.isSelected, "keyboard selection reaches full history")
         let hit = menu.hitTest(more.convert(CGPoint(x: 16, y: 16), to: menu.superview))
-        expect(hit === more, "the history circle receives clicks")
+        expect(hit === more, "the history row receives clicks")
         more.performClick(nil)
         expect(activated == items.count && !panel.isKeyWindow, "history activation uses its own index without taking focus")
         glass[3].performClick(nil)
         expect(activated == 3, "clipboard entries still activate individually")
         menu.select(0)
         let empty = QuickClipboardMenuView(items: [])
-        let emptyRows = empty.glassContainer.contentView!.subviews[0]
-        let emptyButtons = emptyRows.subviews.compactMap { ($0 as? NSGlassEffectView)?.contentView as? QuickClipboardButton }
+        let emptyRows = empty.glassView.contentView!
+        let emptyButtons = emptyRows.subviews.compactMap { $0 as? QuickClipboardButton }
         var emptyActivation: Int?
         empty.onSelect = { emptyActivation = $0 }
         emptyButtons[0].performClick(nil)
@@ -400,16 +399,20 @@ struct QuickClipboardTests {
             "empty history keeps a working full-history button")
         let margin = QuickClipboardPresentation.canvasMargin
         expect(!menu.containsGlass(CGPoint(x: 5, y: 5)), "shadow padding is outside menu hit areas")
-        expect(menu.containsGlass(CGPoint(x: margin + 30, y: margin + 18)), "pill interior remains clickable")
-        expect(!menu.containsGlass(CGPoint(x: margin + glass[0].frame.maxX + 4, y: margin + glass[0].frame.midY)),
-            "empty space beside a short pill is outside its hit area")
+        expect(menu.containsGlass(CGPoint(x: margin + 30, y: margin + 18)), "row interior remains clickable")
+        expect(menu.containsGlass(CGPoint(x: margin + 138, y: margin + 42)),
+            "the gap above history belongs to the continuous menu surface")
+        expect(!menu.containsGlass(CGPoint(x: margin, y: margin)), "rounded menu corners exclude transparent padding")
+        for (index, button) in glass.enumerated() {
+            let hit = menu.hitTest(button.convert(CGPoint(x: button.bounds.midX, y: button.bounds.midY), to: menu.superview))
+            expect(hit === button, "vertical row \(index) receives its own clicks")
+        }
         var updated = items
         updated[0] = ClipboardItem(text: String(repeating: "New content ", count: 30), sourceBundleID: nil)
         menu.update(updated, selection: 0)
-        expect(glass[0].frame.width == 120 && glass[0].content.frame.width == 98,
-            "live history updates resize both glass and content")
+        expect(glass.map(\.frame) == originalFrames && glass[0].content.title.hasPrefix("New content"),
+            "live content changes preserve every menu hit target")
         menu.update(items, selection: 0)
-        expect(glass[0].frame.width == widths[0], "live content can shrink a pill back to its intrinsic width")
         let root = NSView(frame: CGRect(x: 0, y: 0, width: 500, height: 400))
         panel.setContentSize(root.bounds.size)
         root.wantsLayer = true
@@ -421,7 +424,7 @@ struct QuickClipboardTests {
         let restingFrame = menu.frame
         let restingBounds = menu.bounds
         let backingAnchor = menu.layer!.anchorPoint
-        let originalGlassFrame = menu.glassContainer.convert(menu.glassContainer.bounds, to: root)
+        let originalGlassFrame = menu.glassView.convert(menu.glassView.bounds, to: root)
         var time = 1000.0
         let motion = QuickClipboardMotion(panel: panel, menu: menu, anchor: anchor, now: { time })
         motion.prepareOpening(reduceMotion: false)
@@ -444,7 +447,7 @@ struct QuickClipboardTests {
         expect(abs(menu.bounds.width - restingBounds.width) < 0.001
             && abs(menu.bounds.height - restingBounds.height) < 0.001
             && menu.bounds.origin == restingBounds.origin, "scaling keeps the menu's content coordinates fixed")
-        let shownGlassFrame = menu.glassContainer.convert(menu.glassContainer.bounds, to: root)
+        let shownGlassFrame = menu.glassView.convert(menu.glassView.bounds, to: root)
         expect(abs(shownGlassFrame.minX - (anchor.x + 0.5 * (originalGlassFrame.minX - anchor.x))) < 0.001
             && abs(shownGlassFrame.minY - (anchor.y + 0.5 * (originalGlassFrame.minY - anchor.y))) < 0.001,
             "native glass and its clipping region share the same animated coordinates")

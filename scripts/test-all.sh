@@ -40,6 +40,7 @@ TESTS=(
     mole
     coffee
     ai-chat
+    ai-tools
     dashboard-widgets
     weather-refresh
     calendar-schedule
@@ -260,6 +261,11 @@ run_harness() {
         coffee)
             swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift \
                 Tools/coffee-test.swift -o "$output" && "$output"
+            ;;
+        ai-tools)
+            swiftc -swift-version 6 Spotter/Plugins/AIChat/AIToolTypes.swift \
+                Spotter/Plugins/AIChat/AIMCPConnection.swift Spotter/Plugins/AIChat/AIToolStore.swift \
+                Spotter/Core/ProcessPipe.swift Tools/ai-tools-test.swift -o "$output" && "$output"
             ;;
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \

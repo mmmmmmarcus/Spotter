@@ -175,7 +175,7 @@ swiftc -swift-version 6 Spotter/Core/ImageThumbnail.swift \
     Spotter/Plugins/Clipboard/QuickClipboardMenuView.swift \
     Spotter/Plugins/Clipboard/QuickClipboardMotion.swift \
     Spotter/Plugins/Screenshot/ScreenshotFileName.swift Tools/quick-clipboard-test.swift \
-    -o /tmp/quick-clipboard-test && /tmp/quick-clipboard-test     # glass, motion and focus invariants
+    -o /tmp/quick-clipboard-test && /tmp/quick-clipboard-test     # vertical menu, glass, motion and focus invariants
 swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift \
     -o /tmp/scopes-test && /tmp/scopes-test                       # launcher search scopes
 swiftc -swift-version 6 Spotter/Core/LauncherSections.swift Tools/launcher-sections-test.swift \
@@ -358,11 +358,11 @@ Sync regressions verify zero writes for identical snapshots, image inode/mtime p
 updates, changed/deleted blobs, bounded image caching, and local edits made during remote decoding.
 Mapped snapshot checks cover atomic replacement/unlink lifetime and copying externally mutable files.
 The same harness compiles `QuickClipboardPresentation.swift` (Foundation + CoreGraphics) and checks
-five-entry ordering, fixed five-entry layout plus the circular history action, empty-history access and hit testing, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping, native layout throughout the opening transform,
+five-entry ordering, vertical five-entry layout plus the full-width history action, empty-history access and hit testing, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping, native layout throughout the opening transform,
 and one-time shortcut transfer with custom bindings and later unbinding preserved.
 `Tools/clipboard-capture-test.swift` also covers P12 files, legacy Finder filename lists, multi-file/folder copies, native file-URL pasteboard round trips, internal markers and missing-file refusal. `Tools/clipboard-test.swift` covers the additive file-reference migration, filename search, pin/reopen behavior, sync exclusion and preservation, and original-file survival on history deletion.
 
-`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the 120-point width cap, stationary keyboard selection and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, above/below placement, untinted Clear glass content containment, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete group,
+`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the fixed 276-point menu width and top-to-bottom row geometry, stationary keyboard selection and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, above/below placement, one untinted Clear glass surface containing all menu rows, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete menu,
 native non-key panel and glass invariants, spring/reversal setup and Reduce Motion. Image fixtures cover padded and rounded aspect-fit previews, untinted colors, image selection opacity, shared-cache immutability, and live image/text replacement. It creates offscreen
 AppKit objects without displaying a menu or accepting visual appearance.
 
@@ -548,3 +548,13 @@ The real AppKit overlay is presented offscreen to verify that showing it, starti
 closing it preserve keyboard focus and the active application. Constructed mouse events exercise
 region selection and Tab guards without posting input, recording the screen or writing clipboard data.
 The harness is included in `scripts/test-all.sh`.
+
+
+The MCP/Cua experiment has an isolated harness using local fixture processes and HTTP servers; it
+never reads the desktop or contacts OpenRouter:
+
+```bash
+swiftc -swift-version 6 Spotter/Plugins/AIChat/AIToolTypes.swift \
+    Spotter/Plugins/AIChat/AIMCPConnection.swift Spotter/Plugins/AIChat/AIToolStore.swift \
+    Spotter/Core/ProcessPipe.swift Tools/ai-tools-test.swift -o /tmp/ai-tools-test && /tmp/ai-tools-test
+```

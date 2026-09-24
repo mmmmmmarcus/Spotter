@@ -21,7 +21,7 @@ final class QuickClipboardController {
     private var openHistory: (() -> Void)?
     private var generation = UUID()
     private(set) var isVisible = false
-    private static let keys: [UInt16] = [53, 123, 124, 36, 76]
+    private static let keys: [UInt16] = [53, 125, 126, 36, 76]
 
     init(store: ClipboardStore, hotKeys: HotKeyManager) {
         self.store = store
@@ -63,9 +63,7 @@ final class QuickClipboardController {
     }
 
     private func present(anchor: CGRect, screen: CGRect) {
-        let currentWidths = QuickClipboardMenuView.widths(for: items)
-        let target = QuickClipboardPresentation.frame(anchor: anchor, screen: screen, count: items.count,
-            contentWidth: QuickClipboardPresentation.totalWidth(currentWidths))
+        let target = QuickClipboardPresentation.frame(anchor: anchor, screen: screen, count: items.count)
         let point = CGPoint(x: anchor.midX, y: anchor.midY)
         let margin = QuickClipboardPresentation.canvasMargin
         let canvas = CGRect(origin: target.origin, size: QuickClipboardPresentation.size(count: items.count))
@@ -200,8 +198,8 @@ final class QuickClipboardController {
         guard isVisible else { return }
         switch key {
         case 53: dismiss(restoringFocus: true)
-        case 124: move(1)
-        case 123: move(-1)
+        case 125: move(1)
+        case 126: move(-1)
         case 36, 76: activate(selection)
         default: break
         }

@@ -681,12 +681,26 @@ claimed through the shared transient shortcut mechanism only while the selection
 
 ## Quick Clipboard History
 
-An explicit exception to the shared palette surface: a fixed horizontal row of up to five recent native Liquid Glass pills, each
-32 points high, hugging its text and icon (or an aspect-fit image thumbnail) up to 120 points wide, left aligned with 8-point gaps and 16-point corners. Image previews have 8-point vertical padding and their own 4-point corners. Left/right arrows navigate, Return pastes, and Escape dismisses. A final circular `ellipsis` button opens full clipboard history; arrows can focus it and Return activates it. Empty history still shows this button. The active text insertion caret is the preferred anchor, with the invocation-time mouse position as fallback and above/below placement
-and 8-point screen safety. The panel and buttons cannot take keyboard focus. There is no enclosing
-plate, header, search field or footer. There is no paging or selection translation. File entries use filenames and file/folder symbols in both history surfaces; the full history includes a Files filter and a file-path preview. Selected labels/icons remain fully opaque; unselected text is 35%, icons and image previews 50%, resolved against the effective system appearance.
+An explicit exception to the shared palette surface: up to five recent entries in a vertical menu,
+276 points wide, with 32-point equal-width rows, 6-point outer insets and a final labelled
+**Open Clipboard History** row separated by an 8-point gap. Up/down arrows navigate, Return pastes
+or opens history, and Escape dismisses. Empty history still offers the history row. Text and file
+entries use leading type symbols; images use leading aspect-fit thumbnails with 8-point vertical
+padding and 4-point corners. Selected rows have a subtle rounded highlight. Selected labels/icons
+remain fully opaque; unselected text is 35%, icons and previews 50%, using semantic system colors.
 
-The whole glass group grows from 50% to 100% around the anchor using a shared 0.150-second spring on an independent
-driver layer, sampled into native view frame/bounds without rewriting AppKit backing-layer anchors; a 0.08-second collapse
-can reverse from any presentation frame. Reduce Motion uses 0.12-second fades only. Glass ancestors
-always stay at alpha 1; fade applies to window composition. Every pill uses `NSGlassEffectView.style = .clear`, with a borderless button inside its `contentView`; there is no second glass bezel, tint, dimming or blur overlay. One soft region shadow surrounds the visible group, with pill-shaped holes protecting the glass interiors; its paths include the history circle and follow live widths. Outer containers leave its native edges unclipped. WindowServer shadow is off. The system owns glass appearance/contrast/transparency. See [clipboard.md](clipboard.md).
+One `NSGlassEffectView.style = .clear` with 16-point corners contains the entire list. Its content
+view holds borderless row buttons; there are no individual glass pills or separate bezels, tint,
+dimming or blur overlays. Menu width stays fixed during content and image updates. There is no
+header, search field or paging. Caret anchoring, invocation-time mouse fallback, above/below
+placement and 8-point screen safety remain. The panel and buttons cannot take keyboard focus.
+
+The whole menu grows from 50% to 100% around the anchor using the shared 0.150-second spring on an
+independent driver layer, sampled into native view frame/bounds without rewriting AppKit backing-layer
+anchors; the 0.08-second collapse can reverse from any presentation frame. Reduce Motion uses
+0.12-second fades only. Glass ancestors remain at alpha 1; fade applies to window composition.
+One soft shadow follows the complete rounded menu, masked out of its entire interior. Native edges
+remain unclipped and WindowServer shadow is off. The system owns glass appearance, contrast and
+transparency. See [clipboard.md](clipboard.md).
+
+AI Chat tool mode adds a collapsible activity list and a Stop control. MCP/Cua settings are a consent-gated experimental section with a JSON configuration sheet. Tool calls use the shared confirmation card with selectable JSON arguments, initially highlighting Cancel; dismissing a tool confirmation cancels that call.

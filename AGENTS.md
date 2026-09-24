@@ -308,6 +308,15 @@ Never break these without an explicit task to do so.
   concept, and do not confuse it with a **network consent gate**, which belongs to the owning store
   and stays: `CurrencyRateStore` is the reference, and its Settings switch is that consent act, not a
   plugin switch. See [`docs/plugins.md`](docs/plugins.md) and use the tracked `spotter-plugin` skill.
+- **AI Chat MCP/Cua tools are an opt-in experiment.** `AppCore` owns `AIToolStore`; it owns device-local
+  configuration and consent, excluded from backup/sync. Editing configuration revokes consent. The
+  OpenRouter key gate still applies, with both gates rechecked around awaits. Every tool call goes
+  through the Cancel-first palette confirmation; dismissing it cancels the call. Connections live
+  only for a request. Cua uses a separately installed `cua-driver mcp` and its own macOS grants,
+  never Spotter's TCC identity. Tool results/screenshots/reasoning are ephemeral; ordinary chat and
+  selected-text command answers retain their existing streaming path. `AIToolTypes.swift` remains
+  pure Foundation, and `AIToolStore` stays Foundation + Combine for the fixture-backed
+  `Tools/ai-tools-test.swift` harness. MCP does not introduce runtime-loaded Spotter plugins.
 - **AI Chat and Widgets are system features; Commands is a plugin.** Both reuse registry wiring.
   AI Chat uses `settingsPlacement: .system`;
   Widgets uses `.system` too, with **one page for the whole strip** (owner decision, Aug 2026,
@@ -338,8 +347,8 @@ Never break these without an explicit task to do so.
   to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
   and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
   Quick Clipboard History is an explicit owner-requested exception (Sep 2026): five recent caret-anchored (mouse fallback)
-  Liquid Glass pills, all visible horizontally with a final circular full-history button and no paging, in a non-key panel owned by `AppCore`, with input only while visible.
-  Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. Native `NSGlassEffectView` surfaces use `.clear` (owner decision, Sep 2026) with capsule corners and borderless buttons as their content, without custom tint or dimming; glass ancestors stay fully opaque. One shared region shadow is masked out of every visible pill and follows the complete row geometry. Dismissal ends input immediately while a mouse-ignoring panel animates out.
+  entries in a vertical list sharing one Liquid Glass menu, with a final labelled full-history row and no paging, in a non-key panel owned by `AppCore`, with input only while visible.
+  Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. One native `NSGlassEffectView` uses `.clear` (owner decision, Sep 2026) with rounded menu corners and borderless rows inside its content view, without custom tint or dimming; glass ancestors stay fully opaque. Up/down arrows select rows. One menu shadow is masked out of the entire glass interior. Dismissal ends input immediately while a mouse-ignoring panel animates out.
 - **Confirmations are in-palette.** Every destructive palette flow (Mole actions, built-in Commands,
   custom commands, Quit All) asks through `AppCore.confirmInPalette` / `ConfirmationCard`, never an
   `NSAlert`, and the card's highlight always starts on Cancel — a reflexive second ↵ must never be

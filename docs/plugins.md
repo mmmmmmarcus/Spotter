@@ -287,7 +287,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — image-first pasteboard capture (including copied local image files) and generic file/folder references with a persisted history;
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
   The palette's type filters share one Liquid Glass capsule and preserve search-field focus.
-  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for five recent entries, all visible in native Clear glass pills capped at 120 points, followed by a circular full-history action and surrounded by a shared region shadow,
+  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for five recent entries in a vertical list sharing one native Clear glass menu, followed by a labelled full-history row and surrounded by one menu shadow,
   above the active text caret (falling back to the captured mouse position), an explicit user-requested exception to palette-first interaction.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
@@ -371,7 +371,7 @@ and [File Search](file-search.md).
 
 Settings search derives destinations from the existing registry and matches shipped option keywords without indexing user content. Multi-control settings rows preserve independent accessibility children; explicit field prompts avoid duplicate native Form labels.
 
-AI Chat and all AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures.
+Ordinary AI Chat and AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures. Opt-in MCP/Cua chat uses bounded tool rounds, per-call palette confirmation, device-local configuration and ephemeral tool activity; see [AI Chat](ai-chat.md#mcp-and-cua-experiment).
 
 AI Chat reveals completed visual lines using SwiftUI text layout, with brief fades and bounded burst pacing; animation changes neither received content nor persistence.
 

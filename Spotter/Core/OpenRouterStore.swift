@@ -30,7 +30,7 @@ enum OpenRouterError: LocalizedError, Equatable {
 /// on a private cacheless session, re-checked for a key on both sides of every `await`. The key and
 /// the chat model mirror into `SettingsBackup` so they sync between Macs.
 @MainActor
-final class OpenRouterStore: ObservableObject {
+final class OpenRouterStore: ObservableObject, AIToolModel {
     static let provider = "OpenRouter"
     static let providerURL = URL(string: "https://openrouter.ai")!
     /// Chat carries multi-turn reasoning, so it defaults a class up from the quick AI commands.
@@ -85,10 +85,13 @@ final class OpenRouterStore: ObservableObject {
         !apiKey.isEmpty
     }
 
+    var onCredentialsChanged: (() -> Void)?
+
     func setAPIKey(_ key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed != apiKey else { return }
         apiKey = trimmed
+        onCredentialsChanged?()
         defaults.set(trimmed, forKey: Self.keyKey)
         validation = .unknown
         // The key is the gate, so losing it also ends the catalog's reason to exist.
@@ -232,6 +235,51 @@ final class OpenRouterStore: ObservableObject {
         }
         try Task.checkCancellation()
         guard acceptsReply(for: requestKey) else { throw OpenRouterError.notConfigured }
+    }
+
+    func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool) async throws -> AIToolTurn {
+        guard isReady else { throw OpenRouterError.notConfigured }
+        let key = apiKey
+        let result = try await Self.fetchToolTurn(messages: messages, tools: tools.map(\.wire),
+            model: model, webSearch: webSearch, key: key)
+        try Task.checkCancellation()
+        guard acceptsReply(for: key) else { throw OpenRouterError.notConfigured }
+        return result
+    }
+
+    private nonisolated static func fetchToolTurn(messages: [AIJSON], tools: [AIJSON], model: String,
+        webSearch: Bool, key: String) async throws -> AIToolTurn {
+        var body: [String: AIJSON] = ["model": .string(model), "messages": .array(messages),
+            "tools": .array(tools), "tool_choice": .string("auto"),
+            "max_tokens": .number(Double(maxCompletionTokens)), "stream": .bool(false),
+            "provider": .object(["require_parameters": .bool(true)])]
+        if webSearch { body["plugins"] = .array([.object(["id": .string("web"), "max_results": .number(5)])]) }
+        var request = URLRequest(url: chatEndpoint, timeoutInterval: 120)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try AIJSON.object(body).data()
+        let (bytes, response) = try await session.bytes(for: request)
+        defer { bytes.task.cancel() }
+        var data = Data()
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            data.append(byte)
+            guard data.count <= 2_097_152 else { throw OpenRouterStream.Failure.oversized }
+        }
+        guard let http = response as? HTTPURLResponse else { throw OpenRouterError.badResponse }
+        if http.statusCode == 401 || http.statusCode == 403 { throw OpenRouterError.unauthorized }
+        guard http.statusCode == 200 else { throw OpenRouterError.http(http.statusCode, detail: errorDetail(in: data)) }
+        struct Response: Decodable {
+            struct Choice: Decodable { let message: AIToolTurn; let finish_reason: String? }
+            let choices: [Choice]
+        }
+        guard let choice = try JSONDecoder().decode(Response.self, from: data).choices.first,
+            choice.finish_reason != "error", choice.finish_reason != "length",
+            choice.message.content?.isEmpty == false || choice.message.tool_calls?.isEmpty == false else {
+            throw OpenRouterError.badResponse
+        }
+        return choice.message
     }
 
     private func deliver(_ delta: String, for key: String, to callback: @MainActor (String) -> Void) throws {

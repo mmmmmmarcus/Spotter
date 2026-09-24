@@ -38,6 +38,7 @@
 		1598906F2EF3E633435A2962 /* PluginRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23C447EC230F950212A0D676 /* PluginRegistry.swift */; };
 		18035C7DA4AC20617C274AE8 /* ShellCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7441AEA90EAD88A1E78D22C0 /* ShellCommandRunner.swift */; };
 		189C24F0A10D6480C64AEE6D /* SelectionToolsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A385D1DE1C72BBE9C9892E /* SelectionToolsPlugin.swift */; };
+		193E97691BB499319B01C69B /* AIMCPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFAC4D0FC19A482120A5D91E /* AIMCPConnection.swift */; };
 		1A397D93A68CBE63378292D1 /* DashboardWeatherLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C652D385E897B412FCCE468 /* DashboardWeatherLocation.swift */; };
 		1AEBCC14B3F6E69AC2C53973 /* RunningApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DFC1BD2FC739DA6D944DF0 /* RunningApps.swift */; };
 		1B8C3CCD80FD17E6BFD8F993 /* SettingsSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE03AD570BD4D970485C5ED5 /* SettingsSearch.swift */; };
@@ -111,6 +112,7 @@
 		642691BC2531472C82FAB49B /* WorldClockMapGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC392E2E913BFC42E12D7592 /* WorldClockMapGeometry.swift */; };
 		64B05A63190110CCC027E700 /* ImageModificationTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814FF0CD9C070F3567AD7B76 /* ImageModificationTypes.swift */; };
 		66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 307535C846A5B39643CCB935 /* UpdateViews.swift */; };
+		676C22F07FA3A485D7213DE2 /* AIToolTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E8093CE9AE05A09FE0238F2 /* AIToolTypes.swift */; };
 		6780976D52AB15577C5C61BA /* TextReplacementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322BD1E0F51E36F6E499FFC5 /* TextReplacementStore.swift */; };
 		67AF4C032DBB83701E991791 /* CommandHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91CD339BC9F3705C2A431B9 /* CommandHUD.swift */; };
 		688C8EDEC59BCD200CB9F870 /* DashboardWeatherStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7CDE08D2DEEAA6D2430D819 /* DashboardWeatherStore.swift */; };
@@ -152,6 +154,8 @@
 		8564913535478963824E1D7E /* SpotterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */; };
 		859FBBAB57809296CF4138B8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56CDF128216DD71A2A2C54D /* AppSettings.swift */; };
 		8929D7BCA40EB1BDE4872030 /* RingLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1CAD19ED4D342735FFE8AD /* RingLoader.swift */; };
+		899FECF80802B535CF93F063 /* AIToolStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683D924AEFEC2E72B93BF1E2 /* AIToolStore.swift */; };
+		8C7C28BCC4EA65D5884BBE73 /* AIToolSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B20E1B1C59CB1E89EAC750 /* AIToolSettingsView.swift */; };
 		8DD2BEFA70C4D9FE2AD02E57 /* ScreenshotGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E2DD47B2282A644D030F0F /* ScreenshotGeometry.swift */; };
 		8FA4A54179920EE055A07D11 /* ScreenshotEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413F39384FC2DBC1095614F1 /* ScreenshotEditorView.swift */; };
 		9039498AF0C376FB8FEA9595 /* BuiltInPlugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054E9477DF5DF415492936A9 /* BuiltInPlugins.swift */; };
@@ -311,6 +315,7 @@
 		0CA6658947F332E55343E683 /* NoteSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSyncManager.swift; sourceTree = "<group>"; };
 		0D1929C4BD932760781883D8 /* LocalTextPasteTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTextPasteTarget.swift; sourceTree = "<group>"; };
 		0E1CAD19ED4D342735FFE8AD /* RingLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingLoader.swift; sourceTree = "<group>"; };
+		0E8093CE9AE05A09FE0238F2 /* AIToolTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolTypes.swift; sourceTree = "<group>"; };
 		0FD20F68EEC018BED28E95EA /* HyperKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperKey.swift; sourceTree = "<group>"; };
 		10D143CDE86259528CFC5F56 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		11E71C4DD8183B1A7D86867A /* AIChatPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatPlugin.swift; sourceTree = "<group>"; };
@@ -402,6 +407,8 @@
 		64C495F08193E86254174BD6 /* SelectionCopyCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionCopyCapture.swift; sourceTree = "<group>"; };
 		669FECA0B11D71E765DC0F0D /* NotificationToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationToken.swift; sourceTree = "<group>"; };
 		66D307F9AC38669408250AC2 /* DashboardFileInfoEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardFileInfoEngine.swift; sourceTree = "<group>"; };
+		67B20E1B1C59CB1E89EAC750 /* AIToolSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolSettingsView.swift; sourceTree = "<group>"; };
+		683D924AEFEC2E72B93BF1E2 /* AIToolStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolStore.swift; sourceTree = "<group>"; };
 		6AC7A287D22028FC616E9A44 /* VisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectView.swift; sourceTree = "<group>"; };
 		6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotterApp.swift; sourceTree = "<group>"; };
 		6AFDD89FB9F6E2D228D27A01 /* CoffeeTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeeTypes.swift; sourceTree = "<group>"; };
@@ -527,6 +534,7 @@
 		DBB3757FA662D508E113F837 /* VisibilityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisibilityStore.swift; sourceTree = "<group>"; };
 		DCF4C093AEE85B4955299C15 /* AICommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommand.swift; sourceTree = "<group>"; };
 		DF3F41D862F58CBF6D0BB460 /* AIChatLineReveal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatLineReveal.swift; sourceTree = "<group>"; };
+		DFAC4D0FC19A482120A5D91E /* AIMCPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMCPConnection.swift; sourceTree = "<group>"; };
 		E0D8017FF4F6F4F2F3C541DD /* DashboardMusicStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardMusicStore.swift; sourceTree = "<group>"; };
 		E125CBC3DB4E52844834C201 /* WorldClockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockPlugin.swift; sourceTree = "<group>"; };
 		E196A0B64D45C449593C4989 /* SystemCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCommand.swift; sourceTree = "<group>"; };
@@ -1152,6 +1160,10 @@
 				29606EC2B43A6002BAF7DDD4 /* AIChatView.swift */,
 				DCF4C093AEE85B4955299C15 /* AICommand.swift */,
 				78692AB1BA58C6D099613BB5 /* AICommandStore.swift */,
+				DFAC4D0FC19A482120A5D91E /* AIMCPConnection.swift */,
+				67B20E1B1C59CB1E89EAC750 /* AIToolSettingsView.swift */,
+				683D924AEFEC2E72B93BF1E2 /* AIToolStore.swift */,
+				0E8093CE9AE05A09FE0238F2 /* AIToolTypes.swift */,
 			);
 			path = AIChat;
 			sourceTree = "<group>";
@@ -1252,6 +1264,10 @@
 				DF45E8877471306D67C3B657 /* AIChatView.swift in Sources */,
 				0B27E86B7C1A3AEA41B56519 /* AICommand.swift in Sources */,
 				C1F4AD01CCCB36E470BE4141 /* AICommandStore.swift in Sources */,
+				193E97691BB499319B01C69B /* AIMCPConnection.swift in Sources */,
+				8C7C28BCC4EA65D5884BBE73 /* AIToolSettingsView.swift in Sources */,
+				899FECF80802B535CF93F063 /* AIToolStore.swift in Sources */,
+				676C22F07FA3A485D7213DE2 /* AIToolTypes.swift in Sources */,
 				BDB203A1BC4C82AF5ABC70D5 /* AboutView.swift in Sources */,
 				6F9E58E071B6AD52A8C809BB /* AliasEditorCard.swift in Sources */,
 				564E98722F6FD55F197A5C03 /* AliasStore.swift in Sources */,
@@ -1574,7 +1590,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.20;
+				MARKETING_VERSION = 1.6.21;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1646,7 +1662,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.20;
+				MARKETING_VERSION = 1.6.21;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

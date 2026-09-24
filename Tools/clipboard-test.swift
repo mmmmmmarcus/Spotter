@@ -103,7 +103,7 @@ struct ClipboardTests {
             expect(screen.insetBy(dx: 8, dy: 8).contains(frame), "picker stays within the visible screen at \(pointer)")
         }
         let empty = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, count: 0)
-        expect(empty.height == QuickClipboardPresentation.rowHeight, "empty history uses one history button")
+        expect(empty.height == QuickClipboardPresentation.rowHeight + QuickClipboardPresentation.inset * 2, "empty history uses one history button")
     }
 
     static func incrementalSync() async {
@@ -594,7 +594,7 @@ struct ClipboardTests {
         expect(store.search("", filter: .files).map(\.id) == [files.id]
             && store.search("", filter: .text).count == 1, "file and text filters stay distinct")
         expect(QuickClipboardPresentation.title(for: files).contains("test.p12")
-            && QuickClipboardPresentation.symbol(for: files) == "doc.on.doc", "quick file pills show names and the file-selection symbol")
+            && QuickClipboardPresentation.symbol(for: files) == "doc.on.doc", "quick file rows show names and the file-selection symbol")
         store.togglePinned(files)
         let reopened = ClipboardStore(directory: dir)
         reopened.load()

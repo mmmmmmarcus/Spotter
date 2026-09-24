@@ -8,6 +8,7 @@ final class AIChatStore: ObservableObject {
     @Published private(set) var currentID: UUID
     @Published private(set) var requests = AIChatRequestLedger()
     private let openRouter: OpenRouterStore
+    private let tools: AIToolStore
     private var task: Task<Void, Never>?
     @Published private(set) var streamingReply: AIChatMessage?
     private var pendingReply = ""
@@ -20,8 +21,9 @@ final class AIChatStore: ObservableObject {
     var onRequestFinished: ((UUID, UUID, Bool, String) -> Void)?
     var onRequestCancelled: ((UUID) -> Void)?
 
-    init(openRouter: OpenRouterStore) {
+    init(openRouter: OpenRouterStore, tools: AIToolStore) {
         self.openRouter = openRouter
+        self.tools = tools
         let first = AIChatSession()
         sessions = [first]
         currentID = first.id
@@ -117,7 +119,7 @@ final class AIChatStore: ObservableObject {
 
     /// Appends the turn and asks; a selected-text action may override the model for its first turn.
     @discardableResult
-    func send(_ text: String, model: String? = nil, webSearch: Bool? = nil) -> Bool {
+    func send(_ text: String, model: String? = nil, webSearch: Bool? = nil, allowsTools: Bool = true) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, isReady else { return false }
         let sessionID = currentID
@@ -130,6 +132,7 @@ final class AIChatStore: ObservableObject {
         let sessionPrompt = current.systemPrompt
         let requestModel = model ?? openRouter.chatModel
         let requestWebSearch = webSearch ?? openRouter.chatWebSearch
+        let usesTools = allowsTools && tools.isEnabled
         pendingReply = ""
         streamingReply = nil
         replyID = UUID()
@@ -144,17 +147,22 @@ final class AIChatStore: ObservableObject {
                 let turns =
                     [(role: "system", content: systemPrompt)]
                     + window.map { (role: $0.role.rawValue, content: $0.text) }
-                try await self.openRouter.chat(
-                    messages: turns, model: requestModel, webSearch: requestWebSearch
-                ) { [weak self] delta in
+                let receive: @MainActor @Sendable (String) -> Void = { [weak self] delta in
                     guard !Task.isCancelled, let self, self.waitingSessionID == sessionID else { return }
                     self.pendingReply += delta
                     if self.streamingReply == nil { self.publishReveal() }
                     self.startReveal(for: sessionID)
                 }
+                if usesTools {
+                    try await tools.run(messages: turns, model: requestModel, webSearch: requestWebSearch,
+                        sessionID: sessionID, router: openRouter, onText: receive)
+                } else {
+                    try await openRouter.chat(messages: turns, model: requestModel, webSearch: requestWebSearch, onDelta: receive)
+                }
                 guard !Task.isCancelled else { return }
                 self.finishRequest(for: sessionID, failure: nil)
             } catch is CancellationError {
+                if !Task.isCancelled { self.stop() }
             } catch {
                 guard !Task.isCancelled else { return }
                 self.finishRequest(for: sessionID, failure: error.localizedDescription)
@@ -174,7 +182,7 @@ final class AIChatStore: ObservableObject {
             titleOverride: command.sessionTitle, sourceSystemImage: command.systemImage))
         _ = send(
             command.rendered(selection: selection),
-            model: command.resolvedModel(chatModel: openRouter.chatModel), webSearch: false)
+            model: command.resolvedModel(chatModel: openRouter.chatModel), webSearch: false, allowsTools: false)
     }
 
     func showCommandFailure(command: AICommand, message: String) {
@@ -187,6 +195,7 @@ final class AIChatStore: ObservableObject {
     /// Stops the in-flight request; the sent turn stays so the user can see what went unanswered.
     func stop() {
         task?.cancel()
+        tools.stop()
         if let sessionID = waitingSessionID { commitStream(to: sessionID) }
         task = nil
         if let backgroundTaskID { onRequestCancelled?(backgroundTaskID) }

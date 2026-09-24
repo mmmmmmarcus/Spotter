@@ -1374,9 +1374,7 @@ struct RootPaletteView: View {
 
     /// The single activation path for the confirmation overlay, shared by keys and clicks.
     private func activateConfirmation(_ confirmed: Bool) {
-        guard let confirmation = vm.confirmation else { return }
-        vm.confirmation = nil
-        if confirmed { confirmation.onConfirm() }
+        vm.resolveConfirmation(confirmed)
     }
 
     /// Move the open menu's highlight, clamped at the ends (no wrap — consistent with `move`).
