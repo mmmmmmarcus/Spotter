@@ -5,10 +5,14 @@ enum QuickClipboardPresentation {
     static let limit = 5
     static let width: CGFloat = 276
     static let rowHeight: CGFloat = 32
+    static let imageRowHeight: CGFloat = 64
+    static let emptyHeight: CGFloat = 44
+    static let filterSize: CGFloat = 24
+    static let historySize: CGFloat = 28
     static let cornerRadius: CGFloat = 16
     static let rowCornerRadius: CGFloat = 10
     static let inset: CGFloat = 6
-    static let historyGap: CGFloat = 8
+    static let footerGap: CGFloat = 8
     static let safety: CGFloat = 8
     static let canvasMargin: CGFloat = 64
     static let initialScale: CGFloat = 0.50
@@ -19,8 +23,8 @@ enum QuickClipboardPresentation {
     static let springStiffness = 500 * pow(0.455 / openingDuration, 2)
     static let springDamping = 1.6 * sqrt(springStiffness)
 
-    static func recentItems(_ items: [ClipboardItem]) -> [ClipboardItem] {
-        Array(items.prefix(limit))
+    static func recentItems(_ items: [ClipboardItem], filter: ClipboardFilter = .all) -> [ClipboardItem] {
+        Array(items.lazy.filter(filter.matches).prefix(limit))
     }
 
     static func title(for item: ClipboardItem) -> String {
@@ -36,27 +40,44 @@ enum QuickClipboardPresentation {
         return item.textForm?.systemImage ?? (item.isScreenshot ? "camera.viewfinder" : "photo")
     }
 
-    static func size(count: Int) -> CGSize {
-        let rows = max(0, min(limit, count))
-        return CGSize(width: width, height: inset * 2 + CGFloat(rows + 1) * rowHeight + (rows > 0 ? historyGap : 0))
+    static func height(for item: ClipboardItem) -> CGFloat {
+        item.kind == .image ? imageRowHeight : rowHeight
     }
 
-    static func rowFrames(count: Int) -> [CGRect] {
-        let rows = max(0, min(limit, count))
-        let height = size(count: rows).height
-        return (0...rows).map { index in
-            let gap = index == rows && rows > 0 ? historyGap : 0
-            return CGRect(x: inset, y: height - inset - CGFloat(index + 1) * rowHeight - gap,
-                width: width - inset * 2, height: rowHeight)
+    static func size(items: [ClipboardItem]) -> CGSize {
+        let contentHeight = items.isEmpty ? emptyHeight : items.prefix(limit).reduce(0) { $0 + height(for: $1) }
+        return CGSize(width: width, height: inset * 2 + contentHeight + footerGap + rowHeight)
+    }
+
+    static func rowFrames(items: [ClipboardItem]) -> [CGRect] {
+        var top = size(items: items).height - inset
+        return items.prefix(limit).map { item in
+            let height = height(for: item)
+            top -= height
+            return CGRect(x: inset, y: top, width: width - inset * 2, height: height)
         }
     }
 
-    static func frame(anchor: CGRect, screen: CGRect, count: Int) -> CGRect {
+    static var footerFrame: CGRect { CGRect(x: inset, y: inset, width: width - inset * 2, height: rowHeight) }
+    static var emptyFrame: CGRect { CGRect(x: inset, y: footerFrame.maxY + footerGap, width: width - inset * 2, height: emptyHeight) }
+    static var historyFrame: CGRect {
+        CGRect(x: width - inset - historySize, y: footerFrame.midY - historySize / 2, width: historySize, height: historySize)
+    }
+    static var filterFrames: [CGRect] {
+        let groupWidth = CGFloat(ClipboardFilter.allCases.count) * filterSize
+        return ClipboardFilter.allCases.indices.map { index in
+            CGRect(x: (width - groupWidth) / 2 + CGFloat(index) * filterSize,
+                y: footerFrame.midY - filterSize / 2, width: filterSize, height: filterSize)
+        }
+    }
+
+    static func frame(anchor: CGRect, screen: CGRect, items: [ClipboardItem]) -> CGRect {
         let safe = screen.insetBy(dx: safety, dy: safety)
-        let size = size(count: count)
+        let size = size(items: items)
         let preferredX = anchor.height > 0 ? anchor.minX : anchor.maxX + 12
         let x = preferredX + size.width <= safe.maxX ? preferredX : anchor.maxX - (anchor.height > 0 ? 0 : 12) - size.width
-        let y = anchor.maxY + 12 + size.height <= safe.maxY ? anchor.maxY + 12 : anchor.minY - 12 - size.height
+        let below = anchor.minY - 12 - size.height
+        let y = below >= safe.minY ? below : anchor.maxY + 12
         return CGRect(x: max(safe.minX, min(x, safe.maxX - size.width)),
             y: max(safe.minY, min(y, safe.maxY - size.height)), width: size.width, height: size.height)
     }

@@ -358,13 +358,26 @@ Sync regressions verify zero writes for identical snapshots, image inode/mtime p
 updates, changed/deleted blobs, bounded image caching, and local edits made during remote decoding.
 Mapped snapshot checks cover atomic replacement/unlink lifetime and copying externally mutable files.
 The same harness compiles `QuickClipboardPresentation.swift` (Foundation + CoreGraphics) and checks
-five-entry ordering, vertical five-entry layout plus the full-width history action, empty-history access and hit testing, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping, native layout throughout the opening transform,
+filtering before five-entry ordering, empty-filter results, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping,
 and one-time shortcut transfer with custom bindings and later unbinding preserved.
 `Tools/clipboard-capture-test.swift` also covers P12 files, legacy Finder filename lists, multi-file/folder copies, native file-URL pasteboard round trips, internal markers and missing-file refusal. `Tools/clipboard-test.swift` covers the additive file-reference migration, filename search, pin/reopen behavior, sync exclusion and preservation, and original-file survival on history deletion.
 
-`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the fixed 276-point menu width and top-to-bottom row geometry, stationary keyboard selection and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, above/below placement, one untinted Clear glass surface containing all menu rows, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete menu,
-native non-key panel and glass invariants, spring/reversal setup and Reduce Motion. Image fixtures cover padded and rounded aspect-fit previews, untinted colors, image selection opacity, shared-cache immutability, and live image/text replacement. It creates offscreen
+`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the fixed 276-point menu width and top-to-bottom row geometry, stationary keyboard selection and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, below-first placement with the first row nearest the anchor and above fallback at the bottom edge, one untinted Clear glass surface containing all menu rows, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete menu,
+native non-key panel and glass invariants, mixed image/text row geometry, centered footer filters and right-aligned history hit targets, filter dispatch and selection, spring/reversal setup, rebased dismissal after filter reflow and Reduce Motion. Image fixtures cover larger 48-point padded and rounded aspect-fit previews, untinted colors, image selection opacity, shared-cache immutability, and live image/text replacement. It creates offscreen
 AppKit objects without displaying a menu or accepting visual appearance.
+
+`Tools/quick-ai-chat-test.swift` compiles the real floating controller, panel, layout and shared
+`AIChatStore` against an in-memory model transport and an empty hosted view. It covers bottom-anchored
+expansion to twice the width around the composer center, compact-width restoration, dragged positions and screen clamping, native glass/handle/host geometry, draft retention,
+key and busy gates, session-scoped streaming, follow-up context, cancellation and shared history.
+Adaptive-height checks cover initial compact expansion, measured growth, intermediate-width rejection,
+stale-session measurements, the maximum height and New Chat reset.
+It creates only offscreen panels and sends no network requests; appearance remains a user acceptance
+step. It is included in `scripts/test-all.sh`, or run it independently with:
+
+```sh
+scripts/test-all.sh --run-case quick-ai-chat /tmp/spotter-tests
+```
 
 The custom-command harness spawns **real `/bin/zsh`** processes. Its shell-environment cases point
 `ZDOTDIR` at a throwaway fixture directory (and unset `TERM_PROGRAM`), so a run can never read or write
@@ -558,3 +571,12 @@ swiftc -swift-version 6 Spotter/Plugins/AIChat/AIToolTypes.swift \
     Spotter/Plugins/AIChat/AIMCPConnection.swift Spotter/Plugins/AIChat/AIToolStore.swift \
     Spotter/Core/ProcessPipe.swift Tools/ai-tools-test.swift -o /tmp/ai-tools-test && /tmp/ai-tools-test
 ```
+
+### SF Symbols CLI
+
+`Tools/sf-symbols-test.swift` compiles the real catalog decoder, process transport and observable
+search store. Fixtures verify JSON bounds, name validation, literal arguments, latest-query wins,
+close cancellation, missing CLI, stderr, nonzero exits and deadlines. With SF Symbols 27+ installed,
+it also runs real bounded searches and PNG/SVG exports into disposable temporary directories. It
+never changes the clipboard or opens a UI. Run `scripts/test-all.sh --run-case sf-symbols /tmp/spotter-tests`
+or include it in the complete harness suite.

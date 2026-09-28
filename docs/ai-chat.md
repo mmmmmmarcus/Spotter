@@ -61,6 +61,10 @@ plumbing without being presented as an optional plugin.
 | `AIChatMarkdown.swift` | Foundation-only, pure: splits a reply into Markdown blocks. |
 | `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
 | `AIChatView.swift` | The transcript body, in the palette's own list chrome. |
+| `QuickAIChatController.swift` | AppCore-owned floating chat, composer state, focus and frame changes. |
+| `QuickAIChatPanel.swift` | A native Liquid Glass panel with the shared palette drag handle. |
+| `QuickAIChatView.swift` | Compact composer and expanded conversation using the shared `AIChatTranscriptView`. |
+| `QuickAIChatLayout.swift` | Pure Foundation + CoreGraphics placement and bottom-anchored expansion. |
 | `AIChatMarkdownView.swift` | Renders those blocks; inline spans go through SwiftUI's own parser. |
 | `AIChatSettingsView.swift` | The OpenRouter API key, the chat model and web search, plus the AI command list and its editor sheet. |
 
@@ -71,6 +75,46 @@ into the brand → model menus.
 `AIChatSelectionPrompts.swift`, `AICommand.swift`, `AICommandStore.swift` and
 `Core/OpenRouterModelCatalog.swift` standalone, so all six stay free of AppKit and SwiftUI. The
 network lives in `OpenRouterStore`, never in any pure source.
+
+## Quick AI Chat
+
+**⌥Space** toggles Quick AI Chat, also available as a launcher command and a configurable action in
+Settings → Shortcuts. The default is seeded once if unbound and conflict-free; existing shortcuts
+and deliberate unbinding are preserved. Older settings snapshots that do not know this action
+cannot erase it.
+
+This is an owner-requested independent floating surface, owned by `AppCore` through
+`QuickAIChatController`. It opens centered near the bottom of the cursor's display, 20 points above
+the visible frame's bottom edge, so a bottom Dock stays clear. One native regular Liquid Glass
+surface contains a roughly 209-point-wide, 32-point-high composer (one-third of the palette width and half its compact height). Return sends; accepting the first prompt
+doubles the width to 418 points and opens a compact transcript, keeping the horizontal center and
+bottom composer position. Actual scroll-content measurements grow the body as replies arrive, capped
+at 475 points; beyond that the transcript scrolls. Growth is coalesced over 80 ms and ignores
+intermediate widths during expansion. Height stays attained until New Chat. New Chat restores the 209-point compact width. After a
+drag, expansion uses the current position and clamps to the visible screen if needed. Smaller displays
+cap the frame to fit. SwiftUI never owns the window frame. The native glass and its backing share one size-aware clip: compact corners use half-height circular
+ends, while expanded corners use a 26-point continuous radius; the panel adds no WindowServer shadow or rectangular outer frame.
+
+The expanded view uses the same `AIChatTranscriptView` as the palette: user bubbles, Markdown,
+streaming line reveal, tool activity, errors and follow-to-bottom behavior. A bottom composer supports
+follow-ups and Stop inside a separate Liquid Glass capsule with an explicit border and outer spacing.
+Close and New Chat use the same interactive circular glass treatment as Notes. The close button appears at the top left only after a chat starts; the compact
+composer has no close button. Escape, ⌘W and the shortcut can hide either state; closing
+keeps the conversation and unsent draft in memory for the next summon. It stays visible on click-away,
+and the shortcut refocuses it when it is not key. New Chat (⌘N) returns to the compact input while
+keeping the previous conversation in the shared history. The shared `PaletteDragHandleView` appears
+near the top edge on hover and uses native window dragging. Reduce Motion disables frame animation.
+
+Both surfaces share `AIChatStore`, OpenRouter settings, consent and the single in-flight request gate.
+Quick Chat owns a session ID without changing the palette's selected conversation; every request,
+partial reply and failure remains scoped to the session that asked. Rejected sends keep the draft.
+Conversations use the existing trusted history backup/sync; window state and unsent drafts are
+process-local and are not synced. Closing does not cancel an answer: background tasks can return to
+the floating conversation. Screenshot's Hide Spotter path also hides this panel.
+
+MCP/Cua calls retain the Cancel-first palette confirmation. A tool approval hides Quick Chat and
+restores its previous input target before opening that confirmation; ⌥Space resumes the floating
+conversation afterward. No separate model, connection, permission or automatic tool approval is added.
 
 ## Choosing a model
 

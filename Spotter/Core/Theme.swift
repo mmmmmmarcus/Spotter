@@ -70,6 +70,8 @@ enum Theme {
         static let headerContentGap: CGFloat = 10
         /// Collapsed compact bar: the search row centered in symmetric `headerPadding` slack.
         static let compactHeight: CGFloat = headerHeight + headerPadding * 2
+        static let quickAIWidth: CGFloat = (panelWidth / 3).rounded()
+        static let quickAIComposerHeight: CGFloat = compactHeight / 2
         static let bottomBarHeight: CGFloat = 52
         static let rowIcon: CGFloat = 24
         static let backgroundTaskProgressWidth: CGFloat = 96

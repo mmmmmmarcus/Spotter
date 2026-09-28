@@ -1,8 +1,10 @@
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 extension PluginActionKey {
     static let openAIChat = standard(pluginID: .aiChat, actionID: "open", title: "AI Chat")
+    static let quickAIChat = standard(pluginID: .aiChat, actionID: "quick-chat", title: "Quick AI Chat")
 }
 
 @MainActor
@@ -20,12 +22,19 @@ enum AIChatPlugin {
                 settingsPlacement: .system),
             permissions: [.accessibility],
             shortcutActions: [
-                PluginActionRegistration(key: .openAIChat, perform: open)
+                PluginActionRegistration(key: .openAIChat, perform: open),
+                PluginActionRegistration(key: .quickAIChat,
+                    defaultShortcut: KeyShortcut(carbonKeyCode: Int(kVK_Space), carbonModifiers: optionKey)) { [weak core] in
+                    core?.toggleQuickAIChat()
+                }
             ],
             launcherCommands: [
                 PluginCommandRegistration(
                     id: "command:ai-chat", name: "AI Chat", systemImage: "sparkles",
-                    actionKey: .openAIChat, perform: open)
+                    actionKey: .openAIChat, perform: open),
+                PluginCommandRegistration(
+                    id: "command:quick-ai-chat", name: "Quick AI Chat", systemImage: "sparkles",
+                    actionKey: .quickAIChat) { [weak core] in core?.toggleQuickAIChat() }
             ],
             // Every AI command, shipped or user-authored, is a launcher entry that resolves its own
             // recorder through `AppEntry.hotKeyAction` — the shape custom commands and quicklinks use.

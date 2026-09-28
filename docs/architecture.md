@@ -93,6 +93,12 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
   that briefly confirms otherwise-invisible command results ("Trash Emptied"). Non-activating and
   mouse-ignoring by design: the command just acted on the app the user came from, and taking focus
   back to report on it would undo the thing being reported.
+- **Quick AI Chat** — an owner-requested independent floating surface. `AppCore` owns
+  `QuickAIChatController`, which owns the native glass panel, draft and session reference. It shares
+  `AIChatStore` with the palette without changing its selected session, and reuses
+  `AIChatTranscriptView` and `PaletteDragHandleView`. The controller alone changes the panel frame,
+  keeping the bottom composer anchored while expanding upward. Closing retains the draft and chat;
+  screenshot cleanup hides it along with other auxiliary surfaces. See [ai-chat.md](ai-chat.md#quick-ai-chat).
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
@@ -126,6 +132,13 @@ House idioms for the sharp edges:
 - `ClipboardStore` uses `isolated deinit` for its SQLite teardown.
 - Raw Carbon / C pointers get decoded to plain values before crossing into actor code (see
   `hotKeyCarbonEventHandler`).
+
+## SF Symbols integration
+
+`AppCore.sfSymbols` owns the visible-only SF Symbols search session. The registered palette canvas
+combines `PluginPaletteList` with a preview and receives the shared scroll intent. Search and export
+call the separately installed Apple CLI with literal argument arrays, bounded output, cancellation
+and deadlines; there is no loaded framework or bundled catalog. See [sf-symbols.md](sf-symbols.md).
 
 ## File descriptor lifetime
 

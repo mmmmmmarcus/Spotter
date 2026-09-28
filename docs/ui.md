@@ -682,18 +682,21 @@ claimed through the shared transient shortcut mechanism only while the selection
 ## Quick Clipboard History
 
 An explicit exception to the shared palette surface: up to five recent entries in a vertical menu,
-276 points wide, with 32-point equal-width rows, 6-point outer insets and a final labelled
-**Open Clipboard History** row separated by an 8-point gap. Up/down arrows navigate, Return pastes
-or opens history, and Escape dismisses. Empty history still offers the history row. Text and file
-entries use leading type symbols; images use leading aspect-fit thumbnails with 8-point vertical
+276 points wide, with 32-point text rows, 64-point image rows and 6-point outer insets. An 8-point
+gap separates the footer: eight shared clipboard type-filter icons centered in the menu, and an
+**Open Clipboard History** icon at the right. Each summon defaults to All; filtering precedes the
+five-entry limit. Up/down arrows navigate entries then history, Return activates, and Escape dismisses.
+Empty results retain the footer and explain the selected type. Text and file entries use leading
+type symbols; images use leading aspect-fit thumbnails up to 48 points high, with 8-point vertical
 padding and 4-point corners. Selected rows have a subtle rounded highlight. Selected labels/icons
 remain fully opaque; unselected text is 35%, icons and previews 50%, using semantic system colors.
 
 One `NSGlassEffectView.style = .clear` with 16-point corners contains the entire list. Its content
 view holds borderless row buttons; there are no individual glass pills or separate bezels, tint,
-dimming or blur overlays. Menu width stays fixed during content and image updates. There is no
-header, search field or paging. Caret anchoring, invocation-time mouse fallback, above/below
-placement and 8-point screen safety remain. The panel and buttons cannot take keyboard focus.
+dimming or blur overlays. Menu width stays fixed during content and image updates; filtering resizes height around the original anchor. There is no
+header, search field or paging. Caret anchoring and invocation-time mouse fallback place the first row
+nearest the anchor by opening below when space permits, flipping above near the bottom edge and
+keeping 8-point screen safety. The panel and buttons cannot take keyboard focus.
 
 The whole menu grows from 50% to 100% around the anchor using the shared 0.150-second spring on an
 independent driver layer, sampled into native view frame/bounds without rewriting AppKit backing-layer
@@ -703,4 +706,32 @@ One soft shadow follows the complete rounded menu, masked out of its entire inte
 remain unclipped and WindowServer shadow is off. The system owns glass appearance, contrast and
 transparency. See [clipboard.md](clipboard.md).
 
+## Quick AI Chat
+
+⌥Space opens an independent floating input above the Dock's visible-screen boundary. The composer
+uses one-third of the palette width (about 209 points), a 32-point height and body typography, inside one
+native regular Liquid Glass surface. Compact corners are circular with a half-height radius (16 points),
+forming a capsule; expanded corners use the 26-point continuous radius. Native glass and its backing
+share one size-aware clip without an additional SwiftUI corner mask, and WindowServer shadow is disabled to avoid a rectangular fringe. Sending expands upward to a
+content-fitting body height and doubles the width to 418 points, preserving the horizontal center and
+bottom composer position with screen-edge clamping. Measured reply content gradually grows the body
+to a maximum of 475 points, then scrolls; resize updates are coalesced over 80 ms. New Chat restores the 209-point width.
+The expanded chat reuses `AIChatTranscriptView` for messages, Markdown and streaming, with short edge
+fades inside its separate header and composer. The close button appears top-left only after chatting starts; New Chat is top-right. Both use Notes-style
+24-point interactive circular glass. The expanded composer is a separate 32-point glass capsule with
+a semantic border, 12-point horizontal outer insets and 8-point vertical spacing.
+Floating user bubbles use one-third of the palette bubble inset to leave room for text.
+The shared palette handle reveals near the top edge and drags through the native window server.
+Click-away leaves the window visible; close/Escape/⌘W hides it while retaining the chat and draft for
+the next summon. Reduce Motion skips the expansion animation. No custom tint or scrim covers glass.
+
 AI Chat tool mode adds a collapsible activity list and a Stop control. MCP/Cua settings are a consent-gated experimental section with a JSON configuration sheet. Tool calls use the shared confirmation card with selectable JSON arguments, initially highlighting Cancel; dismissing a tool confirmation cancels that call.
+
+## SF Symbols
+
+The SF Symbols palette uses the normal search and footer around a split body: shared selectable rows
+on the left, a 200-point non-selectable preview pane on the right. The preview shows a 96-point
+aspect-fit system symbol, exact name and CLI-provided availability/codepoint. A semantic separator
+splits the panes; no additional window, search field or list chrome is introduced. Return copies the
+name, Command-Return copies PNG, and Actions offers SwiftUI code and SVG template. Missing tools,
+empty searches and process errors use the existing palette states.

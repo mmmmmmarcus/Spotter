@@ -317,6 +317,20 @@ Never break these without an explicit task to do so.
   selected-text command answers retain their existing streaming path. `AIToolTypes.swift` remains
   pure Foundation, and `AIToolStore` stays Foundation + Combine for the fixture-backed
   `Tools/ai-tools-test.swift` harness. MCP does not introduce runtime-loaded Spotter plugins.
+- **Quick AI Chat is an owner-requested floating-window exception.** ⌥Space opens an independent
+  Liquid Glass composer above the Dock, expanding to twice its compact width after a send and growing upward with measured content, capped at the palette height. `AppCore`
+  solely owns `QuickAIChatController`; it owns the frame, draft and session reference. Both chat
+  surfaces share `AIChatStore`, one in-flight request gate and `AIChatTranscriptView`; floating
+  requests must never redirect the palette's selected conversation. Closing preserves the chat and
+  unsent draft in memory. Use the shared `PaletteDragHandleView` and native window dragging.
+  `QuickAIChatLayout.swift` stays pure Foundation + CoreGraphics. MCP/Cua still uses the Cancel-first
+  palette confirmation and restores focus before dispatch. Screenshot cleanup hides the floating panel.
+- **SF Symbols uses Apple's separately installed CLI.** `AppCore` owns `SFSymbolStore`. Search and
+  preview stay in the shared palette/list; copy/export are explicit. Pass literal argument arrays to
+  `Contents/Executables/sfsymbols`, never shell source. Cancel obsolete searches and closing sessions;
+  bound output and process lifetime, and clean temporary captures/exports. `SFSymbolCatalog.swift`
+  stays pure Foundation, `SFSymbolCLI.swift` Foundation + Darwin and the store Foundation + Combine
+  for `Tools/sf-symbols-test.swift`. Do not load private frameworks or ship a copied symbol catalog.
 - **AI Chat and Widgets are system features; Commands is a plugin.** Both reuse registry wiring.
   AI Chat uses `settingsPlacement: .system`;
   Widgets uses `.system` too, with **one page for the whole strip** (owner decision, Aug 2026,
@@ -347,7 +361,7 @@ Never break these without an explicit task to do so.
   to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
   and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
   Quick Clipboard History is an explicit owner-requested exception (Sep 2026): five recent caret-anchored (mouse fallback)
-  entries in a vertical list sharing one Liquid Glass menu, with a final labelled full-history row and no paging, in a non-key panel owned by `AppCore`, with input only while visible.
+  entries in a vertical list sharing one Liquid Glass menu, with 48-point image previews and a footer containing centered type filters (default All each summon) and a right-aligned full-history icon, with no paging, in a non-key panel owned by `AppCore`, with input only while visible.
   Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. One native `NSGlassEffectView` uses `.clear` (owner decision, Sep 2026) with rounded menu corners and borderless rows inside its content view, without custom tint or dimming; glass ancestors stay fully opaque. Up/down arrows select rows. One menu shadow is masked out of the entire glass interior. Dismissal ends input immediately while a mouse-ignoring panel animates out.
 - **Confirmations are in-palette.** Every destructive palette flow (Mole actions, built-in Commands,
   custom commands, Quit All) asks through `AppCore.confirmInPalette` / `ConfirmationCard`, never an

@@ -13,6 +13,7 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let clipboard = PluginID(rawValue: "clipboard")
     static let textReplacement = PluginID(rawValue: "text-replacement")
     static let emoji = PluginID(rawValue: "emoji-symbols")
+    static let sfSymbols = PluginID(rawValue: "sf-symbols")
     static let worldClock = PluginID(rawValue: "world-clock")
     static let killProcess = PluginID(rawValue: "kill-process")
     static let changeCase = PluginID(rawValue: "change-case")

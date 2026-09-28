@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-/// Palette conversations join settings sync while the in-flight request ledger stays process-local.
+/// Chat conversations join settings sync while the in-flight request ledger stays process-local.
 @MainActor
 final class AIChatStore: ObservableObject {
     @Published private(set) var sessions: [AIChatSession]
@@ -37,8 +37,13 @@ final class AIChatStore: ObservableObject {
     }
 
     var messages: [AIChatMessage] {
-        guard waitingSessionID == currentID, let streamingReply else { return current.messages }
-        return current.messages + [streamingReply]
+        messages(in: currentID)
+    }
+
+    func messages(in sessionID: UUID) -> [AIChatMessage] {
+        let saved = sessions.first { $0.id == sessionID }?.messages ?? []
+        guard waitingSessionID == sessionID, let streamingReply else { return saved }
+        return saved + [streamingReply]
     }
 
     var phase: AIChatPhase { requests.phase(for: currentID) }
@@ -74,6 +79,13 @@ final class AIChatStore: ObservableObject {
     }
 
     // MARK: - Sessions
+
+    // A floating conversation shares history without changing the palette's selected session.
+    func createSession() -> UUID {
+        let session = AIChatSession()
+        sessions.append(session)
+        return session.id
+    }
 
     /// Tab's contract: every entry into chat is a fresh session. An already-empty current session is
     /// reused so cycling through the modes can't pile up blank sessions.
@@ -119,17 +131,18 @@ final class AIChatStore: ObservableObject {
 
     /// Appends the turn and asks; a selected-text action may override the model for its first turn.
     @discardableResult
-    func send(_ text: String, model: String? = nil, webSearch: Bool? = nil, allowsTools: Bool = true) -> Bool {
+    func send(_ text: String, model: String? = nil, webSearch: Bool? = nil, allowsTools: Bool = true, sessionID: UUID? = nil) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, isReady else { return false }
-        let sessionID = currentID
+        let sessionID = sessionID ?? currentID
+        guard let session = sessions.first(where: { $0.id == sessionID }) else { return false }
         guard requests.begin(sessionID: sessionID) else { return false }
         append(AIChatMessage(role: .user, text: trimmed), to: sessionID)
         // Named after the turn just appended, so the row carries the question rather than a label.
         let sessionTitle = title(of: sessionID)
         backgroundTaskID = onRequestStarted?(sessionID, sessionTitle)
-        let window = AIChatEngine.transcriptWindow(messages)
-        let sessionPrompt = current.systemPrompt
+        let window = AIChatEngine.transcriptWindow(messages(in: sessionID))
+        let sessionPrompt = session.systemPrompt
         let requestModel = model ?? openRouter.chatModel
         let requestWebSearch = webSearch ?? openRouter.chatWebSearch
         let usesTools = allowsTools && tools.isEnabled

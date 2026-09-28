@@ -164,17 +164,22 @@ External AX reads run off-main with bounded messaging timeouts and never prompt,
 change its selection, or read its text. Missing permission, unsupported caret bounds, nonempty
 selections and invalid/offscreen geometry fall back to the captured mouse point. AX coordinates are
 converted using the primary display origin, including on other displays. The resolved anchor determines
-the display, placement and both animation directions. Caret menus align directly above the caret;
-mouse menus prefer above/right. Both flip below/left as necessary and leave 12 points at the anchor
+the display, placement and both animation directions. Caret menus align directly below the caret;
+mouse menus prefer below/right, keeping the first row nearest the anchor when there is room below.
+Both flip above/left as necessary and leave 12 points at the anchor
 and at least 8 points inside the screen's visible frame.
 
-Up to five recent entries appear top to bottom in a 276-point-wide vertical menu. All rows share
+Up to five recent matching entries appear top to bottom in a 276-point-wide vertical menu. All rows share
 one native `NSGlassEffectView` using `.clear` with 16-point corners; there are no per-row glass
-surfaces. The menu has 6-point outer insets, 32-point equal-width rows and an 8-point gap before the
-final **Open Clipboard History** row. That action opens the complete history in the shared palette,
-clearing any old query/filter, and remains available when history is empty. Borderless buttons live
+surfaces. The menu has 6-point outer insets, 32-point text rows, 64-point image rows and an 8-point gap
+before a 32-point footer. Eight centered icons reuse `ClipboardFilter` from the complete clipboard:
+all, text, images, files, screenshots, links, emails and numbers. Each invocation starts at All;
+filtering matches the loaded history before taking its five newest entries. The right-aligned
+**Open Clipboard History** icon opens the shared palette, clearing any old query/filter. Every icon
+has a tooltip and accessible name. Empty results show the shared filter message and retain the footer. Borderless buttons live
 directly in the glass content view, with a subtle rounded row highlight for selection. The menu width
-stays fixed while content or thumbnails update, so the screen-clamped placement never shifts.
+stays fixed while content or thumbnails update. Filter and row-height changes reflow around the
+original invocation anchor with the same screen clamping.
 
 Clear remains the selected material without a tint or dimming layer. Preview content is a
 non-interactive child view, leaving hit testing and accessibility on each button. The system owns
@@ -183,13 +188,13 @@ text has full opacity; unselected text has 35% opacity and symbols 50%. Text and
 semantic label colors in the effective drawing appearance. Symbols retain pixel-aligned origins;
 the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse
 whitespace and truncate; pastes retain the full payload. Image entries show leading aspect-fit
-thumbnails without filenames, up to 16 points high, with 8-point vertical padding and 4-point image
-corners. Loading is asynchronous and reuses the bounded 128-pixel cache in `ImageThumbnail`, with a
+thumbnails without filenames, up to 48 points high, with 8-point vertical padding and 4-point image
+corners. Loading is asynchronous and reuses the bounded 512-pixel cache in `ImageThumbnail`, with a
 photo symbol for cold or unreadable previews. Images retain their original colors, with full opacity
 when selected and 50% when unselected. Outer containers leave native glass edges unclipped.
 
 The panel cannot become key or main, and buttons never request key status. Click or ↑/↓ then Return
-pastes; on the final row, Return opens full history. Escape or repeating the shortcut cancels. Arrow navigation changes selection only: all entries stay visible and there is no paging state, timer or translation. Bare keys are claimed only while presented,
+pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Arrow navigation changes selection only: all entries stay visible and there is no paging state, timer or translation. Bare keys are claimed only while presented,
 through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
@@ -202,14 +207,15 @@ backing-layer anchors and geometry, so glass and clipping stay in the same coord
 initial small frame and animations are installed before ordering the panel front. Driver opacity
 sets **window composition alpha**, never glass or its ancestors, for a 0.145-second ease-out fade. Closing samples presentation scale, position and opacity
 and shrinks to 0.20 around the same anchor while fading for 0.08 seconds; a pre-first-frame close uses the analytical spring state as fallback.
-Reduce Motion keeps only a 0.12-second fade. Display links exist only during the bounded opening/closing animation, with task
+Filter reflow settles the current animation and rebases dismissal to the new resting frame without
+replaying the opening animation. Reduce Motion keeps only a 0.12-second fade. Display links exist only during the bounded opening/closing animation, with task
 cleanup even when a display link stops producing frames. Input ends immediately on dismissal and the
 departing panel ignores mouse events. Screenshot's Hide Spotter path closes these panels immediately.
 
 WindowServer shadow remains disabled. A single Core Animation shadow follows the rounded menu outline: 18% opacity, 24-point radius and a 4-point downward offset. It sits above the glass with an even-odd mask removing the entire menu interior, including row gaps and insets, so it cannot darken the glass backdrop. No per-frame bitmap generation or shadow cache is needed.
 
 Store, mouse and app-activation observers exist only during a session. Same-size updates preserve
-selection by ID; entry-count changes keep the current menu geometry until the next summon, and deleting
+selection by ID; entry-count or row-height changes resize around the captured anchor, and deleting
 a displayed entry dismisses it. No new polling, network access, history duplication or persistence is
 introduced. `QuickClipboardPresentation` stays pure Foundation + CoreGraphics. The clipboard harness covers content/order/positioning, and the
 quick-clipboard harness validates native surface focus/material

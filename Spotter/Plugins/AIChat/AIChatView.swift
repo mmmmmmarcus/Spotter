@@ -8,11 +8,6 @@ struct AIChatView: View {
     let selectedID: AIChatSession.ID?
     let scroll: ScrollIntent
     let onActivate: (AIChatSession) -> Void
-    @State private var followsBottom = true
-    @State private var isUserScrolling = false
-
-    /// Anchor row pinned under the newest content so replies land scrolled into view.
-    private static let bottomAnchor = "ai-chat-bottom"
 
     var body: some View {
         if !chat.isReady {
@@ -32,7 +27,7 @@ struct AIChatView: View {
                 history
             }
         } else {
-            transcript
+            AIChatTranscriptView(chat: chat, tools: tools, sessionID: chat.currentID)
         }
     }
 
@@ -65,14 +60,32 @@ struct AIChatView: View {
         }
     }
 
-    private var toolActivities: [AIToolActivity] { tools.activities.filter { $0.sessionID == chat.currentID } }
+}
 
-    private var transcript: some View {
+struct AIChatTranscriptView: View {
+    @ObservedObject var chat: AIChatStore
+    @ObservedObject var tools: AIToolStore
+    let sessionID: UUID
+    var isFloating = false
+    var onContentSizeChange: ((CGSize) -> Void)?
+    @State private var followsBottom = true
+    @State private var isUserScrolling = false
+    private static let bottomAnchor = "ai-chat-bottom"
+    private var messages: [AIChatMessage] { chat.messages(in: sessionID) }
+    private var phase: AIChatPhase { chat.requests.phase(for: sessionID) }
+    private var edgeMask: EdgeDissolveMask {
+        isFloating ? EdgeDissolveMask(topFade: Theme.Spacing.xxl, bottomFade: Theme.Spacing.xxl) : EdgeDissolveMask()
+    }
+
+    private var toolActivities: [AIToolActivity] { tools.activities.filter { $0.sessionID == sessionID } }
+
+    var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                    ForEach(chat.messages) { message in
-                        AIChatRow(message: message, isStreaming: message.id == chat.streamingReply?.id)
+                    ForEach(messages) { message in
+                        AIChatRow(message: message, isStreaming: message.id == chat.streamingReply?.id,
+                            bubbleInset: isFloating ? Theme.Size.chatBubbleInset / 3 : Theme.Size.chatBubbleInset)
                     }
                     if !toolActivities.isEmpty {
                         DisclosureGroup("Tool activity · \(toolActivities.count)") {
@@ -88,17 +101,17 @@ struct AIChatView: View {
                         }
                         .padding(.horizontal, Theme.Spacing.md)
                     }
-                    if chat.phase == .waiting, tools.isRunning {
+                    if phase == .waiting, tools.isRunning {
                         HStack {
                             AIChatStatusRow(symbol: "wrench.and.screwdriver", text: tools.status, pulses: true)
                             Spacer()
                             Button("Stop") { chat.stop() }.controlSize(.small)
                         }
-                    } else if chat.phase == .waiting {
+                    } else if phase == .waiting {
                         AIChatStatusRow(
                             symbol: "ellipsis", text: chat.streamingReply == nil ? AIChatEngine.waitingStatus : "Generating…", pulses: true)
                     }
-                    if case .failed(let reason) = chat.phase {
+                    if case .failed(let reason) = phase {
                         AIChatStatusRow(
                             symbol: "exclamationmark.triangle", text: reason, pulses: false)
                     }
@@ -110,9 +123,14 @@ struct AIChatView: View {
                 .hideNativeScrollers()
                 .scrollOriginAnchor()
             }
-            .edgeDissolve()
+            .modifier(edgeMask)
             .thinScrollbar()
             .defaultScrollAnchor(.bottom)
+            .onScrollGeometryChange(for: CGSize.self) { geometry in
+                CGSize(width: geometry.containerSize.width, height: geometry.contentSize.height)
+            } action: { _, size in
+                onContentSizeChange?(size)
+            }
             .onScrollPhaseChange { _, phase in
                 isUserScrolling = phase == .tracking || phase == .interacting || phase == .decelerating
             }
@@ -125,7 +143,7 @@ struct AIChatView: View {
                 if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
             // Follow the conversation: a sent turn and its landing reply both pin to the bottom.
-            .onChange(of: chat.messages.count) {
+            .onChange(of: messages.count) {
                 withAnimation(.easeOut(duration: Theme.Animation.quick)) {
                     proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
                 }
@@ -133,7 +151,7 @@ struct AIChatView: View {
             .onChange(of: tools.status) {
                 if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
-            .onChange(of: chat.phase) {
+            .onChange(of: phase) {
                 if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
         }
@@ -191,13 +209,14 @@ private struct AIChatHistoryRow: View {
 private struct AIChatRow: View {
     let message: AIChatMessage
     let isStreaming: Bool
+    let bubbleInset: CGFloat
 
     var body: some View {
         // Messenger grammar: the user's turns are right-aligned bubbles, the assistant's replies
         // sit on the bare surface like results.
         if message.role == .user {
             HStack {
-                Spacer(minLength: Theme.Size.chatBubbleInset)
+                Spacer(minLength: bubbleInset)
                 Text(message.text)
                     .font(Theme.Typography.rowTitle)
                     .textSelection(.enabled)

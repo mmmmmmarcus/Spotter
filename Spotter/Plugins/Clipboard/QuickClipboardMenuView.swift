@@ -10,12 +10,15 @@ final class QuickClipboardMenuView: NSView {
     private var thumbnailPreparation: Task<Void, Never>?
     private var requestedImagePaths: [String] = []
     private var displayedItems: [ClipboardItem] = []
-    private var selectedIndex = 0
-    private var rowButtons: [QuickClipboardButton] = []
+    private(set) var rowButtons: [QuickClipboardButton] = []
+    private(set) var filterButtons: [QuickClipboardButton] = []
+    let historyButton = QuickClipboardButton(frame: QuickClipboardPresentation.historyFrame)
+    private let emptyLabel = NSTextField(wrappingLabelWithString: "")
     var onSelect: ((Int) -> Void)?
     var onHighlight: ((Int) -> Void)?
+    var onFilter: ((ClipboardFilter) -> Void)?
     init(items: [ClipboardItem]) {
-        let size = QuickClipboardPresentation.size(count: items.count)
+        let size = QuickClipboardPresentation.size(items: items)
         let margin = QuickClipboardPresentation.canvasMargin
         super.init(frame: CGRect(origin: .zero, size: CGSize(width: size.width + margin * 2, height: size.height + margin * 2)))
         wantsLayer = true
@@ -37,24 +40,31 @@ final class QuickClipboardMenuView: NSView {
         shadowMask.fillColor = NSColor.labelColor.withAlphaComponent(1).cgColor
         layer?.addSublayer(groupShadow)
         updateShadowAppearance()
-        let frames = QuickClipboardPresentation.rowFrames(count: items.count)
-        for (index, rect) in frames.enumerated() {
-            let button = QuickClipboardButton(frame: rect)
-            button.content.frame = button.bounds.insetBy(dx: 11, dy: 0)
-            if items.indices.contains(index) {
-                Self.configure(button, for: items[index])
-            } else {
-                button.content.title = "Open Clipboard History"
-                button.content.image = Self.symbol("clock.arrow.circlepath")
-                button.setAccessibilityLabel("Open Clipboard History")
-            }
-            button.actionHandler = { [weak self] in self?.onSelect?(index) }
-            button.hoverHandler = { [weak self] in self?.onHighlight?(index) }
-            rowButtons.append(button)
+        for (option, rect) in zip(ClipboardFilter.allCases, QuickClipboardPresentation.filterFrames) {
+            let button = Self.iconButton(symbol: option.systemImage, title: option.title, frame: rect)
+            button.actionHandler = { [weak self] in self?.onFilter?(option) }
+            filterButtons.append(button)
             rowsView.addSubview(button)
         }
-        glassView.layoutSubtreeIfNeeded()
-        updateShadowGeometry()
+        historyButton.content.frame = historyButton.bounds
+        historyButton.content.image = Self.symbol("arrow.up.right.square")
+        historyButton.content.centersSymbol = true
+        historyButton.toolTip = "Open Clipboard History"
+        historyButton.setAccessibilityLabel("Open Clipboard History")
+        historyButton.actionHandler = { [weak self] in
+            guard let self else { return }
+            onSelect?(displayedItems.count)
+        }
+        historyButton.hoverHandler = { [weak self] in
+            guard let self else { return }
+            onHighlight?(displayedItems.count)
+        }
+        rowsView.addSubview(historyButton)
+        emptyLabel.font = .systemFont(ofSize: 12)
+        emptyLabel.textColor = .secondaryLabelColor
+        emptyLabel.alignment = .center
+        emptyLabel.maximumNumberOfLines = 2
+        rowsView.addSubview(emptyLabel)
         update(items, selection: 0)
     }
 
@@ -64,32 +74,61 @@ final class QuickClipboardMenuView: NSView {
         thumbnailPreparation?.cancel()
     }
 
-    func update(_ items: [ClipboardItem], selection: Int) {
-        guard items.count + 1 == rowButtons.count else { return }
-        displayedItems = items
-        for (index, item) in items.enumerated() {
+    func update(_ items: [ClipboardItem], selection: Int, filter: ClipboardFilter = .all) {
+        displayedItems = Array(items.prefix(QuickClipboardPresentation.limit))
+        while rowButtons.count > displayedItems.count { rowButtons.removeLast().removeFromSuperview() }
+        while rowButtons.count < displayedItems.count {
+            let index = rowButtons.count
+            let button = QuickClipboardButton(frame: .zero)
+            button.actionHandler = { [weak self] in self?.onSelect?(index) }
+            button.hoverHandler = { [weak self] in self?.onHighlight?(index) }
+            rowButtons.append(button)
+            rowsView.addSubview(button)
+        }
+        let size = QuickClipboardPresentation.size(items: displayedItems)
+        let margin = QuickClipboardPresentation.canvasMargin
+        if glassView.frame.size != size {
+            setFrameSize(CGSize(width: size.width + margin * 2, height: size.height + margin * 2))
+            bounds = CGRect(origin: .zero, size: frame.size)
+            glassView.frame = CGRect(origin: CGPoint(x: margin, y: margin), size: size)
+            rowsView.frame = CGRect(origin: .zero, size: size)
+        }
+        let frames = QuickClipboardPresentation.rowFrames(items: displayedItems)
+        for (index, item) in displayedItems.enumerated() {
+            rowButtons[index].frame = frames[index]
+            rowButtons[index].content.frame = rowButtons[index].bounds.insetBy(dx: 11, dy: 0)
             Self.configure(rowButtons[index], for: item)
         }
-        let paths = items.compactMap(\.imagePath)
+        for (index, option) in ClipboardFilter.allCases.enumerated() {
+            filterButtons[index].isSelected = option == filter
+            filterButtons[index].setAccessibilityValue(option == filter ? "Selected" : "")
+        }
+        emptyLabel.isHidden = !displayedItems.isEmpty
+        emptyLabel.stringValue = filter.emptyMessage
+        emptyLabel.frame = QuickClipboardPresentation.emptyFrame.insetBy(dx: 4, dy: 10)
+        glassView.layoutSubtreeIfNeeded()
+        updateShadowGeometry()
+        let paths = displayedItems.compactMap(\.imagePath)
         if paths != requestedImagePaths {
             requestedImagePaths = paths
             thumbnailPreparation?.cancel()
             thumbnailPreparation = Task { [weak self] in
-                await Self.prepareThumbnails(for: items)
+                await Self.prepareThumbnails(for: self?.displayedItems ?? [])
                 guard !Task.isCancelled, let self, requestedImagePaths == paths else { return }
-                update(displayedItems, selection: selectedIndex)
+                for (index, item) in displayedItems.enumerated() { Self.configure(rowButtons[index], for: item) }
             }
         }
         select(selection)
     }
 
     func select(_ index: Int) {
-        selectedIndex = index
         for offset in rowButtons.indices {
             let button = rowButtons[offset]
             button.isSelected = offset == index
             button.setAccessibilityValue(offset == index ? "Selected" : "")
         }
+        historyButton.isSelected = index == displayedItems.count
+        historyButton.setAccessibilityValue(historyButton.isSelected ? "Selected" : "")
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -130,6 +169,8 @@ final class QuickClipboardMenuView: NSView {
 
     func refreshGlyphs() {
         for button in rowButtons { button.content.needsDisplay = true }
+        for button in filterButtons { button.content.needsDisplay = true }
+        historyButton.content.needsDisplay = true
     }
 
     func containsGlass(_ point: CGPoint) -> Bool {
@@ -139,7 +180,7 @@ final class QuickClipboardMenuView: NSView {
     static func prepareThumbnails(for items: [ClipboardItem]) async {
         for path in Set(items.compactMap(\.imagePath)) {
             guard !Task.isCancelled else { return }
-            _ = await ImageThumbnail.loadAsync(URL(fileURLWithPath: path), maxPixel: 128)
+            _ = await ImageThumbnail.loadAsync(URL(fileURLWithPath: path), maxPixel: 512)
         }
     }
 
@@ -150,9 +191,9 @@ final class QuickClipboardMenuView: NSView {
             content.title = ""
             content.imagePosition = .imageOnly
             if let path = item.imagePath,
-               let cached = ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 128),
+               let cached = ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 512),
                let preview = cached.copy() as? NSImage {
-                let ratio = min((QuickClipboardPresentation.width - 22) / max(1, preview.size.width), (QuickClipboardPresentation.rowHeight - 16) / max(1, preview.size.height))
+                let ratio = min(content.bounds.width / max(1, preview.size.width), (QuickClipboardPresentation.imageRowHeight - 16) / max(1, preview.size.height))
                 preview.size = CGSize(width: preview.size.width * ratio, height: preview.size.height * ratio)
                 content.image = preview
             } else {
@@ -168,6 +209,16 @@ final class QuickClipboardMenuView: NSView {
     private static func symbol(_ name: String) -> NSImage? {
         NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .medium))
+    }
+
+    private static func iconButton(symbol name: String, title: String, frame: CGRect) -> QuickClipboardButton {
+        let button = QuickClipboardButton(frame: frame)
+        button.content.frame = button.bounds
+        button.content.image = symbol(name)
+        button.content.centersSymbol = true
+        button.toolTip = title
+        button.setAccessibilityLabel(title)
+        return button
     }
 }
 
@@ -236,6 +287,7 @@ final class QuickClipboardContentView: NSView {
     var title = "" { didSet { needsDisplay = true } }
     var image: NSImage? { didSet { needsDisplay = true } }
     var imagePosition: NSControl.ImagePosition = .imageLeading
+    var centersSymbol = false
     var font = NSFont.systemFont(ofSize: 12)
     var isSelected = false { didSet { needsDisplay = true } }
     var textColor: NSColor { .labelColor.withAlphaComponent(isSelected ? 1 : 0.35) }
@@ -268,7 +320,7 @@ final class QuickClipboardContentView: NSView {
         guard imagePosition == .imageOnly, let image, !image.isTemplate else {
             if let image {
                 let size = image.size
-                let origin = CGPoint(x: 8 - size.width / 2,
+                let origin = CGPoint(x: (centersSymbol ? bounds.midX : 8) - size.width / 2,
                     y: bounds.midY - size.height / 2)
                 let rect = pixelAligned(CGRect(origin: origin, size: size))
                 let colored = image.withSymbolConfiguration(.init(paletteColors: [symbolColor])) ?? image

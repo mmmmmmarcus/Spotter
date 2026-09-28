@@ -42,6 +42,7 @@ struct PluginCommandRegistration {
 /// A plugin-owned data source rendered by the shared command-palette shell and row grammar.
 @MainActor
 struct PluginPaletteCanvasContext {
+    let scroll: ScrollIntent
     let query: String
     let snapshot: PluginPaletteSnapshot
     let selectedID: String?

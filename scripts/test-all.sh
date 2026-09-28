@@ -20,6 +20,7 @@ TESTS=(
     scopes
     file-search
     emoji
+    sf-symbols
     custom-command
     commands
     world-clock
@@ -40,6 +41,7 @@ TESTS=(
     mole
     coffee
     ai-chat
+    quick-ai-chat
     ai-tools
     dashboard-widgets
     weather-refresh
@@ -262,10 +264,22 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift \
                 Tools/coffee-test.swift -o "$output" && "$output"
             ;;
+        sf-symbols)
+            swiftc -swift-version 6 Spotter/Plugins/SFSymbols/SFSymbolCatalog.swift \
+                Spotter/Plugins/SFSymbols/SFSymbolStore.swift Spotter/Plugins/SFSymbols/SFSymbolCLI.swift Tools/sf-symbols-test.swift -o "$output" && "$output"
+            ;;
         ai-tools)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIToolTypes.swift \
                 Spotter/Plugins/AIChat/AIMCPConnection.swift Spotter/Plugins/AIChat/AIToolStore.swift \
                 Spotter/Core/ProcessPipe.swift Tools/ai-tools-test.swift -o "$output" && "$output"
+            ;;
+        quick-ai-chat)
+            swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
+                Spotter/Core/PaletteDragHandle.swift Spotter/Plugins/AIChat/AIChatTypes.swift \
+                Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
+                Spotter/Plugins/AIChat/AIChatStore.swift Spotter/Plugins/AIChat/QuickAIChatLayout.swift \
+                Spotter/Plugins/AIChat/QuickAIChatPanel.swift Spotter/Plugins/AIChat/QuickAIChatController.swift \
+                Tools/quick-ai-chat-test.swift -o "$output" && "$output"
             ;;
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \

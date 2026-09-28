@@ -81,13 +81,13 @@ final class QuickClipboardMotion: NSObject {
         startDisplayLink()
     }
 
-    func stop() {
+    func stop(closingPanel: Bool = true) {
         completionTask?.cancel()
         completionTask = nil
         displayLink?.invalidate()
         displayLink = nil
         completion = nil
-        panel.close()
+        if closingPanel { panel.close() }
         animationLayer.removeAllAnimations()
         animationLayer.removeFromSuperlayer()
         menu.frame = restingFrame
@@ -136,6 +136,7 @@ final class QuickClipboardMotion: NSObject {
     }
 
     private func currentPresentation() -> (scale: CGFloat, position: CGPoint, opacity: Float) {
+        guard duration > 0 else { return (1, center, 1) }
         let elapsed = now() - startedAt
         let progress = usesSpring ? QuickClipboardPresentation.springProgress(elapsed: elapsed)
             : CGFloat(QuickClipboardPresentation.fadeProgress(elapsed: elapsed, duration: duration, easeIn: isClosing))

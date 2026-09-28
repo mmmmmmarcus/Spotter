@@ -31,6 +31,7 @@ Spotter/Plugins/
 ├── Commands/
 ├── AIChat/
 ├── EmojiSymbols/
+├── SFSymbols/
 ├── WorldClock/
 ├── KillProcess/
 ├── ChangeCase/
@@ -118,6 +119,8 @@ Every registration supplies `metadata` and a standard Settings view. Everything 
 - `queryProvider` contributes a synchronous inline result provider.
 - `paletteScreen` contributes a searchable result-list snapshot, primary row action, ⌘K menu actions
   and visible-only lifecycle to the shared command palette.
+- `paletteScreen.canvas` receives the shared `ScrollIntent` along with selection and activation routes;
+  a split preview can keep using `PluginPaletteList` without introducing separate keyboard behavior.
 - `paletteScreen.listHeader` supplies optional non-selectable content above the shared rows,
   inside their existing scroll view. World Clock uses it for its map; row indices and actions stay
   unchanged and empty lists retain both the header and their empty message.
@@ -268,7 +271,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   shortcut and its own model — which appear as dynamic launcher entries; Define Selected Text and
   Check Selected Text Grammar are the two Spotter ships, and each starts a follow-up-ready
   conversation. The launcher's final query
-  destination rows reuse both paths without adding registry commands.
+  destination rows reuse both paths without adding registry commands. Quick AI Chat (⌥Space) is an
+  owner-requested independent floating Liquid Glass composer, expanding upward into the shared
+  transcript layout and sharing history, model settings and request ownership.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
   the launcher dashboard and is configured on one System page. It adds five square cards above the
   empty launcher — Clock, Uptime, Device Battery, Calendar and File Info — switched on or off in that
@@ -287,8 +292,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — image-first pasteboard capture (including copied local image files) and generic file/folder references with a persisted history;
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
   The palette's type filters share one Liquid Glass capsule and preserve search-field focus.
-  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for five recent entries in a vertical list sharing one native Clear glass menu, followed by a labelled full-history row and surrounded by one menu shadow,
-  above the active text caret (falling back to the captured mouse position), an explicit user-requested exception to palette-first interaction.
+  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for five recent entries in a vertical list sharing one native Clear glass menu, with larger image previews, a footer of centered type filters (default All), a right-aligned full-history icon, and one menu shadow,
+  below the active text caret when space permits (falling back to the captured mouse position and flipping above near the bottom edge), an explicit user-requested exception to palette-first interaction.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
   event tap without storing typing history or using the clipboard. Its Snippets settings table
@@ -399,3 +404,8 @@ The former in-window Notes list and its ⌘L shortcut are removed; Palette Note 
 Screenshot selection panels never take keyboard focus. Their short-lived Escape/Space/Tab claims
 use the shared transient Carbon registrations, released with the panels; pointer-only selection and
 mode guards are tested against the actual AppKit overlay without capturing the user's screen.
+
+- **SF Symbols** (`Spotter/Plugins/SFSymbols/`) — searches Apple's installed SF Symbols 27+ CLI in the
+  shared palette, with the shared result list, a persistent large preview, name/SwiftUI copying and
+  PNG/SVG-template export. `AppCore` owns its debounced, cancelable store. Missing CLI versions show an
+  update instruction; no copied catalog, network fetch or persisted preferences. See [sf-symbols.md](sf-symbols.md).

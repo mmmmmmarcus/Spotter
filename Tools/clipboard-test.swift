@@ -80,6 +80,11 @@ struct ClipboardTests {
         expect(ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil).typeTitle == "Image", "image details keep their content type")
         expect(QuickClipboardPresentation.recentItems(items).map(\.id) == Array(items.prefix(5)).map(\.id),
             "quick history keeps the five newest entries in store order")
+        let images = (0..<7).map { ClipboardItem(imagePath: "/tmp/image-\($0).png", sourceBundleID: nil) }
+        expect(QuickClipboardPresentation.recentItems(items + images, filter: .image).map(\.id) == Array(images.prefix(5)).map(\.id),
+            "quick filters match history before taking five entries")
+        expect(QuickClipboardPresentation.recentItems(items, filter: .image).isEmpty,
+            "unmatched filters never fall back to unrelated entries")
         expect(QuickClipboardPresentation.recentItems([]).isEmpty, "empty quick history stays empty")
         let multiline = ClipboardItem(text: "hello\n  world\t你好", sourceBundleID: nil)
         expect(QuickClipboardPresentation.title(for: multiline) == "hello world 你好", "preview collapses line breaks")
@@ -94,16 +99,16 @@ struct ClipboardTests {
         expect(QuickClipboardPresentation.symbol(for: ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil)) == "photo",
             "images retain their type symbol")
         let screen = CGRect(x: -1440, y: 100, width: 1440, height: 900)
-        let right = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, count: 5)
+        let right = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, items: Array(items.prefix(5)))
         expect(right.minX == -988, "picker opens to the pointer's right on a secondary screen")
-        let left = QuickClipboardPresentation.frame(anchor: CGRect(x: -5, y: 800, width: 0, height: 0), screen: screen, count: 5)
+        let left = QuickClipboardPresentation.frame(anchor: CGRect(x: -5, y: 800, width: 0, height: 0), screen: screen, items: Array(items.prefix(5)))
         expect(left.maxX == -17, "picker flips left at the right edge")
         for pointer in [CGPoint(x: -1440, y: 100), CGPoint(x: -1, y: 1000), CGPoint(x: -900, y: 110)] {
-            let frame = QuickClipboardPresentation.frame(anchor: CGRect(origin: pointer, size: .zero), screen: screen, count: 5)
+            let frame = QuickClipboardPresentation.frame(anchor: CGRect(origin: pointer, size: .zero), screen: screen, items: Array(items.prefix(5)))
             expect(screen.insetBy(dx: 8, dy: 8).contains(frame), "picker stays within the visible screen at \(pointer)")
         }
-        let empty = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, count: 0)
-        expect(empty.height == QuickClipboardPresentation.rowHeight + QuickClipboardPresentation.inset * 2, "empty history uses one history button")
+        let empty = QuickClipboardPresentation.frame(anchor: CGRect(x: -1000, y: 800, width: 0, height: 0), screen: screen, items: [])
+        expect(empty.height == 96, "empty results retain a message and filter toolbar")
     }
 
     static func incrementalSync() async {

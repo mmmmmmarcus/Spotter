@@ -207,6 +207,7 @@ final class AppCore: ObservableObject {
     let calcHistory = CalculatorHistoryStore()
     let currencyRates = CurrencyRateStore()
     let emojiIndex = EmojiIndex()
+    let sfSymbols = SFSymbolStore()
     let frequentEmoji = FrequentEmojiStore()
     let runningApps = RunningAppsMonitor()
     let backgroundTasks = BackgroundTaskStore()
@@ -250,6 +251,9 @@ final class AppCore: ObservableObject {
 
     private lazy var windowController = PaletteWindowController(core: self)
     private lazy var quickClipboard = QuickClipboardController(store: clipboardStore, hotKeys: hotKeys)
+    private lazy var quickAIChat = QuickAIChatController(chat: aiChat, tools: aiTools, router: openRouter) { [weak self] in
+        self?.showSettings(plugin: .aiChat)
+    }
     private lazy var auxWindows = AuxWindowController { [weak self] in
         self?.syncActivationPolicy()
     }
@@ -392,7 +396,10 @@ final class AppCore: ObservableObject {
         aiTools.onConfigurationChanged = { [weak self] in self?.aiChat.stop() }
         aiTools.onApproval = { [weak self] approval in
             guard let self else { return }
-            if let sessionID = aiChat.waitingSessionID { openAIChat(sessionID: sessionID) }
+            if let sessionID = aiChat.waitingSessionID {
+                if quickAIChat.owns(sessionID) { quickAIChat.hide(restoreFocus: true) }
+                openAIChat(sessionID: sessionID)
+            }
             confirmInPalette(PaletteConfirmation(title: approval.title,
                 message: "Review the arguments. Run this tool on the configured server?",
                 actionTitle: "Run Tool", isDestructive: false, requestID: approval.id, details: approval.arguments,
@@ -413,14 +420,19 @@ final class AppCore: ObservableObject {
             return self.backgroundTasks.begin(
                 title: sessionTitle, detail: AIChatEngine.waitingStatus,
                 systemImage: "sparkles",
-                onOpen: { [weak self] in self?.openAIChat(sessionID: sessionID) },
+                onOpen: { [weak self] in
+                    guard let self else { return }
+                    if quickAIChat.owns(sessionID) { showQuickAIChat() }
+                    else { openAIChat(sessionID: sessionID) }
+                },
                 onCancel: { [weak self] in self?.aiChat.stop() })
         }
         aiChat.onRequestFinished = { [weak self] taskID, sessionID, succeeded, detail in
             guard let self else { return }
             // The row exists to carry a reply the user walked away from. Landing in front of them,
             // in that very conversation, is the reply being read — there is nothing to come back to.
-            if isPaletteShowing, palette.mode == .aiChat, aiChat.currentID == sessionID {
+            if (isPaletteShowing && palette.mode == .aiChat && aiChat.currentID == sessionID)
+                || (quickAIChat.isVisible && quickAIChat.owns(sessionID)) {
                 backgroundTasks.discard(id: taskID)
                 return
             }
@@ -572,6 +584,18 @@ final class AppCore: ObservableObject {
         }
     }
 
+    func toggleQuickAIChat() {
+        if quickAIChat.isKeyWindow { quickAIChat.hide() }
+        else { showQuickAIChat() }
+    }
+
+    private func showQuickAIChat() {
+        let target = isPaletteShowing ? windowController.previousApp : NSWorkspace.shared.frontmostApplication
+        quickClipboard.dismiss(restoringFocus: false)
+        if isPaletteShowing { hidePalette(restoreFocus: false) }
+        quickAIChat.show(previousApplication: target)
+    }
+
     /// Shows the palette, honoring Pop to Root Search: a reopen within the timeout restores the pre-close state — any mode for the generic summon (`restoreAnyMode`), else only when the preserved mode already matches the requested one.
     func showPalette(mode: PaletteMode, restoreAnyMode: Bool = false) {
         quickClipboard.dismiss(restoringFocus: true)
@@ -713,6 +737,7 @@ final class AppCore: ObservableObject {
     /// windows cannot end up in the shot.
     func closeAuxiliaryWindows() {
         quickClipboard.dismiss(restoringFocus: true, animated: false)
+        quickAIChat.hide(restoreFocus: false)
         auxWindows.closeAll()
     }
 

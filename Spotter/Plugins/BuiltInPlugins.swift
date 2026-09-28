@@ -11,6 +11,7 @@ enum BuiltInPlugins {
             CommandsPlugin.registration(core: core),
             AIChatPlugin.registration(core: core),
             EmojiSymbolsPlugin.registration(core: core),
+            SFSymbolPlugin.registration(core: core),
             WorldClockPlugin.registration(core: core),
             UptimePlugin.registration(core: core),
             DashboardWidgetsPlugin.registration(core: core),

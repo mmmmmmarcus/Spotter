@@ -7,6 +7,8 @@ final class QuickClipboardController {
     private let hotKeys: HotKeyManager
     private var items: [ClipboardItem] = []
     private var selection = 0
+    private var filter: ClipboardFilter = .all
+    private var placement: (anchor: CGRect, screen: CGRect)?
     private var panel: QuickClipboardPanel?
     private var menu: QuickClipboardMenuView?
     private var motion: QuickClipboardMotion?
@@ -42,7 +44,8 @@ final class QuickClipboardController {
         self.paste = paste
         self.restoreFocus = restoreFocus
         self.openHistory = openHistory
-        items = QuickClipboardPresentation.recentItems(store.items)
+        filter = .all
+        items = QuickClipboardPresentation.recentItems(store.items, filter: filter)
         selection = 0
         isVisible = true
         generation = UUID()
@@ -63,13 +66,8 @@ final class QuickClipboardController {
     }
 
     private func present(anchor: CGRect, screen: CGRect) {
-        let target = QuickClipboardPresentation.frame(anchor: anchor, screen: screen, count: items.count)
-        let point = CGPoint(x: anchor.midX, y: anchor.midY)
-        let margin = QuickClipboardPresentation.canvasMargin
-        let canvas = CGRect(origin: target.origin, size: QuickClipboardPresentation.size(count: items.count))
-        let windowFrame = canvas.insetBy(dx: -margin - 8, dy: -margin - 8)
-            .union(CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16)).integral
-        let panel = QuickClipboardPanel(contentRect: windowFrame,
+        placement = (anchor, screen)
+        let panel = QuickClipboardPanel(contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -81,11 +79,9 @@ final class QuickClipboardController {
         panel.animationBehavior = .none
         panel.isMovable = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        let root = NSView(frame: CGRect(origin: .zero, size: windowFrame.size))
+        let root = NSView()
         root.wantsLayer = true
         let menu = QuickClipboardMenuView(items: items)
-        menu.update(items, selection: selection)
-        menu.frame.origin = CGPoint(x: target.minX - margin - windowFrame.minX, y: target.minY - margin - windowFrame.minY)
         root.addSubview(menu)
         panel.contentView = root
         menu.onSelect = { [weak self] index in self?.activate(index) }
@@ -94,18 +90,42 @@ final class QuickClipboardController {
             selection = index
             self.menu?.select(index)
         }
+        menu.onFilter = { [weak self] filter in self?.selectFilter(filter) }
         self.panel = panel
         self.menu = menu
-        root.layoutSubtreeIfNeeded()
-        let motion = QuickClipboardMotion(panel: panel, menu: menu,
-            anchor: CGPoint(x: point.x - windowFrame.minX, y: point.y - windowFrame.minY))
-        self.motion = motion
-        motion.open(reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        updatePresentation(opening: true)
         for key in Self.keys {
             hotKeys.holdTransientKey(id: "quick-clipboard.\(key)", shortcut: KeyShortcut(carbonKeyCode: Int(key), carbonModifiers: 0)) { [weak self] in
                 self?.handle(key)
             }
         }
+    }
+
+    private func updatePresentation(opening: Bool = false) {
+        guard let panel, let menu, let placement else { return }
+        motion?.stop(closingPanel: false)
+        menu.update(items, selection: selection, filter: filter)
+        let target = QuickClipboardPresentation.frame(anchor: placement.anchor, screen: placement.screen, items: items)
+        let point = CGPoint(x: placement.anchor.midX, y: placement.anchor.midY)
+        let margin = QuickClipboardPresentation.canvasMargin
+        let windowFrame = target.insetBy(dx: -margin - 8, dy: -margin - 8)
+            .union(CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16)).integral
+        panel.setFrame(windowFrame, display: false)
+        menu.frame.origin = CGPoint(x: target.minX - margin - windowFrame.minX, y: target.minY - margin - windowFrame.minY)
+        panel.contentView?.layoutSubtreeIfNeeded()
+        let motion = QuickClipboardMotion(panel: panel, menu: menu,
+            anchor: CGPoint(x: point.x - windowFrame.minX, y: point.y - windowFrame.minY))
+        self.motion = motion
+        if opening { motion.open(reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) }
+        else { panel.alphaValue = 1 }
+    }
+
+    private func selectFilter(_ filter: ClipboardFilter) {
+        guard isVisible, self.filter != filter else { return }
+        self.filter = filter
+        items = QuickClipboardPresentation.recentItems(store.items, filter: filter)
+        selection = 0
+        updatePresentation()
     }
 
     func dismiss(restoringFocus: Bool = false, animated: Bool = true) {
@@ -124,6 +144,7 @@ final class QuickClipboardController {
         panel?.ignoresMouseEvents = true
         menu?.onSelect = nil
         menu?.onHighlight = nil
+        menu?.onFilter = nil
         if let motion {
             if animated {
                 let id = UUID()
@@ -142,6 +163,7 @@ final class QuickClipboardController {
         motion = nil
         panel = nil
         menu = nil
+        placement = nil
         items = []
         paste = nil
         restoreFocus = nil
@@ -152,17 +174,19 @@ final class QuickClipboardController {
     private func installObservers(sourcePID: pid_t?) {
         observation = store.$items.sink { [weak self] latest in
             guard let self, isVisible else { return }
-            let recent = QuickClipboardPresentation.recentItems(latest)
-            if recent.count == items.count {
-                let selectedHistory = selection == items.count
-                let selectedID = items.indices.contains(selection) ? items[selection].id : nil
-                items = recent
-                selection = selectedHistory ? recent.count : (selectedID.flatMap { id in recent.firstIndex { $0.id == id } } ?? 0)
-                menu?.update(items, selection: selection)
-            } else {
-                let ids = Set(latest.map(\.id))
-                if items.contains(where: { !ids.contains($0.id) }) { dismiss() }
+            let ids = Set(latest.map(\.id))
+            if items.contains(where: { !ids.contains($0.id) }) {
+                dismiss()
+                return
             }
+            let recent = QuickClipboardPresentation.recentItems(latest, filter: filter)
+            let oldSize = QuickClipboardPresentation.size(items: items)
+            let selectedHistory = selection == items.count
+            let selectedID = items.indices.contains(selection) ? items[selection].id : nil
+            items = recent
+            selection = selectedHistory ? recent.count : (selectedID.flatMap { id in recent.firstIndex { $0.id == id } } ?? 0)
+            if QuickClipboardPresentation.size(items: items) != oldSize { updatePresentation() }
+            else { menu?.update(items, selection: selection, filter: filter) }
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
             MainActor.assumeIsolated {

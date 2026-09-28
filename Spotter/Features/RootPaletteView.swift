@@ -1101,7 +1101,7 @@ struct RootPaletteView: View {
             if let plugin, let canvas = plugins.paletteCanvas(
                 pluginID: pluginID,
                 context: PluginPaletteCanvasContext(
-                    query: vm.query, snapshot: plugin,
+                    scroll: scroll, query: vm.query, snapshot: plugin,
                     selectedID: plugin.items.indices.contains(selection) ? plugin.items[selection].id : nil,
                     activate: { id in
                         guard let index = plugin.items.firstIndex(where: { $0.id == id }) else { return }
