@@ -392,8 +392,8 @@ a `controlSurface` track ring under a `textSecondary` arc, rounded cap, sweeping
 parameter picks the mode — a fraction fills the arc (eased over 0.3s, so real progress animates
 between updates), `nil` spins a 28% arc one full turn every 0.9s. `size` drives the diameter and the
 line width (11% of it); `ringLoaderSmall 16` sits beside a settings row's controls and
-`ringLoaderLarge 32` stands in for a status view's headline glyph. The updater uses both: the feed
-check is indeterminate, the download determinate against its real byte count
+`ringLoaderLarge 32` is available for larger surfaces. The updater uses the small ring inside its
+command and Settings rows: the feed check is indeterminate, the download determinate against its real byte count
 ([updates.md](updates.md)). Background-task rows keep the native bar and spinner — they are a row's
 trailing control, not a view's whole state.
 
@@ -526,9 +526,11 @@ cards for option groups, and a fixed footer for the primary action. Long-running
 small progress indicator and leaves the main actor before processing.
 
 The Software Update flow is a focused core palette sub-screen. It uses the shared back header and
-bottom primary-action pill around a centered system-status glyph/progress indicator, title and
-explanatory text. Every state comes from `UpdateStore`; the view never duplicates network,
-verification or installation logic or opens an auxiliary window.
+bottom primary-action pill around shared command rows: an optional Upgrade row, Check for Updates,
+and a non-selectable Current Version row. Small inline rings replace the full-screen status indicator;
+downloads use actual byte progress and unpack/verify/install/relaunch use their real phase labels.
+Selection remains on the same command when a new upgrade row appears. Every state comes from
+`UpdateStore`; the view never duplicates network, verification or installation logic or opens an auxiliary window.
 
 List-oriented plugins do not use a workspace. Register a palette screen and render every result via
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,

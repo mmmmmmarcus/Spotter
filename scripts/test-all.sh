@@ -236,7 +236,7 @@ run_harness() {
             ;;
         update)
             swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift \
-                Tools/update-test.swift -o "$output" && "$output"
+                Spotter/Core/UpdatePresentation.swift Tools/update-test.swift -o "$output" && "$output"
             ;;
         window-command)
             swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \

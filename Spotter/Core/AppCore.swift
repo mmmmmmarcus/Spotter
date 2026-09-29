@@ -694,15 +694,14 @@ final class AppCore: ObservableObject {
     }
 
     func performUpdatePrimaryAction() {
-        switch updates.status {
-        case .available(let release) where release.zipAssetURL != nil:
-            Task { await updates.installAvailableUpdate() }
-        case .available(let release):
-            NSWorkspace.shared.open(release.pageURL)
-        case .idle, .upToDate, .failed:
+        guard !updates.status.isBusy else { return }
+        switch updates.presentation.action(at: palette.selection) {
+        case .upgrade:
+            guard let release = updates.availableRelease else { return }
+            if release.zipAssetURL != nil { Task { await updates.installAvailableUpdate() } }
+            else { NSWorkspace.shared.open(release.pageURL) }
+        case .check:
             Task { await updates.checkNow() }
-        case .checking, .installing:
-            break
         }
     }
 

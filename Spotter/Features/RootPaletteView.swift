@@ -190,7 +190,7 @@ struct RootPaletteView: View {
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
         case .aiChat: return aiChatHistorySessions.count
-        case .updates: return 0
+        case .updates: return updates.presentation.actions.count
         case .plugin: return pluginResults.count
         }
     }
@@ -376,7 +376,7 @@ struct RootPaletteView: View {
         let count =
             apps.count + fallbacks.count + taskOffset + inlineOffset + clips.count + hist.count
             + emojis.count + chatSessions.count
-            + pluginItems.count
+            + pluginItems.count + (vm.mode == .updates ? updates.presentation.actions.count : 0)
         let sel = count == 0 ? 0 : min(max(vm.selection, 0), count - 1)
         let selectedTask = tasks.indices.contains(sel) ? tasks[sel] : nil
         let inlineSelected = inline != nil && sel == taskOffset
@@ -397,13 +397,13 @@ struct RootPaletteView: View {
         // A task row earns a ↵ pill only when Return has somewhere to go; live work that can merely
         // be called off shows the Actions button alone, so ↵ never stops anything by reflex.
         let taskPrimary = selectedTask.map { $0.isDismissible || backgroundTasks.canOpen(id: $0.id) }
-        let showPrimaryAction = taskPrimary ?? (vm.mode != .emoji || !emojis.isEmpty)
-        let showActionGroup = selectedTask.map {
+        let showPrimaryAction = vm.mode == .updates ? updatePrimaryActionTitle != nil : (taskPrimary ?? (vm.mode != .emoji || !emojis.isEmpty))
+        let showActionGroup = vm.mode == .updates ? updatePrimaryActionTitle != nil : (selectedTask.map {
             (taskPrimary ?? false) || backgroundTasks.canCancel(id: $0.id)
         }
             ?? (((count > 0 || vm.mode == .aiChat || vm.mode == .emoji)
                 && !(inlineSelected && inlineActionTitle == nil))
-                || (vm.mode == .updates && updatePrimaryActionTitle != nil))
+                || (vm.mode == .updates && updatePrimaryActionTitle != nil)))
         let showActionsButton = vm.mode != .updates
             && (selectedTask.map { backgroundTasks.canCancel(id: $0.id) } ?? (selectedFallback == nil))
 
@@ -555,7 +555,11 @@ struct RootPaletteView: View {
             scroll = ScrollIntent(kind: .top)
             searchFocused = vm.mode != .updates
         }
-        // Pop-to-root: `prepare` clears query/selection, but if both were already at their defaults the handlers above never fire — this intent guarantees the scroll itself snaps back to the origin.
+        .onChange(of: updates.presentation.actions) { previous, _ in
+            guard vm.mode == .updates else { return }
+            vm.selection = updates.presentation.selection(after: previous, index: vm.selection)
+        }
+        // Pop-to-root must scroll even when the query and selection were already empty.
         .onChange(of: vm.resetToken) {
             scroll = ScrollIntent(kind: .top)
         }
@@ -1074,7 +1078,10 @@ struct RootPaletteView: View {
                     core.aiChat.switchTo(session.id)
                 })
         case .updates:
-            UpdatePaletteView()
+            UpdatePaletteView(selection: selection) { index in
+                vm.selection = index
+                core.performUpdatePrimaryAction()
+            }
         case .emoji:
             if !emojiIndex.isLoaded {
                 EmptyResults(text: "Loading emoji…")
@@ -1242,13 +1249,7 @@ struct RootPaletteView: View {
     }
 
     private var updatePrimaryActionTitle: String? {
-        switch updates.status {
-        case .idle: "Check for Updates"
-        case .checking, .installing: nil
-        case .upToDate: "Check Again"
-        case .available(let release): release.zipAssetURL == nil ? "View Release" : "Install Update"
-        case .failed: "Try Again"
-        }
+        updates.presentation.primaryTitle(at: selection)
     }
 
     /// The single path that opens the Actions menu: samples the state its rows depend on, then shows it. Callers set `vm.selection` first, so the sample matches the row the menu is for.

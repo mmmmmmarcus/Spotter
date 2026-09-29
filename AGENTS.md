@@ -285,7 +285,7 @@ Never break these without an explicit task to do so.
   consent dialog and its saved choice syncs; the manual Check for Updates click is itself the consent for that
   one request. Stable and beta feeds stay channel-isolated, and installs only happen on an explicit
   click after the new bundle passes designated-requirement signature verification. See
-  [`docs/updates.md`](docs/updates.md). `Core/UpdateFeed.swift` stays Foundation-only and pure for
+  [`docs/updates.md`](docs/updates.md). `Core/UpdateFeed.swift` and `Core/UpdatePresentation.swift` stay Foundation-only and pure for
   `Tools/update-test.swift`.
   Notes sync through a **user-chosen folder of Markdown files**, one file per Note, and choosing that
   folder *is* the consent act — the Settings Sync precedent, so there is no dialog and no toggle to

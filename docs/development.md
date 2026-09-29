@@ -243,7 +243,7 @@ swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.sw
 swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
     Spotter/Core/Backup/PluginShortcutSync.swift \
     Spotter/Core/Backup/SettingsBackupData.swift Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
-swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
+swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Spotter/Core/UpdatePresentation.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
 swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
     Spotter/Plugins/WindowManagement/WindowLayout.swift \
@@ -580,3 +580,6 @@ close cancellation, missing CLI, stderr, nonzero exits and deadlines. With SF Sy
 it also runs real bounded searches and PNG/SVG exports into disposable temporary directories. It
 never changes the clipboard or opens a UI. Run `scripts/test-all.sh --run-case sf-symbols /tmp/spotter-tests`
 or include it in the complete harness suite.
+
+The update harness also covers command-row selection preservation, install/check busy gates, retained
+retry actions, byte fractions, unknown content lengths and rejection of stale installation progress.

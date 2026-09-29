@@ -1,4 +1,4 @@
-// Compile: swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift -o /tmp/update-test && /tmp/update-test
+// Compile: swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Spotter/Core/UpdatePresentation.swift Tools/update-test.swift -o /tmp/update-test && /tmp/update-test
 import Foundation
 
 @main
@@ -123,6 +123,41 @@ struct UpdateTests {
         check("recovery refuses another version's ZIP", (try? UpdateFeed.resolvingAssets(unrelatedAssets, for: pageFallback!))?.zipAssetURL == nil)
         check("confirmed empty asset list retains manual fallback", (try? UpdateFeed.resolvingAssets(Data("[]".utf8), for: pageFallback!)) == pageFallback)
         check("malformed assets fail rather than becoming a manual-only release", (try? UpdateFeed.resolvingAssets(Data("junk".utf8), for: pageFallback!)) == nil)
+
+        let release = stable!
+        let idle = UpdatePresentation(status: .idle, release: nil, progress: nil)
+        check("no upgrade row without a known release", idle.actions == [.check])
+        let available = UpdatePresentation(status: .available(release), release: release, progress: nil)
+        check("upgrade precedes check when available", available.actions == [.upgrade, .check])
+        check("Return follows selected check instead of installing", available.primaryTitle(at: 1) == "Check for Updates")
+        check("selected upgrade offers installation", available.primaryTitle(at: 0) == "Install Update")
+        check("new upgrade row preserves selected check", available.selection(after: idle.actions, index: 0) == 1)
+        check("removed upgrade clamps selection to check", idle.selection(after: available.actions, index: 1) == 0)
+        let manual = UpdatePresentation(status: .available(pageFallback!), release: pageFallback, progress: nil)
+        check("DMG-only action opens release", manual.primaryTitle(at: 0) == "View Release")
+        for status: UpdateStatus in [.checking, .installing] {
+            let busy = UpdatePresentation(status: status, release: release, progress: .downloading(nil))
+            check("busy work keeps both row identities", busy.actions == available.actions)
+            check("busy work cannot double-start a check or install", busy.primaryTitle(at: 0) == nil && busy.primaryTitle(at: 1) == nil)
+        }
+        let failed = UpdatePresentation(status: .failed("Download failed"), release: release, progress: nil)
+        check("failure retains retryable upgrade", failed.actions == available.actions && failed.primaryTitle(at: 0) == "Install Update")
+        check("failure stays visible in the check row", failed.checkDetail == "Download failed")
+        check("byte fraction is measured", UpdateInstallProgress.download(written: 25, expected: 100).fraction == 0.25)
+        check("unknown content length never invents a percentage", UpdateInstallProgress.download(written: 25, expected: -1).fraction == nil)
+        check("zero content length remains indeterminate", UpdateInstallProgress.download(written: 25, expected: 0).fraction == nil)
+        check("byte fraction stays bounded", UpdateInstallProgress.download(written: 150, expected: 100).fraction == 1)
+        let partial = UpdateInstallProgress.downloading(0.5)
+        check("late byte callbacks cannot move progress backward", !partial.accepts(.downloading(0.2)))
+        check("unknown-length callback cannot erase measured progress", !partial.accepts(.downloading(nil)))
+        check("invalid fractions are rejected", !partial.accepts(.downloading(.nan)) && !partial.accepts(.downloading(2)))
+        let stages: [UpdateInstallProgress] = [.downloading(nil), .unpacking, .verifying, .installing, .relaunching]
+        for (current, next) in zip(stages, stages.dropFirst()) {
+            check("real completion advances to the next stage", current.accepts(next))
+            check("late callbacks cannot regress an installation stage", !next.accepts(current))
+        }
+        check("installation stages never pretend to have byte percentages", stages.dropFirst().allSatisfy { $0.fraction == nil })
+        check("download and installation have distinct labels", stages[0].title != stages[3].title)
 
         print(failures == 0 ? "\nUpdate feed: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)

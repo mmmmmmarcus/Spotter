@@ -7,8 +7,6 @@ struct RingLoader: View {
     var progress: Double?
     var size: CGFloat
 
-    @State private var spinning = false
-
     private var lineWidth: CGFloat { max(1.5, size * 0.11) }
     private var stroke: StrokeStyle { StrokeStyle(lineWidth: lineWidth, lineCap: .round) }
 
@@ -33,16 +31,14 @@ struct RingLoader: View {
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.3), value: progress)
         } else {
-            Circle()
-                .trim(from: 0, to: 0.28)
-                .stroke(Theme.Colors.textSecondary, style: stroke)
-                // Exactly one turn per cycle, so the repeat has no visible seam.
-                .rotationEffect(.degrees(spinning ? 270 : -90))
-                .onAppear {
-                    withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-                        spinning = true
-                    }
-                }
+            // Clock-driven rotation survives determinate/indeterminate swaps and reopening the palette.
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.9) / 0.9
+                Circle()
+                    .trim(from: 0, to: 0.28)
+                    .stroke(Theme.Colors.textSecondary, style: stroke)
+                    .rotationEffect(.degrees(turn * 360 - 90))
+            }
         }
     }
 }

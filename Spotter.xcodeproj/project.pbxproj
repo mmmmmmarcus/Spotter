@@ -52,6 +52,7 @@
 		23796C34023E0DCAC3096D3B /* PopoverMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2821459ECF8A3EB12E1D0D5 /* PopoverMenu.swift */; };
 		23D88A95358AF8E68B1428E8 /* QuicklinkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C8ACF3052CC0B630FA4B2AF /* QuicklinkStore.swift */; };
 		241CB5E964B391FAEF748B83 /* SearchURLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF93553A01C5315C277F8A5 /* SearchURLBuilder.swift */; };
+		250F260456858C710BE06016 /* UpdatePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A3631117D5E9DDEC5059BC /* UpdatePresentation.swift */; };
 		2522EA89910ED5DDF897AE02 /* RightClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A910A72680B85A7291F2AB /* RightClick.swift */; };
 		25AE17D7B468AFBFA919ACF2 /* ScreenshotWindowPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25D2B8CA05681DE2CF8C99E7 /* ScreenshotWindowPicker.swift */; };
 		2706A7F2E3214739A77892A4 /* WindowActionMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33E49FE9DA17F3916D19B86D /* WindowActionMemory.swift */; };
@@ -473,6 +474,7 @@
 		95A910A72680B85A7291F2AB /* RightClick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightClick.swift; sourceTree = "<group>"; };
 		964BE9F71D0D45A8468D1F47 /* ImageThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageThumbnail.swift; sourceTree = "<group>"; };
 		9970E8C7ADE0D645E9DF7EE7 /* KillProcessEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KillProcessEngine.swift; sourceTree = "<group>"; };
+		99A3631117D5E9DDEC5059BC /* UpdatePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatePresentation.swift; sourceTree = "<group>"; };
 		99AF8927AABC43F0F4697DEA /* TextReplacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementEngine.swift; sourceTree = "<group>"; };
 		9A4ED7A6F86E198661E690ED /* QuickClipboardPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickClipboardPresentation.swift; sourceTree = "<group>"; };
 		9C652D385E897B412FCCE468 /* DashboardWeatherLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWeatherLocation.swift; sourceTree = "<group>"; };
@@ -1090,6 +1092,7 @@
 				10D143CDE86259528CFC5F56 /* Theme.swift */,
 				1D58C310CD39C89001E71E53 /* ThinScrollbar.swift */,
 				80B34460791F6B79BDE3717A /* UpdateFeed.swift */,
+				99A3631117D5E9DDEC5059BC /* UpdatePresentation.swift */,
 				F7829EA08561C01C47794D1C /* UpdateStore.swift */,
 				DBB3757FA662D508E113F837 /* VisibilityStore.swift */,
 				6AC7A287D22028FC616E9A44 /* VisualEffectView.swift */,
@@ -1554,6 +1557,7 @@
 				4B889F3FDAE183A780ABFBED /* TranslateSettingsView.swift in Sources */,
 				D2AE0CF0091716BE6B372653 /* TranslateTypes.swift in Sources */,
 				F91F68FE32440D040FB0FCA6 /* UpdateFeed.swift in Sources */,
+				250F260456858C710BE06016 /* UpdatePresentation.swift in Sources */,
 				5D40DCFE0F29E6D10B497D72 /* UpdateStore.swift in Sources */,
 				66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */,
 				75A2E7675D38AB08316F2B3C /* UptimeEngine.swift in Sources */,
@@ -1634,7 +1638,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.22;
+				MARKETING_VERSION = 1.6.23;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1706,7 +1710,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.22;
+				MARKETING_VERSION = 1.6.23;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

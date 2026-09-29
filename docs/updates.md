@@ -49,22 +49,29 @@ When an update has a zip asset, installation follows this sequence:
    A filesystem without `RENAME_SWAP` falls back to remove-and-rename, trading that TCC guarantee
    for still completing the update; the retired bundle is deleted under its staging name.
 
-## Progress reporting
+## Progress reporting and palette rows
 
-The download reports real bytes rather than a spinner, without giving up the fast download path.
-`UpdateStore` calls `download(for:delegate:)` on the same private ephemeral session — URLSession
-still writes the archive to a temporary file at full speed — and passes a per-task
-`URLSessionDownloadDelegate` that reads `totalBytesWritten` over `totalBytesExpectedToWrite` in
-`didWriteData`. The session itself stays delegate-free. That fraction reaches the UI through
-`@Published downloadFraction`, at most ten times a second, so the arriving bytes never drive a
-publish of their own. The fraction is `nil` whenever there is nothing to measure: before the first
-callback, when the expected length is unknown (`NSURLSessionTransferSizeUnknown`), and again during
-the unzip, signature check and bundle swap, which are short and unmeasurable.
+Software Update uses the shared palette row appearance, with no centered status screen. A known
+new version adds an Upgrade row first; Check for Updates is always present, followed by a
+non-selectable Current Version row. Up/down, Return and clicks act on the selected command. A check
+that discovers a new version preserves the selected Check row rather than turning the next Return
+into an installation. Busy operations cannot start a second check/install. Errors appear beneath
+Check for Updates, and a known release remains available for retry after failure.
 
-Both update surfaces — the Settings row and the in-palette Software Update view — render that state
-with `RingLoader` ([ui.md](ui.md)): the determinate ring while a fraction is known, the
-indeterminate one otherwise. The feed check is a single small request, so it is always
-indeterminate; it is never shown as a percentage.
+The download uses `download(for:delegate:)` on the private ephemeral session. Its per-task
+`URLSessionDownloadDelegate` reports actual received/expected bytes at most ten times per second,
+including when the expected length is unknown. The upgrade row and Settings control show the real
+fraction when available; unknown lengths use an indeterminate ring with no invented percentage.
+`UpdateInstallProgress` advances only at real operation boundaries: downloading, unpacking,
+signature verification, installing and relaunching. Post-download stages show a small spinning ring
+and their phase name. There is no simulated overall installation percentage. The shared ring's
+rotation is clock-driven, so switching from a measured download back to a spinner cannot leave it
+stuck at the end of an earlier animation.
+
+`UpdateStore` guards each progress delivery with the current installation identity and status;
+`UpdateInstallProgress.accepts` rejects delayed byte callbacks and backward phase changes. A failed
+or completed attempt cannot overwrite a newer attempt. `UpdatePresentation` keeps row ordering,
+action availability and selection preservation pure and Foundation-only.
 
 The signature check ties an update to both Spotter's bundle identifier and Developer ID. A stable
 bundle cannot replace beta, beta cannot replace stable, and an unrelated or differently signed app
@@ -82,10 +89,11 @@ the new identifier and designated requirement and install in place normally.
 ## Verification
 
 The standalone harness compiles the real parser and covers semantic-version ordering, malformed or
-draft releases, zip discovery, and both directions of channel isolation:
+draft releases, zip discovery, channel isolation, palette action selection, retry availability,
+measured progress, unknown lengths and delayed/out-of-order installation callbacks:
 
 ```sh
-swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Tools/update-test.swift \
+swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Spotter/Core/UpdatePresentation.swift Tools/update-test.swift \
   -o /tmp/update-test && /tmp/update-test
 ```
 

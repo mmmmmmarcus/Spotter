@@ -37,21 +37,18 @@ final class UpdateStore: ObservableObject {
     static let checkInterval: TimeInterval = 24 * 3600
     private static let retryInterval: TimeInterval = 6 * 3600
 
-    enum Status: Equatable {
-        case idle
-        case checking
-        case upToDate
-        case available(UpdateRelease)
-        case installing
-        case failed(String)
-    }
+    typealias Status = UpdateStatus
 
     /// Explicit consent for the background check; absent reads as false and settings sync mirrors it.
     @Published private(set) var autoCheckEnabled: Bool
     @Published private(set) var status: Status = .idle
-    /// How much of the archive has arrived while `.installing`. Nil whenever there is nothing to
-    /// measure — a response without a content length, and the unzip/verify/swap phase after it.
-    @Published private(set) var downloadFraction: Double?
+    @Published private(set) var availableRelease: UpdateRelease?
+    @Published private(set) var installProgress: UpdateInstallProgress?
+    private var installationID: UUID?
+
+    var presentation: UpdatePresentation {
+        UpdatePresentation(status: status, release: availableRelease, progress: installProgress)
+    }
 
     /// Wired by `AppCore.start()` to `NSApp.terminate` so the store stays AppKit-free and shutdown hooks (Hyper Key remap cleanup) still run before the relaunch.
     var terminateForRelaunch: (() -> Void)?
@@ -138,8 +135,10 @@ final class UpdateStore: ObservableObject {
                     }
                     release = try UpdateFeed.resolvingAssets(assets, for: release)
                 }
+                availableRelease = release
                 status = .available(release)
             } else {
+                availableRelease = nil
                 status = .upToDate
             }
             defaults.set(Date(), forKey: Self.lastCheckKey)
@@ -157,27 +156,35 @@ final class UpdateStore: ObservableObject {
 
     /// Download → unzip → verify signature → swap the installed bundle → relaunch.
     func installAvailableUpdate() async {
-        guard case .available(let release) = status, let zipURL = release.zipAssetURL else { return }
+        guard !status.isBusy, let release = availableRelease, let zipURL = release.zipAssetURL else { return }
         status = .installing
-        downloadFraction = nil
+        installProgress = .downloading(nil)
+        let id = UUID()
+        installationID = id
+        defer { installationID = nil }
         let installedURL = Bundle.main.bundleURL
         do {
             try await Self.downloadAndInstall(zipURL: zipURL, over: installedURL) {
-                [weak self] fraction in
-                Task { @MainActor in self?.downloadFraction = fraction }
+                [weak self] progress in
+                Task { @MainActor in
+                    guard let self, self.installationID == id, self.status == .installing,
+                          self.installProgress?.accepts(progress) == true else { return }
+                    self.installProgress = progress
+                }
             }
+            installProgress = .relaunching
             // Relaunch after this process exits; the opener outlives us.
             let opener = Process()
             opener.executableURL = URL(fileURLWithPath: "/bin/sh")
-            opener.arguments = ["-c", "sleep 1; /usr/bin/open \"\(installedURL.path)\""]
+            opener.arguments = ["-c", "sleep 1; /usr/bin/open \"$1\"", "spotter-relaunch", installedURL.path]
             try opener.run()
             terminateForRelaunch?()
         } catch let error as UpdateError {
-            downloadFraction = nil
+            installProgress = nil
             status = .failed(error.localizedDescription)
             AppLog.error("updates", "Install failed: \(error.localizedDescription)")
         } catch {
-            downloadFraction = nil
+            installProgress = nil
             status = .failed(UpdateError.installFailed(error.localizedDescription).localizedDescription)
             AppLog.error("updates", "Install failed: \(error.localizedDescription)")
         }
@@ -201,11 +208,9 @@ final class UpdateStore: ObservableObject {
         return data
     }
 
-    /// Downloads the archive to a temporary file, reporting the fraction received. `URLSession`
-    /// does the writing at full speed and the per-task delegate below turns its byte counters into
-    /// a fraction; a nil one (no expected length) leaves the caller with an indeterminate state.
+    // The download delegate reports actual bytes; unknown content lengths stay indeterminate.
     private nonisolated static func downloadZip(
-        from zipURL: URL, progress: @escaping @Sendable (Double?) -> Void
+        from zipURL: URL, progress: @escaping @Sendable (UpdateInstallProgress) -> Void
     ) async throws -> URL {
         let (tempURL, response) = try await session.download(
             for: URLRequest(url: zipURL, timeoutInterval: 60),
@@ -219,18 +224,17 @@ final class UpdateStore: ObservableObject {
 
     /// Off-main by way of `nonisolated async`; only plain values cross back.
     private nonisolated static func downloadAndInstall(
-        zipURL: URL, over installedURL: URL, progress: @escaping @Sendable (Double?) -> Void
+        zipURL: URL, over installedURL: URL, progress: @escaping @Sendable (UpdateInstallProgress) -> Void
     ) async throws {
         let tempZip = try await downloadZip(from: zipURL, progress: progress)
-        // Unzip, verification and the swap are short and unmeasurable; the ring spins through them.
-        progress(nil)
+        defer { try? FileManager.default.removeItem(at: tempZip) }
+        progress(.unpacking)
 
         let fm = FileManager.default
         let stage = fm.temporaryDirectory.appendingPathComponent(
             "spotter-update-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: stage, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: stage) }
-        defer { try? fm.removeItem(at: tempZip) }
 
         // ditto preserves the bundle structure, permissions and signatures exactly.
         try await runProcess("/usr/bin/ditto", ["-x", "-k", tempZip.path, stage.path])
@@ -239,7 +243,9 @@ final class UpdateStore: ObservableObject {
                 .first(where: { $0.pathExtension == "app" })
         else { throw UpdateError.noAppInArchive }
 
+        progress(.verifying)
         try verifySignature(of: newApp, matching: installedURL)
+        progress(.installing)
 
         // Stage the copy next to the destination, then swap the two bundles in one atomic exchange
         // (`renamex_np` with RENAME_SWAP). The installed path is never empty for even an instant —
@@ -327,15 +333,15 @@ final class UpdateStore: ObservableObject {
 
 /// Per-task progress delegate for the update download. The shared session stays delegate-free and
 /// cacheless; this rides along on the one download task, throttling to ten publishes a second.
-/// URLSession may call it on any thread, hence the lock — only a `Double?` crosses back to the UI.
+/// URLSession may call it on any thread; the lock bounds publication, including unknown lengths.
 private final class UpdateDownloadProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private static let interval: Duration = .milliseconds(100)
 
-    private let report: @Sendable (Double?) -> Void
+    private let report: @Sendable (UpdateInstallProgress) -> Void
     private let lock = NSLock()
     private var lastReport: ContinuousClock.Instant?
 
-    init(report: @escaping @Sendable (Double?) -> Void) {
+    init(report: @escaping @Sendable (UpdateInstallProgress) -> Void) {
         self.report = report
     }
 
@@ -343,18 +349,13 @@ private final class UpdateDownloadProgress: NSObject, URLSessionDownloadDelegate
         _ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
         totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64
     ) {
-        // NSURLSessionTransferSizeUnknown (-1) and 0 are both "no denominator": let the ring spin.
-        guard totalBytesExpectedToWrite > 0 else {
-            report(nil)
-            return
-        }
         let now = ContinuousClock.now
         lock.lock()
         let due = lastReport.map { now - $0 >= Self.interval } ?? true
         if due { lastReport = now }
         lock.unlock()
         guard due else { return }
-        report(min(1, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)))
+        report(.download(written: totalBytesWritten, expected: totalBytesExpectedToWrite))
     }
 
     // Required by the protocol; the async `download(for:delegate:)` hands the file to its caller.

@@ -34,7 +34,7 @@ struct UpdatesSettingsSection: View {
         case .checking:
             RingLoader(progress: nil, size: Theme.Size.ringLoaderSmall)
         case .installing:
-            RingLoader(progress: store.downloadFraction, size: Theme.Size.ringLoaderSmall)
+            RingLoader(progress: store.installProgress?.fraction, size: Theme.Size.ringLoaderSmall)
         case .available(let release):
             if release.zipAssetURL != nil {
                 Button("Update to \(release.version.description)…") {
@@ -66,7 +66,7 @@ struct UpdatesSettingsSection: View {
         case .checking: "Checking \(UpdateStore.provider)…"
         case .upToDate: "You're on the latest version."
         case .available(let release): "Version \(release.version.description) is available."
-        case .installing: "Downloading and installing — Spotter will relaunch."
+        case .installing: store.installProgress?.title
         case .failed(let message): message
         }
     }
@@ -84,93 +84,53 @@ struct UpdatesSettingsSection: View {
     }
 }
 
-/// End-to-end update status rendered inside the shared command palette.
 struct UpdatePaletteView: View {
     @ObservedObject private var store = AppCore.shared.updates
+    let selection: Int
+    let onActivate: (Int) -> Void
 
     var body: some View {
-        VStack(spacing: Theme.Spacing.xxl) {
-            Spacer(minLength: 0)
-
-            statusIcon
-
-            VStack(spacing: Theme.Spacing.sm) {
-                Text(title)
-                    .font(.title2.weight(.bold))
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(Array(store.presentation.actions.enumerated()), id: \.element) { index, action in
+                    let busy = action == .upgrade ? store.status == .installing : store.status == .checking
+                    PluginPaletteRow(item: item(for: action), selected: selection == index,
+                        isInteractive: !store.status.isBusy, isBusy: busy,
+                        progress: action == .upgrade ? store.installProgress?.fraction : nil)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onActivate(index) }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { onActivate(index) }
+                }
+                PluginPaletteRow(item: PluginPaletteItem(id: "version",
+                    title: "Current Version · " + (store.currentVersion?.description ?? "—"),
+                    subtitle: nil, icon: .symbol("info.circle"), primaryActionTitle: ""),
+                    selected: false, isInteractive: false)
             }
-
-            Spacer(minLength: 0)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.top, Theme.Spacing.xs)
+            .padding(.bottom, Theme.Spacing.md)
+            .hideNativeScrollers()
         }
-        .padding(Theme.Spacing.xxl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .edgeDissolve()
+        .thinScrollbar()
     }
 
-    @ViewBuilder
-    private var statusIcon: some View {
-        switch store.status {
-        case .checking:
-            RingLoader(progress: nil, size: Theme.Size.ringLoaderLarge)
-        case .installing:
-            RingLoader(progress: store.downloadFraction, size: Theme.Size.ringLoaderLarge)
-        case .upToDate:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.largeTitle)
-                .foregroundStyle(.green)
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.largeTitle)
-                .foregroundStyle(.orange)
-        case .idle, .available:
-            Image(systemName: "arrow.down.circle.fill")
-                .font(.largeTitle)
-                .foregroundStyle(.blue)
+    private func item(for action: UpdatePaletteAction) -> PluginPaletteItem {
+        if action == .check {
+            return PluginPaletteItem(id: action.rawValue, title: "Check for Updates",
+                subtitle: store.presentation.checkDetail, icon: .symbol("arrow.clockwise"),
+                subtitleLineLimit: 3, primaryActionTitle: "Check for Updates")
         }
-    }
-
-    private var currentVersion: String {
-        store.currentVersion.map(String.init(describing:)) ?? "this version"
-    }
-
-    private var title: String {
-        switch store.status {
-        case .idle: "Ready to Check"
-        case .checking: "Checking for Updates…"
-        case .upToDate: "Spotter is up to date"
-        case .available(let release): "Spotter \(release.version.description) is available"
-        case .installing: "Installing Update…"
-        case .failed: "Unable to Update"
-        }
-    }
-
-    private var message: String {
-        switch store.status {
-        case .idle:
-            "Check \(UpdateStore.provider) Releases for a newer version of Spotter."
-        case .checking:
-            "Checking the \(channelName) channel from Spotter \(currentVersion)."
-        case .upToDate:
-            "You're running the latest \(channelName) version, Spotter \(currentVersion)."
-        case .available(let release) where release.zipAssetURL != nil:
-            "Spotter \(currentVersion) will be replaced after the download and signature are verified, then Spotter will relaunch."
-        case .available:
-            "This release does not include an in-app update archive. Open the release page to install it manually."
-        case .installing:
-            "Downloading and verifying the signed app. Spotter will relaunch when installation finishes."
-        case .failed(let error):
-            error
-        }
-    }
-
-    private var channelName: String {
-        switch store.channel {
-        case .stable: "stable"
-        case .beta: "beta"
-        }
+        let version = store.availableRelease?.version.description ?? ""
+        let installing = store.status == .installing
+        let manual = store.availableRelease?.zipAssetURL == nil
+        let detail = installing ? store.installProgress?.title
+            : (manual ? "Open the release page to install this version." : "Download, install, and relaunch Spotter.")
+        let percentage = store.installProgress?.fraction.map { "\(Int($0 * 100))%" }
+        return PluginPaletteItem(id: action.rawValue, title: "Update to " + version,
+            subtitle: [detail, percentage].compactMap { $0 }.joined(separator: " · "),
+            icon: .symbol("arrow.down.circle"), primaryActionTitle: manual ? "View Release" : "Install Update")
     }
 }
 

@@ -61,21 +61,30 @@ struct PluginPaletteList: View {
     }
 }
 
-private struct PluginPaletteRow: View {
+struct PluginPaletteRow: View {
     let item: PluginPaletteItem
     let selected: Bool
+    var isInteractive = true
+    var isBusy = false
+    var progress: Double?
     @State private var hovered = false
 
     private var fill: Color {
         if selected { return Theme.Colors.selection }
-        if hovered { return Theme.Colors.rowHover }
+        if hovered && isInteractive { return Theme.Colors.rowHover }
         return .clear
     }
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            PluginPaletteRowIcon(icon: item.icon)
-                .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
+            Group {
+                if isBusy {
+                    RingLoader(progress: progress, size: Theme.Size.ringLoaderSmall)
+                } else {
+                    PluginPaletteRowIcon(icon: item.icon)
+                }
+            }
+            .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
             VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                 Text(item.title)
                     .font(Theme.Typography.rowTitle)
