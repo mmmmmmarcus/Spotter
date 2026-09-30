@@ -19,8 +19,37 @@ struct QuickClipboardTests {
         emptyWebEditorAnchor()
         await imagePreviews()
         await nativeSurface()
+        scrolling()
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
+    }
+
+    static func scrolling() {
+        let items = textItems(1000)
+        let menu = QuickClipboardMenuView(items: items)
+        let size = menu.frame.size
+        expect(menu.rowButtons.count <= 6 && menu.rowButtons.first?.content.title == items[0].text,
+            "long history starts at the newest row with bounded native views")
+        menu.select(600)
+        expect(menu.frame.size == size && menu.rowButtons.count <= 6
+            && menu.rowButtons.contains { $0.isSelected && $0.content.title == items[600].text },
+            "keyboard navigation reveals older rows without growing the window or creating all rows")
+        let footer = menu.historyButton.frame
+        menu.scrollView.contentView.scroll(to: .zero)
+        menu.scrollView.reflectScrolledClipView(menu.scrollView.contentView)
+        expect(menu.rowButtons.last?.content.title == items.last?.text && menu.historyButton.frame == footer,
+            "native scrolling reaches the last entry while the footer remains fixed")
+        var selected: Int?
+        menu.onSelect = { selected = $0 }
+        menu.rowButtons.last?.performClick(nil)
+        expect(selected == 999, "virtual rows paste their actual history index")
+        menu.update(textItems(12), selection: 0, filter: .files)
+        expect(menu.rowButtons.first?.content.title == "Entry 0", "changing category resets scrolling to the newest entry")
+        expect(QuickClipboardFilter.allCases == [.text, .image, .files]
+            && QuickClipboardFilter.text.moved(by: -1) == .files
+            && QuickClipboardFilter.files.moved(by: 1) == .text
+            && QuickClipboardFilter.text.moved(by: 1) == .image,
+            "left and right cycle through exactly three broad categories")
     }
 
     static func caretAnchors() async {
@@ -182,7 +211,7 @@ struct QuickClipboardTests {
         expect(screen.insetBy(dx: 8, dy: 8).contains(above), "flipped menu respects screen safety")
         for count in 1...5 {
             let frame = QuickClipboardPresentation.frame(anchor: mouse, screen: screen, items: textItems(count))
-            let rows = QuickClipboardPresentation.rowFrames(items: textItems(count)).map { $0.offsetBy(dx: frame.minX, dy: frame.minY) }
+            let rows = QuickClipboardPresentation.rowFrames(items: textItems(count)).map { $0.offsetBy(dx: frame.minX, dy: frame.minY + QuickClipboardPresentation.listFrame(items: textItems(count)).minY) }
             expect(rows.first!.maxY == mouse.minY - 18 && rows.dropFirst().allSatisfy { $0.maxY <= rows.first!.minY },
                 "the first row stays nearest the anchor for \(count) clipboard entries")
         }
@@ -208,10 +237,11 @@ struct QuickClipboardTests {
             "empty results keep an explanation above the footer")
         expect(zip(rects, rects.dropFirst()).allSatisfy { $0.minY >= $1.maxY },
             "store order runs top to bottom without overlapping hit targets")
-        expect(rects.first!.maxY == 206 && rects.last!.minY - QuickClipboardPresentation.footerFrame.maxY == 8,
+        expect(rects.first!.maxY == 160 && rects.last!.minY == 0,
             "menu rows keep outer insets and separate the footer")
-        expect(QuickClipboardPresentation.rowFrames(items: textItems(50)) == rects,
-            "geometry clamps oversized entry lists")
+        expect(QuickClipboardPresentation.rowFrames(items: textItems(50)).count == 50
+            && QuickClipboardPresentation.size(items: textItems(50)) == QuickClipboardPresentation.size(items: textItems(5)),
+            "the document keeps older rows while the viewport remains compact")
         let image = ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil)
         let mixed = QuickClipboardPresentation.rowFrames(items: [image] + textItems(1))
         expect(mixed.map(\.height) == [64, 32] && mixed[0].minY == mixed[1].maxY,
@@ -221,7 +251,7 @@ struct QuickClipboardTests {
             && screen.insetBy(dx: 8, dy: 8).contains(QuickClipboardPresentation.frame(anchor: low, screen: screen, items: images)),
             "five enlarged images remain on screen")
         let filters = QuickClipboardPresentation.filterFrames
-        expect(filters.count == ClipboardFilter.allCases.count
+        expect(filters.count == QuickClipboardFilter.allCases.count
             && (filters.first!.minX + filters.last!.maxX) / 2 == 138
             && filters.allSatisfy { QuickClipboardPresentation.footerFrame.contains($0) },
             "all shared filters are centered inside the footer")
@@ -346,9 +376,9 @@ struct QuickClipboardTests {
             && menu.glassView.style == .clear && menu.glassView.cornerRadius == 16
             && menu.glassView.tintColor == nil && menu.glassView.alphaValue == 1,
             "the complete list shares one untinted native Clear glass surface")
-        expect(glass.count == 5 && menu.filterButtons.count == 8
-            && (glass + menu.filterButtons + [menu.historyButton]).allSatisfy { $0.superview === rows && !$0.isBordered && $0.alphaValue == 1 },
-            "all actions live directly in the one glass surface without row bezels")
+        expect(glass.count == 5 && menu.filterButtons.count == 3
+            && (glass + menu.filterButtons + [menu.historyButton]).allSatisfy { $0.isDescendant(of: rows) && !$0.isBordered && $0.alphaValue == 1 },
+            "all actions stay inside the one glass surface without row bezels")
         expect(glass.map(\.frame) == QuickClipboardPresentation.rowFrames(items: textItems(5)),
             "native buttons use top-to-bottom equal-width menu geometry")
         expect(glass.allSatisfy { !$0.isHidden }, "all five entries and history stay visible")
@@ -419,11 +449,11 @@ struct QuickClipboardTests {
         var emptyActivation: Int?
         empty.onSelect = { emptyActivation = $0 }
         empty.historyButton.performClick(nil)
-        expect(empty.rowButtons.isEmpty && empty.filterButtons.count == 8 && emptyActivation == 0 && empty.historyButton.isEnabled,
+        expect(empty.rowButtons.isEmpty && empty.filterButtons.count == 3 && emptyActivation == 0 && empty.historyButton.isEnabled,
             "empty history keeps a working full-history button")
-        var chosenFilter: ClipboardFilter?
+        var chosenFilter: QuickClipboardFilter?
         empty.onFilter = { chosenFilter = $0 }
-        for (index, option) in ClipboardFilter.allCases.enumerated() {
+        for (index, option) in QuickClipboardFilter.allCases.enumerated() {
             empty.filterButtons[index].performClick(nil)
             expect(chosenFilter == option, "footer dispatches the shared \(option.title) filter")
             empty.update([], selection: 0, filter: option)
@@ -431,7 +461,7 @@ struct QuickClipboardTests {
                 "filter selection remains separate from history keyboard selection")
         }
         expect(menu.filterButtons[0].isSelected && !panel.isKeyWindow,
-            "a new menu defaults to All and filtering never requires a key panel")
+            "a new menu defaults to Text and filtering never requires a key panel")
         let margin = QuickClipboardPresentation.canvasMargin
         expect(!menu.containsGlass(CGPoint(x: 5, y: 5)), "shadow padding is outside menu hit areas")
         expect(menu.containsGlass(CGPoint(x: margin + 30, y: margin + 18)), "row interior remains clickable")

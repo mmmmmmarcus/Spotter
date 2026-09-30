@@ -5,8 +5,10 @@ Spotter signs everything with one identity where possible:
 - Ordinary Debug builds are local `-dev` versions signed with the same
   `Developer ID Application: Round Technology (Shanghai) Co.,Ltd (SM96W8VVK9)` identity releases
   use. macOS keys TCC grants (Full Disk Access, Accessibility, Input Monitoring) to the signing
-  identity, so sharing one designated requirement means the grants survive rebuilds *and*
-  dev↔stable swaps of `/Applications/Spotter.app`. The opt-in CloudKit dev installer uses Apple
+  requirements, so sharing a compatible designated requirement avoids identity changes during
+  rebuilds and dev↔stable swaps of `/Applications/Spotter.app`. This is not a guarantee of TCC
+  retention. `scripts/install-dev.sh` checks the new app against the installed app's requirement
+  before quitting or replacing it, and rejects incompatible builds. The opt-in CloudKit dev installer uses Apple
   Development signing instead.
 - Release builds additionally enable Hardened Runtime, include a secure timestamp and are notarized
   by Apple.

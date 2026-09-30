@@ -5,18 +5,27 @@ import QuartzCore
 final class QuickClipboardMenuView: NSView {
     let glassView = NSGlassEffectView()
     private let rowsView = NSView()
+    let scrollView = NSScrollView()
+    private let documentView = NSView()
+    private var frames: [CGRect] = []
+    private var visibleButtons: [Int: QuickClipboardButton] = [:]
+    private var selection = 0
+    private var filter: QuickClipboardFilter = .text
+    private var updating = false
+    private var pagingTask: Task<Void, Never>?
     private let groupShadow = CALayer()
     private let shadowMask = CAShapeLayer()
     private var thumbnailPreparation: Task<Void, Never>?
     private var requestedImagePaths: [String] = []
     private var displayedItems: [ClipboardItem] = []
-    private(set) var rowButtons: [QuickClipboardButton] = []
+    var rowButtons: [QuickClipboardButton] { visibleButtons.keys.sorted().compactMap { visibleButtons[$0] } }
     private(set) var filterButtons: [QuickClipboardButton] = []
     let historyButton = QuickClipboardButton(frame: QuickClipboardPresentation.historyFrame)
     private let emptyLabel = NSTextField(wrappingLabelWithString: "")
     var onSelect: ((Int) -> Void)?
     var onHighlight: ((Int) -> Void)?
-    var onFilter: ((ClipboardFilter) -> Void)?
+    var onFilter: ((QuickClipboardFilter) -> Void)?
+    var onLoadMore: (() -> Void)?
     init(items: [ClipboardItem]) {
         let size = QuickClipboardPresentation.size(items: items)
         let margin = QuickClipboardPresentation.canvasMargin
@@ -30,6 +39,19 @@ final class QuickClipboardMenuView: NSView {
         rowsView.frame = CGRect(origin: .zero, size: size)
         rowsView.wantsLayer = true
         glassView.contentView = rowsView
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.scrollerStyle = .overlay
+        scrollView.autohidesScrollers = true
+        scrollView.horizontalScrollElasticity = .none
+        scrollView.verticalScrollElasticity = .none
+        scrollView.contentView.drawsBackground = false
+        scrollView.documentView = documentView
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(self, selector: #selector(scrolled),
+            name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+        rowsView.addSubview(scrollView)
         addSubview(glassView)
         groupShadow.shadowOpacity = 0.18
         groupShadow.shadowRadius = 24
@@ -40,7 +62,7 @@ final class QuickClipboardMenuView: NSView {
         shadowMask.fillColor = NSColor.labelColor.withAlphaComponent(1).cgColor
         layer?.addSublayer(groupShadow)
         updateShadowAppearance()
-        for (option, rect) in zip(ClipboardFilter.allCases, QuickClipboardPresentation.filterFrames) {
+        for (option, rect) in zip(QuickClipboardFilter.allCases, QuickClipboardPresentation.filterFrames) {
             let button = Self.iconButton(symbol: option.systemImage, title: option.title, frame: rect)
             button.actionHandler = { [weak self] in self?.onFilter?(option) }
             filterButtons.append(button)
@@ -72,20 +94,18 @@ final class QuickClipboardMenuView: NSView {
 
     isolated deinit {
         thumbnailPreparation?.cancel()
+        pagingTask?.cancel()
+        NotificationCenter.default.removeObserver(self)
     }
 
-    func update(_ items: [ClipboardItem], selection: Int, filter: ClipboardFilter = .all) {
-        displayedItems = Array(items.prefix(QuickClipboardPresentation.limit))
-        while rowButtons.count > displayedItems.count { rowButtons.removeLast().removeFromSuperview() }
-        while rowButtons.count < displayedItems.count {
-            let index = rowButtons.count
-            let button = QuickClipboardButton(frame: .zero)
-            button.actionHandler = { [weak self] in self?.onSelect?(index) }
-            button.hoverHandler = { [weak self] in self?.onHighlight?(index) }
-            rowButtons.append(button)
-            rowsView.addSubview(button)
-        }
-        let size = QuickClipboardPresentation.size(items: displayedItems)
+    func update(_ items: [ClipboardItem], selection: Int, filter: QuickClipboardFilter = .text) {
+        updating = true
+        let topOffset = self.filter == filter ? documentView.bounds.height - scrollView.contentView.bounds.maxY : 0
+        self.filter = filter
+        self.selection = selection
+        displayedItems = items
+        frames = QuickClipboardPresentation.rowFrames(items: items)
+        let size = QuickClipboardPresentation.size(items: items)
         let margin = QuickClipboardPresentation.canvasMargin
         if glassView.frame.size != size {
             setFrameSize(CGSize(width: size.width + margin * 2, height: size.height + margin * 2))
@@ -93,37 +113,80 @@ final class QuickClipboardMenuView: NSView {
             glassView.frame = CGRect(origin: CGPoint(x: margin, y: margin), size: size)
             rowsView.frame = CGRect(origin: .zero, size: size)
         }
-        let frames = QuickClipboardPresentation.rowFrames(items: displayedItems)
-        for (index, item) in displayedItems.enumerated() {
-            rowButtons[index].frame = frames[index]
-            rowButtons[index].content.frame = rowButtons[index].bounds.insetBy(dx: 11, dy: 0)
-            Self.configure(rowButtons[index], for: item)
-        }
-        for (index, option) in ClipboardFilter.allCases.enumerated() {
+        scrollView.frame = QuickClipboardPresentation.listFrame(items: items)
+        documentView.frame = CGRect(x: 0, y: 0, width: scrollView.bounds.width,
+            height: max(scrollView.contentSize.height, frames.first?.maxY ?? 0))
+        let offset = max(0, documentView.bounds.height - scrollView.contentView.bounds.height - max(0, topOffset))
+        scrollView.contentView.scroll(to: CGPoint(x: 0, y: offset))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        for (index, option) in QuickClipboardFilter.allCases.enumerated() {
             filterButtons[index].isSelected = option == filter
             filterButtons[index].setAccessibilityValue(option == filter ? "Selected" : "")
         }
-        emptyLabel.isHidden = !displayedItems.isEmpty
+        emptyLabel.isHidden = !items.isEmpty
+        scrollView.isHidden = items.isEmpty
         emptyLabel.stringValue = filter.emptyMessage
         emptyLabel.frame = QuickClipboardPresentation.emptyFrame.insetBy(dx: 4, dy: 10)
         glassView.layoutSubtreeIfNeeded()
         updateShadowGeometry()
-        let paths = displayedItems.compactMap(\.imagePath)
+        updating = false
+        refreshVisibleRows()
+        select(selection, reveal: false)
+    }
+
+    @objc private func scrolled() {
+        guard !updating else { return }
+        refreshVisibleRows()
+    }
+
+    private func refreshVisibleRows() {
+        let visible = scrollView.contentView.bounds
+        let indices = frames.indices.filter { frames[$0].intersects(visible) }
+        let wanted = Set(indices)
+        for index in Array(visibleButtons.keys) where !wanted.contains(index) {
+            visibleButtons.removeValue(forKey: index)?.removeFromSuperview()
+        }
+        for index in indices {
+            let button = visibleButtons[index] ?? QuickClipboardButton(frame: .zero)
+            if button.superview == nil { documentView.addSubview(button) }
+            visibleButtons[index] = button
+            button.actionHandler = { [weak self] in self?.onSelect?(index) }
+            button.hoverHandler = { [weak self] in self?.onHighlight?(index) }
+            button.frame = frames[index]
+            button.content.frame = button.bounds.insetBy(dx: 11, dy: 0)
+            Self.configure(button, for: displayedItems[index])
+            button.isSelected = index == selection
+            button.setAccessibilityValue(button.isSelected ? "Selected" : "")
+        }
+        let visibleItems = indices.map { displayedItems[$0] }
+        let paths = visibleItems.compactMap(\.imagePath)
         if paths != requestedImagePaths {
             requestedImagePaths = paths
             thumbnailPreparation?.cancel()
             thumbnailPreparation = Task { [weak self] in
-                await Self.prepareThumbnails(for: self?.displayedItems ?? [])
+                await Self.prepareThumbnails(for: visibleItems)
                 guard !Task.isCancelled, let self, requestedImagePaths == paths else { return }
-                for (index, item) in displayedItems.enumerated() { Self.configure(rowButtons[index], for: item) }
+                for (index, button) in visibleButtons { Self.configure(button, for: displayedItems[index]) }
             }
         }
-        select(selection)
+        if !displayedItems.isEmpty, visible.minY <= QuickClipboardPresentation.imageRowHeight, pagingTask == nil {
+            let count = displayedItems.count
+            pagingTask = Task { [weak self] in
+                await Task.yield()
+                guard !Task.isCancelled, let self else { return }
+                pagingTask = nil
+                if displayedItems.count == count { onLoadMore?() }
+            }
+        }
     }
 
-    func select(_ index: Int) {
-        for offset in rowButtons.indices {
-            let button = rowButtons[offset]
+    func select(_ index: Int, reveal: Bool = true) {
+        selection = index
+        if reveal, frames.indices.contains(index) {
+            documentView.scrollToVisible(frames[index])
+            refreshVisibleRows()
+        }
+        for (offset, button) in visibleButtons {
             button.isSelected = offset == index
             button.setAccessibilityValue(offset == index ? "Selected" : "")
         }

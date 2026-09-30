@@ -683,11 +683,13 @@ claimed through the shared transient shortcut mechanism only while the selection
 
 ## Quick Clipboard History
 
-An explicit exception to the shared palette surface: up to five recent entries in a vertical menu,
+An explicit exception to the shared palette surface: a continuously scrolling vertical history menu,
 276 points wide, with 32-point text rows, 64-point image rows and 6-point outer insets. An 8-point
-gap separates the footer: eight shared clipboard type-filter icons centered in the menu, and an
-**Open Clipboard History** icon at the right. Each summon defaults to All; filtering precedes the
-five-entry limit. Up/down arrows navigate entries then history, Return activates, and Escape dismisses.
+gap separates the fixed footer: three Text / Images / Files icons centered in the menu, and an
+**Open Clipboard History** icon at the right. Each summon defaults to Text, including links, emails
+and numbers; Images includes screenshots. The viewport fits up to five rows while older records load
+on demand. Up/down arrows reveal the selected entry, left/right cycle categories, Return activates,
+and Escape dismisses. Changing category resets selection and scroll.
 Empty results retain the footer and explain the selected type. Text and file entries use leading
 type symbols; images use leading aspect-fit thumbnails up to 48 points high, with 8-point vertical
 padding and 4-point corners. Selected rows have a subtle rounded highlight. Selected labels/icons
@@ -696,7 +698,7 @@ remain fully opaque; unselected text is 35%, icons and previews 50%, using seman
 One `NSGlassEffectView.style = .clear` with 16-point corners contains the entire list. Its content
 view holds borderless row buttons; there are no individual glass pills or separate bezels, tint,
 dimming or blur overlays. Menu width stays fixed during content and image updates; filtering resizes height around the original anchor. There is no
-header, search field or paging. Caret anchoring and invocation-time mouse fallback place the first row
+header, search field or paging buttons. Caret anchoring and invocation-time mouse fallback place the first row
 nearest the anchor by opening below when space permits, flipping above near the bottom edge and
 keeping 8-point screen safety. The panel and buttons cannot take keyboard focus.
 

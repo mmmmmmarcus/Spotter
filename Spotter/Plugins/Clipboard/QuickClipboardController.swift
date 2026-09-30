@@ -7,7 +7,8 @@ final class QuickClipboardController {
     private let hotKeys: HotKeyManager
     private var items: [ClipboardItem] = []
     private var selection = 0
-    private var filter: ClipboardFilter = .all
+    private var filter: QuickClipboardFilter = .text
+    private var hasMore = false
     private var placement: (anchor: CGRect, screen: CGRect)?
     private var panel: QuickClipboardPanel?
     private var menu: QuickClipboardMenuView?
@@ -23,7 +24,7 @@ final class QuickClipboardController {
     private var openHistory: (() -> Void)?
     private var generation = UUID()
     private(set) var isVisible = false
-    private static let keys: [UInt16] = [53, 125, 126, 36, 76]
+    private static let keys: [UInt16] = [53, 123, 124, 125, 126, 36, 76]
 
     init(store: ClipboardStore, hotKeys: HotKeyManager) {
         self.store = store
@@ -44,8 +45,9 @@ final class QuickClipboardController {
         self.paste = paste
         self.restoreFocus = restoreFocus
         self.openHistory = openHistory
-        filter = .all
-        items = QuickClipboardPresentation.recentItems(store.items, filter: filter)
+        filter = .text
+        items = store.historyPage(kind: filter.kind, limit: QuickClipboardPresentation.pageSize)
+        hasMore = items.count == QuickClipboardPresentation.pageSize
         selection = 0
         isVisible = true
         generation = UUID()
@@ -88,9 +90,10 @@ final class QuickClipboardController {
         menu.onHighlight = { [weak self] index in
             guard let self, isVisible else { return }
             selection = index
-            self.menu?.select(index)
+            self.menu?.select(index, reveal: false)
         }
         menu.onFilter = { [weak self] filter in self?.selectFilter(filter) }
+        menu.onLoadMore = { [weak self] in self?.loadMore() }
         self.panel = panel
         self.menu = menu
         updatePresentation(opening: true)
@@ -120,12 +123,14 @@ final class QuickClipboardController {
         else { panel.alphaValue = 1 }
     }
 
-    private func selectFilter(_ filter: ClipboardFilter) {
+    private func selectFilter(_ filter: QuickClipboardFilter) {
         guard isVisible, self.filter != filter else { return }
         self.filter = filter
-        items = QuickClipboardPresentation.recentItems(store.items, filter: filter)
+        items = store.historyPage(kind: filter.kind, limit: QuickClipboardPresentation.pageSize)
+        hasMore = items.count == QuickClipboardPresentation.pageSize
         selection = 0
         updatePresentation()
+        menu?.select(0)
     }
 
     func dismiss(restoringFocus: Bool = false, animated: Bool = true) {
@@ -145,6 +150,7 @@ final class QuickClipboardController {
         menu?.onSelect = nil
         menu?.onHighlight = nil
         menu?.onFilter = nil
+        menu?.onLoadMore = nil
         if let motion {
             if animated {
                 let id = UUID()
@@ -172,17 +178,18 @@ final class QuickClipboardController {
     }
 
     private func installObservers(sourcePID: pid_t?) {
-        observation = store.$items.sink { [weak self] latest in
+        observation = store.$items.receive(on: RunLoop.main).sink { [weak self] _ in
             guard let self, isVisible else { return }
-            let ids = Set(latest.map(\.id))
-            if items.contains(where: { !ids.contains($0.id) }) {
-                dismiss()
-                return
-            }
-            let recent = QuickClipboardPresentation.recentItems(latest, filter: filter)
+            let count = max(QuickClipboardPresentation.pageSize, items.count)
+            let recent = store.historyPage(kind: filter.kind, limit: count)
+            hasMore = recent.count == count
             let oldSize = QuickClipboardPresentation.size(items: items)
             let selectedHistory = selection == items.count
             let selectedID = items.indices.contains(selection) ? items[selection].id : nil
+            if let selectedID, !recent.contains(where: { $0.id == selectedID }) {
+                dismiss()
+                return
+            }
             items = recent
             selection = selectedHistory ? recent.count : (selectedID.flatMap { id in recent.firstIndex { $0.id == id } } ?? 0)
             if QuickClipboardPresentation.size(items: items) != oldSize { updatePresentation() }
@@ -212,8 +219,19 @@ final class QuickClipboardController {
             }, center: center)
     }
 
+    private func loadMore() {
+        guard isVisible, hasMore, let last = items.last else { return }
+        let page = store.historyPage(kind: filter.kind, before: last.id, limit: QuickClipboardPresentation.pageSize)
+        hasMore = page.count == QuickClipboardPresentation.pageSize
+        let selectedHistory = selection == items.count
+        items.append(contentsOf: page)
+        if selectedHistory { selection = items.count }
+        menu?.update(items, selection: selection, filter: filter)
+    }
+
     private func move(_ offset: Int) {
         guard isVisible else { return }
+        if offset > 0 && selection >= items.count - 1 { loadMore() }
         selection = min(max(0, selection + offset), items.count)
         menu?.select(selection)
     }
@@ -222,6 +240,8 @@ final class QuickClipboardController {
         guard isVisible else { return }
         switch key {
         case 53: dismiss(restoringFocus: true)
+        case 123: selectFilter(filter.moved(by: -1))
+        case 124: selectFilter(filter.moved(by: 1))
         case 125: move(1)
         case 126: move(-1)
         case 36, 76: activate(selection)
@@ -238,7 +258,7 @@ final class QuickClipboardController {
             return
         }
         guard items.indices.contains(index),
-            let current = store.items.first(where: { $0.id == items[index].id }) else { return }
+            let current = store.historyItem(id: items[index].id) else { return }
         let action = paste
         dismiss()
         action?(current)

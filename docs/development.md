@@ -34,9 +34,10 @@ Verify the split with `gh auth status` (global) against
 
 ## First-time setup
 
-Debug builds sign with the release Developer ID identity when it is in the keychain, which keeps
-every macOS TCC grant (Full Disk Access, Accessibility, Input Monitoring) stable across rebuilds and
-dev↔stable swaps. Without that certificate, create the `Spotter Self-Signed` fallback identity once
+Debug builds sign with the release Developer ID identity when it is in the keychain, avoiding a
+signing-identity change across rebuilds and dev↔stable swaps. The local installer rejects a build
+that does not satisfy the installed app's signing requirement. TCC retention still needs actual
+before/after access verification. Without that certificate, create the `Spotter Self-Signed` fallback identity once
 — **[signing.md](signing.md) §1** — and override `CODE_SIGN_IDENTITY`.
 
 ## Build & run
@@ -81,11 +82,11 @@ loose resources, `actool` never compiles the icon, and the app ships with the ge
 Debug builds are the **dev** channel and report the release base version with a `-dev` suffix (for
 example `1.4.9-dev`). Public **stable** builds use the same base version without the suffix. Dev is
 never published. Both builds produce **`Spotter.app`**, bundle id `com.spotter.app1`, so a rebuild keeps every persisted
-thing, all keyed by bundle id: `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
+thing keyed by bundle id: `~/Library/Preferences/<id>.plist` (settings + hotkey bindings),
 `~/Library/Caches/<id>/` (clipboard history, calculator history, exchange rates, frequent emoji),
 `~/Library/Application Support/<id>/` (the onboarding marker, Notes data and Quicklinks), the `SMAppService`
-login item, and the Accessibility / Input Monitoring (TCC) grants (the stable `Spotter Self-Signed`
-identity is what keeps those grants alive across rebuilds).
+login item. macOS separately owns privacy grants; a matching bundle identifier alone does not
+preserve them when the signing requirement changes.
 
 The first build with this identity migrates from the former `com.spotter.app` domain before
 `AppCore` initializes. It copies preferences, Application Support content and caches without deleting
@@ -358,11 +359,11 @@ Sync regressions verify zero writes for identical snapshots, image inode/mtime p
 updates, changed/deleted blobs, bounded image caching, and local edits made during remote decoding.
 Mapped snapshot checks cover atomic replacement/unlink lifetime and copying externally mutable files.
 The same harness compiles `QuickClipboardPresentation.swift` (Foundation + CoreGraphics) and checks
-filtering before five-entry ordering, empty-filter results, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping,
+keyset history paging beyond 1000 rows, capture during pagination, broad quick categories, deleted-entry validation, Unicode-safe previews, shared type symbols, mouse-anchored screen clamping,
 and one-time shortcut transfer with custom bindings and later unbinding preserved.
 `Tools/clipboard-capture-test.swift` also covers P12 files, legacy Finder filename lists, multi-file/folder copies, native file-URL pasteboard round trips, internal markers and missing-file refusal. `Tools/clipboard-test.swift` covers the additive file-reference migration, filename search, pin/reopen behavior, sync exclusion and preservation, and original-file survival on history deletion.
 
-`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the fixed 276-point menu width and top-to-bottom row geometry, stationary keyboard selection and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, below-first placement with the first row nearest the anchor and above fallback at the bottom edge, one untinted Clear glass surface containing all menu rows, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete menu,
+`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the fixed 276-point menu width and top-to-bottom row geometry, keyboard scroll-to-selection, bounded visible row creation, fixed-footer scrolling and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, below-first placement with the first row nearest the anchor and above fallback at the bottom edge, one untinted Clear glass surface containing all menu rows, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete menu,
 native non-key panel and glass invariants, mixed image/text row geometry, centered footer filters and right-aligned history hit targets, filter dispatch and selection, spring/reversal setup, rebased dismissal after filter reflow and Reduce Motion. Image fixtures cover larger 48-point padded and rounded aspect-fit previews, untinted colors, image selection opacity, shared-cache immutability, and live image/text replacement. It creates offscreen
 AppKit objects without displaying a menu or accepting visual appearance.
 

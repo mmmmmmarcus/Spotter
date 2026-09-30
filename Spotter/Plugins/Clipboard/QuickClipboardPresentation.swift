@@ -2,7 +2,8 @@ import Foundation
 import CoreGraphics
 
 enum QuickClipboardPresentation {
-    static let limit = 5
+    static let visibleRows = 5
+    static let pageSize = 50
     static let width: CGFloat = 276
     static let rowHeight: CGFloat = 32
     static let imageRowHeight: CGFloat = 64
@@ -23,10 +24,6 @@ enum QuickClipboardPresentation {
     static let springStiffness = 500 * pow(0.455 / openingDuration, 2)
     static let springDamping = 1.6 * sqrt(springStiffness)
 
-    static func recentItems(_ items: [ClipboardItem], filter: ClipboardFilter = .all) -> [ClipboardItem] {
-        Array(items.lazy.filter(filter.matches).prefix(limit))
-    }
-
     static func title(for item: ClipboardItem) -> String {
         if item.kind == .files { return String(item.fileTitle.prefix(160)) }
         guard let text = item.text else { return item.isScreenshot ? "Screenshot" : "Image" }
@@ -45,17 +42,22 @@ enum QuickClipboardPresentation {
     }
 
     static func size(items: [ClipboardItem]) -> CGSize {
-        let contentHeight = items.isEmpty ? emptyHeight : items.prefix(limit).reduce(0) { $0 + height(for: $1) }
+        let contentHeight = items.isEmpty ? emptyHeight : items.prefix(visibleRows).reduce(0) { $0 + height(for: $1) }
         return CGSize(width: width, height: inset * 2 + contentHeight + footerGap + rowHeight)
     }
 
     static func rowFrames(items: [ClipboardItem]) -> [CGRect] {
-        var top = size(items: items).height - inset
-        return items.prefix(limit).map { item in
+        var top = items.reduce(CGFloat.zero) { $0 + height(for: $1) }
+        return items.map { item in
             let height = height(for: item)
             top -= height
-            return CGRect(x: inset, y: top, width: width - inset * 2, height: height)
+            return CGRect(x: 0, y: top, width: width - inset * 2, height: height)
         }
+    }
+
+    static func listFrame(items: [ClipboardItem]) -> CGRect {
+        CGRect(x: inset, y: footerFrame.maxY + footerGap, width: width - inset * 2,
+            height: size(items: items).height - inset * 2 - footerGap - rowHeight)
     }
 
     static var footerFrame: CGRect { CGRect(x: inset, y: inset, width: width - inset * 2, height: rowHeight) }
@@ -64,8 +66,8 @@ enum QuickClipboardPresentation {
         CGRect(x: width - inset - historySize, y: footerFrame.midY - historySize / 2, width: historySize, height: historySize)
     }
     static var filterFrames: [CGRect] {
-        let groupWidth = CGFloat(ClipboardFilter.allCases.count) * filterSize
-        return ClipboardFilter.allCases.indices.map { index in
+        let groupWidth = CGFloat(QuickClipboardFilter.allCases.count) * filterSize
+        return QuickClipboardFilter.allCases.indices.map { index in
             CGRect(x: (width - groupWidth) / 2 + CGFloat(index) * filterSize,
                 y: footerFrame.midY - filterSize / 2, width: filterSize, height: filterSize)
         }
@@ -116,5 +118,41 @@ enum QuickClipboardPresentation {
         let x = abs(point.x - rect.midX) - rect.width / 2 + r
         let y = abs(point.y - rect.midY) - rect.height / 2 + r
         return hypot(max(x, 0), max(y, 0)) + min(max(x, y), 0) - r
+    }
+}
+
+enum QuickClipboardFilter: CaseIterable, Sendable {
+    case text, image, files
+
+    var kind: ClipboardItem.Kind {
+        switch self {
+        case .text: .text
+        case .image: .image
+        case .files: .files
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .text: "Text"
+        case .image: "Images"
+        case .files: "Files"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .text: "textformat.alt"
+        case .image: "photo"
+        case .files: "doc"
+        }
+    }
+
+    var emptyMessage: String { "No \(title.lowercased()) in clipboard history" }
+
+    func moved(by offset: Int) -> Self {
+        let cases = Self.allCases
+        let index = cases.firstIndex(of: self)!
+        return cases[((index + offset) % cases.count + cases.count) % cases.count]
     }
 }

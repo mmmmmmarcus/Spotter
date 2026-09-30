@@ -247,11 +247,7 @@ final class UpdateStore: ObservableObject {
         try verifySignature(of: newApp, matching: installedURL)
         progress(.installing)
 
-        // Stage the copy next to the destination, then swap the two bundles in one atomic exchange
-        // (`renamex_np` with RENAME_SWAP). The installed path is never empty for even an instant —
-        // tccd watches app deletions and invalidates Full Disk Access for a bundle it saw removed,
-        // which is exactly what a remove-then-rename swap looked like. Never delete the working
-        // install before its replacement is fully staged beside it.
+        // Keep the installed path occupied; a failed exchange must leave the working bundle intact.
         let sibling = installedURL.deletingLastPathComponent()
             .appendingPathComponent(".update-\(UUID().uuidString)-" + installedURL.lastPathComponent)
         do {
@@ -270,23 +266,11 @@ final class UpdateStore: ObservableObject {
             try? fm.removeItem(at: sibling)
             return
         }
-        // A filesystem without RENAME_SWAP falls back to the old remove-and-rename, trading the
-        // TCC guarantee for still completing the update.
-        AppLog.error(
-            "updates", "Atomic swap unavailable (errno \(errno)); falling back to remove-and-rename.")
-        do {
-            try fm.removeItem(at: installedURL)
-        } catch {
-            try? fm.removeItem(at: sibling)
-            throw UpdateError.installFailed(error.localizedDescription)
-        }
-        do {
-            try fm.moveItem(at: sibling, to: installedURL)
-        } catch {
-            // The old bundle is already gone; the staged copy is the only Spotter left — leave it and say where it is.
-            throw UpdateError.installFailed(
-                "The new version could not take the old one's place; it was left at \(sibling.path).")
-        }
+        let swapError = errno
+        try? fm.removeItem(at: sibling)
+        AppLog.error("updates", "Atomic swap failed (errno \(swapError)); installed bundle was kept.")
+        throw UpdateError.installFailed(
+            "The app could not be replaced safely (error \(swapError)). Your installed version was kept. Please retry.")
     }
 
     /// The trust anchor: the new bundle must satisfy the running app's designated requirement or it is not installed.

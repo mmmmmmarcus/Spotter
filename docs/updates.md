@@ -43,11 +43,13 @@ When an update has a zip asset, installation follows this sequence:
 3. Require the downloaded bundle, including nested code and all architectures, to satisfy it.
 4. Copy the verified app beside the current installation.
 5. Exchange the staged and installed bundles in one atomic `renamex_np(RENAME_SWAP)` and relaunch
-   through the normal application shutdown path. The installed path is never empty for even an
-   instant — tccd watches app deletions and invalidates Full Disk Access for a bundle it saw
-   removed, which is exactly what the earlier remove-then-rename swap looked like once per update.
-   A filesystem without `RENAME_SWAP` falls back to remove-and-rename, trading that TCC guarantee
-   for still completing the update; the retired bundle is deleted under its staging name.
+   through the normal application shutdown path. The installed path is never empty. If the atomic
+   exchange fails, installation stops, removes only the staged replacement and keeps the current
+   bundle intact; there is no delete-and-reinstall fallback. The error includes the filesystem error
+   number in the UI and diagnostics log. After a successful exchange the retired bundle is deleted
+   under its staging name. A compatible signature and atomic exchange reduce permission-reset risks,
+   but neither proves that macOS preserved Full Disk Access; verify actual access before and after
+   an upgrade when diagnosing a reported permission loss.
 
 ## Progress reporting and palette rows
 

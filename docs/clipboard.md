@@ -102,9 +102,6 @@ The filter resets to All Types on every summon and on any mode change, chosen ov
 forgotten filter can never silently hide history. The empty state names the active filter, so one
 hiding every entry no longer reads as "Clipboard history is empty".
 
-*Files Only* is deliberately absent: `ClipboardManager` only captures pasteboard strings and PNG/TIFF,
-never file URLs, so the row would always be empty.
-
 ## Pinned entries
 
 A row's ⌘K Actions menu carries **Pin Entry / Unpin Entry** (⌘.), persisted as a `pinned_at` column
@@ -169,17 +166,22 @@ mouse menus prefer below/right, keeping the first row nearest the anchor when th
 Both flip above/left as necessary and leave 12 points at the anchor
 and at least 8 points inside the screen's visible frame.
 
-Up to five recent matching entries appear top to bottom in a 276-point-wide vertical menu. All rows share
-one native `NSGlassEffectView` using `.clear` with 16-point corners; there are no per-row glass
-surfaces. The menu has 6-point outer insets, 32-point text rows, 64-point image rows and an 8-point gap
-before a 32-point footer. Eight centered icons reuse `ClipboardFilter` from the complete clipboard:
-all, text, images, files, screenshots, links, emails and numbers. Each invocation starts at All;
-filtering matches the loaded history before taking its five newest entries. The right-aligned
-**Open Clipboard History** icon opens the shared palette, clearing any old query/filter. Every icon
-has a tooltip and accessible name. Empty results show the shared filter message and retain the footer. Borderless buttons live
-directly in the glass content view, with a subtle rounded row highlight for selection. The menu width
-stays fixed while content or thumbnails update. Filter and row-height changes reflow around the
-original invocation anchor with the same screen clamping.
+The 276-point menu keeps a viewport of up to five rows, with continuous native scrolling through
+retained history. `ClipboardStore.historyPage` reads 50 matching records at a time using a rowid
+cursor and the kind index, reaching beyond the resident 1000-row window. Captures cannot shift a
+cursor page as an offset would. The menu creates buttons and loads thumbnails only for visible rows;
+the controller validates older entries against SQLite again before pasting. Store changes refresh
+the loaded range while preserving the selected identity, dismissing if it disappears.
+
+All rows share one native `NSGlassEffectView` using `.clear` with 16-point corners. A transparent
+`NSScrollView` sits above a fixed footer inside that surface. The menu retains 6-point insets,
+32-point text/file rows, 64-point image rows and an 8-point footer gap. Three centered icons select
+**Text, Images, Files**, with Text selected each summon. Text includes links, emails and numbers;
+Images includes screenshots. These broad quick-menu categories do not change the full palette's
+more detailed filters. The right-aligned **Open Clipboard History** icon opens the shared palette,
+clearing any old query/filter. Every icon has a tooltip and accessible name. Empty results name the
+category and retain the footer. Filtering resets selection and scroll to the first entry, reflowing
+height around the original anchor; loading older history does not enlarge or move the window.
 
 Clear remains the selected material without a tint or dimming layer. Preview content is a
 non-interactive child view, leaving hit testing and accessibility on each button. The system owns
@@ -194,7 +196,7 @@ photo symbol for cold or unreadable previews. Images retain their original color
 when selected and 50% when unselected. Outer containers leave native glass edges unclipped.
 
 The panel cannot become key or main, and buttons never request key status. Click or ↑/↓ then Return
-pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Arrow navigation changes selection only: all entries stay visible and there is no paging state, timer or translation. Bare keys are claimed only while presented,
+pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Up/down navigation scrolls the selected row into view and loads older entries at the end. Left/right cycles Text → Images → Files in either direction, wrapping at the ends. Bare keys are claimed only while presented,
 through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
@@ -215,8 +217,8 @@ departing panel ignores mouse events. Screenshot's Hide Spotter path closes thes
 WindowServer shadow remains disabled. A single Core Animation shadow follows the rounded menu outline: 18% opacity, 24-point radius and a 4-point downward offset. It sits above the glass with an even-odd mask removing the entire menu interior, including row gaps and insets, so it cannot darken the glass backdrop. No per-frame bitmap generation or shadow cache is needed.
 
 Store, mouse and app-activation observers exist only during a session. Same-size updates preserve
-selection by ID; entry-count or row-height changes resize around the captured anchor, and deleting
-a displayed entry dismisses it. No new polling, network access, history duplication or persistence is
+selection by ID; viewport-height changes resize around the captured anchor, and losing the
+selected entry dismisses it. No new polling, network access, history duplication or persistence is
 introduced. `QuickClipboardPresentation` stays pure Foundation + CoreGraphics. The clipboard harness covers content/order/positioning, and the
 quick-clipboard harness validates native surface focus/material
 invariants, animation setup/reversal fallback and Reduce Motion without visual UI acceptance.

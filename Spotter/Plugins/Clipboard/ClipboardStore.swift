@@ -157,6 +157,7 @@ final class ClipboardStore: ObservableObject {
           file_urls TEXT
         );
         CREATE INDEX IF NOT EXISTS items_created_at ON items(created_at);
+        CREATE INDEX IF NOT EXISTS items_kind ON items(kind);
         CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
           text, content='items', content_rowid='rowid', tokenize='trigram'
         );
@@ -400,6 +401,38 @@ final class ClipboardStore: ObservableObject {
         let result = filter.apply(to: matched)
         searchCache = (q, filter, result)
         return result
+    }
+
+    // Keyset paging reaches retained history beyond the resident window without offset drift on capture.
+    func historyPage(kind: ClipboardItem.Kind, before id: UUID? = nil, limit: Int = 50) -> [ClipboardItem] {
+        guard limit > 0 else { return [] }
+        guard db != nil else {
+            let start = id.flatMap { id in items.firstIndex { $0.id == id }.map { $0 + 1 } } ?? 0
+            return Array(items.dropFirst(start).lazy.filter { $0.kind == kind }.prefix(limit))
+        }
+        let cursor = id == nil ? "" : " AND rowid < (SELECT rowid FROM items WHERE id = ?)"
+        guard let stmt = prepare(
+            "SELECT id, kind, text, image_path, created_at, source_app, pinned_at, file_urls "
+                + "FROM items WHERE kind = ?" + cursor + " ORDER BY rowid DESC LIMIT ?") else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, kind.rawValue, -1, SQLITE_TRANSIENT)
+        if let id { sqlite3_bind_text(stmt, 2, id.uuidString, -1, SQLITE_TRANSIENT) }
+        sqlite3_bind_int64(stmt, id == nil ? 2 : 3, Int64(limit))
+        var result: [ClipboardItem] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let item = Self.row(stmt) { result.append(item) }
+        }
+        return result
+    }
+
+    func historyItem(id: UUID) -> ClipboardItem? {
+        guard db != nil else { return items.first { $0.id == id } }
+        guard let stmt = prepare(
+            "SELECT id, kind, text, image_path, created_at, source_app, pinned_at, file_urls FROM items WHERE id = ?")
+        else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, id.uuidString, -1, SQLITE_TRANSIENT)
+        return sqlite3_step(stmt) == SQLITE_ROW ? Self.row(stmt) : nil
     }
 
     /// Row index of `item` among the results for `query` — lets the palette keep its selection on a row that moved (pin toggle, promote) whether or not the search is filtered. Reads the same memoized result the list renders.

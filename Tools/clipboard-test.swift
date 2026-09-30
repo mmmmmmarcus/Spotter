@@ -16,6 +16,7 @@ struct ClipboardTests {
     static func main() async {
         shortcutMigration()
         quickPresentation()
+        quickHistoryPaging()
         pinOrder()
         unpinRejoinsAsNewest()
         pasteLeavesPinsAlone()
@@ -72,20 +73,45 @@ struct ClipboardTests {
             "fresh install leaves default seeding to the shortcut registry")
     }
 
+    static func quickHistoryPaging() {
+        let dir = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = ClipboardStore(directory: dir)
+        store.maxAge = .greatestFiniteMagnitude
+        let texts = (0..<1105).map { ClipboardItem(text: "Entry \($0)", sourceBundleID: nil) }
+        let otherText = ["https://example.com", "name@example.com", "123"].map { ClipboardItem(text: $0, sourceBundleID: nil) }
+        let image = ClipboardItem(imagePath: "/tmp/example_SpotterScreenshot_2609291200.png", sourceBundleID: nil)
+        let file = ClipboardItem(fileURLs: [URL(fileURLWithPath: "/tmp/file.txt")], sourceBundleID: nil)
+        _ = store.importEntries(texts + otherText + [image, file])
+        let first = store.historyPage(kind: .text)
+        expect(first.count == 50 && first.contains { $0.text == "https://example.com" }
+            && first.contains { $0.text == "name@example.com" } && first.contains { $0.text == "123" },
+            "broad text category includes links, email addresses and numbers")
+        store.addText("Inserted during pagination", sourceBundleID: nil)
+        var collected = first
+        while let last = collected.last {
+            let next = store.historyPage(kind: .text, before: last.id)
+            if next.isEmpty { break }
+            collected += next
+        }
+        expect(collected.count == 1108 && Set(collected.map(\.id)).count == 1108,
+            "keyset paging crosses the 1000-row window without duplicates or capture offset drift")
+        expect(store.historyItem(id: texts[0].id)?.text == texts[0].text,
+            "older paged entries can still be resolved for paste")
+        expect(store.historyPage(kind: .image).map(\.id) == [image.id]
+            && store.historyPage(kind: .files).map(\.id) == [file.id], "images and file references remain separate")
+        store.remove(texts[0])
+        expect(store.historyItem(id: texts[0].id) == nil, "deleted paged entries cannot be pasted")
+        store.clearAll()
+        expect(store.historyPage(kind: .text).isEmpty, "cleared history cannot be paged back into the menu")
+    }
+
     static func quickPresentation() {
         let items = (0..<8).map { ClipboardItem(text: "Entry \($0)", sourceBundleID: nil) }
         for (value, title) in [("hello", "Text"), ("https://example.com", "Link"), ("123", "Number"), ("name@example.com", "Email")] {
             expect(ClipboardItem(text: value, sourceBundleID: nil).typeTitle == title, "details describe the classified content type")
         }
         expect(ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil).typeTitle == "Image", "image details keep their content type")
-        expect(QuickClipboardPresentation.recentItems(items).map(\.id) == Array(items.prefix(5)).map(\.id),
-            "quick history keeps the five newest entries in store order")
-        let images = (0..<7).map { ClipboardItem(imagePath: "/tmp/image-\($0).png", sourceBundleID: nil) }
-        expect(QuickClipboardPresentation.recentItems(items + images, filter: .image).map(\.id) == Array(images.prefix(5)).map(\.id),
-            "quick filters match history before taking five entries")
-        expect(QuickClipboardPresentation.recentItems(items, filter: .image).isEmpty,
-            "unmatched filters never fall back to unrelated entries")
-        expect(QuickClipboardPresentation.recentItems([]).isEmpty, "empty quick history stays empty")
         let multiline = ClipboardItem(text: "hello\n  world\t你好", sourceBundleID: nil)
         expect(QuickClipboardPresentation.title(for: multiline) == "hello world 你好", "preview collapses line breaks")
         let long = ClipboardItem(text: String(repeating: "👨‍👩‍👧‍👦", count: 170), sourceBundleID: nil)
