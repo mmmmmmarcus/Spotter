@@ -289,7 +289,7 @@ labels name the destination.
 
 Glass is **only** for floating controls, never the main surface.
 
-- `View.frosted(in:)` = `glassEffect(.regular.interactive().tint(glassFrost), in:)` + `.tint(.clear)` — interactive lensing with a whitish frost tint (`glassFrost`) so the glass reads brighter than clear. Used on the action-group capsule, clipboard type segments and the menu circle; tune the frost amount via the `glassFrost` token, not per call site.
+- `View.frosted(in:)` = `glassEffect(.regular.interactive().tint(glassFrost), in:)` + `.tint(.clear)` — interactive lensing with a whitish frost tint (`glassFrost`) so the glass reads brighter than clear. Used on the action-group capsule, clipboard type dropdown and the menu circle; tune the frost amount via the `glassFrost` token, not per call site.
 - **Menus are in-window overlays, not system popovers.** `.contextMenu`/`NSMenu` stall clicks for seconds inside a `LazyVStack` and spill outside the panel. Use `PopoverMenu` anchored to a bottom corner via `.overlay`, inset `menuInset` (8pt) so its own corner isn't clipped by the panel's.
 - **`PopoverMenu`** uses `glassEffect(.regular, in: RoundedRectangle(menuPanel 16))` with **no hand-tuned shadow** — Tahoe glass carries its own elevation; adding a drop shadow reads heavy and non-native.
 - For *buttons*, use the system styles rather than wrapping a plain button in glass: `.buttonStyle(.glass)`, and `.glassProminent` for the one primary action in a group. `.buttonBorderShape(.circle)`/`.capsule` sets the shape, and a `GlassEffectContainer` with small spacing merges neighbouring glass shapes into one control (the editor's undo/redo pair). The screenshot editor's action bar is the reference — icon-only `Label`s, so one string serves as both tooltip and VoiceOver name, and Copy is the prominent one.
@@ -689,7 +689,8 @@ gap separates the fixed footer: three Text / Images / Files icons centered in th
 **Open Clipboard History** icon at the right. Each summon defaults to Text, including links, emails
 and numbers; Images includes screenshots. The viewport fits up to five rows while older records load
 on demand. Up/down arrows reveal the selected entry, left/right cycle categories, Return activates,
-and Escape dismisses. Changing category resets selection and scroll.
+and Escape dismisses. Tab also cycles categories forward. Changing category resets selection and scroll.
+Category icons indicate selection through symbol color only, without a selected or pressed background.
 Empty results retain the footer and explain the selected type. Text and file entries use leading
 type symbols; images use leading aspect-fit thumbnails up to 48 points high, with 8-point vertical
 padding and 4-point corners. Selected rows have a subtle rounded highlight. Selected labels/icons
@@ -739,3 +740,7 @@ aspect-fit system symbol, exact name and CLI-provided availability/codepoint. A 
 splits the panes; no additional window, search field or list chrome is introduced. Return copies the
 name, Command-Return copies PNG, and Actions offers SwiftUI code and SVG template. Missing tools,
 empty searches and process errors use the existing palette states.
+
+The full Clipboard search header uses one Liquid Glass dropdown with the selected type symbol and
+title. Its native menu shows all eight filters and marks the current one; choosing a filter restores
+search focus and scrolls results to the top. Command-P and Shift-Command-P continue cycling filters.

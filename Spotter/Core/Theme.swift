@@ -89,7 +89,6 @@ enum Theme {
         /// The visibility checkbox's column, measured at its intrinsic 16pt. Reserved on rows without one, so the recorder column never shifts.
         static let shortcutVisibilityControl: CGFloat = 16
         static let menuButton: CGFloat = 36
-        static let clipboardFilterSegmentWidth: CGFloat = 28
         static let scheduleHourHeight: CGFloat = 36
         static let scheduleToolbarHeight: CGFloat = 30
         static let scheduleHeaderControlHeight: CGFloat = 32

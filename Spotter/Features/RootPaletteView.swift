@@ -900,7 +900,7 @@ struct RootPaletteView: View {
             }
             // The clipboard's type filter sits at the trailing edge of its own search bar, where it filters.
             if vm.mode == .clipboard, !isCollapsed {
-                ClipboardTypeSegments(filter: vm.clipboardFilter, select: selectClipboardFilter)
+                ClipboardTypeMenu(filter: vm.clipboardFilter, select: selectClipboardFilter)
                     .fixedSize()
             }
             if vm.mode == .plugin(.calendarSchedule), !isCollapsed {

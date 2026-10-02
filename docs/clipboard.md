@@ -59,13 +59,12 @@ over that incoming snapshot. The wire format and retention rules are unchanged.
 
 ## Type filter
 
-The trailing edge of the clipboard search bar carries a Liquid Glass segmented control for **All Types,
-Text Only, Images Only, Files Only, Screenshots Only, Links Only, Emails Only, Numbers Only**. Each segment
-shows its SF Symbol, with a tooltip and accessible name. Clicking a segment keeps the search
-field focused, resets selection to the first result and scrolls to the top. **⌘P** cycles forward
-and **⇧⌘P** cycles backward; the filter no longer opens a menu. The eight segments share one
-interactive glass capsule using `Theme.frosted(in:)`, with an immediate, unanimated selection highlight.
-Buttons stay out of keyboard focus traversal and expose their selected state to VoiceOver.
+The trailing edge of the clipboard search bar carries a Liquid Glass dropdown showing the current
+type's symbol and title. Its native menu offers **All Types, Text Only, Images Only, Files Only,
+Screenshots Only, Links Only, Emails Only, Numbers Only**, with a checkmark on the active type.
+Choosing a type preserves the query, restores search-field focus, resets selection to the first
+result and scrolls to the top. **⌘P** cycles forward and **⇧⌘P** cycles backward without opening the
+menu. The control stays out of keyboard focus traversal and exposes the active type to VoiceOver.
 
 Text rows use `textformat.alt`, links use `link`, numbers use `number.sign`, and email addresses
 keep their distinct `at` symbol. Images retain their thumbnails. Numbers must occupy the entire
@@ -177,7 +176,8 @@ All rows share one native `NSGlassEffectView` using `.clear` with 16-point corne
 `NSScrollView` sits above a fixed footer inside that surface. The menu retains 6-point insets,
 32-point text/file rows, 64-point image rows and an 8-point footer gap. Three centered icons select
 **Text, Images, Files**, with Text selected each summon. Text includes links, emails and numbers;
-Images includes screenshots. These broad quick-menu categories do not change the full palette's
+Images includes screenshots. Category selection changes only the symbol emphasis, with no rounded
+background or outline, including while pressed. These broad quick-menu categories do not change the full palette's
 more detailed filters. The right-aligned **Open Clipboard History** icon opens the shared palette,
 clearing any old query/filter. Every icon has a tooltip and accessible name. Empty results name the
 category and retain the footer. Filtering resets selection and scroll to the first entry, reflowing
@@ -196,7 +196,7 @@ photo symbol for cold or unreadable previews. Images retain their original color
 when selected and 50% when unselected. Outer containers leave native glass edges unclipped.
 
 The panel cannot become key or main, and buttons never request key status. Click or ↑/↓ then Return
-pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Up/down navigation scrolls the selected row into view and loads older entries at the end. Left/right cycles Text → Images → Files in either direction, wrapping at the ends. Bare keys are claimed only while presented,
+pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Up/down navigation scrolls the selected row into view and loads older entries at the end. Left/right cycles Text → Images → Files in either direction, wrapping at the ends; Tab also cycles forward. Bare keys are claimed only while presented,
 through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.

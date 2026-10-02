@@ -276,6 +276,7 @@ final class QuickClipboardMenuView: NSView {
 
     private static func iconButton(symbol name: String, title: String, frame: CGRect) -> QuickClipboardButton {
         let button = QuickClipboardButton(frame: frame)
+        button.showsSelectionBackground = false
         button.content.frame = button.bounds
         button.content.image = symbol(name)
         button.content.centersSymbol = true
@@ -288,6 +289,7 @@ final class QuickClipboardMenuView: NSView {
 @MainActor
 final class QuickClipboardButton: NSButton {
     let content = QuickClipboardContentView(frame: .zero)
+    var showsSelectionBackground = true
     var actionHandler: (() -> Void)?
     var hoverHandler: (() -> Void)?
     private var hoverTracking: NSTrackingArea?
@@ -317,7 +319,7 @@ final class QuickClipboardButton: NSButton {
     required init?(coder: NSCoder) { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard isSelected || isHighlighted else { return }
+        guard showsSelectionBackground, isSelected || isHighlighted else { return }
         effectiveAppearance.performAsCurrentDrawingAppearance {
             NSColor.labelColor.withAlphaComponent(0.1).setFill()
             NSBezierPath(roundedRect: bounds, xRadius: QuickClipboardPresentation.rowCornerRadius,

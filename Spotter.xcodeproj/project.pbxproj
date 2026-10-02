@@ -31,6 +31,7 @@
 		1031E53A55028C122EABBF77 /* WorldClockEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D580827F82667E578C1D827 /* WorldClockEngine.swift */; };
 		10576AB8A687DF1434276FBA /* ImageModificationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47202D86B96D27BDE1F3DA65 /* ImageModificationEngine.swift */; };
 		10C4DEC087FBDF79A9E7D1D0 /* AIChatMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F10C04B872D9BA59F6CD9C /* AIChatMarkdownView.swift */; };
+		12E38B8064AD7A8BB6CD0CCE /* ClipboardTypeMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB989672905FC2477ED52F02 /* ClipboardTypeMenu.swift */; };
 		12FEB36ED7531ED91D7A6BA4 /* FileSearchSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ADD5B1B52A5DAD805D5E352 /* FileSearchSettingsView.swift */; };
 		136771A2A33514E98CB0B211 /* NoteSyncDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = AED7227A23155DB3DDD75388 /* NoteSyncDocument.swift */; };
 		13A0645369C0B5377D7251D3 /* CustomCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF4FC36249D2F239DC103AD /* CustomCommand.swift */; };
@@ -63,7 +64,6 @@
 		2B4F9D37E9833D15ACD74ECF /* PaletteWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */; };
 		2BC09BC8D0D49669D427471C /* SystemCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E196A0B64D45C449593C4989 /* SystemCommand.swift */; };
 		2BC8BF35FA60D3DFDF009D2A /* PaletteMenuTypeahead.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0159892F08ABA70F62BFBBC /* PaletteMenuTypeahead.swift */; };
-		2C27B6A97DE7C81F2751B800 /* ClipboardTypeSegments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29662F2580F883AC8EAC496B /* ClipboardTypeSegments.swift */; };
 		2C355DDDAE2429689A9E3631 /* ScreenshotPinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390FC9E8B9340545BF6A3405 /* ScreenshotPinWindow.swift */; };
 		2D6A4987B4236BAEE8EFAEE3 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC5F2AA5E4C20EC212A2749 /* GeneralSettingsView.swift */; };
 		2DA38A097DA37160F4AB47E5 /* OpenRouterStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D1D9D54DE74E22588D6C5AE /* OpenRouterStream.swift */; };
@@ -356,7 +356,6 @@
 		26126A979E821FABCD27988D /* ScheduleNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleNotes.swift; sourceTree = "<group>"; };
 		285F564EAE1C2E7706B5C84E /* ScreenshotColorSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotColorSampler.swift; sourceTree = "<group>"; };
 		29606EC2B43A6002BAF7DDD4 /* AIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatView.swift; sourceTree = "<group>"; };
-		29662F2580F883AC8EAC496B /* ClipboardTypeSegments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTypeSegments.swift; sourceTree = "<group>"; };
 		2A5DFB42EBEFD22C5C9136F8 /* CoffeePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoffeePlugin.swift; sourceTree = "<group>"; };
 		2C2B6E0210EE0AAE0B9CB19D /* ShortcutsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsView.swift; sourceTree = "<group>"; };
 		2E2ACF52559B4785B0CB16A3 /* OverlayScroller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayScroller.swift; sourceTree = "<group>"; };
@@ -512,6 +511,7 @@
 		B8099CA0EA9AD1C088844170 /* AppIdentityMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentityMigration.swift; sourceTree = "<group>"; };
 		B86F0BE33EC12D76308E7A98 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		BAA6729A8C71A37B8800DB8A /* ScreenshotManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotManager.swift; sourceTree = "<group>"; };
+		BB989672905FC2477ED52F02 /* ClipboardTypeMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTypeMenu.swift; sourceTree = "<group>"; };
 		BD59474B77AF19E88C3DB5FC /* CalendarEventMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventMetadata.swift; sourceTree = "<group>"; };
 		BE606C002203EDEE75AD6EB9 /* CurrencyConversionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyConversionPlugin.swift; sourceTree = "<group>"; };
 		BED05D77382879F2D72FC905 /* CalendarScheduleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarScheduleSettingsView.swift; sourceTree = "<group>"; };
@@ -1142,7 +1142,7 @@
 				200512AF16751C37C1178581 /* ClipboardSettingsView.swift */,
 				12DB5B84797DB9E88EE172A4 /* ClipboardShortcutMigration.swift */,
 				046C81A9351D9CF343F8FCFB /* ClipboardStore.swift */,
-				29662F2580F883AC8EAC496B /* ClipboardTypeSegments.swift */,
+				BB989672905FC2477ED52F02 /* ClipboardTypeMenu.swift */,
 				C17AE76ADC7A9EC2466F6587 /* ClipboardView.swift */,
 				C1917CF0BF533C78B0873DAF /* QuickClipboardAnchor.swift */,
 				5B3786D0A20949D1FF123F1A /* QuickClipboardController.swift */,
@@ -1355,7 +1355,7 @@
 				1FF926A4791372548CBCB7E2 /* ClipboardSettingsView.swift in Sources */,
 				BD2387C6650E14EE3302C541 /* ClipboardShortcutMigration.swift in Sources */,
 				09C2DF48D078FE99A0B504D4 /* ClipboardStore.swift in Sources */,
-				2C27B6A97DE7C81F2751B800 /* ClipboardTypeSegments.swift in Sources */,
+				12E38B8064AD7A8BB6CD0CCE /* ClipboardTypeMenu.swift in Sources */,
 				A2D98D8FC39DAD089215A124 /* ClipboardView.swift in Sources */,
 				78AAE8AFCD10B52EE0747CB1 /* CoffeeManager.swift in Sources */,
 				353B2022FCC31CC61816623B /* CoffeePlugin.swift in Sources */,
@@ -1638,7 +1638,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.24;
+				MARKETING_VERSION = 1.6.25;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -1710,7 +1710,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.6.24;
+				MARKETING_VERSION = 1.6.25;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

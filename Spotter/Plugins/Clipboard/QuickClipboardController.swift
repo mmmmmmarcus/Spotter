@@ -24,7 +24,7 @@ final class QuickClipboardController {
     private var openHistory: (() -> Void)?
     private var generation = UUID()
     private(set) var isVisible = false
-    private static let keys: [UInt16] = [53, 123, 124, 125, 126, 36, 76]
+    private static let keys: [UInt16] = [48, 53, 123, 124, 125, 126, 36, 76]
 
     init(store: ClipboardStore, hotKeys: HotKeyManager) {
         self.store = store
@@ -241,7 +241,7 @@ final class QuickClipboardController {
         switch key {
         case 53: dismiss(restoringFocus: true)
         case 123: selectFilter(filter.moved(by: -1))
-        case 124: selectFilter(filter.moved(by: 1))
+        case 48, 124: selectFilter(filter.moved(by: 1))
         case 125: move(1)
         case 126: move(-1)
         case 36, 76: activate(selection)
