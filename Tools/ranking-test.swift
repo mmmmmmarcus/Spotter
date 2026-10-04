@@ -109,6 +109,29 @@ struct RankingTest {
         reloaded.replace(records: [synced])
         check("sync replaces learned ranking", reloaded.records == [synced])
 
+        let oversized = (0..<1_005).map {
+            LauncherRankingRecord(itemKey: "app.\($0)", query: "app", count: $0 + 1, lastUsed: clock)
+        }
+        do {
+            try JSONEncoder().encode(oversized).write(to: fileURL, options: .atomic)
+        } catch {
+            fatalError("Could not write ranking fixture: \(error)")
+        }
+        let bounded = LauncherRankingStore(fileURL: fileURL) { clock }
+        check("loading bounds persisted records to 1000", bounded.records.count == 1_000)
+        check("loading retains the most frequently used records", !bounded.hasRanking(for: "app.0"))
+        reloaded.replace(records: oversized)
+        check("load and sync apply identical bounds", bounded.records == reloaded.records)
+
+        let saturated = LauncherRankingRecord(itemKey: wick, query: "w", count: Int.max, lastUsed: clock)
+        reloaded.replace(records: [saturated])
+        clock.addTimeInterval(60)
+        reloaded.record(itemKey: wick, query: "w")
+        check("a saturated visit counter remains valid", reloaded.records.first?.count == Int.max)
+        check("a saturated visit still updates recency", reloaded.records.first?.lastUsed == clock)
+        let saturatedReload = LauncherRankingStore(fileURL: fileURL) { clock }
+        check("saturated visits persist and keep bounded scores", boost(saturatedReload, wick, "w") == 4_500)
+
         // No amount of learning lets a weaker field outrank a stronger one.
         let alias = SearchFields(names: ["ChatGPT"], alternateNames: ["Codex"])
         let displayName = SearchFields(names: ["Codex Viewer"])

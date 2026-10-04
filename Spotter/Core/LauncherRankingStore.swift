@@ -31,9 +31,7 @@ final class LauncherRankingStore: ObservableObject {
         if let data = try? Data(contentsOf: self.fileURL),
             let decoded = try? JSONDecoder().decode([LauncherRankingRecord].self, from: data)
         {
-            records = decoded.filter {
-                !$0.itemKey.isEmpty && !$0.query.isEmpty && $0.count > 0
-            }
+            records = Self.validated(decoded)
         } else {
             records = []
         }
@@ -51,7 +49,7 @@ final class LauncherRankingStore: ObservableObject {
             if let index = records.firstIndex(where: {
                 $0.itemKey == itemKey && $0.query == prefix
             }) {
-                records[index].count += 1
+                if records[index].count < Int.max { records[index].count += 1 }
                 records[index].lastUsed = timestamp
             } else {
                 records.append(
@@ -104,14 +102,18 @@ final class LauncherRankingStore: ObservableObject {
 
     /// Full-state replacement preserves the validation and bound used at load time.
     func replace(records newRecords: [LauncherRankingRecord]) {
-        records = Array(
+        records = Self.validated(newRecords)
+        didMutate()
+    }
+
+    private static func validated(_ newRecords: [LauncherRankingRecord]) -> [LauncherRankingRecord] {
+        Array(
             newRecords
                 .filter { !$0.itemKey.isEmpty && !$0.query.isEmpty && $0.count > 0 }
                 .sorted {
                     $0.count != $1.count ? $0.count > $1.count : $0.lastUsed > $1.lastUsed
                 }
                 .prefix(Self.cap))
-        didMutate()
     }
 
     /// `locale: nil` is the locale-independent canonical form: these are persisted lookup keys, and a locale-sensitive fold maps "I" to "ı" under Turkish, orphaning every record keyed on the dotted form.
