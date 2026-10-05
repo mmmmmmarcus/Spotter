@@ -369,7 +369,7 @@ AppKit objects without displaying a menu or accepting visual appearance.
 
 `Tools/quick-ai-chat-test.swift` compiles the real floating controller, panel, layout and shared
 `AIChatStore` against an in-memory model transport and an empty hosted view. It covers bottom-anchored
-expansion to twice the width around the composer center, compact-width restoration, dragged positions and screen clamping, native glass/handle/host geometry, draft retention,
+expansion to twice the width around the composer center, compact-width restoration, dragged positions and screen clamping, native shadow enablement and glass/handle/host geometry, draft retention,
 key and busy gates, session-scoped streaming, follow-up context, cancellation and shared history.
 Adaptive-height checks cover initial compact expansion, measured growth, intermediate-width rejection,
 stale-session measurements, the maximum height and New Chat reset.
@@ -467,7 +467,11 @@ Then use the **Actions** tab (`Release` → **Run workflow**) and pick:
   number) so re-running never collides; stable ships the version as-is.
 
 Stable releases are accepted only from the default branch. The workflow reads and validates the
-numeric `x.y.z` version from `project.yml` and stops if its target tag already exists. The website's
+numeric `x.y.z` version from `project.yml` and stops if its target tag already exists.
+Every release must include committed `docs/releases/<version>.md` with concise user-facing change
+bullets. Preflight and CI reject missing notes or notes without a change bullet. The workflow uses
+that file as the complete GitHub Release body and verifies it before publishing the draft; the same
+body appears in Spotter’s Release Notes area. The website's
 offline fallback version is kept in sync by the release preflight.
 
 The tracked release orchestrator performs context inspection, publication preflight, safe push,
@@ -564,8 +568,9 @@ region selection and Tab guards without posting input, recording the screen or w
 The harness is included in `scripts/test-all.sh`.
 
 
-The MCP/Cua experiment has an isolated harness using local fixture processes and HTTP servers; it
-never reads the desktop or contacts OpenRouter:
+The MCP/Cua experiment has an isolated harness using local fixture processes and HTTP servers. It
+also covers missing-driver streaming fallback, isolated discovery failures, partial catalogs and
+revocation during discovery or streaming. It never reads the desktop or contacts OpenRouter:
 
 ```bash
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIToolTypes.swift \

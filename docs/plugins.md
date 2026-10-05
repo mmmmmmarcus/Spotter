@@ -273,7 +273,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   conversation. The launcher's final query
   destination rows reuse both paths without adding registry commands. Quick AI Chat (⌥Space) is an
   owner-requested independent floating Liquid Glass composer, expanding upward into the shared
-  transcript layout and sharing history, model settings and request ownership.
+  transcript layout and sharing history, model settings and request ownership. Its native window
+  shadow follows the compact capsule and expanded rounded glass.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
   the launcher dashboard and is configured on one System page. It adds five square cards above the
   empty launcher — Clock, Uptime, Device Battery, Calendar and File Info — switched on or off in that
@@ -376,7 +377,8 @@ and [File Search](file-search.md).
 
 Settings search derives destinations from the existing registry and matches shipped option keywords without indexing user content. Multi-control settings rows preserve independent accessibility children; explicit field prompts avoid duplicate native Form labels.
 
-Ordinary AI Chat and AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures. Opt-in MCP/Cua chat uses bounded tool rounds, per-call palette confirmation, device-local configuration and ephemeral tool activity; see [AI Chat](ai-chat.md#mcp-and-cua-experiment).
+Ordinary AI Chat and AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures. Opt-in MCP/Cua chat uses bounded tool rounds, per-call palette confirmation, device-local configuration and ephemeral tool activity. Unavailable MCP servers do not block healthy
+tools; with none available, chat falls back to ordinary streaming with explicit capability limits. See [AI Chat](ai-chat.md#mcp-and-cua-experiment).
 
 AI Chat reveals completed visual lines using SwiftUI text layout, with brief fades and bounded burst pacing; animation changes neither received content nor persistence.
 

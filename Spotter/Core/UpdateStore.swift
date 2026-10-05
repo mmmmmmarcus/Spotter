@@ -43,6 +43,7 @@ final class UpdateStore: ObservableObject {
     @Published private(set) var autoCheckEnabled: Bool
     @Published private(set) var status: Status = .idle
     @Published private(set) var availableRelease: UpdateRelease?
+    @Published private(set) var latestRelease: UpdateRelease?
     @Published private(set) var installProgress: UpdateInstallProgress?
     private var installationID: UUID?
 
@@ -136,9 +137,11 @@ final class UpdateStore: ObservableObject {
                     release = try UpdateFeed.resolvingAssets(assets, for: release)
                 }
                 availableRelease = release
+                latestRelease = release
                 status = .available(release)
             } else {
                 availableRelease = nil
+                latestRelease = UpdateFeed.latest(from: releases, channel: channel)
                 status = .upToDate
             }
             defaults.set(Date(), forKey: Self.lastCheckKey)

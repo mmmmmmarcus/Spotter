@@ -8,8 +8,23 @@ private final class Model: AIToolModel {
     var callsPerTurn = 1
     var captured: [AIJSON] = []
     var onTurn: (() -> Void)?
+    var onStream: (() -> Void)?
+    var streams = 0
+    var streamedModel: String?
+    var streamedWebSearch = false
+    var offeredTools: [AIToolDefinition] = []
+    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool,
+        onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
+        streams += 1
+        streamedModel = model
+        streamedWebSearch = webSearch
+        captured = messages.map { .object(["role": .string($0.role), "content": .string($0.content)]) }
+        onStream?()
+        onDelta("Plain answer")
+    }
     func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool) async throws -> AIToolTurn {
         captured = messages
+        offeredTools = tools
         rounds += 1
         onTurn?()
         if rounds == 1 {
@@ -145,6 +160,93 @@ private struct Tests {
         try store.saveConfiguration(config)
         check(!store.isEnabled, "saving resets consent")
         check(try AIMCPConfiguration.parse(store.addingCua(to: AIMCPConfiguration.empty)).mcpServers["cua"]?.args == ["mcp"], "Cua MCP preset")
+        let missing = AIMCPServer(command: directory.appendingPathComponent("missing-cua-driver").path, args: ["mcp"])
+        let ordinary = [(role: "system", content: "Fixture"), (role: "user", content: "What is 2 + 2?")]
+        var approvals = 0
+        store.onApproval = { [weak store] approval in
+            approvals += 1
+            store?.resolveApproval(approval.id, allowed: true)
+        }
+        for configuration in [AIMCPConfiguration(mcpServers: ["cua": missing]), AIMCPConfiguration()] {
+            try store.saveConfiguration(configuration.formatted)
+            store.setEnabled(true)
+            let fallback = Model()
+            var answer = ""
+            try await store.run(messages: ordinary, model: "chosen-model", webSearch: true,
+                sessionID: session, router: fallback) { answer += $0 }
+            check(answer == "Plain answer" && fallback.streams == 1 && fallback.rounds == 0,
+                "missing driver or empty configuration falls back to ordinary streaming")
+            check(fallback.streamedModel == "chosen-model" && fallback.streamedWebSearch,
+                "fallback retains chosen model and web search")
+            check(fallback.captured.contains { $0["content"]?.string == "What is 2 + 2?" }, "fallback preserves the user question")
+            check(fallback.captured.contains { $0["role"] == .string("system") && $0["content"]?.string?.contains("No MCP tools or computer access") == true },
+                "computer requests receive an explicit capability limit instead of invented actions")
+            check(!fallback.captured.contains { $0["content"]?.string?.contains(directory.path) == true }, "local executable paths stay out of fallback model context")
+            check(approvals == 0 && !store.isRunning && store.approval == nil, "ordinary fallback asks for no tool approval and cleans up")
+        }
+        let broken = AIMCPServer(command: "/usr/bin/python3", args: [fixture], env: ["AI_TEST_BAD_PAGE": "1"])
+        for unavailable in [missing, broken] {
+            try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["cua": unavailable, "fixture": server]).formatted)
+            store.setEnabled(true)
+            let healthy = Model()
+            var answer = ""
+            try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: healthy) { answer += $0 }
+            check(answer.trimmingCharacters(in: .whitespacesAndNewlines) == "Done" && healthy.streams == 0,
+                "one unavailable server does not block the healthy tool loop")
+            check(healthy.offeredTools.count == 2 && healthy.offeredTools.allSatisfy { $0.server == "fixture" },
+                "failed discovery publishes no partial catalog")
+            check(Set(healthy.offeredTools.map(\.name)).count == 2, "discarded catalog cannot duplicate callable names")
+        }
+        let failingCall = AIMCPServer(command: "/usr/bin/python3", args: [fixture], env: ["AI_TEST_FAIL_CALL": "1"])
+        try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["fixture": failingCall]).formatted)
+        store.setEnabled(true)
+        let execution = Model()
+        await rejectsAsync("actual tool execution failure remains an error") {
+            try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: execution) { _ in }
+        }
+        check(execution.rounds == 1 && execution.streams == 0, "failed tool execution never restarts as ordinary chat")
+        for revocation in ["consent", "key", "cancel"] {
+            let ready = directory.appendingPathComponent("initializing-\(revocation)")
+            let hanging = AIMCPServer(command: "/usr/bin/python3", args: [fixture], env: ["AI_TEST_HANG_INITIALIZE": ready.path])
+            try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["fixture": hanging]).formatted)
+            store.setEnabled(true)
+            let discovery = Model()
+            let request = Task {
+                try await store.run(messages: ordinary, model: "fixture", webSearch: false, sessionID: session, router: discovery) { _ in }
+            }
+            for _ in 0..<200 {
+                if FileManager.default.fileExists(atPath: ready.path) { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            check(FileManager.default.fileExists(atPath: ready.path), "fixture reached discovery before revocation")
+            switch revocation {
+            case "consent": store.setEnabled(false)
+            case "key": discovery.apiKey = "replacement-key"; store.stop()
+            default: request.cancel()
+            }
+            await rejectsAsync("discovery respects \(revocation)") { try await request.value }
+            check(discovery.streams == 0 && discovery.rounds == 0 && !store.isRunning,
+                "discovery revocation never falls back or calls the model")
+        }
+        for revocation in ["consent", "key", "stop", "cancel"] {
+            try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["cua": missing]).formatted)
+            store.setEnabled(true)
+            let fallback = Model()
+            var answer = ""
+            fallback.onStream = { [weak store, weak fallback] in
+                switch revocation {
+                case "consent": store?.setEnabled(false)
+                case "key": fallback?.apiKey = "replacement-key"
+                case "stop": store?.stop()
+                default: withUnsafeCurrentTask { $0?.cancel() }
+                }
+            }
+            let cancelled = Task {
+                try await store.run(messages: ordinary, model: "fixture", webSearch: false, sessionID: session, router: fallback) { answer += $0 }
+            }
+            await rejectsAsync("fallback respects \(revocation)") { try await cancelled.value }
+            check(answer.isEmpty && !store.isRunning, "fallback drops late text after \(revocation)")
+        }
         print("\(count) AI tools checks passed")
     }
 }

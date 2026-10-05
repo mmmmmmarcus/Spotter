@@ -107,9 +107,9 @@ struct QuickAIChatTests {
             "the chat stays floating and only the shared handle owns dragging")
         expect(panel.glassView.style == .regular && panel.glassView.cornerRadius == 16,
             "one native Liquid Glass surface owns the chat body")
-        expect(!panel.hasShadow && panel.glassView.layer?.masksToBounds == true
+        expect(panel.hasShadow && panel.glassView.layer?.masksToBounds == true
             && panel.glassView.layer?.cornerRadius == 16 && panel.glassView.layer?.cornerCurve == .circular,
-            "the glass backing clips to its rounded silhouette without a rectangular window shadow")
+            "the native window shadow is enabled while the glass backing keeps its capsule silhouette")
         let host = panel.glassView.contentView?.subviews.first as? NSHostingView<Text>
         expect(host?.sizingOptions == [], "SwiftUI cannot drive the window size")
         panel.setFrame(CGRect(x: -10000, y: -10000, width: Theme.Size.quickAIWidth * 2, height: 501), display: false)

@@ -53,12 +53,14 @@ jobs:
             beta)   SUFFIX="-beta.${GITHUB_RUN_NUMBER}";  DISPLAY="Spotter Beta";  BUNDLE="com.spotter.app1.beta";  PRERELEASE=true ;;
             stable) SUFFIX="";                            DISPLAY="Spotter";       BUNDLE="com.spotter.app1";       PRERELEASE=false ;;
           esac
+          scripts/release-preflight.sh --expected "$BASE_VERSION"
           FULL="${BASE_VERSION}${SUFFIX}"
           if git ls-remote --exit-code --tags origin "refs/tags/v${FULL}" >/dev/null 2>&1; then
             echo "::error::Release tag v${FULL} already exists."
             exit 1
           fi
           {
+            echo "notes_file=docs/releases/${BASE_VERSION}.md"
             echo "full_version=${FULL}"
             echo "display_name=${DISPLAY}"
             echo "bundle_id=${BUNDLE}"
@@ -244,18 +246,18 @@ jobs:
             "dist/${{ steps.meta.outputs.dmg_file }}" \
             "dist/Spotter-${{ steps.meta.outputs.full_version }}.zip" \
             --title "${{ steps.meta.outputs.display_name }} ${{ steps.meta.outputs.full_version }}" \
-            --notes "**Channel:** ${{ inputs.channel }}
-          **Version:** ${{ steps.meta.outputs.full_version }}
-          **Bundle ID:** \`${{ steps.meta.outputs.bundle_id }}\`
-          Built from ${{ github.sha }}.
-
-          Download the DMG below and drag Spotter to Applications. This build is signed with Developer ID and notarized by Apple, so it opens directly without clearing quarantine attributes." \
+            --notes-file "${{ steps.meta.outputs.notes_file }}" \
             $PRERELEASE_FLAG
           RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$TAG\") | .id")"
           ASSET_NAMES="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '[.[] | select(.state == "uploaded") | .name] | sort | join(",")')"
           EXPECTED="Spotter-${{ steps.meta.outputs.full_version }}.dmg,Spotter-${{ steps.meta.outputs.full_version }}.zip"
           if [ "$ASSET_NAMES" != "$EXPECTED" ]; then
             echo "::error::Release assets are incomplete; leaving the release as a draft."
+            exit 1
+          fi
+          PUBLISHED_NOTES="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq '.body')"
+          if [ "$PUBLISHED_NOTES" != "$(cat "${{ steps.meta.outputs.notes_file }}")" ]; then
+            echo "::error::Release notes do not match the committed file; leaving the release as a draft."
             exit 1
           fi
           gh release edit "$TAG" --draft=false

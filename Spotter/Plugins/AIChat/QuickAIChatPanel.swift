@@ -16,7 +16,7 @@ final class QuickAIChatPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = false
+        hasShadow = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         isMovableByWindowBackground = false
@@ -94,5 +94,6 @@ final class QuickAIChatGlassView: NSGlassEffectView {
         cornerRadius = radius
         layer?.cornerRadius = radius
         layer?.cornerCurve = bounds.height <= maximumCornerRadius * 2 ? .circular : .continuous
+        window?.invalidateShadow()
     }
 }

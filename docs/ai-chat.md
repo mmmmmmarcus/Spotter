@@ -93,7 +93,9 @@ at 475 points; beyond that the transcript scrolls. Growth is coalesced over 80 m
 intermediate widths during expansion. Height stays attained until New Chat. New Chat restores the 209-point compact width. After a
 drag, expansion uses the current position and clamps to the visible screen if needed. Smaller displays
 cap the frame to fit. SwiftUI never owns the window frame. The native glass and its backing share one size-aware clip: compact corners use half-height circular
-ends, while expanded corners use a 26-point continuous radius; the panel adds no WindowServer shadow or rectangular outer frame.
+ends, while expanded corners use a 26-point continuous radius; the panel uses the same native WindowServer shadow as the main palette to separate it from the desktop.
+The shadow is invalidated as the glass resizes so it follows the compact capsule and expanded rounded
+window; the backing remains clipped, without adding a second border or tinted surface.
 
 The expanded view uses the same `AIChatTranscriptView` as the palette: user bubbles, Markdown,
 streaming line reveal, tool activity, errors and follow-to-bottom behavior. A bottom composer supports
@@ -319,8 +321,15 @@ Install [Cua Driver](https://cua.ai/docs/how-to-guides/driver/connect-your-agent
 does not bundle or auto-update it. CuaDriver.app owns its Accessibility and Screen Recording grants;
 Spotter never grants them or treats Spotter's grants as Cua's. This preset operates the current Mac,
 not a VM. Driver installation and a model that supports both tools and images are required for the
-complete Computer Use flow. Missing executables, denied driver permissions and unsupported model
-parameters surface as errors. There is no fallback to another computer-use implementation.
+complete Computer Use flow. Tool discovery is isolated per server: a missing executable, failed
+connection or invalid catalog removes only that server from the request. No partial catalog or usage
+instructions from a failed server reach the model. Discovery details remain in the collapsible local
+tool activity, while healthy servers stay usable. If no tools remain (including an empty configuration),
+chat uses the ordinary streaming transport with the same selected model and web-search setting. The
+model receives an explicit capability limit and is instructed to mention unavailable tools only when
+the request needs them; local executable paths and connection errors stay out of that model context.
+Actual tool execution failures, denied approvals, model errors, cancellation and revoked consent do
+not trigger fallback. There is no fallback to another computer-use implementation.
 
 Enabling tools explains that configured processes/servers are contacted during chat requests only,
 and their descriptions, arguments, results and Cua screenshots may reach OpenRouter and the selected
@@ -348,4 +357,5 @@ verification rather than guessed coordinates or success claims from dispatch alo
 `Tools/ai-tools-test.swift` compiles the real configuration, transport and tool store against a
 scripted model and `Tools/Fixtures/ai-mcp-server.py`. It covers stdio, HTTP JSON/SSE, session headers,
 server ping, pagination, RPC errors, redirects, multimodal conversion, approvals, cancellation and
-consent/key revocation without contacting a model or reading the desktop.
+consent/key revocation, missing-driver streaming fallback, mixed healthy/unavailable servers, partial
+catalog rollback and revocation during discovery/fallback without contacting a model or reading the desktop.

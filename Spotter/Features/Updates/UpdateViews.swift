@@ -17,6 +17,12 @@ struct UpdatesSettingsSection: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
             }
+            if let release = store.latestRelease {
+                ScrollView {
+                    UpdateReleaseNotesView(release: release)
+                }
+                .frame(maxHeight: 240)
+            }
         }
         .sheet(isPresented: $askingConsent) {
             UpdateConsentSheet(
@@ -106,6 +112,12 @@ struct UpdatePaletteView: View {
                     title: "Current Version · " + (store.currentVersion?.description ?? "—"),
                     subtitle: nil, icon: .symbol("info.circle"), primaryActionTitle: ""),
                     selected: false, isInteractive: false)
+                if let release = store.latestRelease {
+                    Divider()
+                        .padding(.vertical, Theme.Spacing.md)
+                    UpdateReleaseNotesView(release: release)
+                        .padding(.horizontal, Theme.Spacing.md)
+                }
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, Theme.Spacing.xs)
@@ -131,6 +143,29 @@ struct UpdatePaletteView: View {
         return PluginPaletteItem(id: action.rawValue, title: "Update to " + version,
             subtitle: [detail, percentage].compactMap { $0 }.joined(separator: " · "),
             icon: .symbol("arrow.down.circle"), primaryActionTitle: manual ? "View Release" : "Install Update")
+    }
+}
+
+private struct UpdateReleaseNotesView: View {
+    let release: UpdateRelease
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text("Release Notes · \(release.version.description)")
+                .font(Theme.Typography.rowTitle)
+                .foregroundStyle(Theme.Colors.textSecondary)
+            if release.releaseNotes.isEmpty {
+                Text("No release notes were provided for this version.")
+                    .font(Theme.Typography.rowTitle)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            } else {
+                AIChatMarkdownText(text: release.releaseNotes)
+                    .foregroundStyle(.primary)
+            }
+            Link("View on GitHub", destination: release.pageURL)
+                .font(Theme.Typography.rowTrailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

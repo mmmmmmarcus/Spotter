@@ -9,12 +9,20 @@ def answer(message):
     method = message.get("method")
     params = message.get("params", {})
     if method == "initialize":
+        if os.environ.get("AI_TEST_HANG_INITIALIZE"):
+            with open(os.environ["AI_TEST_HANG_INITIALIZE"], "w") as ready:
+                ready.write("initializing")
+            time.sleep(60)
         result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "fixture", "version": "1"}, "instructions": "FIXTURE_USAGE_NOTES"}
     elif method == "tools/list":
+        if params and os.environ.get("AI_TEST_BAD_PAGE"):
+            return {"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32603, "message": "Fixture catalog failure"}}
         result = {"tools": [{"name": "echo" if not params else "second", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}}}]}
         if not params:
             result["nextCursor"] = "page2"
     elif method == "tools/call":
+        if os.environ.get("AI_TEST_FAIL_CALL"):
+            return {"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32603, "message": "Fixture execution failure"}}
         args = params.get("arguments", {})
         if args.get("hang"):
             time.sleep(60)

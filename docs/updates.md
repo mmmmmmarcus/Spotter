@@ -60,6 +60,16 @@ that discovers a new version preserves the selected Check row rather than turnin
 into an installation. Busy operations cannot start a second check/install. Errors appear beneath
 Check for Updates, and a known release remains available for retry after failure.
 
+A Release Notes area below Current Version renders the selected channel's latest GitHub Release
+body as Markdown, labelled with its version. It is also available in Settings after a check, including
+when already up to date. Missing or blank legacy notes show an explicit empty message and a release
+page link. Notes are read from the existing feed response, without a separate request, and survive
+ZIP asset recovery. Failed checks retain the last successful notes. This content adds no selectable
+command row, so keyboard selection and installation behavior remain unchanged.
+
+Every new release includes `docs/releases/<version>.md`; preflight and CI require it, and CI publishes
+it as the release body before making the release public. See the tracked `spotter-release` skill.
+
 The download uses `download(for:delegate:)` on the private ephemeral session. Its per-task
 `URLSessionDownloadDelegate` reports actual received/expected bytes at most ten times per second,
 including when the expected length is unknown. The upgrade row and Settings control show the real

@@ -717,7 +717,9 @@ transparency. See [clipboard.md](clipboard.md).
 uses one-third of the palette width (about 209 points), a 32-point height and body typography, inside one
 native regular Liquid Glass surface. Compact corners are circular with a half-height radius (16 points),
 forming a capsule; expanded corners use the 26-point continuous radius. Native glass and its backing
-share one size-aware clip without an additional SwiftUI corner mask, and WindowServer shadow is disabled to avoid a rectangular fringe. Sending expands upward to a
+share one size-aware clip without an additional SwiftUI corner mask. The same native WindowServer
+shadow as the main palette separates Quick AI from the background; resizing the glass invalidates
+the shadow so it follows the current silhouette. Sending expands upward to a
 content-fitting body height and doubles the width to 418 points, preserving the horizontal center and
 bottom composer position with screen-edge clamping. Measured reply content gradually grows the body
 to a maximum of 475 points, then scrolls; resize updates are coalesced over 80 ms. New Chat restores the 209-point width.

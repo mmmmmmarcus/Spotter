@@ -29,8 +29,25 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
 3. Use a version named by the user. Otherwise, use `project.yml` when it is newer than the latest
    stable release; if it is not newer, increment the latest stable patch version. Do not ask the user
    to select a version or channel.
-4. Run `scripts/release-preflight.sh --expected <version>` after regeneration. Treat any mismatch
+4. Write the required release notes below before running preflight.
+5. Run `scripts/release-preflight.sh --expected <version>` after regeneration. Treat any mismatch
    as a blocker rather than overriding a version at build time.
+
+## Write release notes — required for every release
+
+1. Before validation or publication, write `docs/releases/<version>.md` for the version in
+   `project.yml`. Commit it with the release; never publish first and add the notes afterward.
+2. Review changes since the previous stable tag and describe the actual user-visible additions,
+   improvements and fixes in concise Markdown bullets. Include migration or compatibility guidance
+   when relevant. Generic build metadata, placeholders or an automatic commit list are not release
+   notes. Do not claim checks or fixes that were not completed.
+3. Keep notes readable inside Spotter's update screen: use short headings, paragraphs and bullets,
+   with no embedded images or HTML. This file is the complete GitHub Release body and also appears
+   in the in-app Release Notes area; do not include internal logs or credentials.
+4. Preflight and CI require this version's notes with at least one non-empty change bullet. The
+   workflow publishes through `--notes-file` and verifies the uploaded body before leaving draft.
+5. After publication, verify the public release body matches the committed notes as part of the
+   release audit. A release is incomplete if its notes are missing or describe the wrong version.
 
 ## Validate
 

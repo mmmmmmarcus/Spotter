@@ -66,7 +66,15 @@ if [ "$WEBSITE_VERSION" != "$EXPECTED" ]; then
     exit 1
 fi
 
+NOTES_FILE="docs/releases/$EXPECTED.md"
+if [ ! -f "$NOTES_FILE" ] || ! grep -Eq '^[[:space:]]*[-*][[:space:]]+[^[:space:]]' "$NOTES_FILE"; then
+    echo "✗ Write $NOTES_FILE with at least one user-visible change bullet before releasing." >&2
+    exit 1
+fi
+
 if [ "$PUBLISH" = true ]; then
+    git ls-files --error-unmatch "$NOTES_FILE" >/dev/null 2>&1 \
+        || { echo "✗ Commit $NOTES_FILE before publishing." >&2; exit 1; }
     command -v gh >/dev/null || { echo "✗ gh is required for publication checks." >&2; exit 1; }
     if ! git diff --quiet || ! git diff --cached --quiet; then
         echo "✗ Publication requires a clean worktree." >&2

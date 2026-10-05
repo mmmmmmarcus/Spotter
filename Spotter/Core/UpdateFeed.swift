@@ -65,6 +65,7 @@ struct UpdateRelease: Equatable, Sendable {
     let pageURL: URL
     /// The in-app-installable asset; nil means the release only carries a DMG and the UI falls back to opening `pageURL`.
     let zipAssetURL: URL?
+    let releaseNotes: String
 }
 
 enum UpdateFeed {
@@ -85,6 +86,7 @@ enum UpdateFeed {
         let draft: Bool
         let htmlURL: URL
         let assets: [Asset]
+        let body: String?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -93,6 +95,7 @@ enum UpdateFeed {
             case draft
             case htmlURL = "html_url"
             case assets
+            case body
         }
     }
 
@@ -109,6 +112,11 @@ enum UpdateFeed {
     static func select(
         from releases: [GitHubRelease], channel: UpdateChannel, current: SemanticVersion
     ) -> UpdateRelease? {
+        guard let release = latest(from: releases, channel: channel), release.version > current else { return nil }
+        return release
+    }
+
+    static func latest(from releases: [GitHubRelease], channel: UpdateChannel) -> UpdateRelease? {
         let candidates: [(GitHubRelease, SemanticVersion)] = releases.compactMap { release in
             guard !release.draft else { return nil }
             switch channel {
@@ -119,19 +127,21 @@ enum UpdateFeed {
             guard let version = SemanticVersion(release.tagName) else { return nil }
             return (release, version)
         }
-        guard let best = candidates.max(by: { $0.1 < $1.1 }), best.1 > current else { return nil }
+        guard let best = candidates.max(by: { $0.1 < $1.1 }) else { return nil }
         return UpdateRelease(
             id: best.0.id,
             version: best.1,
             tag: best.0.tagName,
             pageURL: best.0.htmlURL,
-            zipAssetURL: best.0.assets.first { $0.name.hasSuffix(".zip") }?.browserDownloadURL)
+            zipAssetURL: best.0.assets.first { $0.name.hasSuffix(".zip") }?.browserDownloadURL,
+            releaseNotes: best.0.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
     }
 
     static func resolvingAssets(_ data: Data, for release: UpdateRelease) throws -> UpdateRelease {
         let assets = try JSONDecoder().decode([GitHubRelease.Asset].self, from: data)
         return UpdateRelease(id: release.id, version: release.version, tag: release.tag,
             pageURL: release.pageURL,
-            zipAssetURL: assets.first { $0.name == "Spotter-\(release.version).zip" }?.browserDownloadURL)
+            zipAssetURL: assets.first { $0.name == "Spotter-\(release.version).zip" }?.browserDownloadURL,
+            releaseNotes: release.releaseNotes)
     }
 }

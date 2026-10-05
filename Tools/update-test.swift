@@ -49,6 +49,7 @@ struct UpdateTests {
                        "browser_download_url": "https://example.com/beta.zip"}]},
           {"id": 123, "tag_name": "v0.6.0", "prerelease": false, "draft": false,
            "html_url": "https://github.com/x/y/releases/tag/v0.6.0",
+           "body": "  ## Improvements\\n\\n- **Faster** clipboard search.  ",
            "assets": [{"name": "Spotter-0.6.0.dmg",
                        "browser_download_url": "https://example.com/stable.dmg"},
                       {"name": "Spotter-0.6.0.zip",
@@ -66,9 +67,17 @@ struct UpdateTests {
         check("stable picks the newest full release", stable?.version == v("0.6.0"))
         check("stable skips prereleases and drafts", stable?.tag == "v0.6.0")
         check("stable finds the zip asset", stable?.zipAssetURL?.absoluteString == "https://example.com/stable.zip")
+        check("release notes preserve Markdown and trim surrounding whitespace",
+            stable?.releaseNotes == "## Improvements\n\n- **Faster** clipboard search.")
+        let decoded = try! JSONDecoder().decode([UpdateFeed.GitHubRelease].self, from: feed)
+        check("latest release notes remain available when already up to date",
+            UpdateFeed.latest(from: decoded, channel: .stable) == stable)
 
         let beta = UpdateFeed.latestUpdate(in: feed, channel: .beta, current: v("0.6.0"))
         check("beta accepts prereleases", beta?.version == v("0.7.0-beta.2"))
+        check("legacy releases without a body remain usable", beta?.releaseNotes == "")
+        check("latest notes remain channel-isolated", UpdateFeed.latest(from: decoded, channel: .beta) == beta)
+        check("empty feeds have no notes to display", UpdateFeed.latest(from: [], channel: .stable) == nil)
 
         check(
             "up to date returns nil",
@@ -103,11 +112,18 @@ struct UpdateTests {
         let dmgOnly = """
         [{"id": 123, "tag_name": "v0.9.0", "prerelease": false, "draft": false,
           "html_url": "https://github.com/x/y/releases/tag/v0.9.0",
+          "body": "- Fixes clipboard navigation.",
           "assets": [{"name": "Spotter-0.9.0.dmg",
                       "browser_download_url": "https://example.com/only.dmg"}]}]
         """.data(using: .utf8)!
         let pageFallback = UpdateFeed.latestUpdate(in: dmgOnly, channel: .stable, current: v("0.5.0"))
         check("dmg-only release still reports, without a zip asset", pageFallback != nil && pageFallback?.zipAssetURL == nil)
+        for body in ["null", "\"\"", "\"   \""] {
+            let emptyNotes = String(decoding: dmgOnly, as: UTF8.self)
+                .replacingOccurrences(of: "\"- Fixes clipboard navigation.\"", with: body)
+            check("null or blank notes keep the release available",
+                UpdateFeed.latestUpdate(in: Data(emptyNotes.utf8), channel: .stable, current: v("0.5.0"))?.releaseNotes == "")
+        }
 
         check("malformed feed returns nil", UpdateFeed.latestUpdate(in: Data("junk".utf8), channel: .stable, current: v("0.1.0")) == nil)
 
@@ -117,6 +133,7 @@ struct UpdateTests {
         let recovered = try? UpdateFeed.resolvingAssets(recoveredAssets, for: pageFallback!)
         check("missing list ZIP is recovered from dedicated assets response", recovered?.zipAssetURL?.lastPathComponent == "recovered.zip")
         check("recovery preserves release identity", recovered?.id == pageFallback?.id && recovered?.version == pageFallback?.version && recovered?.pageURL == pageFallback?.pageURL)
+        check("dedicated asset recovery preserves release notes", recovered?.releaseNotes == "- Fixes clipboard navigation.")
         let unrelatedAssets = """
         [{"name":"Spotter-1.0.0.zip", "browser_download_url":"https://example.com/wrong.zip"}]
         """.data(using: .utf8)!
