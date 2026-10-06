@@ -67,6 +67,18 @@ struct UpdateTests {
         check("stable picks the newest full release", stable?.version == v("0.6.0"))
         check("stable skips prereleases and drafts", stable?.tag == "v0.6.0")
         check("stable finds the zip asset", stable?.zipAssetURL?.absoluteString == "https://example.com/stable.zip")
+        let extraAssets = String(decoding: feed, as: UTF8.self).replacingOccurrences(
+            of: "\"name\": \"Spotter-0.6.0.dmg\"",
+            with: "\"name\": \"debug-symbols.zip\"")
+        check("initial feed skips unrelated ZIPs before the update asset",
+            UpdateFeed.latestUpdate(in: Data(extraAssets.utf8), channel: .stable, current: v("0.5.0"))?.zipAssetURL
+                == stable?.zipAssetURL)
+        let wrongVersion = extraAssets.replacingOccurrences(
+            of: "\"name\": \"Spotter-0.6.0.zip\"", with: "\"name\": \"Spotter-0.5.9.zip\"")
+        let rejectedAssets = UpdateFeed.latestUpdate(
+            in: Data(wrongVersion.utf8), channel: .stable, current: v("0.5.0"))
+        check("initial feed refuses unrelated and wrong-version ZIPs without hiding the release",
+            rejectedAssets?.version == v("0.6.0") && rejectedAssets?.zipAssetURL == nil)
         check("release notes preserve Markdown and trim surrounding whitespace",
             stable?.releaseNotes == "## Improvements\n\n- **Faster** clipboard search.")
         let decoded = try! JSONDecoder().decode([UpdateFeed.GitHubRelease].self, from: feed)

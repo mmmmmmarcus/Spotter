@@ -15,6 +15,8 @@ click before any installation starts.
 `project.yml` is the release version's single source of truth. CI publishes both
 `Spotter-<version>.dmg` for manual installation and `Spotter-<version>.zip` for the in-app updater.
 The zip contains the same Developer ID-signed, notarized and stapled app as the DMG.
+Both feed parsing and asset recovery require the exact `Spotter-<version>.zip` filename; unrelated
+archives and ZIPs for another version are ignored so they cannot suppress updater asset recovery.
 CI creates a draft, uploads and checks both assets, then publishes it. If GitHub's releases list
 still omits the ZIP, the updater queries that release's dedicated assets endpoint before offering
 manual installation. A failed asset lookup reports a retryable check failure instead of pretending

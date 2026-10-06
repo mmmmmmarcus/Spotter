@@ -133,7 +133,7 @@ enum UpdateFeed {
             version: best.1,
             tag: best.0.tagName,
             pageURL: best.0.htmlURL,
-            zipAssetURL: best.0.assets.first { $0.name.hasSuffix(".zip") }?.browserDownloadURL,
+            zipAssetURL: best.0.assets.first { $0.name == "Spotter-\(best.1).zip" }?.browserDownloadURL,
             releaseNotes: best.0.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
     }
 
