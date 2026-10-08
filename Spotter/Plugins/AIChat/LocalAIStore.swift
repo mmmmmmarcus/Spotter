@@ -30,16 +30,42 @@ enum LocalAIError: LocalizedError {
 final class LocalAIStore: ObservableObject {
     @Published private(set) var paths: [LocalAIModel: String] = [:]
     @Published private(set) var isRefreshing = false
+    @Published private(set) var customPaths: [LocalAIModel: String]
+    @Published private(set) var pathErrors: [LocalAIModel: String] = [:]
+    private let defaults: UserDefaults
+    private let pathsKey = "local-ai.executable-paths"
+    private var refreshID = UUID()
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let saved = defaults.dictionary(forKey: pathsKey) as? [String: String] ?? [:]
+        customPaths = Dictionary(uniqueKeysWithValues: saved.compactMap { key, value in
+            guard let model = LocalAIModel(rawValue: key), !value.isEmpty else { return nil }
+            return (model, value)
+        })
+    }
+
+    func setCustomPath(_ path: String?, for model: LocalAIModel) {
+        let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        customPaths[model] = trimmed.isEmpty ? nil : (trimmed as NSString).expandingTildeInPath
+        defaults.set(Dictionary(uniqueKeysWithValues: customPaths.map { ($0.key.rawValue, $0.value) }), forKey: pathsKey)
+        paths[model] = nil
+        pathErrors[model] = nil
+        refresh()
+    }
 
     var isAvailable: Bool { !paths.isEmpty }
 
     func refresh() {
-        guard !isRefreshing else { return }
+        let id = UUID()
+        refreshID = id
+        let custom = customPaths
         isRefreshing = true
         Task { [weak self] in
-            let result = await Task.detached(priority: .utility) { Self.discover() }.value
-            guard let self else { return }
-            paths = result
+            let result = await Task.detached(priority: .utility) { Self.discover(custom: custom) }.value
+            guard let self, refreshID == id else { return }
+            paths = result.paths
+            pathErrors = result.errors
             isRefreshing = false
         }
     }
@@ -66,12 +92,26 @@ final class LocalAIStore: ObservableObject {
         }.joined(separator: "\n\n") + "\n\nAssistant:\n"
     }
 
-    private nonisolated static func discover() -> [LocalAIModel: String] {
+    private nonisolated static func discover(custom: [LocalAIModel: String]) -> (paths: [LocalAIModel: String], errors: [LocalAIModel: String]) {
+        var errors: [LocalAIModel: String] = [:]
         var result: [LocalAIModel: String] = [:]
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let roots = ["/opt/homebrew/bin", "/usr/local/bin", home + "/.local/bin",
             home + "/.npm-global/bin", home + "/.claude/local"]
         for model in LocalAIModel.allCases {
+            if let path = custom[model] {
+                var directory: ObjCBool = false
+                if !path.hasPrefix("/") || !FileManager.default.fileExists(atPath: path, isDirectory: &directory) || directory.boolValue {
+                    errors[model] = "Choose an executable file using an absolute path."
+                } else if !FileManager.default.isExecutableFile(atPath: path) {
+                    errors[model] = "This file is not executable."
+                } else if !isUsable(path) {
+                    errors[model] = "Could not run --version. Check the CLI and its dependencies."
+                } else {
+                    result[model] = path
+                }
+                continue
+            }
             if let path = roots.map({ $0 + "/" + model.executable })
                 .first(where: { FileManager.default.isExecutableFile(atPath: $0) && isUsable($0) }) {
                 result[model] = path
@@ -79,7 +119,7 @@ final class LocalAIStore: ObservableObject {
             }
             if let path = loginShellPath(for: model.executable) { result[model] = path }
         }
-        return result
+        return (result, errors)
     }
 
     private nonisolated static func loginShellPath(for executable: String) -> String? {
@@ -101,10 +141,25 @@ final class LocalAIStore: ObservableObject {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["--version"]
+        process.environment = environment(for: path)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        do { try process.run(); process.waitUntilExit() } catch { return false }
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+        do { try process.run() } catch { return false }
+        guard finished.wait(timeout: .now() + 3) == .success else {
+            process.terminate()
+            return false
+        }
         return process.terminationStatus == 0
+    }
+
+    private nonisolated static func environment(for path: String) -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        // npm and nvm launchers need sibling executables even when Spotter started from Finder.
+        let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        environment["PATH"] = ([parent, "/opt/homebrew/bin", "/usr/local/bin", environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"]).joined(separator: ":")
+        return environment
     }
 
     private nonisolated static func run(
@@ -116,6 +171,7 @@ final class LocalAIStore: ObservableObject {
         let errors = Pipe()
         let capture = LocalAICapture(limit: 2_097_152)
         process.executableURL = URL(fileURLWithPath: executable)
+        process.environment = environment(for: executable)
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         process.arguments = model == .claude
             ? ["-p", "--output-format", "text", "--tools", ""]

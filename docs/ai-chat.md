@@ -436,7 +436,12 @@ show only the branch symbol and selected model name; routing category/fallback d
 
 The three Jev routing tiers may select `Claude CLI` or `Codex CLI` alongside OpenRouter models.
 `LocalAIStore` discovers a usable executable through common package-manager locations and a login
-shell, verifies it with `--version`, and passes the bounded conversation through stdin. Claude runs
+shell, verifies it with `--version`, and passes the bounded conversation through stdin.
+Settings → AI Chat → Local AI CLIs offers Enter Path for each provider; saving an empty path restores automatic detection.
+Explicit paths take precedence without silently falling back when invalid; validation errors remain
+visible. Paths are device-local UserDefaults, scoped to the bundle identifier and excluded from
+backup/sync. Validation has a three-second timeout and ignores stale discovery results. Both
+validation and chat prepend the selected executable directory to PATH for npm/nvm dependencies. Claude runs
 in print mode with tools disabled; Codex runs `exec` in its read-only sandbox. MCP, Cua and web
 search remain OpenRouter-only. A missing or broken CLI fails that request without changing provider.
 

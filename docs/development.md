@@ -596,3 +596,5 @@ retry actions, byte fractions, unknown content lengths and rejection of stale in
 ## Raycast extensions
 
 Raycast compatibility checks: `scripts/test-raycast.sh`, `scripts/test-raycast-models.sh`, and `node scripts/raycast-runtime/fixtures.mjs` (requires runtime development dependencies). The generated runtime is committed; ordinary Xcode builds do not need Node. See [Raycast extensions](raycast-extensions.md).
+
+Local AI CLI path regression: `swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o /tmp/spotter-local-ai-test && /tmp/spotter-local-ai-test`. The harness uses isolated defaults and temporary executable fixtures, and is included in `scripts/test-all.sh`.

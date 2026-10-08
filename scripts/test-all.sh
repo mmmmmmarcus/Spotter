@@ -45,6 +45,7 @@ TESTS=(
     mole
     coffee
     ai-chat
+    local-ai
     ai-routing
     quick-ai-chat
     ai-tools
@@ -82,6 +83,9 @@ run_harness() {
     local output="$2"
 
     case "$name" in
+        local-ai)
+            swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o "$output" && "$output"
+            ;;
         apple-shortcuts)
             swiftc -swift-version 6 Spotter/Plugins/AppleShortcuts/AppleShortcutTypes.swift \
                 Tools/apple-shortcuts-test.swift -o "$output" && "$output"

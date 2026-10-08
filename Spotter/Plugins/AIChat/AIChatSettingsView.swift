@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AIChatSettingsView: View {
@@ -6,6 +7,21 @@ struct AIChatSettingsView: View {
     @ObservedObject private var commands = AppCore.shared.aiCommands
     @State private var editor: AICommandEditorTarget?
     @State private var pendingDeletion: AICommand?
+
+    private func enterCLIPath(_ model: LocalAIModel) {
+        let alert = NSAlert()
+        alert.messageText = "\(model.title) Path"
+        alert.informativeText = "Enter the absolute path to the executable. Leave empty to use automatic detection."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 380, height: 24))
+        field.stringValue = localAI.customPaths[model] ?? localAI.path(for: model) ?? ""
+        field.placeholderString = "/path/to/\(model.executable)"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        localAI.setCustomPath(field.stringValue, for: model)
+    }
 
     var body: some View {
         SettingsPane(title: "AI Chat & Command") {
@@ -29,9 +45,8 @@ struct AIChatSettingsView: View {
             Section {
                 ForEach(LocalAIModel.allCases) { model in
                     SettingsRow(title: model.title,
-                        subtitle: localAI.path(for: model) ?? "Not found") {
-                        Image(systemName: localAI.path(for: model) == nil ? "xmark.circle" : "checkmark.circle.fill")
-                            .foregroundStyle(localAI.path(for: model) == nil ? Color.secondary : Color.green)
+                        subtitle: localAI.pathErrors[model] ?? localAI.path(for: model) ?? (localAI.isRefreshing ? "Checking…" : "Not found")) {
+                        Button("Enter Path…") { enterCLIPath(model) }
                     }
                 }
             } header: {

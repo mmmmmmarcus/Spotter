@@ -793,3 +793,5 @@ text-only with the existing shimmer; failure rows retain their warning symbol.
 ## Raycast extensions
 
 Raycast extensions reuse the main palette for List, Grid, Detail and Form. The native Actions menu retains extension sections and submenus; the shared keyboard action picker also exposes flattened actions with submenu titles. Preferences, installation, updates and cleanup live in Settings → Raycast Extensions.
+
+Local AI CLI rows offer only Enter Path, opening a path entry dialog; saving an empty path restores automatic detection. Validation status appears beneath the provider name.

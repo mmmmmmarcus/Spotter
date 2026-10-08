@@ -430,3 +430,5 @@ mode guards are tested against the actual AppKit overlay without capturing the u
 ## Raycast extension compatibility
 
 The owner-approved `RaycastExtensions` adapter hosts user-installed Raycast JavaScript commands using JavaScriptCore and native SwiftUI views. It has a separate opt-in trust gate; built-in plugins remain native and always on. See [Raycast extensions](raycast-extensions.md) for installation, compatibility and validation.
+
+AI Chat’s local CLI executable overrides belong to `LocalAIStore`, remain device-local, and are edited from its Settings pane. They are not extension package-manager search paths.
