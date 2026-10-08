@@ -42,7 +42,11 @@ struct AIChatSettingsView: View {
 
             Section {
                 SettingsRow(title: "Open in Quick AI Chat", subtitle: "Show AI command results in the floating chat window. Turn off to use the palette.") {
-                    Toggle("", isOn: Binding(get: { commands.usesQuickChat }, set: commands.setUsesQuickChat))
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { commands.usesQuickChat },
+                            set: { commands.setUsesQuickChat($0) }))
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }

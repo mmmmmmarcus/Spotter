@@ -29,8 +29,6 @@ settings:
       DEVELOPMENT_TEAM: SM96W8VVK9
       CODE_SIGN_IDENTITY: "Developer ID Application"
       ENABLE_HARDENED_RUNTIME: YES
-      # Xcode 26.6 crashes in whole-module IR generation for the Swift 6 target; keep -O with per-file compilation.
-      SWIFT_COMPILATION_MODE: incremental
       OTHER_CODE_SIGN_FLAGS: "--timestamp"
       # Strip the shipped binary (dSYM is still generated first) and drop unused code.
       DEPLOYMENT_POSTPROCESSING: YES
