@@ -7,14 +7,62 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
         case assistant
     }
 
+    struct CommandInput: Equatable, Codable, Sendable {
+        let name: String
+        let text: String
+    }
+
+    struct Attachment: Identifiable, Equatable, Codable, Sendable {
+        enum Kind: String, Codable, Sendable { case text, image, pdf }
+        let id: UUID
+        let name: String
+        let kind: Kind
+        let content: String
+
+        init(id: UUID = UUID(), name: String, kind: Kind, content: String) {
+            self.id = id
+            self.name = name
+            self.kind = kind
+            self.content = content
+        }
+    }
+
     let id: UUID
     let role: Role
     let text: String
+    let routing: AIRoutingSelection?
+    let commandInput: CommandInput?
+    let attachments: [Attachment]
+    var displayedText: String { role == .user ? commandInput?.text ?? text : text }
+    var modelText: String {
+        guard !attachments.isEmpty else { return text }
+        let documents = attachments.map { attachment in
+            "<attachment name=\"\(attachment.name)\" type=\"\(attachment.kind.rawValue)\">\n\(attachment.content)\n</attachment>"
+        }.joined(separator: "\n\n")
+        return text + "\n\n" + documents
+    }
 
-    init(id: UUID = UUID(), role: Role, text: String) {
+    init(id: UUID = UUID(), role: Role, text: String, routing: AIRoutingSelection? = nil,
+        commandInput: CommandInput? = nil, attachments: [Attachment] = []) {
         self.id = id
         self.role = role
         self.text = text
+        self.routing = routing
+        self.commandInput = commandInput
+        self.attachments = attachments
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, role, text, routing, commandInput, attachments }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        role = try container.decode(Role.self, forKey: .role)
+        text = try container.decode(String.self, forKey: .text)
+        // Unknown metadata from a newer writer must never make an otherwise readable conversation disappear.
+        routing = try? container.decode(AIRoutingSelection.self, forKey: .routing)
+        commandInput = try? container.decode(CommandInput.self, forKey: .commandInput)
+        attachments = (try? container.decode([Attachment].self, forKey: .attachments)) ?? []
     }
 }
 
@@ -151,13 +199,17 @@ enum AIChatEngine {
     ) -> [AIChatMessage] {
         guard let last = messages.last else { return [] }
         var kept: [AIChatMessage] = [last]
-        var used = last.text.count
+        var used = last.modelText.count
         for message in messages.dropLast().reversed() {
-            used += message.text.count
+            used += message.modelText.count
             guard used <= budget else { break }
             kept.append(message)
         }
         return kept.reversed()
+    }
+
+    static func routingMessages(_ messages: [AIChatMessage]) -> [(role: String, content: String)] {
+        messages.map { (role: $0.role.rawValue, content: $0.text) }
     }
 
     /// Uses URLComponents because browser handoff prompts may contain spaces, Unicode, newlines and reserved query bytes.

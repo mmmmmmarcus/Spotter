@@ -53,6 +53,8 @@ struct SettingsBackupData: Codable, Sendable {
     var openRouterGrammarModel: String?
     var openRouterChatModel: String?
     var openRouterChatWebSearch: Bool?
+    var aiRouting: AIRoutingPreferences?
+    var aiCommandsUseQuickChat: Bool?
     var googleTranslationAPIKey: String?
     /// Decode-only: the separate translation consent toggle is gone, the API key is the gate.
     var googleTranslationEnabled: Bool?

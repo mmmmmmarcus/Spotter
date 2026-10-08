@@ -115,13 +115,16 @@ private struct Tests {
         let store = AIToolStore(defaults: defaults)
         let messages = [(role: "system", content: "Fixture"), (role: "user", content: "Echo this")]
         let session = UUID()
-        check(!store.isEnabled, "default off")
+        check(!store.isConfigured, "a fresh install has no servers to connect")
+        defaults.set(false, forKey: "ai-chat.tools-consent")
         try store.saveConfiguration(config)
-        check(!store.isEnabled, "configuration cannot grant consent")
+        check(store.isConfigured && AIToolStore(defaults: defaults).isConfigured,
+            "saved servers are immediately available despite a legacy disabled flag")
+        let blocked = Model()
+        blocked.apiKey = ""
+        await rejectsAsync("no key blocks model and process") { try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: blocked) { _ in } }
+        check(blocked.rounds == 0, "no model call without a key")
         let model = Model()
-        await rejectsAsync("off blocks model and process") { try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: model) { _ in } }
-        check(model.rounds == 0, "no model call without consent")
-        store.setEnabled(true)
         store.onApproval = { [weak store] approval in store?.resolveApproval(approval.id, allowed: true) }
         var text = ""
         try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: model) { text += $0 }
@@ -135,10 +138,11 @@ private struct Tests {
         store.onApproval = { [weak store] approval in store?.resolveApproval(approval.id, allowed: false) }
         await rejectsAsync("declined tool ends run") { try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: Model()) { _ in } }
         check(try Data(contentsOf: log) == before, "declined tool never executed")
-        store.onApproval = { [weak store] _ in store?.setEnabled(false) }
-        await rejectsAsync("revoke consent at approval") { try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: Model()) { _ in } }
+        store.onApproval = { [weak store] _ in try? store?.saveConfiguration(AIMCPConfiguration.empty) }
+        await rejectsAsync("change configuration at approval") { try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: Model()) { _ in } }
         check(try Data(contentsOf: log) == before && !store.isRunning, "revocation prevents execution")
-        store.setEnabled(true)
+
+        try store.saveConfiguration(config)
         let revokedModel = Model()
         revokedModel.onTurn = { [weak revokedModel] in revokedModel?.apiKey = "" }
         await rejectsAsync("key revoked across await") { try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: revokedModel) { _ in } }
@@ -158,7 +162,7 @@ private struct Tests {
         await rejectsAsync("cancel while awaiting approval") { try await pending.value }
         check(store.approval == nil && !store.isRunning, "approval cancellation clears state")
         try store.saveConfiguration(config)
-        check(!store.isEnabled, "saving resets consent")
+        check(store.isConfigured, "saving keeps servers available for the next request")
         check(try AIMCPConfiguration.parse(store.addingCua(to: AIMCPConfiguration.empty)).mcpServers["cua"]?.args == ["mcp"], "Cua MCP preset")
         let missing = AIMCPServer(command: directory.appendingPathComponent("missing-cua-driver").path, args: ["mcp"])
         let ordinary = [(role: "system", content: "Fixture"), (role: "user", content: "What is 2 + 2?")]
@@ -169,7 +173,7 @@ private struct Tests {
         }
         for configuration in [AIMCPConfiguration(mcpServers: ["cua": missing]), AIMCPConfiguration()] {
             try store.saveConfiguration(configuration.formatted)
-            store.setEnabled(true)
+
             let fallback = Model()
             var answer = ""
             try await store.run(messages: ordinary, model: "chosen-model", webSearch: true,
@@ -187,7 +191,7 @@ private struct Tests {
         let broken = AIMCPServer(command: "/usr/bin/python3", args: [fixture], env: ["AI_TEST_BAD_PAGE": "1"])
         for unavailable in [missing, broken] {
             try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["cua": unavailable, "fixture": server]).formatted)
-            store.setEnabled(true)
+
             let healthy = Model()
             var answer = ""
             try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: healthy) { answer += $0 }
@@ -199,17 +203,17 @@ private struct Tests {
         }
         let failingCall = AIMCPServer(command: "/usr/bin/python3", args: [fixture], env: ["AI_TEST_FAIL_CALL": "1"])
         try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["fixture": failingCall]).formatted)
-        store.setEnabled(true)
+
         let execution = Model()
         await rejectsAsync("actual tool execution failure remains an error") {
             try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: execution) { _ in }
         }
         check(execution.rounds == 1 && execution.streams == 0, "failed tool execution never restarts as ordinary chat")
-        for revocation in ["consent", "key", "cancel"] {
+        for revocation in ["configuration", "key", "cancel"] {
             let ready = directory.appendingPathComponent("initializing-\(revocation)")
             let hanging = AIMCPServer(command: "/usr/bin/python3", args: [fixture], env: ["AI_TEST_HANG_INITIALIZE": ready.path])
             try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["fixture": hanging]).formatted)
-            store.setEnabled(true)
+
             let discovery = Model()
             let request = Task {
                 try await store.run(messages: ordinary, model: "fixture", webSearch: false, sessionID: session, router: discovery) { _ in }
@@ -220,7 +224,7 @@ private struct Tests {
             }
             check(FileManager.default.fileExists(atPath: ready.path), "fixture reached discovery before revocation")
             switch revocation {
-            case "consent": store.setEnabled(false)
+            case "configuration": try store.saveConfiguration(AIMCPConfiguration.empty)
             case "key": discovery.apiKey = "replacement-key"; store.stop()
             default: request.cancel()
             }
@@ -228,14 +232,14 @@ private struct Tests {
             check(discovery.streams == 0 && discovery.rounds == 0 && !store.isRunning,
                 "discovery revocation never falls back or calls the model")
         }
-        for revocation in ["consent", "key", "stop", "cancel"] {
+        for revocation in ["configuration", "key", "stop", "cancel"] {
             try store.saveConfiguration(AIMCPConfiguration(mcpServers: ["cua": missing]).formatted)
-            store.setEnabled(true)
+
             let fallback = Model()
             var answer = ""
             fallback.onStream = { [weak store, weak fallback] in
                 switch revocation {
-                case "consent": store?.setEnabled(false)
+                case "configuration": try? store?.saveConfiguration(AIMCPConfiguration.empty)
                 case "key": fallback?.apiKey = "replacement-key"
                 case "stop": store?.stop()
                 default: withUnsafeCurrentTask { $0?.cancel() }

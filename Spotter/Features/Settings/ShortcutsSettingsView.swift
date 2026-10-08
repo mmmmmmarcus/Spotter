@@ -248,8 +248,6 @@ private struct DisclosureHeader: View {
     let topPadding: CGFloat
     let action: () -> Void
 
-    @State private var hovered = false
-
     var body: some View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.sm) {
@@ -268,16 +266,11 @@ private struct DisclosureHeader: View {
             .padding(.leading, indent)
             .padding(.trailing, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
-                    .fill(hovered ? Theme.Colors.rowHover : .clear)
-            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.top, topPadding)
         .padding(.bottom, Theme.Spacing.xxs)
-        .onHover { hovered = $0 }
         // The chevron turns; the rows themselves appear and disappear without animation, since a
         // lazy container animating hundreds of application rows in and out stutters.
         .animation(.easeOut(duration: 0.15), value: isCollapsed)

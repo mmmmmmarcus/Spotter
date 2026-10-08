@@ -33,6 +33,8 @@ struct PluginID: RawRepresentable, Hashable, Codable, Sendable, Identifiable {
     static let fileSearch = PluginID(rawValue: "file-search")
     static let uptime = PluginID(rawValue: "uptime")
     static let calendarSchedule = PluginID(rawValue: "calendar-schedule")
+    static let appleShortcuts = PluginID(rawValue: "apple-shortcuts")
+    static let navigation = PluginID(rawValue: "navigation")
 }
 
 /// The small fixed palette Settings uses for plugin sidebar icon tiles.

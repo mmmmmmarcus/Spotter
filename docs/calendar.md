@@ -99,6 +99,11 @@ and event status on the background EventKit reader, returning plain display fiel
 People display only names; accepted native responses append an SF Symbol checkmark. Unknown names
 use an unnamed-person label rather than an email address; imported names never imply an accepted RSVP.
 The same people presentation is shared by details and peek. Absent fields are omitted. Calendar URL and structured-location title are retained when available.
+
+`Join Next Meeting` and `Copy Next Meeting Link` are launcher commands; the first also has its own
+assignable shortcut. They reuse the widget store's event snapshot and the schedule engine's Zoom,
+Meet, Teams and Webex link detection. Without Calendar access they open Schedule's permission path;
+with no upcoming linked event they show a no-op HUD instead of opening a guessed URL.
 `ScheduleNotes` is Foundation-only and parses HTML anchors, Markdown links, ordinary URLs and HTML
 entities locally. It uses an anchor's supplied title; bare URLs use compact host labels. No web title
 fetch, HTML renderer or remote image request occurs. Scripts/styles are omitted and only http, https

@@ -455,7 +455,7 @@ struct DashboardWidgetsView: View {
     private func clockCard(now: Date) -> some View {
         let face = clockFace(now: now)
         // The card has room for a glyph, not a sentence; the sentence is what the pointer and
-        // VoiceOver get, and Settings ▸ Widgets carries it in full with the way to fix it.
+        // VoiceOver get, and Settings ▸ General → Weather carries it in full with the way to fix it.
         if let weatherIssue {
             face.help(weatherIssue)
         } else {

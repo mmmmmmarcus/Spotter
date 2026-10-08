@@ -8,6 +8,7 @@ enum AIChatMarkdownBlock: Equatable, Sendable {
     case listItem(marker: String, text: String, depth: Int)
     case quote(String)
     case code(language: String?, text: String)
+    case math(String)
     case table(header: [String], rows: [[String]])
     case rule
 }
@@ -50,6 +51,32 @@ enum AIChatMarkdown {
                 // An unterminated fence still renders as code: a truncated reply ends mid-block.
                 if index < lines.count { index += 1 }
                 blocks.append(.code(language: fence.language, text: body.joined(separator: "\n")))
+                continue
+            }
+
+            if trimmed.hasPrefix("$$") || trimmed.hasPrefix("\\[") {
+                flushParagraph()
+                let closing = trimmed.hasPrefix("$$") ? "$$" : "\\]"
+                var body = trimmed.hasPrefix("$$") ? String(trimmed.dropFirst(2)) : String(trimmed.dropFirst(2))
+                if body.hasSuffix(closing) {
+                    body.removeLast(closing.count)
+                    blocks.append(.math(body.trimmingCharacters(in: .whitespacesAndNewlines)))
+                    index += 1
+                    continue
+                }
+                index += 1
+                var linesOfMath = body.isEmpty ? [] : [body]
+                while index < lines.count {
+                    let candidate = lines[index].trimmingCharacters(in: .whitespaces)
+                    if candidate.hasSuffix(closing) {
+                        linesOfMath.append(String(candidate.dropLast(closing.count)))
+                        index += 1
+                        break
+                    }
+                    linesOfMath.append(lines[index])
+                    index += 1
+                }
+                blocks.append(.math(linesOfMath.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)))
                 continue
             }
 
@@ -230,5 +257,22 @@ enum AIChatMarkdown {
     private static func isDelimiterCell(_ cell: String) -> Bool {
         let bare = cell.replacingOccurrences(of: ":", with: "")
         return !bare.isEmpty && bare.allSatisfy { $0 == "-" }
+    }
+}
+
+enum AIFormulaDisplay {
+    static func render(_ source: String) -> String {
+        var value = source
+        let replacements = [
+            "\\times": "×", "\\cdot": "·", "\\pm": "±", "\\neq": "≠", "\\leq": "≤",
+            "\\geq": "≥", "\\approx": "≈", "\\infty": "∞", "\\sum": "∑", "\\prod": "∏",
+            "\\int": "∫", "\\partial": "∂", "\\nabla": "∇", "\\rightarrow": "→",
+            "\\leftarrow": "←", "\\alpha": "α", "\\beta": "β", "\\gamma": "γ",
+            "\\delta": "δ", "\\theta": "θ", "\\lambda": "λ", "\\mu": "μ", "\\pi": "π",
+            "\\sigma": "σ", "\\phi": "φ", "\\omega": "ω", "\\left": "", "\\right": "",
+        ]
+        for (token, symbol) in replacements { value = value.replacingOccurrences(of: token, with: symbol) }
+        value = value.replacingOccurrences(of: "\\,", with: " ")
+        return value
     }
 }

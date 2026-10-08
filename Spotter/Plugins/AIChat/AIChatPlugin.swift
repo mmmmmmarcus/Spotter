@@ -61,6 +61,17 @@ enum AIChatActionsMenu {
                     core.aiChat.stop()
                 })
         }
+        items.append(
+            PopoverMenuItem(title: "Attach Files…", systemImage: "paperclip") {
+                core.chooseAIChatAttachments()
+            })
+        if !core.aiChat.pendingAttachments.isEmpty {
+            items.append(
+                PopoverMenuItem(title: "Clear \(core.aiChat.pendingAttachments.count) Attachments",
+                    systemImage: "paperclip.badge.ellipsis", isDestructive: true) {
+                    core.aiChat.clearPendingAttachments()
+                })
+        }
         // The web handoff is an action on the draft, so it lives here rather than in the footer.
         // Sampled when the menu opens, which is exactly when typing is frozen, so it can't go stale.
         let draft = core.palette.query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -128,6 +139,23 @@ enum AIChatSessionsMenu {
 }
 
 extension AppCore {
+    func chooseAIChatAttachments() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.message = "Choose images, PDFs, source files or text documents to include with your next message."
+        let response = panel.runModal()
+        guard response == .OK else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let attachments = await AIChatAttachmentReader.read(panel.urls)
+            aiChat.addPendingAttachments(attachments)
+            if attachments.isEmpty {
+                hud.show(title: "No Readable Attachments", symbol: "paperclip", isNoOp: true)
+            }
+        }
+    }
+
     func openAIChat() {
         showPalette(mode: .aiChat)
     }
@@ -183,7 +211,7 @@ extension AppCore {
     /// command reports that instead of capturing anything.
     func runAICommand(id: UUID) {
         guard let command = aiCommands.command(id: id) else { return }
-        guard openRouter.isReady else {
+        guard aiChat.isReady else {
             showAICommandFailure(command, message: Self.aiCommandKeyMessage)
             return
         }
@@ -197,7 +225,7 @@ extension AppCore {
     /// came from, not Spotter.
     func runAICommandFromLauncher(id: UUID) {
         guard let command = aiCommands.command(id: id) else { return }
-        guard openRouter.isReady else {
+        guard aiChat.isReady else {
             showAICommandFailure(command, message: Self.aiCommandKeyMessage)
             return
         }
@@ -214,25 +242,36 @@ extension AppCore {
     }
 
     private static let aiCommandKeyMessage =
-        "Add an OpenRouter API key in Settings → AI Chat & Command to use this command."
+        "Configure OpenRouter or install Claude/Codex CLI in Settings → AI Chat & Command to use this command."
 
     private func presentAICommand(
         _ command: AICommand,
         capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     ) {
+        let sessionID: UUID
         switch capture {
         case .failure(let error):
-            aiChat.showCommandFailure(command: command, message: error.message)
+            sessionID = aiChat.showCommandFailure(command: command, message: error.message,
+                selectInPalette: !aiCommands.usesQuickChat)
         case .success(let snapshot):
-            aiChat.startCommandConversation(command: command, selection: snapshot.text)
+            sessionID = aiChat.startCommandConversation(command: command, selection: snapshot.text,
+                selectInPalette: !aiCommands.usesQuickChat)
         }
-        palette.prepare(mode: .aiChat)
-        showPalette(mode: .aiChat)
+        showAICommandSession(sessionID)
     }
 
     private func showAICommandFailure(_ command: AICommand, message: String) {
-        aiChat.showCommandFailure(command: command, message: message)
-        palette.prepare(mode: .aiChat)
-        showPalette(mode: .aiChat)
+        let sessionID = aiChat.showCommandFailure(command: command, message: message,
+            selectInPalette: !aiCommands.usesQuickChat)
+        showAICommandSession(sessionID)
+    }
+
+    private func showAICommandSession(_ sessionID: UUID) {
+        if aiCommands.usesQuickChat {
+            showQuickAIChat(sessionID: sessionID)
+        } else {
+            palette.prepare(mode: .aiChat)
+            showPalette(mode: .aiChat)
+        }
     }
 }

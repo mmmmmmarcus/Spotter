@@ -40,12 +40,6 @@ enum DashboardWidgetsPlugin {
                         store: core.dashboardWidgets, weather: core.dashboardWeather,
                         music: core.dashboardMusic, battery: core.dashboardDeviceBattery,
                         fileInfo: core.dashboardFileInfo))
-            },
-            settingsView: {
-                AnyView(
-                    DashboardWidgetsSettingsView(
-                        store: core.dashboardWidgets, weather: core.dashboardWeather,
-                        music: core.dashboardMusic))
             })
     }
 }

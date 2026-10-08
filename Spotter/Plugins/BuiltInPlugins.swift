@@ -16,6 +16,8 @@ enum BuiltInPlugins {
             UptimePlugin.registration(core: core),
             DashboardWidgetsPlugin.registration(core: core),
             CalendarSchedulePlugin.registration(core: core),
+            AppleShortcutsPlugin.registration(core: core),
+            NavigationPlugin.registration(core: core),
             FileSearchPlugin.registration(core: core),
             KillProcessPlugin.registration(core: core),
             ChangeCasePlugin.registration(core: core),

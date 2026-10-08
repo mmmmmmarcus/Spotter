@@ -2,19 +2,10 @@ import SwiftUI
 
 struct AIToolSettingsSection: View {
     @ObservedObject private var tools = AppCore.shared.aiTools
-    @ObservedObject private var router = AppCore.shared.openRouter
-    @State private var showsConsent = false
     @State private var showsEditor = false
 
     var body: some View {
         Section("MCP & Computer Use · Experimental") {
-            SettingsRow(title: "Allow AI Tools", subtitle: "Connect only during chat requests. Each tool call asks before running.") {
-                Toggle("", isOn: Binding(get: { tools.isEnabled }, set: { enabled in
-                    if enabled { showsConsent = true } else { tools.setEnabled(false) }
-                }))
-                .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                .disabled(!tools.isEnabled && (!router.isReady || tools.serverCount == 0))
-            }
             SettingsRow(title: "MCP Servers", subtitle: "\(tools.serverCount) configured · \(tools.status)") {
                 Button("Configure…") { showsEditor = true }.controlSize(.small)
             }
@@ -22,12 +13,6 @@ struct AIToolSettingsSection: View {
                 Link("Setup Guide", destination: URL(string: "https://cua.ai/docs/how-to-guides/driver/connect-your-agent")!)
                     .font(.callout)
             }
-        }
-        .alert("Allow MCP and Cua tools?", isPresented: $showsConsent) {
-            Button("Cancel", role: .cancel) {}
-            Button("Allow Tools") { tools.setEnabled(true) }
-        } message: {
-            Text(tools.consentMessage)
         }
         .sheet(isPresented: $showsEditor) { AIMCPConfigurationSheet() }
     }
@@ -50,7 +35,7 @@ private struct AIMCPConfigurationSheet: View {
                 .frame(minHeight: 260)
                 .border(Theme.Colors.border)
             if let error { Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
-            Text("Only configure servers you trust. Local commands run as your macOS user; headers and environment values are stored with these settings. Saving turns tool access off until you enable it again.")
+            Text("Saving makes these servers available during chat requests. Local commands run as your macOS user. Tool descriptions, arguments, results and Cua screenshots are sent to OpenRouter and your selected model provider. Each tool call still asks for confirmation. Headers and environment values stay in these device-local settings.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Add Cua") {

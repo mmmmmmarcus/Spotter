@@ -132,6 +132,8 @@ extension SettingsBackup {
             openRouterGrammarModel: core.aiCommands.command(.grammar)?.model,
             openRouterChatModel: core.openRouter.chatModel,
             openRouterChatWebSearch: core.openRouter.chatWebSearch,
+            aiRouting: core.openRouter.aiRouting,
+            aiCommandsUseQuickChat: core.aiCommands.usesQuickChat,
             googleTranslationAPIKey: core.translate.apiKey,
             googleTranslationTargets: core.translate.targetCodes,
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
@@ -575,6 +577,14 @@ extension SettingsBackup {
         }
         if let webSearch = s.openRouterChatWebSearch {
             core.openRouter.setChatWebSearch(webSearch)
+            count += 1
+        }
+        if let preferences = s.aiRouting {
+            core.openRouter.setAIRouting(preferences)
+            count += 1
+        }
+        if let usesQuickChat = s.aiCommandsUseQuickChat {
+            core.aiCommands.setUsesQuickChat(usesQuickChat)
             count += 1
         }
         if let key = s.googleTranslationAPIKey {

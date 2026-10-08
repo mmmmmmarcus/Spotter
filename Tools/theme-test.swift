@@ -84,7 +84,13 @@ struct ThemeTests {
         check(
             "surfaceGlow", Theme.Colors.surfaceGlow,
             darkWhite: true, darkAlpha: 0.06, lightWhite: false, lightAlpha: 0.05)
-        // The one token that stays white in both: frost brightens glass, a dark tint would shadow it.
+        check("quickAIBackdrop", Theme.Colors.quickAIBackdrop,
+              darkWhite: false, darkAlpha: 1, lightWhite: true, lightAlpha: 1)
+        check("quickAIBackdropLower", Theme.Colors.quickAIBackdropLower,
+              darkWhite: false, darkAlpha: 0.55, lightWhite: true, lightAlpha: 0.40)
+        check("quickAIBackdropBottom", Theme.Colors.quickAIBackdropBottom,
+              darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.18)
+        // Frost brightens glass; a dark tint would shadow it.
         check(
             "glassFrost", Theme.Colors.glassFrost,
             darkWhite: true, darkAlpha: 0.05, lightWhite: true, lightAlpha: 0.30)

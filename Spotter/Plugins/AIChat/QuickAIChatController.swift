@@ -15,8 +15,8 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     private var previousApp: NSRunningApplication?
     private weak var previousWindow: NSWindow?
     private var sessionsObservation: AnyCancellable?
-    private var transcriptHeight: CGFloat = 0
-    private var resizeTask: Task<Void, Never>?
+    private var replyObservation: AnyCancellable?
+    @Published private(set) var hasReceivedReply = false
 
     init(chat: AIChatStore, tools: AIToolStore, router: OpenRouterStore, showSettings: @escaping () -> Void) {
         self.chat = chat
@@ -25,10 +25,21 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         self.showSettings = showSettings
         super.init()
         sessionsObservation = chat.$sessions.sink { [weak self] sessions in
-            guard let self, let sessionID, !sessions.contains(where: { $0.id == sessionID }) else { return }
-            self.sessionID = nil
-            resetTranscriptHeight()
-            resize()
+            guard let self, let sessionID else { return }
+            guard let session = sessions.first(where: { $0.id == sessionID }) else {
+                self.sessionID = nil
+                hasReceivedReply = false
+                resize()
+                return
+            }
+            if session.messages.contains(where: { $0.role == .assistant && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                expandForReply(in: sessionID)
+            }
+        }
+        replyObservation = chat.$streamingReply.sink { [weak self] reply in
+            guard let self, let reply, !reply.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                let replyingSession = self.chat.waitingSessionID else { return }
+            expandForReply(in: replyingSession)
         }
     }
 
@@ -42,31 +53,23 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     var bodyHeight: CGFloat {
         let noticeHeight = notice == nil ? 0 : Theme.Size.headerHeight
         guard isExpanded else { return Theme.Size.quickAIComposerHeight + noticeHeight }
-        let chrome = Theme.Size.headerHeight + Theme.Size.quickAIComposerHeight + Theme.Spacing.md * 2
-        return min(Theme.Size.panelHeight, chrome + max(48, transcriptHeight) + noticeHeight)
+        if hasReceivedReply { return Theme.Size.panelHeight }
+        let chrome = Theme.Size.quickAIHeaderHeight + Theme.Size.quickAIComposerHeight + Theme.Spacing.xl * 2
+        return chrome + Theme.Size.quickAIInitialTranscriptHeight + noticeHeight
     }
 
-    func updateTranscriptSize(_ size: CGSize, sessionID: UUID) {
-        let availableWidth = panel?.screen?.visibleFrame.insetBy(dx: Theme.Spacing.md, dy: Theme.Spacing.md).width ?? bodyWidth
-        // Ignore measurements made at an intermediate width during the compact-to-chat animation.
-        guard self.sessionID == sessionID, abs(size.width - min(bodyWidth, availableWidth)) < 1,
-              size.height.isFinite, size.height > transcriptHeight, bodyHeight < Theme.Size.panelHeight else { return }
-        // A reply can lose its status row at completion; keep the attained height until New Chat.
-        transcriptHeight = min(ceil(size.height), Theme.Size.panelHeight)
-        guard resizeTask == nil else { return }
-        resizeTask = Task { [weak self] in
-            do { try await Task.sleep(for: .milliseconds(80)) }
-            catch { return }
-            guard let self, self.sessionID == sessionID else { return }
-            resizeTask = nil
-            resize()
-        }
+    private func expandForReply(in id: UUID) {
+        guard sessionID == id, !hasReceivedReply else { return }
+        hasReceivedReply = true
+        resize()
     }
 
-    private func resetTranscriptHeight() {
-        resizeTask?.cancel()
-        resizeTask = nil
-        transcriptHeight = 0
+    func openSession(_ id: UUID) {
+        guard let session = chat.sessions.first(where: { $0.id == id }) else { return }
+        sessionID = id
+        notice = nil
+        hasReceivedReply = session.messages.contains { $0.role == .assistant && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        resize()
     }
 
     func show(previousApplication: NSRunningApplication?) {
@@ -78,7 +81,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         let panel = ensurePanel()
         if !wasVisible, let screen = targetScreen() {
             let frame = QuickAIChatLayout.initialFrame(
-                size: CGSize(width: bodyWidth, height: bodyHeight + PaletteDragHandleView.stripHeight),
+                size: CGSize(width: bodyWidth, height: bodyHeight),
                 visibleFrame: screen.visibleFrame, bottomGap: Theme.Spacing.xxl, margin: Theme.Spacing.md)
             panel.setFrame(frame, display: true)
         }
@@ -104,7 +107,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     func submit() {
         guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard chat.isReady else {
-            notice = "Add an OpenRouter API key in AI Chat Settings to send."
+            notice = "Configure OpenRouter or install Claude/Codex CLI in AI Chat Settings to send."
             resize()
             return
         }
@@ -122,7 +125,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func newConversation() {
-        resetTranscriptHeight()
+        hasReceivedReply = false
         sessionID = nil
         draft = ""
         notice = nil
@@ -142,7 +145,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     private func resize() {
         guard let panel, let screen = panel.screen ?? targetScreen() else { return }
         let frame = QuickAIChatLayout.resizedFrame(panel.frame, width: bodyWidth,
-            height: bodyHeight + PaletteDragHandleView.stripHeight,
+            height: bodyHeight,
             visibleFrame: screen.visibleFrame, margin: Theme.Spacing.md)
         guard panel.frame != frame else { return }
         panel.setFrame(frame, display: true,
@@ -153,7 +156,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         if let panel { return panel }
         let view = QuickAIChatView(controller: self, chat: chat, tools: tools, router: router)
         let panel = QuickAIChatPanel(rootView: view,
-            size: CGSize(width: bodyWidth, height: bodyHeight + PaletteDragHandleView.stripHeight),
+            size: CGSize(width: bodyWidth, height: bodyHeight),
             cornerRadius: Theme.Radius.panel)
         panel.delegate = self
         panel.onDismiss = { [weak self] in self?.hide() }

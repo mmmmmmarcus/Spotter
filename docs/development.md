@@ -243,6 +243,7 @@ swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.sw
     -o /tmp/text-replacement-test && /tmp/text-replacement-test
 swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
     Spotter/Core/Backup/PluginShortcutSync.swift \
+    Spotter/Plugins/AIChat/AIRoutingTypes.swift \
     Spotter/Core/Backup/SettingsBackupData.swift Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
 swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Spotter/Core/UpdatePresentation.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
@@ -258,6 +259,7 @@ swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
 swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
     -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
+    Spotter/Plugins/AIChat/AIRoutingTypes.swift \
     Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift \
     Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
     Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift \
@@ -363,22 +365,30 @@ keyset history paging beyond 1000 rows, capture during pagination, broad quick c
 and one-time shortcut transfer with custom bindings and later unbinding preserved.
 `Tools/clipboard-capture-test.swift` also covers P12 files, legacy Finder filename lists, multi-file/folder copies, native file-URL pasteboard round trips, internal markers and missing-file refusal. `Tools/clipboard-test.swift` covers the additive file-reference migration, filename search, pin/reopen behavior, sync exclusion and preservation, and original-file survival on history deletion.
 
-`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the fixed 276-point menu width and top-to-bottom row geometry, keyboard scroll-to-selection, bounded visible row creation, fixed-footer scrolling and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, below-first placement with the first row nearest the anchor and above fallback at the bottom edge, one untinted Clear glass surface containing all menu rows, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete menu,
+`Tools/quick-clipboard-test.swift` checks light/dark semantic label contrast, selection emphasis, fixed-size symbols, the fixed 276-point menu width and top-to-bottom row geometry, keyboard scroll-to-selection, three-column square image geometry and cropping, mixed-type cursor paging, Tab-only category key claims, text-only symbol removal, bounded visible row/tile creation, fixed-footer scrolling and history activation, editable web roles, numeric/marker caret fallback, empty rich-editor box anchoring and nonempty-selection rejection, the caret deadline with noncancellable readers and cancellation, caret priority, mouse fallback, cross-display coordinate conversion, below-first placement with the first row nearest the anchor and above fallback at the bottom edge, one untinted Clear glass surface containing all menu rows, borderless button click routing, the unified area shadow and 1×/2× cutout pixels for the complete menu,
 native non-key panel and glass invariants, mixed image/text row geometry, centered footer filters and right-aligned history hit targets, filter dispatch and selection, spring/reversal setup, rebased dismissal after filter reflow and Reduce Motion. Image fixtures cover larger 48-point padded and rounded aspect-fit previews, untinted colors, image selection opacity, shared-cache immutability, and live image/text replacement. It creates offscreen
 AppKit objects without displaying a menu or accepting visual appearance.
 
 `Tools/quick-ai-chat-test.swift` compiles the real floating controller, panel, layout and shared
 `AIChatStore` against an in-memory model transport and an empty hosted view. It covers bottom-anchored
-expansion to twice the width around the composer center, compact-width restoration, dragged positions and screen clamping, native shadow enablement and glass/handle/host geometry, draft retention,
+expansion to twice the width around the composer center, compact-width restoration, dragged positions and screen clamping, native shadow enablement, Regular glass with a dark appearance and glass/host geometry, draft retention,
 key and busy gates, session-scoped streaming, follow-up context, cancellation and shared history.
-Adaptive-height checks cover initial compact expansion, measured growth, intermediate-width rejection,
-stale-session measurements, the maximum height and New Chat reset.
+Two-stage checks cover initial compact expansion, first-reply expansion to the final height,
+follow-up size retention, replies belonging to other sessions and New Chat reset. An offscreen
+window probe checks native header dragging without posting mouse events. Routing fixtures cover
+classification before generation, model pins, metadata ownership, tool-path routing and cancellation.
 It creates only offscreen panels and sends no network requests; appearance remains a user acceptance
 step. It is included in `scripts/test-all.sh`, or run it independently with:
 
 ```sh
 scripts/test-all.sh --run-case quick-ai-chat /tmp/spotter-tests
 ```
+
+`Tools/ai-routing-test.swift` compiles the real routing types, Jev client and OpenRouter store against
+a private URLProtocol fixture. It checks typed decisions, ambiguous/malformed responses, bounded
+Unicode input, history metadata, persistent preferences, timeouts, response limits, authentication,
+always-on routing, legacy off-flag migration, cancelled decisions and key/configuration changes without network access. Run it with
+`scripts/test-all.sh --run-case ai-routing /tmp/spotter-tests`.
 
 The custom-command harness spawns **real `/bin/zsh`** processes. Its shell-environment cases point
 `ZDOTDIR` at a throwaway fixture directory (and unset `TERM_PROGRAM`), so a run can never read or write
@@ -503,16 +513,9 @@ Pages at `https://mmmmmmarcus.github.io/Spotter/` on every push to `main` that t
 cd website && npm install && npm run dev     # local preview
 ```
 
-### Settings search regression
-
-`SettingsSearch` is Foundation-only and indexes shipped labels, not saved user content.
-
-```sh
-swiftc -swift-version 6 Spotter/Features/Settings/SettingsSearch.swift Tools/settings-search-test.swift -o /tmp/spotter-settings-search-test
-/tmp/spotter-settings-search-test
-```
-
-The harness is also included in `scripts/test-all.sh`.
+The AI Chat harness covers the default-on command surface preference, saved opt-out and compact
+command message metadata round trips. The Quick AI harness covers floating command session ownership,
+full rendered request context, follow-ups, failures and the palette opt-out path.
 
 The AI Chat harness additionally compiles `Spotter/Core/OpenRouterStream.swift` and covers SSE framing, Unicode, provider errors, truncation and size bounds.
 

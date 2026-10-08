@@ -226,7 +226,15 @@ private struct ClipboardRow: View {
         case .files:
             glyphTile(item.fileSymbol)
         case .text:
-            glyphTile(item.textForm?.systemImage ?? "textformat.alt")
+            if let text = item.text, let color = ClipboardColor.parse(text) {
+                RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)
+                    .fill(Color(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha))
+                    .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)
+                        .strokeBorder(Theme.Colors.border, lineWidth: 1))
+            } else {
+                glyphTile(item.textForm?.systemImage ?? "textformat.alt")
+            }
         case .image:
             AsyncThumbnail(url: imageURL, maxPixel: 64) { image in
                 image

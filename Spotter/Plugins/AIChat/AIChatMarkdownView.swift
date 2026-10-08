@@ -58,6 +58,19 @@ extension AIChatMarkdownBlock {
                     RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
                         .fill(Theme.Colors.controlSurface)
                 )
+        case .math(let source):
+            Text(AIFormulaDisplay.render(source))
+                .font(.system(size: 18, weight: .regular, design: .serif))
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, Theme.Spacing.lg)
+                .padding(.vertical, Theme.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                        .fill(Theme.Colors.controlSurface)
+                )
+                .accessibilityLabel(source)
         case .table(let header, let rows):
             AIChatMarkdownTable(header: header, rows: rows)
         case .rule:

@@ -215,7 +215,7 @@ non-selectable surface: keyboard selection starts at the first task when one exi
 first normal launcher result. The clock widget is a square, title-free analog face
 (`launcherDashboardHeight` a side): ticks, numerals and hands drawn in the ramp directly over the
 card fill — no opaque dial — with the second hand and its hub in orange, the face's one hue and the
-same tint the Clock widget carries in the Settings sidebar. The face runs its own `TimelineView`
+Clock widget’s purple accent. The face runs its own `TimelineView`
 `.animation` timeline rather than the strip's one-second tick, and `clockHandAngles` carries the
 second's fraction, so the second hand sweeps; driving the whole strip that fast would redraw the
 other cards for nothing.
@@ -428,13 +428,18 @@ shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not 
   adding either does not add a `SettingsTab` case or a view switch branch.
   `metadata.settingsPlacement` selects the group. Each registered feature owns its Settings view in
   `Spotter/Plugins/<Name>/`; shared Settings components remain here.
-- **One row per permission, and the row is just its name.** The Permissions pane renders each
+- **One row per permission, with a matching leading SF Symbol.** The Permissions pane renders each
   permission as a single row whose trailing control is either the way to grant it or the word
-  *Granted*; a one-second poll re-reads the real system state, so a grant revoked in System Settings
+  *Granted* in green text without an icon or capsule. An authorized Location row has no Open Settings
+  button; a one-second poll re-reads the real system state, so a grant revoked in System Settings
   drops back to its button. Calendar is the one permission with more than two states, so its single
   control carries all of them. The rows name **no features** (owner decision, Sep 2026): a generated
   "Used by X, Y…" line reads the same on every install, which is the copy rule below, and the grant
   itself lives in macOS's own pane rather than in the sentence.
+
+Shortcut group headings remain clickable to fold their rows, with no hover background.
+General includes a Weather section with Location and Update Now on one row, plus Units. The former
+Widgets sidebar page, Conditions row, Music status and Calendar shortcut are removed.
 
 **The content area is a native grouped `Form`.** Row metrics, typography, separators, group
 backgrounds, Dynamic Type and the label→control accessibility pairing all come from macOS and keep
@@ -685,14 +690,16 @@ claimed through the shared transient shortcut mechanism only while the selection
 
 An explicit exception to the shared palette surface: a continuously scrolling vertical history menu,
 276 points wide, with 32-point text rows, 64-point image rows and 6-point outer insets. An 8-point
-gap separates the fixed footer: three Text / Images / Files icons centered in the menu, and an
-**Open Clipboard History** icon at the right. Each summon defaults to Text, including links, emails
-and numbers; Images includes screenshots. The viewport fits up to five rows while older records load
-on demand. Up/down arrows reveal the selected entry, left/right cycle categories, Return activates,
-and Escape dismisses. Tab also cycles categories forward. Changing category resets selection and scroll.
+gap separates the fixed footer: All / Text / Images / Files icons centered with 12-point gaps, and an
+**Open Clipboard History** icon at the right. Each summon defaults to All. Text includes links, emails
+and numbers; Images includes screenshots. The list viewport fits up to five rows while older records
+load on demand. Images uses a three-column grid with up to three visible rows of 84-point square
+tiles, 6-point gaps and 4-point inner padding. Previews fill the square with centered cropping.
+Up/down arrows reveal successive entries in row-major order, Return activates, and Escape dismisses.
+Tab alone cycles categories forward; left/right remain with the focused app. Changing category resets selection and scroll.
 Category icons indicate selection through symbol color only, without a selected or pressed background.
-Empty results retain the footer and explain the selected type. Text and file entries use leading
-type symbols; images use leading aspect-fit thumbnails up to 48 points high, with 8-point vertical
+Empty results retain the footer and explain the selected type. Text-only mode omits leading symbols;
+All and Files keep type symbols; images use leading aspect-fit thumbnails up to 48 points high, with 8-point vertical
 padding and 4-point corners. Selected rows have a subtle rounded highlight. Selected labels/icons
 remain fully opaque; unselected text is 35%, icons and previews 50%, using semantic system colors.
 
@@ -713,26 +720,47 @@ transparency. See [clipboard.md](clipboard.md).
 
 ## Quick AI Chat
 
-⌥Space opens an independent floating input above the Dock's visible-screen boundary. The composer
-uses one-third of the palette width (about 209 points), a 32-point height and body typography, inside one
-native regular Liquid Glass surface. Compact corners are circular with a half-height radius (16 points),
-forming a capsule; expanded corners use the 26-point continuous radius. Native glass and its backing
-share one size-aware clip without an additional SwiftUI corner mask. The same native WindowServer
-shadow as the main palette separates Quick AI from the background; resizing the glass invalidates
-the shadow so it follows the current silhouette. Sending expands upward to a
-content-fitting body height and doubles the width to 418 points, preserving the horizontal center and
-bottom composer position with screen-edge clamping. Measured reply content gradually grows the body
-to a maximum of 475 points, then scrolls; resize updates are coalesced over 80 ms. New Chat restores the 209-point width.
-The expanded chat reuses `AIChatTranscriptView` for messages, Markdown and streaming, with short edge
-fades inside its separate header and composer. The close button appears top-left only after chatting starts; New Chat is top-right. Both use Notes-style
-24-point interactive circular glass. The expanded composer is a separate 32-point glass capsule with
-a semantic border, 12-point horizontal outer insets and 8-point vertical spacing.
-Floating user bubbles use one-third of the palette bubble inset to leave room for text.
-The shared palette handle reveals near the top edge and drags through the native window server.
-Click-away leaves the window visible; close/Escape/⌘W hides it while retaining the chat and draft for
-the next summon. Reduce Motion skips the expansion animation. No custom tint or scrim covers glass.
+⌥Space opens an independent floating **Ask Spotter** input above the Dock. The compact composer uses
+one-third of the palette width (about 209 points), a 32-point height and body typography, inside one
+native Regular Liquid Glass surface for stronger background blur. The compact backdrop fades evenly
+from black at the top to 35% black opacity at the bottom. Once expanded, black stays deep through
+the reading area before fading to the same 35% opacity near the composer. The bottom retains
+some desktop visibility without becoming fully transparent. In dark mode the surface switches to a white gradient with dark text and controls, with a more
+transparent bottom (18% white opacity in both compact and expanded states, 40% at the expanded
+90% stop); in light mode
+it stays black with light text. `Theme.QuickAI` owns the inverse appearance mapping and gradient,
+and an open panel responds to system appearance changes. Its corners are circular with a half-height radius (16 points);
+expanded corners use the 26-point continuous radius. The native glass and backing share one clip.
+The main palette's native WindowServer shadow separates it from the background and updates on resize.
 
-AI Chat tool mode adds a collapsible activity list and a Stop control. MCP/Cua settings are a consent-gated experimental section with a JSON configuration sheet. Tool calls use the shared confirmation card with selectable JSON arguments, initially highlighting Cancel; dismissing a tool confirmation cancels that call.
+The first send expands upward to 418 × 220 points, preserving horizontal center and bottom position.
+The first nonempty AI reply expands directly to the final 475-point height; subsequent tokens and
+follow-ups scroll without resizing. Screen-edge clamping and Reduce Motion remain supported. New Chat
+restores the 209 × 32 compact input. Closing retains the conversation, draft and attained size.
+
+The expanded view reuses `AIChatTranscriptView`. Before the first reply, its 120-point transcript
+starts at the top without a top fade so the submitted prompt remains visible. Close and New Chat are 24-point interactive glass
+circles with equal 12-point top and side padding and 8 points below. Their central blank header area
+starts native window dragging; there is no handle or extra strip. Text selection and composer input
+do not drag the window. The expanded composer is a 32-point native regular Liquid Glass capsule,
+with no solid fill or custom border, equal 12-point outer insets. Floating user
+bubbles keep their reduced inset. Click-away leaves the window visible; close/Escape/⌘W hides it.
+
+AI Commands default to this floating window; **Open in Quick AI Chat** in the Commands settings
+section switches them back to the palette. Their user bubbles show the `command` SF Symbol in
+secondary text color beside the selected input, without the repeated prompt template. Regular
+messages and follow-ups keep their existing text presentation.
+
+AI Chat tool mode adds a collapsible activity list and a Stop control. MCP/Cua settings provide a JSON configuration sheet; configured servers are available without an enable switch. Tool calls use the shared confirmation card with selectable JSON arguments, initially highlighting Cancel; dismissing a tool confirmation cancels that call.
+
+AI Chat Settings has **Model Selection**: title-only Everyday / Professional / Deep Reasoning rows
+with equally wide, right-aligned model menus. Jev is always used for unpinned turns. The model catalog
+reloads each time the pane opens; Chat Model, Reload, toggle and explanatory footer rows are absent.
+While classifying, the transcript says
+**Jev is choosing a model…**. Routed replies show only `arrow.trianglehead.branch` and the model name; category and fallback
+details remain available in the tooltip. Live progress uses matching SF Symbols for model selection,
+waiting for a reply, generating, connecting tools, planning, confirmation and execution. A text
+highlight sweeps left to right; Reduce Motion disables the sweep and symbol pulse. The launcher says **Ask Spotter** when routing is on.
 
 ## SF Symbols
 

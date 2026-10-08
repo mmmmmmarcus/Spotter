@@ -31,6 +31,7 @@ final class AppSettings: ObservableObject {
         static let showInDock = "\(Bundle.main.bundleIdentifier ?? "com.spotter.app1").showInDock"
         static let clipboardRetention = "clipboardRetentionDays"
         static let clipboardDisabledApps = "clipboardDisabledApps"
+        static let clipboardTextSearch = "\(Bundle.main.bundleIdentifier ?? "com.spotter.app1").clipboardTextSearch"
         static let hyperKey = "hyperKeyPhysicalKey"
         static let hyperKeyIncludesShift = "hyperKeyIncludesShift"
         static let hyperKeyQuickPress = "hyperKeyQuickPress"
@@ -62,6 +63,11 @@ final class AppSettings: ObservableObject {
     /// Bundle IDs whose clipboard changes are never recorded. Ordered so the Settings list is stable.
     @Published var clipboardDisabledApps: [String] {
         didSet { defaults.set(clipboardDisabledApps, forKey: Key.clipboardDisabledApps) }
+    }
+
+    /// On-device Vision/PDFKit indexing for clipboard images and PDF files. Off until the user asks Spotter to read copied documents.
+    @Published var clipboardTextSearch: Bool {
+        didSet { defaults.set(clipboardTextSearch, forKey: Key.clipboardTextSearch) }
     }
 
     @Published var launchAtLogin: Bool {
@@ -200,6 +206,7 @@ final class AppSettings: ObservableObject {
         clipboardDisabledApps =
             defaults.stringArray(forKey: Key.clipboardDisabledApps)
             ?? ["com.apple.keychainaccess", "com.apple.Passwords"]
+        clipboardTextSearch = defaults.bool(forKey: Key.clipboardTextSearch)
         launchAtLogin = LaunchAtLogin.isEnabled
         showInDock = defaults.bool(forKey: Key.showInDock)
         hyperKey =

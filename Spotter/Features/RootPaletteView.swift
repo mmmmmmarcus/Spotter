@@ -169,7 +169,7 @@ struct RootPaletteView: View {
     /// Named only while a key exists: the key is the gate, so without one the row can't promise a model.
     private var aiChatModelName: String? {
         guard openRouter.isReady else { return nil }
-        return OpenRouterModelCatalog.modelName(for: openRouter.chatModel, in: openRouter.catalog)
+        return "Spotter"
     }
     /// Tasks are a resting-state surface, not a search result: typing a query is asking for something
     /// else, so the rows step aside rather than sitting above every match.

@@ -10,6 +10,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
     case link
     case email
     case number
+    case color
 
     var title: String {
         switch self {
@@ -21,6 +22,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .link: return "Links Only"
         case .email: return "Emails Only"
         case .number: return "Numbers Only"
+        case .color: return "Colors Only"
         }
     }
 
@@ -35,6 +37,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .link: return "link"
         case .email: return "at"
         case .number: return "number.sign"
+        case .color: return "paintpalette"
         }
     }
 
@@ -49,6 +52,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .link: return "No links in clipboard history"
         case .email: return "No email addresses in clipboard history"
         case .number: return "No numbers in clipboard history"
+        case .color: return "No colors in clipboard history"
         }
     }
 
@@ -65,6 +69,7 @@ enum ClipboardFilter: String, CaseIterable, Sendable {
         case .link: return item.textForm == .link
         case .email: return item.textForm == .email
         case .number: return item.textForm == .number
+        case .color: return item.textForm == .color
         }
     }
 
@@ -82,6 +87,7 @@ extension ClipboardItem {
         case .link: return "Link"
         case .email: return "Email"
         case .number: return "Number"
+        case .color: return "Color"
         case .plain, nil: return "Text"
         }
     }
@@ -100,6 +106,7 @@ extension ClipboardItem {
         case link
         case email
         case number
+        case color
 
         var systemImage: String {
             switch self {
@@ -107,6 +114,7 @@ extension ClipboardItem {
             case .link: "link"
             case .email: "at"
             case .number: "number.sign"
+            case .color: "paintpalette"
             }
         }
     }
@@ -134,6 +142,7 @@ extension ClipboardItem {
         guard text.utf8.count <= detectionLimit else { return .plain }
         let token = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty, !token.contains(where: \.isWhitespace) else { return .plain }
+        if ClipboardColor.parse(token) != nil { return .color }
         let range = NSRange(token.startIndex..<token.endIndex, in: token)
         if numberPattern.firstMatch(in: token, range: range) != nil { return .number }
         if let form = schemeForm(of: token) { return form }

@@ -196,6 +196,7 @@ final class AppCore: ObservableObject {
     let settingsSync = SettingsSyncManager()
     let clipboardStore = ClipboardStore()
     let clipboardManager: ClipboardManager
+    let clipboardTextIndexer: ClipboardTextIndexer
     let textReplacements: TextReplacementStore
     let textReplacementManager: TextReplacementManager
     let hotKeys = HotKeyManager()
@@ -216,6 +217,8 @@ final class AppCore: ObservableObject {
     let worldClock = WorldClockStore()
     let dashboardWidgets = DashboardWidgetsStore()
     let calendarSchedule = CalendarScheduleStore()
+    let appleShortcuts = AppleShortcutsStore()
+    let navigation = NavigationStore()
     let dashboardWeather = DashboardWeatherStore()
     let uptime = UptimeStore()
     let dashboardMusic = DashboardMusicStore()
@@ -225,6 +228,7 @@ final class AppCore: ObservableObject {
     let fileSearch = FileSearchSession()
     let changeCase = ChangeCaseStore()
     let openRouter = OpenRouterStore()
+    let localAI = LocalAIStore()
     let selectedTextCapture = SelectedTextCapture()
     let selectionTools: SelectionToolsManager
     let translate = TranslateManager()
@@ -263,6 +267,7 @@ final class AppCore: ObservableObject {
         self.launcherRanking = launcherRanking
         appIndex = AppIndex(ranking: launcherRanking, aliases: aliases)
         clipboardManager = ClipboardManager(store: clipboardStore, settings: settings)
+        clipboardTextIndexer = ClipboardTextIndexer(store: clipboardStore)
         let textReplacements = TextReplacementStore()
         self.textReplacements = textReplacements
         textReplacementManager = TextReplacementManager(store: textReplacements)
@@ -271,8 +276,16 @@ final class AppCore: ObservableObject {
         self.notes = notes
         noteFolderSync = NoteFolderSyncManager(store: notes)
         noteSync = NoteSyncManager(store: notes)
-        aiChat = AIChatStore(openRouter: openRouter, tools: aiTools)
+        aiChat = AIChatStore(openRouter: openRouter, localAI: localAI, tools: aiTools)
         quicklinkManager = QuicklinkManager(store: quicklinks)
+        textReplacementManager.expandReplacement = { [weak textReplacements] source in
+            guard let textReplacements else { return source }
+            let context = Self.dynamicTemplateContext(snippets: textReplacements.snippets)
+            return DynamicTemplate.expand(source, context: context).text
+        }
+        quicklinkManager.contextProvider = { [weak textReplacements] in
+            Self.dynamicTemplateContext(snippets: textReplacements?.snippets ?? [])
+        }
         for registration in BuiltInPlugins.registrations(core: self) {
             plugins.register(registration)
         }
@@ -285,6 +298,13 @@ final class AppCore: ObservableObject {
         }
     }
 
+    private static func dynamicTemplateContext(snippets: [Snippet]) -> DynamicTemplateContext {
+        let pasteboardText = NSPasteboard.general.string(forType: .string) ?? ""
+        return DynamicTemplateContext(
+            clipboardHistory: pasteboardText.isEmpty ? [] : [pasteboardText],
+            snippets: Dictionary(snippets.map { ($0.name.lowercased(), $0.content) }, uniquingKeysWith: { first, _ in first }))
+    }
+
     func start() {
         resourceMonitor.start()
         // AppKit's default tooltip delay is ~2–3s; shorten it (in ms) so the compact-bar favorite tooltips appear promptly. Registration domain — never overrides a user default.
@@ -292,6 +312,7 @@ final class AppCore: ObservableObject {
         syncActivationPolicy()
 
         clipboardStore.maxAge = settings.clipboardRetention.maxAge
+        clipboardTextIndexer.start(enabled: settings.clipboardTextSearch)
         appIndex.start(settings: settings)
         plugins.onCommandsChanged = { [weak self] commands in
             self?.appIndex.setPluginCommands(commands)
@@ -328,6 +349,9 @@ final class AppCore: ObservableObject {
         textReplacements.onSnippetsChanged = { [weak self] in
             self?.plugins.reloadDynamicCommands(for: .textReplacement)
         }
+        appleShortcuts.onChange = { [weak self] in
+            self?.plugins.reloadDynamicCommands(for: .appleShortcuts)
+        }
         // Each argument step reuses the same field, so the prompt has to start empty.
         quicklinkManager.onStepAdvanced = { [weak self] in
             self?.palette.query = ""
@@ -335,6 +359,7 @@ final class AppCore: ObservableObject {
         }
         Task { await appIndex.refresh() }
         plugins.start()
+        localAI.refresh()
         settingsSync.start(core: self)
 
         // Selected-text actions borrow the pasteboard only as a last resort; keep that transient copy and restore out of history.
@@ -393,6 +418,9 @@ final class AppCore: ObservableObject {
         }
 
         openRouter.onCredentialsChanged = { [weak self] in self?.aiChat.stop() }
+        openRouter.onRoutingChanged = { [weak self] in
+            if self?.aiChat.isChoosingModel == true { self?.aiChat.stop() }
+        }
         aiTools.onConfigurationChanged = { [weak self] in self?.aiChat.stop() }
         aiTools.onApproval = { [weak self] approval in
             guard let self else { return }
@@ -589,10 +617,11 @@ final class AppCore: ObservableObject {
         else { showQuickAIChat() }
     }
 
-    private func showQuickAIChat() {
+    func showQuickAIChat(sessionID: UUID? = nil) {
         let target = isPaletteShowing ? windowController.previousApp : NSWorkspace.shared.frontmostApplication
         quickClipboard.dismiss(restoringFocus: false)
         if isPaletteShowing { hidePalette(restoreFocus: false) }
+        if let sessionID { quickAIChat.openSession(sessionID) }
         quickAIChat.show(previousApplication: target)
     }
 

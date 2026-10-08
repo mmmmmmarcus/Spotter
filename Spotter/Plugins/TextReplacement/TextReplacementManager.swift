@@ -55,6 +55,7 @@ final class TextReplacementManager: ObservableObject {
     private var runLoopSource: CFRunLoopSource?
     private var healthTimer: Timer?
     private var sessionTokens: [NotificationToken] = []
+    var expandReplacement: ((String) -> String)?
 
     init(store: TextReplacementStore) {
         self.store = store
@@ -132,7 +133,8 @@ final class TextReplacementManager: ObservableObject {
         for _ in 0..<match.deletionCount {
             postKey(CGKeyCode(kVK_Delete), source: source)
         }
-        for chunk in unicodeChunks(match.replacement) {
+        let replacement = expandReplacement?(match.replacement) ?? match.replacement
+        for chunk in unicodeChunks(replacement) {
             postUnicode(chunk, source: source)
         }
     }

@@ -36,6 +36,7 @@ final class QuicklinkManager: ObservableObject {
     let store: QuicklinkStore
     /// Fired when a step completes, so `AppCore` can clear the palette query for the next prompt.
     var onStepAdvanced: (() -> Void)?
+    var contextProvider: (() -> DynamicTemplateContext)?
 
     init(store: QuicklinkStore) {
         self.store = store
@@ -95,8 +96,11 @@ final class QuicklinkManager: ObservableObject {
     /// Resolves the template and hands the result to the chosen app, or the system default.
     func open(_ quicklink: Quicklink, values: [String]) -> Bool {
         let destination = QuicklinkDestination.detect(quicklink.link)
-        let filled = QuicklinkTemplate.fill(
+        let argumentsFilled = QuicklinkTemplate.fill(
             quicklink.link, values: values, destination: destination)
+        let encoding: DynamicTemplate.Encoding = destination.encodesValues ? .percent : .none
+        let filled = DynamicTemplate.expand(
+            argumentsFilled, context: contextProvider?() ?? DynamicTemplateContext(), encoding: encoding).text
         guard let url = Self.url(for: filled, destination: destination) else { return false }
 
         let configuration = NSWorkspace.OpenConfiguration()

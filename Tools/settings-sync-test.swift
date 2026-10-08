@@ -132,6 +132,9 @@ struct SettingsSyncTests {
             openRouterGrammarModel: "vendor/grammar",
             openRouterChatModel: "vendor/chat",
             openRouterChatWebSearch: true,
+            aiRouting: AIRoutingPreferences(everydayModel: "vendor/fast",
+                professionalModel: "vendor/work", reasoningModel: "vendor/deep"),
+            aiCommandsUseQuickChat: false,
             googleTranslationAPIKey: "google-test-key",
             googleTranslationEnabled: true,
             googleTranslationTargets: ["ja", "fr", "de"],
@@ -233,7 +236,7 @@ struct SettingsSyncTests {
     /// A v3 file written before a field existed must decode, and that field must read as "unset" —
     /// which is what makes the apply path leave this Mac's own value alone rather than resetting it.
     private static func testOlderFileLeavesNewFieldsUnset() {
-        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations"]
+        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations", "aiRouting", "aiCommandsUseQuickChat"]
         var object = jsonObject(encode(populatedSettings()))
         for field in newFields {
             precondition(object[field] != nil, "\(field) is missing from the fixture")
@@ -243,6 +246,8 @@ struct SettingsSyncTests {
         let decoded = try! decode(SettingsBackupData.self, from: older)
         precondition(decoded.currencyRatesEnabled == nil)
         precondition(decoded.settingsSyncMigrations == nil)
+        precondition(decoded.aiCommandsUseQuickChat == nil, "legacy files must preserve the local command surface choice")
+        precondition(decoded.aiRouting == nil, "old snapshots must leave the receiving Mac's routing choices intact")
         // Everything the older file did carry is still there.
         precondition(decoded.openRouterAPIKey == "sk-or-test-key")
         precondition(decoded.googleTranslationTargets == ["ja", "fr", "de"])

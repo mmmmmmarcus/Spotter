@@ -10,7 +10,7 @@ final class QuickClipboardMenuView: NSView {
     private var frames: [CGRect] = []
     private var visibleButtons: [Int: QuickClipboardButton] = [:]
     private var selection = 0
-    private var filter: QuickClipboardFilter = .text
+    private var filter: QuickClipboardFilter = .all
     private var updating = false
     private var pagingTask: Task<Void, Never>?
     private let groupShadow = CALayer()
@@ -98,14 +98,14 @@ final class QuickClipboardMenuView: NSView {
         NotificationCenter.default.removeObserver(self)
     }
 
-    func update(_ items: [ClipboardItem], selection: Int, filter: QuickClipboardFilter = .text) {
+    func update(_ items: [ClipboardItem], selection: Int, filter: QuickClipboardFilter = .all) {
         updating = true
         let topOffset = self.filter == filter ? documentView.bounds.height - scrollView.contentView.bounds.maxY : 0
         self.filter = filter
         self.selection = selection
         displayedItems = items
-        frames = QuickClipboardPresentation.rowFrames(items: items)
-        let size = QuickClipboardPresentation.size(items: items)
+        frames = QuickClipboardPresentation.rowFrames(items: items, filter: filter)
+        let size = QuickClipboardPresentation.size(items: items, filter: filter)
         let margin = QuickClipboardPresentation.canvasMargin
         if glassView.frame.size != size {
             setFrameSize(CGSize(width: size.width + margin * 2, height: size.height + margin * 2))
@@ -113,7 +113,7 @@ final class QuickClipboardMenuView: NSView {
             glassView.frame = CGRect(origin: CGPoint(x: margin, y: margin), size: size)
             rowsView.frame = CGRect(origin: .zero, size: size)
         }
-        scrollView.frame = QuickClipboardPresentation.listFrame(items: items)
+        scrollView.frame = QuickClipboardPresentation.listFrame(items: items, filter: filter)
         documentView.frame = CGRect(x: 0, y: 0, width: scrollView.bounds.width,
             height: max(scrollView.contentSize.height, frames.first?.maxY ?? 0))
         let offset = max(0, documentView.bounds.height - scrollView.contentView.bounds.height - max(0, topOffset))
@@ -153,8 +153,8 @@ final class QuickClipboardMenuView: NSView {
             button.actionHandler = { [weak self] in self?.onSelect?(index) }
             button.hoverHandler = { [weak self] in self?.onHighlight?(index) }
             button.frame = frames[index]
-            button.content.frame = button.bounds.insetBy(dx: 11, dy: 0)
-            Self.configure(button, for: displayedItems[index])
+            button.content.frame = filter == .image ? button.bounds.insetBy(dx: 4, dy: 4) : button.bounds.insetBy(dx: 11, dy: 0)
+            Self.configure(button, for: displayedItems[index], filter: filter)
             button.isSelected = index == selection
             button.setAccessibilityValue(button.isSelected ? "Selected" : "")
         }
@@ -166,7 +166,7 @@ final class QuickClipboardMenuView: NSView {
             thumbnailPreparation = Task { [weak self] in
                 await Self.prepareThumbnails(for: visibleItems)
                 guard !Task.isCancelled, let self, requestedImagePaths == paths else { return }
-                for (index, button) in visibleButtons { Self.configure(button, for: displayedItems[index]) }
+                for (index, button) in visibleButtons { Self.configure(button, for: displayedItems[index], filter: filter) }
             }
         }
         if !displayedItems.isEmpty, visible.minY <= QuickClipboardPresentation.imageRowHeight, pagingTask == nil {
@@ -247,17 +247,21 @@ final class QuickClipboardMenuView: NSView {
         }
     }
 
-    private static func configure(_ button: QuickClipboardButton, for item: ClipboardItem) {
+    private static func configure(_ button: QuickClipboardButton, for item: ClipboardItem, filter: QuickClipboardFilter) {
         button.setAccessibilityLabel("Paste \(QuickClipboardPresentation.title(for: item))")
         let content = button.content
+        content.squareImage = filter == .image
+        content.centersSymbol = filter == .image
         if item.kind == .image {
             content.title = ""
             content.imagePosition = .imageOnly
             if let path = item.imagePath,
                let cached = ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 512),
                let preview = cached.copy() as? NSImage {
-                let ratio = min(content.bounds.width / max(1, preview.size.width), (QuickClipboardPresentation.imageRowHeight - 16) / max(1, preview.size.height))
-                preview.size = CGSize(width: preview.size.width * ratio, height: preview.size.height * ratio)
+                if filter != .image {
+                    let ratio = min(content.bounds.width / max(1, preview.size.width), (QuickClipboardPresentation.imageRowHeight - 16) / max(1, preview.size.height))
+                    preview.size = CGSize(width: preview.size.width * ratio, height: preview.size.height * ratio)
+                }
                 content.image = preview
             } else {
                 content.image = symbol("photo")
@@ -265,7 +269,7 @@ final class QuickClipboardMenuView: NSView {
         } else {
             content.title = QuickClipboardPresentation.title(for: item)
             content.imagePosition = .imageLeading
-            content.image = symbol(QuickClipboardPresentation.symbol(for: item))
+            content.image = filter == .text ? nil : symbol(QuickClipboardPresentation.symbol(for: item))
         }
     }
 
@@ -353,6 +357,7 @@ final class QuickClipboardContentView: NSView {
     var image: NSImage? { didSet { needsDisplay = true } }
     var imagePosition: NSControl.ImagePosition = .imageLeading
     var centersSymbol = false
+    var squareImage = false
     var font = NSFont.systemFont(ofSize: 12)
     var isSelected = false { didSet { needsDisplay = true } }
     var textColor: NSColor { .labelColor.withAlphaComponent(isSelected ? 1 : 0.35) }
@@ -396,19 +401,23 @@ final class QuickClipboardContentView: NSView {
                 paragraph.lineBreakMode = .byTruncatingTail
                 let font = self.font
                 let height = ceil(font.ascender - font.descender)
-                let rect = pixelAligned(CGRect(x: 22, y: bounds.midY - height / 2,
-                    width: max(0, bounds.width - 22), height: height))
+                let leading: CGFloat = image == nil ? 0 : 22
+                let rect = pixelAligned(CGRect(x: leading, y: bounds.midY - height / 2,
+                    width: max(0, bounds.width - leading), height: height))
                 (title as NSString).draw(in: rect, withAttributes: [.font: font,
                     .foregroundColor: textColor, .paragraphStyle: paragraph])
             }
             return
         }
-        let available = bounds.insetBy(dx: 0, dy: 8)
-        let ratio = min(available.width / max(1, image.size.width), available.height / max(1, image.size.height))
+        let available = squareImage ? bounds : bounds.insetBy(dx: 0, dy: 8)
+        let horizontal = available.width / max(1, image.size.width)
+        let vertical = available.height / max(1, image.size.height)
+        let ratio = squareImage ? max(horizontal, vertical) : min(horizontal, vertical)
         let size = CGSize(width: image.size.width * ratio, height: image.size.height * ratio)
-        let rect = CGRect(x: 0, y: bounds.midY - size.height / 2, width: size.width, height: size.height)
+        let rect = CGRect(x: squareImage ? bounds.midX - size.width / 2 : 0,
+            y: bounds.midY - size.height / 2, width: size.width, height: size.height)
         NSGraphicsContext.saveGraphicsState()
-        NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).addClip()
+        NSBezierPath(roundedRect: squareImage ? available : rect, xRadius: 4, yRadius: 4).addClip()
         image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: isSelected ? 1 : 0.5, respectFlipped: true, hints: nil)
         NSGraphicsContext.restoreGraphicsState()
     }

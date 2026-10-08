@@ -165,17 +165,17 @@ mouse menus prefer below/right, keeping the first row nearest the anchor when th
 Both flip above/left as necessary and leave 12 points at the anchor
 and at least 8 points inside the screen's visible frame.
 
-The 276-point menu keeps a viewport of up to five rows, with continuous native scrolling through
-retained history. `ClipboardStore.historyPage` reads 50 matching records at a time using a rowid
-cursor and the kind index, reaching beyond the resident 1000-row window. Captures cannot shift a
+The 276-point menu keeps a viewport of up to five list rows, or three rows of three square tiles in
+the Images category, with continuous native scrolling through retained history. `ClipboardStore.historyPage` reads 50 matching records at a time using a rowid
+cursor (with the kind index for filtered categories), reaching beyond the resident 1000-row window. Captures cannot shift a
 cursor page as an offset would. The menu creates buttons and loads thumbnails only for visible rows;
 the controller validates older entries against SQLite again before pasting. Store changes refresh
 the loaded range while preserving the selected identity, dismissing if it disappears.
 
 All rows share one native `NSGlassEffectView` using `.clear` with 16-point corners. A transparent
 `NSScrollView` sits above a fixed footer inside that surface. The menu retains 6-point insets,
-32-point text/file rows, 64-point image rows and an 8-point footer gap. Three centered icons select
-**Text, Images, Files**, with Text selected each summon. Text includes links, emails and numbers;
+32-point text/file rows, 64-point mixed-list image rows and an 8-point footer gap. Four centered icons
+with 12-point gaps select **All, Text, Images, Files**, with All selected each summon. The Text category omits leading symbols and includes links, emails and numbers;
 Images includes screenshots. Category selection changes only the symbol emphasis, with no rounded
 background or outline, including while pressed. These broad quick-menu categories do not change the full palette's
 more detailed filters. The right-aligned **Open Clipboard History** icon opens the shared palette,
@@ -192,11 +192,14 @@ the opening animation invalidates glyph rendering once it reaches full size. Tex
 whitespace and truncate; pastes retain the full payload. Image entries show leading aspect-fit
 thumbnails without filenames, up to 48 points high, with 8-point vertical padding and 4-point image
 corners. Loading is asynchronous and reuses the bounded 512-pixel cache in `ImageThumbnail`, with a
-photo symbol for cold or unreadable previews. Images retain their original colors, with full opacity
+photo symbol for cold or unreadable previews. In the Images category, 84-point square tiles have
+6-point grid gaps and 4-point inner padding; thumbnails fill their square with centered cropping.
+The original clipboard image remains unchanged. Only visible tiles load thumbnails, and keyboard
+selection reveals each entry in row-major order. Images retain their original colors, with full opacity
 when selected and 50% when unselected. Outer containers leave native glass edges unclipped.
 
-The panel cannot become key or main, and buttons never request key status. Click or ↑/↓ then Return
-pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Up/down navigation scrolls the selected row into view and loads older entries at the end. Left/right cycles Text → Images → Files in either direction, wrapping at the ends; Tab also cycles forward. Bare keys are claimed only while presented,
+The panel cannot become key or main, and buttons never request key status. Click or arrow navigation then Return
+pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Up/down navigation scrolls the selected row into view and loads older entries at the end. In Images, left/right move within a row and up/down move between rows, loading the next cursor page when necessary. Tab alone cycles All → Text → Images → Files, wrapping at the end. Left/right are claimed only while Images is selected and never change categories. Bare keys are claimed only while presented,
 through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
@@ -215,6 +218,15 @@ cleanup even when a display link stops producing frames. Input ends immediately 
 departing panel ignores mouse events. Screenshot's Hide Spotter path closes these panels immediately.
 
 WindowServer shadow remains disabled. A single Core Animation shadow follows the rounded menu outline: 18% opacity, 24-point radius and a 4-point downward offset. It sits above the glass with an even-odd mask removing the entire menu interior, including row gaps and insets, so it cannot darken the glass backdrop. No per-frame bitmap generation or shadow cache is needed.
+
+## Local text indexing
+
+Settings → Clipboard can enable **Search Text in Images & PDFs**. It is off by default.
+`ClipboardTextIndexer` reads copied image entries and image/PDF file entries entirely on device.
+Vision recognizes raster text; PDFKit uses embedded text first and renders a bounded number of pages
+for OCR when the document has none. Results are capped, cached under the bundle-scoped cache
+directory and attached only as search annotations. They never replace the copied payload, enter
+settings sync or leave the Mac. Disabling indexing cancels outstanding work.
 
 Store, mouse and app-activation observers exist only during a session. Same-size updates preserve
 selection by ID; viewport-height changes resize around the captured anchor, and losing the

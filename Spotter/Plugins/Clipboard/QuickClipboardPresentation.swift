@@ -3,6 +3,13 @@ import CoreGraphics
 
 enum QuickClipboardPresentation {
     static let visibleRows = 5
+    static let gridColumns = 3
+    static let visibleGridRows = 3
+    static let gridGap: CGFloat = 6
+    static let filterGap: CGFloat = 12
+    static let navigationKeys: [UInt16] = [48, 53, 125, 126, 36, 76]
+    static let imageNavigationKeys: [UInt16] = [123, 124]
+    static var gridSide: CGFloat { (width - inset * 2 - gridGap * CGFloat(gridColumns - 1)) / CGFloat(gridColumns) }
     static let pageSize = 50
     static let width: CGFloat = 276
     static let rowHeight: CGFloat = 32
@@ -41,12 +48,25 @@ enum QuickClipboardPresentation {
         item.kind == .image ? imageRowHeight : rowHeight
     }
 
-    static func size(items: [ClipboardItem]) -> CGSize {
-        let contentHeight = items.isEmpty ? emptyHeight : items.prefix(visibleRows).reduce(0) { $0 + height(for: $1) }
+    static func size(items: [ClipboardItem], filter: QuickClipboardFilter = .all) -> CGSize {
+        let contentHeight: CGFloat
+        if items.isEmpty { contentHeight = emptyHeight }
+        else if filter == .image {
+            let rows = min(visibleGridRows, (items.count + gridColumns - 1) / gridColumns)
+            contentHeight = CGFloat(rows) * gridSide + CGFloat(rows - 1) * gridGap
+        } else { contentHeight = items.prefix(visibleRows).reduce(0) { $0 + height(for: $1) } }
         return CGSize(width: width, height: inset * 2 + contentHeight + footerGap + rowHeight)
     }
 
-    static func rowFrames(items: [ClipboardItem]) -> [CGRect] {
+    static func rowFrames(items: [ClipboardItem], filter: QuickClipboardFilter = .all) -> [CGRect] {
+        if filter == .image {
+            let rows = (items.count + gridColumns - 1) / gridColumns
+            return items.indices.map { index in
+                CGRect(x: CGFloat(index % gridColumns) * (gridSide + gridGap),
+                    y: CGFloat(rows - 1 - index / gridColumns) * (gridSide + gridGap),
+                    width: gridSide, height: gridSide)
+            }
+        }
         var top = items.reduce(CGFloat.zero) { $0 + height(for: $1) }
         return items.map { item in
             let height = height(for: item)
@@ -55,9 +75,30 @@ enum QuickClipboardPresentation {
         }
     }
 
-    static func listFrame(items: [ClipboardItem]) -> CGRect {
+    static func gridSelection(from selection: Int, moving direction: QuickClipboardGridDirection, itemCount: Int) -> Int {
+        guard itemCount > 0 else { return 0 }
+        let current = min(max(0, selection), itemCount)
+        if current == itemCount {
+            return direction == .up ? itemCount - 1 : itemCount
+        }
+        switch direction {
+        case .left:
+            return current % gridColumns > 0 ? current - 1 : current
+        case .right:
+            return current % gridColumns < gridColumns - 1 && current + 1 < itemCount ? current + 1 : current
+        case .up:
+            return current >= gridColumns ? current - gridColumns : current
+        case .down:
+            let target = current + gridColumns
+            if target < itemCount { return target }
+            let lastRow = (itemCount - 1) / gridColumns
+            return current / gridColumns < lastRow ? itemCount - 1 : itemCount
+        }
+    }
+
+    static func listFrame(items: [ClipboardItem], filter: QuickClipboardFilter = .all) -> CGRect {
         CGRect(x: inset, y: footerFrame.maxY + footerGap, width: width - inset * 2,
-            height: size(items: items).height - inset * 2 - footerGap - rowHeight)
+            height: size(items: items, filter: filter).height - inset * 2 - footerGap - rowHeight)
     }
 
     static var footerFrame: CGRect { CGRect(x: inset, y: inset, width: width - inset * 2, height: rowHeight) }
@@ -67,15 +108,16 @@ enum QuickClipboardPresentation {
     }
     static var filterFrames: [CGRect] {
         let groupWidth = CGFloat(QuickClipboardFilter.allCases.count) * filterSize
+            + CGFloat(QuickClipboardFilter.allCases.count - 1) * filterGap
         return QuickClipboardFilter.allCases.indices.map { index in
-            CGRect(x: (width - groupWidth) / 2 + CGFloat(index) * filterSize,
+            CGRect(x: (width - groupWidth) / 2 + CGFloat(index) * (filterSize + filterGap),
                 y: footerFrame.midY - filterSize / 2, width: filterSize, height: filterSize)
         }
     }
 
-    static func frame(anchor: CGRect, screen: CGRect, items: [ClipboardItem]) -> CGRect {
+    static func frame(anchor: CGRect, screen: CGRect, items: [ClipboardItem], filter: QuickClipboardFilter = .all) -> CGRect {
         let safe = screen.insetBy(dx: safety, dy: safety)
-        let size = size(items: items)
+        let size = size(items: items, filter: filter)
         let preferredX = anchor.height > 0 ? anchor.minX : anchor.maxX + 12
         let x = preferredX + size.width <= safe.maxX ? preferredX : anchor.maxX - (anchor.height > 0 ? 0 : 12) - size.width
         let below = anchor.minY - 12 - size.height
@@ -121,11 +163,16 @@ enum QuickClipboardPresentation {
     }
 }
 
-enum QuickClipboardFilter: CaseIterable, Sendable {
-    case text, image, files
+enum QuickClipboardGridDirection: Equatable, Sendable {
+    case left, right, up, down
+}
 
-    var kind: ClipboardItem.Kind {
+enum QuickClipboardFilter: CaseIterable, Sendable {
+    case all, text, image, files
+
+    var kind: ClipboardItem.Kind? {
         switch self {
+        case .all: nil
         case .text: .text
         case .image: .image
         case .files: .files
@@ -134,6 +181,7 @@ enum QuickClipboardFilter: CaseIterable, Sendable {
 
     var title: String {
         switch self {
+        case .all: "All"
         case .text: "Text"
         case .image: "Images"
         case .files: "Files"
@@ -142,13 +190,14 @@ enum QuickClipboardFilter: CaseIterable, Sendable {
 
     var systemImage: String {
         switch self {
+        case .all: "square.stack"
         case .text: "textformat.alt"
         case .image: "photo"
         case .files: "doc"
         }
     }
 
-    var emptyMessage: String { "No \(title.lowercased()) in clipboard history" }
+    var emptyMessage: String { self == .all ? "Clipboard history is empty" : "No \(title.lowercased()) in clipboard history" }
 
     func moved(by offset: Int) -> Self {
         let cases = Self.allCases

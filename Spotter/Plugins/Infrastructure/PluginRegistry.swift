@@ -127,10 +127,11 @@ final class PluginRegistry: ObservableObject {
 
     var systemFeatures: [PluginMetadata] {
         orderedIDs.compactMap { id in
-            guard let metadata = registrations[id]?.metadata,
-                metadata.settingsPlacement == .system
+            guard let registration = registrations[id],
+                registration.metadata.settingsPlacement == .system,
+                registration.settingsView != nil
             else { return nil }
-            return metadata
+            return registration.metadata
         }
     }
 

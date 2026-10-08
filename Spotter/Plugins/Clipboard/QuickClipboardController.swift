@@ -7,7 +7,7 @@ final class QuickClipboardController {
     private let hotKeys: HotKeyManager
     private var items: [ClipboardItem] = []
     private var selection = 0
-    private var filter: QuickClipboardFilter = .text
+    private var filter: QuickClipboardFilter = .all
     private var hasMore = false
     private var placement: (anchor: CGRect, screen: CGRect)?
     private var panel: QuickClipboardPanel?
@@ -24,7 +24,9 @@ final class QuickClipboardController {
     private var openHistory: (() -> Void)?
     private var generation = UUID()
     private(set) var isVisible = false
-    private static let keys: [UInt16] = [48, 53, 123, 124, 125, 126, 36, 76]
+    private static let keys = QuickClipboardPresentation.navigationKeys
+    private static let imageKeys = QuickClipboardPresentation.imageNavigationKeys
+    private static var allKeys: [UInt16] { keys + imageKeys }
 
     init(store: ClipboardStore, hotKeys: HotKeyManager) {
         self.store = store
@@ -35,7 +37,7 @@ final class QuickClipboardController {
         preparation?.cancel()
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
-        for key in Self.keys { hotKeys.releaseTransientKey(id: "quick-clipboard.\(key)") }
+        for key in Self.allKeys { hotKeys.releaseTransientKey(id: "quick-clipboard.\(key)") }
         motion?.stop()
         for animation in departing.values { animation.stop() }
     }
@@ -45,7 +47,7 @@ final class QuickClipboardController {
         self.paste = paste
         self.restoreFocus = restoreFocus
         self.openHistory = openHistory
-        filter = .text
+        filter = .all
         items = store.historyPage(kind: filter.kind, limit: QuickClipboardPresentation.pageSize)
         hasMore = items.count == QuickClipboardPresentation.pageSize
         selection = 0
@@ -102,13 +104,14 @@ final class QuickClipboardController {
                 self?.handle(key)
             }
         }
+        updateImageKeyClaims()
     }
 
     private func updatePresentation(opening: Bool = false) {
         guard let panel, let menu, let placement else { return }
         motion?.stop(closingPanel: false)
         menu.update(items, selection: selection, filter: filter)
-        let target = QuickClipboardPresentation.frame(anchor: placement.anchor, screen: placement.screen, items: items)
+        let target = QuickClipboardPresentation.frame(anchor: placement.anchor, screen: placement.screen, items: items, filter: filter)
         let point = CGPoint(x: placement.anchor.midX, y: placement.anchor.midY)
         let margin = QuickClipboardPresentation.canvasMargin
         let windowFrame = target.insetBy(dx: -margin - 8, dy: -margin - 8)
@@ -126,6 +129,7 @@ final class QuickClipboardController {
     private func selectFilter(_ filter: QuickClipboardFilter) {
         guard isVisible, self.filter != filter else { return }
         self.filter = filter
+        updateImageKeyClaims()
         items = store.historyPage(kind: filter.kind, limit: QuickClipboardPresentation.pageSize)
         hasMore = items.count == QuickClipboardPresentation.pageSize
         selection = 0
@@ -145,7 +149,7 @@ final class QuickClipboardController {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         localMonitor = nil
         globalMonitor = nil
-        for key in Self.keys { hotKeys.releaseTransientKey(id: "quick-clipboard.\(key)") }
+        for key in Self.allKeys { hotKeys.releaseTransientKey(id: "quick-clipboard.\(key)") }
         panel?.ignoresMouseEvents = true
         menu?.onSelect = nil
         menu?.onHighlight = nil
@@ -183,7 +187,7 @@ final class QuickClipboardController {
             let count = max(QuickClipboardPresentation.pageSize, items.count)
             let recent = store.historyPage(kind: filter.kind, limit: count)
             hasMore = recent.count == count
-            let oldSize = QuickClipboardPresentation.size(items: items)
+            let oldSize = QuickClipboardPresentation.size(items: items, filter: filter)
             let selectedHistory = selection == items.count
             let selectedID = items.indices.contains(selection) ? items[selection].id : nil
             if let selectedID, !recent.contains(where: { $0.id == selectedID }) {
@@ -192,7 +196,7 @@ final class QuickClipboardController {
             }
             items = recent
             selection = selectedHistory ? recent.count : (selectedID.flatMap { id in recent.firstIndex { $0.id == id } } ?? 0)
-            if QuickClipboardPresentation.size(items: items) != oldSize { updatePresentation() }
+            if QuickClipboardPresentation.size(items: items, filter: filter) != oldSize { updatePresentation() }
             else { menu?.update(items, selection: selection, filter: filter) }
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
@@ -236,14 +240,42 @@ final class QuickClipboardController {
         menu?.select(selection)
     }
 
+    private func moveGrid(_ direction: QuickClipboardGridDirection) {
+        guard isVisible, filter == .image else { return }
+        if hasMore, items.indices.contains(selection) {
+            let target = direction == .right ? selection + 1 : selection + QuickClipboardPresentation.gridColumns
+            let canContinue = direction == .down
+                || (direction == .right && selection % QuickClipboardPresentation.gridColumns < QuickClipboardPresentation.gridColumns - 1)
+            if canContinue && target >= items.count { loadMore() }
+        }
+        selection = QuickClipboardPresentation.gridSelection(from: selection, moving: direction, itemCount: items.count)
+        menu?.select(selection)
+    }
+
+    private func updateImageKeyClaims() {
+        for key in Self.imageKeys {
+            let id = "quick-clipboard.\(key)"
+            if filter == .image {
+                hotKeys.holdTransientKey(id: id, shortcut: KeyShortcut(carbonKeyCode: Int(key), carbonModifiers: 0)) { [weak self] in
+                    self?.handle(key)
+                }
+            } else {
+                hotKeys.releaseTransientKey(id: id)
+            }
+        }
+    }
+
     private func handle(_ key: UInt16) {
         guard isVisible else { return }
         switch key {
         case 53: dismiss(restoringFocus: true)
-        case 123: selectFilter(filter.moved(by: -1))
-        case 48, 124: selectFilter(filter.moved(by: 1))
-        case 125: move(1)
-        case 126: move(-1)
+        case 48: selectFilter(filter.moved(by: 1))
+        case 123: moveGrid(.left)
+        case 124: moveGrid(.right)
+        case 125:
+            if filter == .image { moveGrid(.down) } else { move(1) }
+        case 126:
+            if filter == .image { moveGrid(.up) } else { move(-1) }
         case 36, 76: activate(selection)
         default: break
         }

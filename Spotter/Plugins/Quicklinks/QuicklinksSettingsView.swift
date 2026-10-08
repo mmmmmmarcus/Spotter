@@ -139,9 +139,25 @@ private struct QuicklinkEditorSheet: View {
             }
 
             field("Link") {
-                TextField("https://github.com/search?q={argument}", text: $link)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.body.monospaced())
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    TextField("https://github.com/search?q={argument}", text: $link)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body.monospaced())
+                    HStack {
+                        Text("Works with web URLs, deep links and file paths.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Menu("Insert Value") {
+                            Button("Argument") { link += "{argument}" }
+                            Button("Clipboard") { link += "{clipboard|percent-encode}" }
+                            Button("Date") { link += "{date|percent-encode}" }
+                            Button("Time") { link += "{time|percent-encode}" }
+                            Button("UUID") { link += "{uuid}" }
+                        }
+                        .controlSize(.small)
+                    }
+                }
             }
 
             // A `Menu` of buttons, not a `Picker`: a macOS picker renders its rows as plain text and

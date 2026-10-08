@@ -130,7 +130,11 @@ final class ClipboardStore: ObservableObject {
     }
     private var memoryRevision: Int64 = 0
     private var clearRevision = 0
+    private var searchAnnotations: [UUID: String] = [:]
     private let syncImages: ClipboardSyncImages
+    var onItemInserted: ((ClipboardItem) -> Void)?
+    var onItemRemoved: ((UUID) -> Void)?
+    var onHistoryCleared: (() -> Void)?
 
     var syncRevision: Int64 {
         db.map { Int64(sqlite3_total_changes64($0)) } ?? memoryRevision
@@ -337,7 +341,9 @@ final class ClipboardStore: ObservableObject {
             sqlite3_clear_bindings(stmt)
         }
         items.removeAll { $0.id == item.id }
+        searchAnnotations.removeValue(forKey: item.id)
         deleteBlob(item)
+        onItemRemoved?(item.id)
     }
 
     func clearAll() {
@@ -346,7 +352,9 @@ final class ClipboardStore: ObservableObject {
         try? FileManager.default.removeItem(at: imagesDir)
         try? FileManager.default.createDirectory(at: imagesDir, withIntermediateDirectories: true)
         claimedImageStems = []
+        searchAnnotations = [:]
         items = []
+        onHistoryCleared?()
     }
 
     func syncSnapshot() async -> [ClipboardSyncItem] {
@@ -397,27 +405,41 @@ final class ClipboardStore: ObservableObject {
             return searchCache.result
         }
         // Pins are matched in memory rather than taken from the FTS result: they are all resident (see `items`), and the statement's LIMIT would otherwise drop one out of a busy query's matches.
-        let matched = pinnedItems.filter { $0.matches(q) } + runSearch(q).filter { !$0.isPinned }
+        let annotated = items.filter { item in
+            searchAnnotations[item.id]?.localizedCaseInsensitiveContains(q) == true
+        }
+        let annotatedIDs = Set(annotated.map(\.id))
+        let matched = pinnedItems.filter { $0.matches(q) || annotatedIDs.contains($0.id) }
+            + annotated.filter { !$0.isPinned }
+            + runSearch(q).filter { !$0.isPinned && !annotatedIDs.contains($0.id) }
         let result = filter.apply(to: matched)
         searchCache = (q, filter, result)
         return result
     }
 
     // Keyset paging reaches retained history beyond the resident window without offset drift on capture.
-    func historyPage(kind: ClipboardItem.Kind, before id: UUID? = nil, limit: Int = 50) -> [ClipboardItem] {
+    func historyPage(kind: ClipboardItem.Kind? = nil, before id: UUID? = nil, limit: Int = 50) -> [ClipboardItem] {
         guard limit > 0 else { return [] }
         guard db != nil else {
             let start = id.flatMap { id in items.firstIndex { $0.id == id }.map { $0 + 1 } } ?? 0
-            return Array(items.dropFirst(start).lazy.filter { $0.kind == kind }.prefix(limit))
+            return Array(items.dropFirst(start).lazy.filter { kind == nil || $0.kind == kind }.prefix(limit))
         }
+        let kindClause = kind == nil ? "1" : "kind = ?"
         let cursor = id == nil ? "" : " AND rowid < (SELECT rowid FROM items WHERE id = ?)"
         guard let stmt = prepare(
             "SELECT id, kind, text, image_path, created_at, source_app, pinned_at, file_urls "
-                + "FROM items WHERE kind = ?" + cursor + " ORDER BY rowid DESC LIMIT ?") else { return [] }
+                + "FROM items WHERE " + kindClause + cursor + " ORDER BY rowid DESC LIMIT ?") else { return [] }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_text(stmt, 1, kind.rawValue, -1, SQLITE_TRANSIENT)
-        if let id { sqlite3_bind_text(stmt, 2, id.uuidString, -1, SQLITE_TRANSIENT) }
-        sqlite3_bind_int64(stmt, id == nil ? 2 : 3, Int64(limit))
+        var parameter: Int32 = 1
+        if let kind {
+            sqlite3_bind_text(stmt, parameter, kind.rawValue, -1, SQLITE_TRANSIENT)
+            parameter += 1
+        }
+        if let id {
+            sqlite3_bind_text(stmt, parameter, id.uuidString, -1, SQLITE_TRANSIENT)
+            parameter += 1
+        }
+        sqlite3_bind_int64(stmt, parameter, Int64(limit))
         var result: [ClipboardItem] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             if let item = Self.row(stmt) { result.append(item) }
@@ -477,8 +499,10 @@ final class ClipboardStore: ObservableObject {
     }
 
     private func replaceEntries(_ entries: [ClipboardItem], previous: [ClipboardItem]) {
+        let removedIDs = Set(previous.map(\.id)).subtracting(entries.map(\.id))
         guard let stmt = insertStmt, let deleteStmt = deleteByIDStmt else {
             items = Array(entries.prefix(Self.memoryWindow))
+            for id in removedIDs { onItemRemoved?(id) }
             return
         }
         let old = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
@@ -501,6 +525,7 @@ final class ClipboardStore: ObservableObject {
         }
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
         load()
+        for id in removedIDs { onItemRemoved?(id) }
     }
 
     private func orderedItems(_ filter: ClipboardFilter) -> [ClipboardItem] {
@@ -574,6 +599,19 @@ final class ClipboardStore: ObservableObject {
         items.insert(item, at: 0)
         trimWindow()
         prune()
+        onItemInserted?(item)
+    }
+
+    func setSearchAnnotation(_ text: String?, for id: UUID) {
+        let normalized = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let normalized, !normalized.isEmpty { searchAnnotations[id] = normalized }
+        else { searchAnnotations.removeValue(forKey: id) }
+        searchCache = nil
+    }
+
+    func setSearchAnnotations(_ annotations: [UUID: String]) {
+        searchAnnotations = annotations
+        searchCache = nil
     }
 
     private func bindAndInsert(_ stmt: OpaquePointer, _ item: ClipboardItem) {
@@ -635,9 +673,13 @@ final class ClipboardStore: ObservableObject {
         if let imagesStmt = staleImagesStmt, let deleteStmt = deleteStaleStmt {
             sqlite3_bind_double(imagesStmt, 1, cutoff.timeIntervalSince1970)
             var staleOwnedPaths: [String] = []
+            var staleIDs: [UUID] = []
             while sqlite3_step(imagesStmt) == SQLITE_ROW {
+                if let rawID = Self.columnString(imagesStmt, 0), let id = UUID(uuidString: rawID) {
+                    staleIDs.append(id)
+                }
                 // Only delete files we own; external references (e.g. imported) just lose their row.
-                if let path = Self.columnString(imagesStmt, 0), owns(path) {
+                if let path = Self.columnString(imagesStmt, 1), owns(path) {
                     staleOwnedPaths.append(path)
                 }
             }
@@ -647,6 +689,10 @@ final class ClipboardStore: ObservableObject {
             sqlite3_step(deleteStmt)
             sqlite3_reset(deleteStmt)
             sqlite3_clear_bindings(deleteStmt)
+            for id in staleIDs {
+                searchAnnotations.removeValue(forKey: id)
+                onItemRemoved?(id)
+            }
             // A retention cut can strand hundreds of files; delete them off the main actor so capture-time prune doesn't hitch.
             if !staleOwnedPaths.isEmpty {
                 Task.detached(priority: .utility) {
@@ -718,8 +764,8 @@ final class ClipboardStore: ObservableObject {
         pinStmt = prepare("UPDATE items SET pinned_at = ? WHERE id = ?")
         staleImagesStmt = prepare(
             """
-            SELECT image_path FROM items
-            WHERE created_at < ? AND pinned_at IS NULL AND image_path IS NOT NULL
+            SELECT id, image_path FROM items
+            WHERE created_at < ? AND pinned_at IS NULL
             """)
         deleteStaleStmt = prepare("DELETE FROM items WHERE created_at < ? AND pinned_at IS NULL")
         return insertStmt != nil && loadStmt != nil && windowFloorStmt != nil && searchStmt != nil

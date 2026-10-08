@@ -12,7 +12,7 @@ struct AIChatView: View {
     var body: some View {
         if !chat.isReady {
             EmptyResults(
-                text: "AI Chat needs an OpenRouter API key — add one in Settings → AI Chat & Command.")
+                text: "Configure OpenRouter or install Claude/Codex CLI in Settings → AI Chat & Command.")
         } else if chat.messages.isEmpty && chat.phase == .idle {
             if chat.isWaiting {
                 EmptyResults(
@@ -67,14 +67,14 @@ struct AIChatTranscriptView: View {
     @ObservedObject var tools: AIToolStore
     let sessionID: UUID
     var isFloating = false
-    var onContentSizeChange: ((CGSize) -> Void)?
+    var awaitingFirstReply = false
     @State private var followsBottom = true
     @State private var isUserScrolling = false
     private static let bottomAnchor = "ai-chat-bottom"
     private var messages: [AIChatMessage] { chat.messages(in: sessionID) }
     private var phase: AIChatPhase { chat.requests.phase(for: sessionID) }
     private var edgeMask: EdgeDissolveMask {
-        isFloating ? EdgeDissolveMask(topFade: Theme.Spacing.xxl, bottomFade: Theme.Spacing.xxl) : EdgeDissolveMask()
+        isFloating ? EdgeDissolveMask(topFade: awaitingFirstReply ? 0 : Theme.Spacing.xxl, bottomFade: Theme.Spacing.xxl) : EdgeDissolveMask()
     }
 
     private var toolActivities: [AIToolActivity] { tools.activities.filter { $0.sessionID == sessionID } }
@@ -103,13 +103,15 @@ struct AIChatTranscriptView: View {
                     }
                     if phase == .waiting, tools.isRunning {
                         HStack {
-                            AIChatStatusRow(symbol: "wrench.and.screwdriver", text: tools.status, pulses: true)
+                            AIChatStatusRow(symbol: tools.statusSymbol, text: tools.status, pulses: true)
                             Spacer()
                             Button("Stop") { chat.stop() }.controlSize(.small)
                         }
                     } else if phase == .waiting {
                         AIChatStatusRow(
-                            symbol: "ellipsis", text: chat.streamingReply == nil ? AIChatEngine.waitingStatus : "Generating…", pulses: true)
+                            symbol: chat.isChoosingModel ? "arrow.trianglehead.branch" :
+                                (chat.streamingReply == nil ? "ellipsis.bubble" : "text.line.first.and.arrowtriangle.forward"),
+                            text: chat.waitingStatus, pulses: true)
                     }
                     if case .failed(let reason) = phase {
                         AIChatStatusRow(
@@ -125,12 +127,7 @@ struct AIChatTranscriptView: View {
             }
             .modifier(edgeMask)
             .thinScrollbar()
-            .defaultScrollAnchor(.bottom)
-            .onScrollGeometryChange(for: CGSize.self) { geometry in
-                CGSize(width: geometry.containerSize.width, height: geometry.contentSize.height)
-            } action: { _, size in
-                onContentSizeChange?(size)
-            }
+            .defaultScrollAnchor(awaitingFirstReply ? .top : .bottom)
             .onScrollPhaseChange { _, phase in
                 isUserScrolling = phase == .tracking || phase == .interacting || phase == .decelerating
             }
@@ -139,20 +136,24 @@ struct AIChatTranscriptView: View {
             } action: { _, nearBottom in
                 if isUserScrolling || nearBottom { followsBottom = nearBottom }
             }
+            .onChange(of: awaitingFirstReply) { _, waiting in
+                if !waiting && followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+            }
             .onChange(of: chat.streamingReply?.text) {
-                if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+                if followsBottom && !awaitingFirstReply { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
             // Follow the conversation: a sent turn and its landing reply both pin to the bottom.
             .onChange(of: messages.count) {
+                guard !awaitingFirstReply else { return }
                 withAnimation(.easeOut(duration: Theme.Animation.quick)) {
                     proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
                 }
             }
             .onChange(of: tools.status) {
-                if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+                if followsBottom && !awaitingFirstReply { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
             .onChange(of: phase) {
-                if followsBottom { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+                if followsBottom && !awaitingFirstReply { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }
         }
     }
@@ -217,23 +218,53 @@ private struct AIChatRow: View {
         if message.role == .user {
             HStack {
                 Spacer(minLength: bubbleInset)
-                Text(message.text)
-                    .font(Theme.Typography.rowTitle)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, Theme.Spacing.xl)
-                    .padding(.vertical, Theme.Spacing.md)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.Radius.chatBubble, style: .continuous)
-                            .fill(Theme.Colors.controlSurface)
-                    )
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.md) {
+                        if let command = message.commandInput {
+                            Image(systemName: "command")
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                                .help(command.name)
+                                .accessibilityLabel(command.name)
+                        }
+                        Text(message.displayedText)
+                    }
+                    if !message.attachments.isEmpty {
+                        ForEach(message.attachments) { attachment in
+                            Label(attachment.name,
+                                systemImage: attachment.kind == .image ? "photo" : attachment.kind == .pdf ? "doc.richtext" : "doc.text")
+                                .font(.caption)
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .font(Theme.Typography.rowTitle)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Theme.Spacing.xl)
+                .padding(.vertical, Theme.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Radius.chatBubble, style: .continuous)
+                        .fill(Theme.Colors.controlSurface)
+                )
             }
             .padding(.horizontal, Theme.Spacing.md)
         } else {
             // Models answer in Markdown whether or not they are asked to; rendered, not raw.
-            AIChatMarkdownText(text: message.text, isStreaming: isStreaming)
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.vertical, Theme.Spacing.sm)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                if let selection = message.routing {
+                    Label(LocalAIModel.resolve(selection.model)?.title
+                        ?? OpenRouterModelCatalog.modelName(for: selection.model, in: []) ?? selection.model,
+                        systemImage: "arrow.trianglehead.branch")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .help("\(selection.label) · \(selection.model)")
+                }
+                AIChatMarkdownText(text: message.text, isStreaming: isStreaming)
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.sm)
         }
     }
 }
@@ -242,21 +273,43 @@ private struct AIChatStatusRow: View {
     let symbol: String
     let text: String
     let pulses: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
             Image(systemName: symbol)
                 .font(Theme.Typography.rowTrailing)
                 .symbolRenderingMode(.monochrome)
-                .symbolEffect(.pulse, isActive: pulses)
+                .symbolEffect(.pulse, isActive: pulses && !reduceMotion)
                 .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.rowIcon)
-            Text(text)
-                .font(.callout)
+            statusText
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .overlay {
+                    if pulses && !reduceMotion {
+                        GeometryReader { geometry in
+                            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                                let progress = context.date.timeIntervalSinceReferenceDate
+                                    .truncatingRemainder(dividingBy: 2) / 2
+                                LinearGradient(colors: [.clear, .primary.opacity(0.9), .clear],
+                                    startPoint: .leading, endPoint: .trailing)
+                                    .frame(width: geometry.size.width * 0.6)
+                                    .offset(x: geometry.size.width * (progress * 1.6 - 0.6))
+                            }
+                        }
+                        .mask(statusText)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+                }
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.vertical, Theme.Spacing.sm)
+    }
+
+    private var statusText: some View {
+        Text(text)
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

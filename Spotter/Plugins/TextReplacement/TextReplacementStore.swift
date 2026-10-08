@@ -63,6 +63,24 @@ final class TextReplacementStore: ObservableObject {
         persist()
     }
 
+    @discardableResult
+    func importSnippets(_ imported: [Snippet]) -> Int {
+        var accepted = snippets
+        var count = 0
+        for snippet in imported where !accepted.contains(where: {
+            $0.name.caseInsensitiveCompare(snippet.name) == .orderedSame && $0.content == snippet.content
+        }) {
+            if let normalized = try? SnippetValidator.normalizedSnippet(snippet, among: accepted) {
+                accepted.append(normalized)
+                count += 1
+            }
+        }
+        guard count > 0 else { return 0 }
+        snippets = accepted
+        persist()
+        return count
+    }
+
     private func persist() {
         defaults.set(prefix, forKey: Self.prefixKey)
         if let data = try? JSONEncoder().encode(snippets) {

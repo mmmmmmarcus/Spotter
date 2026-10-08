@@ -20,6 +20,7 @@ struct QuickClipboardTests {
         await imagePreviews()
         await nativeSurface()
         scrolling()
+        imageGrid()
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
     }
@@ -45,11 +46,59 @@ struct QuickClipboardTests {
         expect(selected == 999, "virtual rows paste their actual history index")
         menu.update(textItems(12), selection: 0, filter: .files)
         expect(menu.rowButtons.first?.content.title == "Entry 0", "changing category resets scrolling to the newest entry")
-        expect(QuickClipboardFilter.allCases == [.text, .image, .files]
-            && QuickClipboardFilter.text.moved(by: -1) == .files
-            && QuickClipboardFilter.files.moved(by: 1) == .text
+        expect(QuickClipboardFilter.allCases == [.all, .text, .image, .files]
+            && QuickClipboardFilter.all.moved(by: -1) == .files
+            && QuickClipboardFilter.files.moved(by: 1) == .all
             && QuickClipboardFilter.text.moved(by: 1) == .image,
-            "left and right cycle through exactly three broad categories")
+            "Tab cycles through All and the three broad categories")
+    }
+
+    static func imageGrid() {
+        let image = ClipboardItem(imagePath: "/tmp/grid-preview.png", sourceBundleID: nil)
+        let items = Array(repeating: image, count: 1000)
+        let frames = QuickClipboardPresentation.rowFrames(items: items, filter: .image)
+        expect(frames.allSatisfy { $0.width == $0.height } && frames.prefix(3).allSatisfy { $0.maxY == frames[0].maxY }
+            && frames[3].maxY < frames[0].minY && frames[1].minX > frames[0].maxX,
+            "image tiles are square in three nonoverlapping columns, ordered left to right then downward")
+        let menu = QuickClipboardMenuView(items: [])
+        menu.update(items, selection: 0, filter: .image)
+        let size = menu.frame.size
+        expect(menu.rowButtons.count == 9 && menu.rowButtons.first?.frame == frames[0],
+            "the image grid initially shows three rows starting with the newest image")
+        menu.select(601)
+        expect(menu.frame.size == size && menu.rowButtons.count <= 12
+            && menu.rowButtons.contains { $0.isSelected && $0.frame == frames[601] },
+            "older grid selection scrolls into view with bounded views and a fixed viewport")
+        var selected: Int?
+        menu.onSelect = { selected = $0 }
+        menu.rowButtons.first { $0.isSelected }?.performClick(nil)
+        expect(selected == 601, "a reused grid tile activates the correct history entry")
+        menu.update(Array(items.prefix(4)), selection: 0, filter: .image)
+        expect(menu.rowButtons.count == 4 && menu.rowButtons.last?.frame.minX == 0,
+            "a partial image row starts at the left without stretching tiles")
+        menu.update(textItems(5), selection: 0, filter: .text)
+        expect(menu.rowButtons.allSatisfy { $0.content.image == nil && !$0.content.title.isEmpty },
+            "text-only entries drop their symbols after switching from the image grid")
+        menu.update(textItems(5), selection: 0, filter: .all)
+        expect(menu.rowButtons.allSatisfy { $0.content.image != nil && !$0.content.squareImage },
+            "All restores type symbols and list geometry")
+        expect(QuickClipboardPresentation.navigationKeys.contains(48)
+            && QuickClipboardPresentation.imageNavigationKeys == [123, 124],
+            "Tab stays global to the quick panel while left and right are reserved for the image grid")
+        expect(QuickClipboardPresentation.gridSelection(from: 0, moving: .right, itemCount: 8) == 1
+            && QuickClipboardPresentation.gridSelection(from: 1, moving: .right, itemCount: 8) == 2
+            && QuickClipboardPresentation.gridSelection(from: 2, moving: .right, itemCount: 8) == 2
+            && QuickClipboardPresentation.gridSelection(from: 1, moving: .left, itemCount: 8) == 0
+            && QuickClipboardPresentation.gridSelection(from: 0, moving: .left, itemCount: 8) == 0,
+            "left and right move within an image-grid row without wrapping")
+        expect(QuickClipboardPresentation.gridSelection(from: 1, moving: .down, itemCount: 8) == 4
+            && QuickClipboardPresentation.gridSelection(from: 4, moving: .up, itemCount: 8) == 1
+            && QuickClipboardPresentation.gridSelection(from: 5, moving: .down, itemCount: 8) == 7,
+            "up and down preserve the grid column and choose the nearest tile in a partial row")
+        expect(QuickClipboardPresentation.gridSelection(from: 7, moving: .down, itemCount: 8) == 8
+            && QuickClipboardPresentation.gridSelection(from: 8, moving: .up, itemCount: 8) == 7
+            && QuickClipboardPresentation.gridSelection(from: 8, moving: .left, itemCount: 8) == 8,
+            "down reaches full history after the final row and up returns to the final image")
     }
 
     static func caretAnchors() async {
@@ -255,6 +304,8 @@ struct QuickClipboardTests {
             && (filters.first!.minX + filters.last!.maxX) / 2 == 138
             && filters.allSatisfy { QuickClipboardPresentation.footerFrame.contains($0) },
             "all shared filters are centered inside the footer")
+        expect(zip(filters, filters.dropFirst()).allSatisfy { $1.minX - $0.maxX >= 12 },
+            "category buttons have visible spacing without shrinking their hit targets")
         expect(filters.last!.maxX < QuickClipboardPresentation.historyFrame.minX
             && QuickClipboardPresentation.historyFrame.maxX == 270,
             "full history stays on the right without overlapping filters")
@@ -311,6 +362,21 @@ struct QuickClipboardTests {
             expect(abs(rendered.colorAt(x: 16, y: 16)!.alphaComponent - expected) < 0.02,
                 "image dims when unselected and restores on selection")
         }
+        let gridMenu = QuickClipboardMenuView(items: [])
+        gridMenu.update([item], selection: 0, filter: .image)
+        let gridContent = gridMenu.rowButtons[0].content
+        let side = Int(gridContent.bounds.width)
+        let tile = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0)!
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: tile)
+        gridContent.draw(gridContent.bounds)
+        NSGraphicsContext.restoreGraphicsState()
+        expect(gridContent.bounds.width == gridContent.bounds.height
+            && tile.colorAt(x: side / 2, y: 1)!.alphaComponent > 0.9
+            && tile.colorAt(x: side / 2, y: side - 2)!.alphaComponent > 0.9,
+            "wide image previews fill the square tile without letterboxing")
         let cached = ImageThumbnail.cached(url, maxPixel: 512)
         expect(cached?.size == CGSize(width: 320, height: 160), "display sizing does not mutate the shared cached image")
         menu.update([ClipboardItem(text: "Text after image", sourceBundleID: nil), other], selection: 0)
@@ -376,7 +442,7 @@ struct QuickClipboardTests {
             && menu.glassView.style == .clear && menu.glassView.cornerRadius == 16
             && menu.glassView.tintColor == nil && menu.glassView.alphaValue == 1,
             "the complete list shares one untinted native Clear glass surface")
-        expect(glass.count == 5 && menu.filterButtons.count == 3
+        expect(glass.count == 5 && menu.filterButtons.count == 4
             && (glass + menu.filterButtons + [menu.historyButton]).allSatisfy { $0.isDescendant(of: rows) && !$0.isBordered && $0.alphaValue == 1 },
             "all actions stay inside the one glass surface without row bezels")
         expect(glass.map(\.frame) == QuickClipboardPresentation.rowFrames(items: textItems(5)),
@@ -449,7 +515,7 @@ struct QuickClipboardTests {
         var emptyActivation: Int?
         empty.onSelect = { emptyActivation = $0 }
         empty.historyButton.performClick(nil)
-        expect(empty.rowButtons.isEmpty && empty.filterButtons.count == 3 && emptyActivation == 0 && empty.historyButton.isEnabled,
+        expect(empty.rowButtons.isEmpty && empty.filterButtons.count == 4 && emptyActivation == 0 && empty.historyButton.isEnabled,
             "empty history keeps a working full-history button")
         var chosenFilter: QuickClipboardFilter?
         empty.onFilter = { chosenFilter = $0 }
@@ -461,7 +527,7 @@ struct QuickClipboardTests {
                 "filter selection remains separate from history keyboard selection")
         }
         expect(menu.filterButtons[0].isSelected && !panel.isKeyWindow,
-            "a new menu defaults to Text and filtering never requires a key panel")
+            "a new menu defaults to All and filtering never requires a key panel")
         let margin = QuickClipboardPresentation.canvasMargin
         expect(!menu.containsGlass(CGPoint(x: 5, y: 5)), "shadow padding is outside menu hit areas")
         expect(menu.containsGlass(CGPoint(x: margin + 30, y: margin + 18)), "row interior remains clickable")

@@ -82,7 +82,8 @@ not belong in the strip at all — that is why Uptime became [a plugin of its ow
 
 ## Architecture
 
-`DashboardWidgetsPlugin` is the registration adapter that places this system feature in Settings.
+`DashboardWidgetsPlugin` registers the dashboard system feature. Its weather settings section is
+embedded in General; the registration has no dedicated Settings page.
 `DashboardWidgetsStore`, owned by `AppCore`, owns EventKit authorization, the next-event snapshot,
 widget preferences and the visible-only refresh task. Preferences use bundle-scoped `UserDefaults`
 and participate in trusted settings backup/sync. `DashboardWidgetsEngine.swift` remains
@@ -255,7 +256,7 @@ decision, Sep 2026). That makes "asked" and "granted" two different persisted fa
 `dashboard-widgets.weather-consent-asked` records that the question was put, and
 `dashboard-widgets.weather-enabled` records the answer being yes. A decline sets the first and not the
 second — weather stays off, the question is never asked again, no location is ever requested, and
-Settings ▸ Widgets keeps a **Turn On Weather…** button that raises the same dialog for someone who
+Settings ▸ General → Weather keeps a **Turn On Weather…** button that raises the same dialog for someone who
 changes their mind. There is no way back off: the pure
 `DashboardWeatherEngine.consentState(hasBeenAsked:isGranted:)` and `shouldPresentConsent(...)` hold
 the one-question rule, and `Tools/dashboard-widgets-test.swift` pins it. A grant restored from a
@@ -378,24 +379,16 @@ always the same selection, and clearing first would flash the card away and back
 
 ## Settings and lifecycle
 
-Widgets is an always-available system feature placed under Settings → System, and the whole strip is
-configured on **one page** — three sections, one for each card that has something to decide: the
-opening **unnamed** section for the clock and weather (where the reading is taken, units and the
-last reading), **Music** (what is playing) and **Calendar** (a pointer to the Calendar plugin, which
-owns the real preferences). A pane's first group is not named, which is why that section carries no
-header. Device Battery and File Info have **no section**:
-they are text-only cards with nothing to configure, and their privacy posture is unchanged by the
-removal — the battery read still needs no gate, and File Info's gate is still macOS's own Automation
-prompt (owner decision, Sep 2026). There is no Show list, no pane of its own for any card and no
-arrangement list: every card shows, and order belongs to the palette.
+Widgets remains an always-available system feature, but has no independent Settings sidebar entry.
+General embeds `DashboardWeatherSettingsSection` as **Weather**, containing **Location** and **Units**.
+Location reports the place or actionable failure and includes **Update Now** on the same row;
+its caption retains refresh status and the last update time. Missing location disables refresh and
+shows **Open Location Settings** when that can help. Before consent, **Turn On Weather…** raises
+the existing dialog. No city picker, time-zone picker or weather off switch is introduced.
 
-The opening section leads with **Location**, which reports rather than asks: the fix this Mac is
-read at, or the failure and what to do about it, with **Open Location Settings** where there is
-something to open. Before consent that row is a **Turn On Weather…** button raising the same dialog
-the first launch did. There is no Turn Off Weather, no city field and no time-zone picker (owner
-decision, Sep 2026), and the Music section no longer carries an Automation Permission row — the
-Finder and Music reads and macOS's own Automation prompt are unchanged, only the settings row is
-gone.
+The Conditions, Music status and Calendar shortcut rows are removed. Calendar preferences remain
+in the Calendar plugin. Device Battery and File Info still have nothing to configure. Every card
+remains visible, and order is still changed by dragging cards in the palette.
 
 Existing calendar-account, all-day-event and time-zone preferences remain unchanged, and saved
 identifiers for removed widgets are ignored. The permission overview exposes Calendar and

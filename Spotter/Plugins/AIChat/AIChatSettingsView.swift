@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AIChatSettingsView: View {
     @ObservedObject private var openRouter = AppCore.shared.openRouter
+    @ObservedObject private var localAI = AppCore.shared.localAI
     @ObservedObject private var commands = AppCore.shared.aiCommands
     @State private var editor: AICommandEditorTarget?
     @State private var pendingDeletion: AICommand?
@@ -10,20 +11,41 @@ struct AIChatSettingsView: View {
         SettingsPane(title: "AI Chat & Command") {
             OpenRouterSettingsSection()
 
-            Section("Chat") {
-                SettingsRow(title: "Chat Model", subtitle: chatModelStatus) {
-                    AIChatModelMenu(
-                        brands: openRouter.catalog, selected: openRouter.chatModel,
-                        chatModel: nil, set: { openRouter.setChatModel($0 ?? "") })
-                }
-                SettingsRow(title: "Model List", subtitle: catalogStatus) {
-                    Button("Reload") { openRouter.refreshCatalog(force: true) }
-                        .controlSize(.small)
-                        .disabled(!openRouter.isReady || openRouter.catalogState == .loading)
+            Section("Model Selection") {
+                ForEach(AIRoutingCategory.allCases) { category in
+                    SettingsRow(title: category.title) {
+                        AIChatModelMenu(brands: openRouter.catalog,
+                            selected: openRouter.aiRouting.model(for: category),
+                            chatModel: nil, set: { model in
+                                guard let model else { return }
+                                var preferences = openRouter.aiRouting
+                                preferences.setModel(model, for: category)
+                                openRouter.setAIRouting(preferences)
+                            })
+                    }
                 }
             }
 
             Section {
+                ForEach(LocalAIModel.allCases) { model in
+                    SettingsRow(title: model.title,
+                        subtitle: localAI.path(for: model) ?? "Not found") {
+                        Image(systemName: localAI.path(for: model) == nil ? "xmark.circle" : "checkmark.circle.fill")
+                            .foregroundStyle(localAI.path(for: model) == nil ? Color.secondary : Color.green)
+                    }
+                }
+            } header: {
+                Text("Local AI CLIs")
+            } footer: {
+                Text("Local CLIs run with your current macOS account. Spotter passes the conversation through standard input and does not enable CLI tools or file writes.")
+            }
+
+            Section {
+                SettingsRow(title: "Open in Quick AI Chat", subtitle: "Show AI command results in the floating chat window. Turn off to use the palette.") {
+                    Toggle("", isOn: Binding(get: { commands.usesQuickChat }, set: commands.setUsesQuickChat))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
                 ForEach(commands.commands) { command in
                     AICommandSettingsRow(
                         command: command,
@@ -58,7 +80,7 @@ struct AIChatSettingsView: View {
             }
         }
         // "Latest models" means what OpenRouter publishes when this pane is opened, not at launch.
-        .onAppear { openRouter.refreshCatalog() }
+        .onAppear { openRouter.refreshCatalog(force: true); localAI.refresh() }
         .sheet(item: $editor) { target in
             AICommandEditorSheet(command: target.command)
         }
@@ -73,23 +95,7 @@ struct AIChatSettingsView: View {
         }
     }
 
-    private var catalogStatus: String {
-        guard openRouter.isReady else {
-            return "Loaded from \(OpenRouterStore.provider) once an API key is added."
-        }
-        switch openRouter.catalogState {
-        case .idle: return "Not loaded yet."
-        case .loading: return "Loading models from \(OpenRouterStore.provider)…"
-        case .ready:
-            let models = openRouter.catalog.reduce(0) { $0 + $1.models.count }
-            return "\(models) models from \(openRouter.catalog.count) brands."
-        case .failed(let reason): return reason
-        }
-    }
 
-    private var chatModelStatus: String? {
-        openRouter.isReady ? nil : "Inactive until an API key is added."
-    }
 }
 
 private struct AICommandEditorTarget: Identifiable {
@@ -135,14 +141,20 @@ private struct AIChatModelMenu: View {
     let selected: String?
     /// The model a nil selection resolves to, or nil for the chat model's own row (which has no default).
     let chatModel: String?
+    var defaultLabel: String? = nil
     let set: (String?) -> Void
 
     var body: some View {
         Menu {
+            Section("On This Mac") {
+                ForEach(LocalAIModel.allCases) { model in
+                    item(id: model.id, name: model.title)
+                }
+            }
             if let chatModel {
                 Section("Default") {
                     Toggle(
-                        "Chat Model · \(OpenRouterModelCatalog.modelName(for: chatModel, in: brands) ?? chatModel)",
+                        defaultLabel ?? "Chat Model · \(OpenRouterModelCatalog.modelName(for: chatModel, in: brands) ?? chatModel)",
                         isOn: Binding(
                             get: { selected == nil }, set: { picked in if picked { set(nil) } }))
                 }
@@ -166,16 +178,19 @@ private struct AIChatModelMenu: View {
         } label: {
             Text(label)
                 .font(usesMonospacedLabel ? .body.monospaced() : .body)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(width: 240)
+        .frame(width: 240, alignment: .trailing)
     }
 
     private var catalogLabel: String? {
-        selected.flatMap { OpenRouterModelCatalog.label(for: $0, in: brands) }
+        guard let selected else { return nil }
+        return LocalAIModel.resolve(selected)?.title ?? OpenRouterModelCatalog.label(for: selected, in: brands)
     }
 
     private var label: String {
-        guard let selected else { return "Default" }
+        guard let selected else { return defaultLabel ?? "Default" }
         return catalogLabel ?? selected
     }
 
@@ -261,7 +276,9 @@ private struct AICommandEditorSheet: View {
                         .font(.callout.weight(.medium))
                     AIChatModelMenu(
                         brands: openRouter.catalog, selected: model,
-                        chatModel: openRouter.chatModel, set: { model = $0 })
+                        chatModel: openRouter.chatModel,
+                        defaultLabel: "Automatic (Jev)",
+                        set: { model = $0 })
                 }
                 // A command that has not been saved yet has no id, and a binding needs one to hang on.
                 if let command {

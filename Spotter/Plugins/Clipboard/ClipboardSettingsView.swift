@@ -23,6 +23,16 @@ struct ClipboardSettingsView: View {
                         store.enforceLimits()
                     }
                 }
+                SettingsRow(
+                    title: "Search Text in Images & PDFs",
+                    subtitle: "Indexes copied images and PDF files on this Mac with Vision and PDFKit."
+                ) {
+                    Toggle("", isOn: $settings.clipboardTextSearch)
+                        .labelsHidden()
+                        .onChange(of: settings.clipboardTextSearch) {
+                            AppCore.shared.clipboardTextIndexer.setEnabled(settings.clipboardTextSearch)
+                        }
+                }
             }
 
             Section {

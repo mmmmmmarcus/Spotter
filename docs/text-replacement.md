@@ -57,6 +57,11 @@ That last rule makes immediate expansion deterministic — `g` and `gmail` canno
 the shorter trigger would otherwise fire before the longer one could be completed. Palette-only
 snippets never conflict with anything.
 
+Snippet content uses the same dynamic template engine as Quicklinks. Clipboard, date/time, UUID and
+cursor tokens are offered by the editor; `{snippet:Name}` composes one snippet from another with a
+five-level recursion bound and loop detection. Values resolve only when a snippet is copied, pasted
+or expanded. Unknown or unavailable tokens remain literal rather than deleting user text.
+
 When a trigger matches, the original key event finishes normally. On the next main-runloop turn the
 manager posts one synthetic Backspace per trigger character, followed by Unicode keyboard events for
 the snippet. These events carry the same source marker used by Hyper Key, so neither event tap

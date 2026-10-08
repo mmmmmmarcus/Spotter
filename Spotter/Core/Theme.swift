@@ -4,6 +4,27 @@ import SwiftUI
 /// Central design tokens for the palette UI (see `docs/ui.md`). Colors are a single alpha ramp
 /// mirrored per appearance, so the app follows the system between light and dark.
 enum Theme {
+    enum QuickAI {
+        // The floating surface contrasts with the desktop; native text and glass follow its inverse appearance.
+        static func appearance(for system: NSAppearance) -> NSAppearance? {
+            NSAppearance(named: system.isDark ? .aqua : .darkAqua)
+        }
+
+        static func backdrop(isExpanded: Bool) -> LinearGradient {
+            let stops: [Gradient.Stop] = isExpanded ? [
+                .init(color: Colors.quickAIBackdrop, location: 0),
+                .init(color: Colors.quickAIBackdrop.opacity(0.98), location: 0.55),
+                .init(color: Colors.quickAIBackdrop.opacity(0.82), location: 0.78),
+                .init(color: Colors.quickAIBackdropLower, location: 0.9),
+                .init(color: Colors.quickAIBackdropBottom, location: 1),
+            ] : [
+                .init(color: Colors.quickAIBackdrop, location: 0),
+                .init(color: Colors.quickAIBackdropBottom, location: 1),
+            ]
+            return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+        }
+    }
+
     enum Animation {
         static let quick: TimeInterval = 0.14
         static let pageSwitch: TimeInterval = 0.16
@@ -72,6 +93,8 @@ enum Theme {
         static let compactHeight: CGFloat = headerHeight + headerPadding * 2
         static let quickAIWidth: CGFloat = (panelWidth / 3).rounded()
         static let quickAIComposerHeight: CGFloat = compactHeight / 2
+        static let quickAIHeaderHeight: CGFloat = noteGlassButton + Theme.Spacing.xl + Theme.Spacing.md
+        static let quickAIInitialTranscriptHeight: CGFloat = 120
         static let bottomBarHeight: CGFloat = 52
         static let rowIcon: CGFloat = 24
         static let backgroundTaskProgressWidth: CGFloat = 96
@@ -195,6 +218,10 @@ enum Theme {
         /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
         /// and a dark tint over light glass would read as a shadow instead of frost.
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
+        static let quickAIBackdrop = adaptive(dark: .black, light: .white)
+        // Quick AI uses inverse appearance, so the white stops apply when the system is dark.
+        static let quickAIBackdropLower = adaptive(dark: .black.opacity(0.55), light: .white.opacity(0.40))
+        static let quickAIBackdropBottom = adaptive(dark: .black.opacity(0.35), light: .white.opacity(0.18))
         /// The capture selection outline. It follows the appearance rather than staying black: on a dark desktop a black outline disappears into the pixels it is meant to bound.
         static let screenshotSelectionBorder = adaptive(dark: .white, light: .black)
         /// One 8-bit alpha step keeps the full-screen capture panel mouse-hittable without perceptibly dimming the display.

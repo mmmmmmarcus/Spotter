@@ -96,9 +96,13 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
 - **Quick AI Chat** — an owner-requested independent floating surface. `AppCore` owns
   `QuickAIChatController`, which owns the native glass panel, draft and session reference. It shares
   `AIChatStore` with the palette without changing its selected session, and reuses
-  `AIChatTranscriptView` and `PaletteDragHandleView`. The controller alone changes the panel frame,
-  keeping the bottom composer anchored while expanding upward. Closing retains the draft and chat;
+  `AIChatTranscriptView`. A native drag area between its header buttons replaces the handle. The controller alone changes the panel frame,
+  keeping the bottom composer anchored across first-send and first-reply expansion. Closing retains the draft and chat;
   screenshot cleanup hides it along with other auxiliary surfaces. See [ai-chat.md](ai-chat.md#quick-ai-chat).
+- **Jev model selection** — `OpenRouterStore` owns always-on routing preferences and a cacheless
+  `JevDecisionClient`. `AIChatStore` runs classification inside its one-request gate before streaming
+  or tool execution. Pure `AIRoutingTypes` maps Jev's category to a user-configured model; settings
+  sync and optional per-reply metadata preserve configuration and history without new singletons.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.

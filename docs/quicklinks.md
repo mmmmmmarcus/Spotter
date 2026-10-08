@@ -100,3 +100,9 @@ Selecting one there enters the same flow. An invalid destination or a default-ha
 the current palette available and reports the failure through the non-activating HUD instead of
 silently dismissing it. Deleting a saved link from the palette's Actions menu uses the shared
 in-palette confirmation card; Cancel is selected first.
+
+Quicklinks expand shared dynamic tokens after argument entry: `{clipboard}`, `{date}`, `{time}`,
+`{datetime}`, `{uuid}`, `{selection}` and `{snippet:Name}`. Modifiers such as
+`|percent-encode`, `|uppercase`, `|lowercase`, `|trim` and `|json-stringify` transform only
+the resolved value. The editor exposes common values from **Insert Value**. Web and deep-link
+templates still percent-encode ordinary argument values by default; `|raw` is explicit.

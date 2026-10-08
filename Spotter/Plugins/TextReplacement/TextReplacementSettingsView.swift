@@ -211,8 +211,20 @@ private struct SnippetEditorSheet: View {
             }
 
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                Text("Snippet")
-                    .font(.callout.weight(.medium))
+                HStack {
+                    Text("Snippet")
+                        .font(.callout.weight(.medium))
+                    Spacer()
+                    Menu("Insert Dynamic Value") {
+                        Button("Clipboard") { content += "{clipboard}" }
+                        Button("Date") { content += "{date}" }
+                        Button("Time") { content += "{time}" }
+                        Button("Date & Time") { content += "{datetime}" }
+                        Button("UUID") { content += "{uuid}" }
+                        Button("Cursor Position") { content += "{cursor}" }
+                    }
+                    .controlSize(.small)
+                }
                 TextEditor(text: $content)
                     .font(.body)
                     .scrollContentBackground(.hidden)
@@ -259,8 +271,11 @@ private struct SnippetEditorSheet: View {
                     .disabled(
                         name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             || content.isEmpty)
+                }
+                Text("Dynamic values are filled when the snippet is pasted or expanded. Use {snippet:Name} to include another snippet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-        }
         .padding(Theme.Spacing.xxl)
         .frame(width: Theme.Size.textReplacementEditorWidth)
     }

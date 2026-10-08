@@ -48,6 +48,30 @@ enum BackupActions {
         }
     }
 
+    static func importRaycastLibraries() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "rayconfig") ?? .data]
+        panel.allowsMultipleSelection = false
+        presentPanel(panel) { url in
+            guard let url, let passphrase = raycastPassphrase() else { return }
+            Task {
+                do {
+                    let imported = try await Task.detached(priority: .userInitiated) {
+                        try RaycastLibraryImport.read(file: url, passphrase: passphrase)
+                    }.value
+                    let core = AppCore.shared
+                    let snippets = core.textReplacements.importSnippets(imported.snippets)
+                    let quicklinks = core.quicklinks.importQuicklinks(imported.quicklinks)
+                    present(title: "Raycast Data Imported",
+                        message: "Imported \(snippets) snippets and \(quicklinks) quicklinks. Spotter did not execute or install Raycast extensions.",
+                        style: .informational)
+                } catch {
+                    present(title: "Raycast Import Failed", message: error.localizedDescription, style: .warning)
+                }
+            }
+        }
+    }
+
     /// The user picks the folder; Spotter owns the file name inside it. One control covers both
     /// directions because the folder's contents decide: an existing settings file there is joined,
     /// and only a folder that definitively has none gets a new one.
@@ -150,6 +174,20 @@ enum BackupActions {
         alert.addButton(withTitle: "Enable Sync")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private static func raycastPassphrase() -> String? {
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "Export passphrase"
+        let alert = NSAlert()
+        alert.messageText = "Import Raycast Snippets & Quicklinks"
+        alert.informativeText = "Enter the passphrase used when exporting the .rayconfig file. The file is decrypted locally."
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Import")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn, !field.stringValue.isEmpty else { return nil }
+        return field.stringValue
     }
 
     private static func dateStamp() -> String {

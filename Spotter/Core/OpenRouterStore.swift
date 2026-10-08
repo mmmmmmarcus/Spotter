@@ -61,6 +61,7 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     /// Lets chat requests search the web through OpenRouter's Exa-backed plugin. Off by default —
     /// each search adds a small per-request cost on the same key.
     @Published private(set) var chatWebSearch: Bool
+    @Published private(set) var aiRouting: AIRoutingPreferences
     @Published private(set) var validation: Validation = .unknown
     /// The published model list behind the Settings brand → model menus. Session-only: never
     /// persisted, so a stale catalog can't outlive the app.
@@ -70,14 +71,23 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     private static let keyKey = "openrouter.api-key"
     private static let chatModelKey = "openrouter.chat-model"
     private static let chatWebSearchKey = "openrouter.chat-web-search"
-    private let defaults = UserDefaults.standard
+    private static let routingKey = "openrouter.ai-routing"
+    private let defaults: UserDefaults
+    private let decisionClient: JevDecisionClient
+    private var routingRevision = UUID()
     private var catalogTask: Task<Void, Never>?
     private var catalogFetchedAt: Date?
 
-    init() {
+    init(defaults: UserDefaults = .standard, decisionClient: JevDecisionClient = JevDecisionClient()) {
+        self.defaults = defaults
+        self.decisionClient = decisionClient
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
-        chatModel = defaults.string(forKey: Self.chatModelKey) ?? Self.defaultChatModel
+        let previousModel = Self.resolve(defaults.string(forKey: Self.chatModelKey) ?? "", default: Self.defaultChatModel)
+        chatModel = previousModel
         chatWebSearch = defaults.bool(forKey: Self.chatWebSearchKey)
+        aiRouting = (defaults.data(forKey: Self.routingKey)
+            .flatMap { try? JSONDecoder().decode(AIRoutingPreferences.self, from: $0) } ?? AIRoutingPreferences())
+            .normalized(fallbackModel: previousModel)
     }
 
     /// A key is present, so LLM-backed features are allowed to make a request.
@@ -86,6 +96,44 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     }
 
     var onCredentialsChanged: (() -> Void)?
+    var onRoutingChanged: (() -> Void)?
+
+    func setAIRouting(_ preferences: AIRoutingPreferences) {
+        let value = preferences.normalized(fallbackModel: aiRouting.everydayModel)
+        guard value != aiRouting, let data = try? JSONEncoder().encode(value) else { return }
+        routingRevision = UUID()
+        aiRouting = value
+        defaults.set(data, forKey: Self.routingKey)
+        onRoutingChanged?()
+    }
+
+    func selectChatModel(messages: [(role: String, content: String)], defaultModel: String) async throws -> AIRoutingSelection? {
+        try Task.checkCancellation()
+        guard isReady else { throw OpenRouterError.notConfigured }
+        let key = apiKey
+        let preferences = aiRouting
+        let fallbackModel = preferences.everydayModel.isEmpty ? defaultModel : preferences.everydayModel
+        let revision = routingRevision
+        do {
+            let data = try await decisionClient.decide(messages: messages.map { .init(role: $0.role, content: $0.content) }, key: key)
+            try validateRoutingRequest(key: key, revision: revision)
+            return try AIRoutingDecision.selection(from: data, preferences: preferences, defaultModel: fallbackModel)
+        } catch {
+            try validateRoutingRequest(key: key, revision: revision)
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { throw CancellationError() }
+            if case JevDecisionError.http(let status) = error, status == 401 || status == 403 { throw OpenRouterError.unauthorized }
+            let reason: AIRoutingSelection.Fallback
+            if case JevDecisionError.inputTooLong = error { reason = .inputTooLong }
+            else { reason = .unavailable }
+            return AIRoutingSelection(model: fallbackModel, category: nil, fallback: reason)
+        }
+    }
+
+    private func validateRoutingRequest(key: String, revision: UUID) throws {
+        try Task.checkCancellation()
+        guard acceptsReply(for: key) else { throw OpenRouterError.notConfigured }
+        guard routingRevision == revision else { throw CancellationError() }
+    }
 
     func setAPIKey(_ key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -6,6 +6,8 @@ import SwiftUI
 extension PluginActionKey {
     static let openCalendarSchedule = standard(
         pluginID: .calendarSchedule, actionID: "open", title: "Schedule")
+    static let joinNextMeeting = standard(
+        pluginID: .calendarSchedule, actionID: "join-next-meeting", title: "Join Next Meeting")
 }
 
 /// The calendar canvas and widget share account preferences and calendar authorization.
@@ -60,11 +62,22 @@ enum CalendarSchedulePlugin {
                     "Browse your week or month inside the launcher.",
                 systemImage: "calendar",
                 tint: .red),
-            shortcutActions: [PluginActionRegistration(key: .openCalendarSchedule, perform: open)],
+            shortcutActions: [
+                PluginActionRegistration(key: .openCalendarSchedule, perform: open),
+                PluginActionRegistration(key: .joinNextMeeting) { core.joinNextCalendarMeeting(copyOnly: false) },
+            ],
             launcherCommands: [
                 PluginCommandRegistration(
                     id: "command:calendar-schedule", name: "Schedule",
-                    systemImage: "calendar", actionKey: .openCalendarSchedule, perform: open)
+                    systemImage: "calendar", actionKey: .openCalendarSchedule, perform: open),
+                PluginCommandRegistration(
+                    id: "command:calendar-schedule:join-next", name: "Join Next Meeting",
+                    systemImage: "video.fill", actionKey: .joinNextMeeting) {
+                        core.joinNextCalendarMeeting(copyOnly: false)
+                    },
+                PluginCommandRegistration(
+                    id: "command:calendar-schedule:copy-next", name: "Copy Next Meeting Link",
+                    systemImage: "doc.on.doc") { core.joinNextCalendarMeeting(copyOnly: true) }
             ],
             paletteScreen: screen,
             settingsView: {
@@ -216,6 +229,31 @@ enum CalendarSchedulePlugin {
 }
 
 extension AppCore {
+    func joinNextCalendarMeeting(copyOnly: Bool) {
+        dashboardWidgets.refresh()
+        guard dashboardWidgets.calendarAccess.canRead else {
+            openCalendarSchedule()
+            return
+        }
+        let candidate = dashboardWidgets.upcomingEvents.first { event in
+            !event.isAllDay && CalendarScheduleEngine.meetingLink(
+                urlString: event.urlString, location: event.location, notes: event.notes) != nil
+        }
+        guard let event = candidate,
+            let link = CalendarScheduleEngine.meetingLink(
+                urlString: event.urlString, location: event.location, notes: event.notes)
+        else {
+            hud.show(title: "No Upcoming Meeting Link", symbol: "video.slash", isNoOp: true)
+            return
+        }
+        if copyOnly {
+            Paster.copyPlainText(link.urlString)
+            hud.show(title: "Meeting Link Copied", symbol: "doc.on.doc", isNoOp: false)
+        } else {
+            openCalendarMeetingLink(link.urlString)
+        }
+    }
+
     func handleCalendarScheduleKey(_ event: NSEvent) -> Bool {
         guard palette.mode == .plugin(.calendarSchedule), dashboardWidgets.calendarAccess.canRead else { return false }
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])

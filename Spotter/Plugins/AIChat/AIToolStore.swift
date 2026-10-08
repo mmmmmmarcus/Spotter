@@ -12,8 +12,8 @@ protocol AIToolModel: AnyObject {
 
 @MainActor
 final class AIToolStore: ObservableObject {
-    @Published private(set) var isEnabled: Bool
     @Published private(set) var configurationText: String
+    @Published private(set) var statusSymbol = "network"
     @Published private(set) var status = "Not connected"
     @Published private(set) var activities: [AIToolActivity] = []
     @Published private(set) var approval: AIToolApproval?
@@ -24,32 +24,16 @@ final class AIToolStore: ObservableObject {
     private var runID: UUID?
     private var connections: [String: AIMCPConnection] = [:]
     private var approvalContinuation: CheckedContinuation<Bool, Never>?
-    private static let enabledKey = "ai-chat.tools-consent"
     private static let configurationKey = "ai-chat.mcp-configuration"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        isEnabled = defaults.bool(forKey: Self.enabledKey)
         configurationText = defaults.string(forKey: Self.configurationKey) ?? AIMCPConfiguration.empty
     }
 
     var serverCount: Int { (try? AIMCPConfiguration.parse(configurationText).mcpServers.count) ?? 0 }
     var isRunning: Bool { runID != nil }
-    var consentMessage: String {
-        "During AI requests, Spotter can start the local programs and contact the MCP servers you configure. "
-        + "Tool descriptions, arguments, results and Cua screen images are sent to OpenRouter and your selected model provider. "
-        + "Cua can read and operate this Mac using its own macOS permissions. Each tool call requires confirmation. "
-        + "There is no background polling. Turning this off stops the current tool run."
-    }
-
-    func setEnabled(_ enabled: Bool) {
-        guard isEnabled != enabled else { return }
-        stop()
-        isEnabled = enabled
-        if !enabled { activities.removeAll() }
-        defaults.set(enabled, forKey: Self.enabledKey)
-        onConfigurationChanged?()
-    }
+    var isConfigured: Bool { serverCount > 0 }
 
     func saveConfiguration(_ text: String) throws {
         let configuration = try AIMCPConfiguration.parse(text)
@@ -57,10 +41,7 @@ final class AIToolStore: ObservableObject {
         activities.removeAll()
         configurationText = configuration.formatted
         defaults.set(configurationText, forKey: Self.configurationKey)
-        // A newly configured endpoint or executable must get its own consent before any connection.
-        isEnabled = false
-        defaults.set(false, forKey: Self.enabledKey)
-        status = "Saved \(configuration.mcpServers.count) servers · Enable tools to connect"
+        status = "Saved \(configuration.mcpServers.count) servers"
         onConfigurationChanged?()
     }
 
@@ -101,7 +82,7 @@ final class AIToolStore: ObservableObject {
 
     private func check(_ id: UUID, router: any AIToolModel, key: String) throws {
         try Task.checkCancellation()
-        guard runID == id, isEnabled, router.isReady, router.apiKey == key else { throw CancellationError() }
+        guard runID == id, router.isReady, router.apiKey == key else { throw CancellationError() }
     }
 
     private func record(_ title: String, _ detail: String, sessionID: UUID) {
@@ -111,7 +92,7 @@ final class AIToolStore: ObservableObject {
 
     func run(messages: [(role: String, content: String)], model: String, webSearch: Bool,
         sessionID: UUID, router: any AIToolModel, onText: @escaping @MainActor @Sendable (String) -> Void) async throws {
-        guard isEnabled, router.isReady, runID == nil else { throw AIToolFailure("AI tools are unavailable.") }
+        guard router.isReady, runID == nil else { throw AIToolFailure("AI tools are unavailable.") }
         let configuration = try AIMCPConfiguration.parse(configurationText)
         let id = UUID()
         let key = router.apiKey
@@ -124,6 +105,7 @@ final class AIToolStore: ObservableObject {
         turns.insert(.object(["role": .string("system"), "content": .string(Self.toolInstructions)]), at: min(1, turns.count))
         for name in configuration.mcpServers.keys.sorted() {
             try check(id, router: router, key: key)
+            statusSymbol = "network"
             status = "Connecting to \(name)…"
             let connection = AIMCPConnection(configuration: configuration.mcpServers[name]!)
             connections[name] = connection
@@ -156,7 +138,8 @@ final class AIToolStore: ObservableObject {
         }
         if tools.isEmpty {
             try check(id, router: router, key: key)
-            status = "Thinking…"
+            statusSymbol = "ellipsis.bubble"
+            status = "Waiting for reply…"
             var plainMessages = turns.compactMap { turn -> (role: String, content: String)? in
                 guard let role = turn["role"]?.string, let content = turn["content"]?.string else { return nil }
                 return (role, content)
@@ -164,6 +147,8 @@ final class AIToolStore: ObservableObject {
             plainMessages.insert((role: "system", content: "No MCP tools or computer access are available for this request. Answer directly when possible. If the request requires them, explain that limitation and direct the user to MCP & Computer Use in AI Chat Settings. Do not claim to have observed or operated the computer. Do not mention unavailable tools for questions that do not need them."), at: min(2, plainMessages.count))
             try await router.chat(messages: plainMessages, model: model, webSearch: webSearch) { [weak self] text in
                 guard let self, (try? self.check(id, router: router, key: key)) != nil else { return }
+                self.statusSymbol = "text.line.first.and.arrowtriangle.forward"
+                self.status = "Generating reply…"
                 onText(text)
             }
             try check(id, router: router, key: key)
@@ -172,7 +157,8 @@ final class AIToolStore: ObservableObject {
         record("MCP connected", "\(connections.count) servers · \(tools.count) tools", sessionID: sessionID)
         for _ in 0..<12 {
             try check(id, router: router, key: key)
-            status = "Thinking with tools…"
+            statusSymbol = "brain"
+            status = "Planning next step…"
             let turn = try await router.toolTurn(messages: turns, tools: tools, model: model, webSearch: webSearch)
             try check(id, router: router, key: key)
             if let text = turn.content, !text.isEmpty { onText(text + "\n\n") }
@@ -186,6 +172,7 @@ final class AIToolStore: ObservableObject {
             turns.append(turn.wire)
             let approval = AIToolApproval(title: "\(tool.server) · \(tool.remoteName)", arguments: arguments.formatted)
             self.approval = approval
+            statusSymbol = "hand.raised"
             status = "Waiting for tool confirmation…"
             let allowed = await withTaskCancellationHandler {
                 await withCheckedContinuation { continuation in
@@ -198,6 +185,7 @@ final class AIToolStore: ObservableObject {
             }
             try check(id, router: router, key: key)
             guard allowed else { throw AIToolFailure("Tool call cancelled. No further tools were run.") }
+            statusSymbol = "wrench.and.screwdriver"
             status = "Running \(tool.remoteName)…"
             record(approval.title, "Running…\n" + arguments.formatted, sessionID: sessionID)
             let raw = try await connection.request("tools/call", parameters: .object([

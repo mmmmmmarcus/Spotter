@@ -137,7 +137,10 @@ extension AppCore {
         else { return }
         let previous = previousApplication
         hidePalette(restoreFocus: false)
-        Paster.pasteString(snippet.content, previousApp: previous)
+        let context = DynamicTemplateContext(
+            clipboardHistory: NSPasteboard.general.string(forType: .string).map { [$0] } ?? [],
+            snippets: Dictionary(textReplacements.snippets.map { ($0.name.lowercased(), $0.content) }, uniquingKeysWith: { first, _ in first }))
+        Paster.pasteString(DynamicTemplate.expand(snippet.content, context: context).text, previousApp: previous)
     }
 
     /// A snippet row's action: paste into the previous app (↵), or copy without pasting (⌘↵).
@@ -149,7 +152,10 @@ extension AppCore {
             return
         }
         hidePalette(restoreFocus: false)
-        Paster.copyPlainText(snippet.content)
+        let context = DynamicTemplateContext(
+            clipboardHistory: NSPasteboard.general.string(forType: .string).map { [$0] } ?? [],
+            snippets: Dictionary(textReplacements.snippets.map { ($0.name.lowercased(), $0.content) }, uniquingKeysWith: { first, _ in first }))
+        Paster.copyPlainText(DynamicTemplate.expand(snippet.content, context: context).text)
         hud.show(title: "Copied \(snippet.name)", symbol: "doc.on.doc")
     }
 }

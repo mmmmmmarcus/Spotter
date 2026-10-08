@@ -119,6 +119,7 @@ Restoring one of these *is* the consent act — the file is trusted explicitly b
 | Setting | Field |
 | --- | --- |
 | OpenRouter API key (the gate for AI Chat and every AI command) | `settings.openRouterAPIKey` |
+| Everyday / Professional / Deep Reasoning model mappings (Jev always on) | `settings.aiRouting` (absent legacy fields leave local choices intact) |
 | OpenRouter chat model, web search | `settings.openRouterChatModel`, `.openRouterChatWebSearch` |
 | Google Cloud Translation API key (the gate for Translate) | `settings.googleTranslationAPIKey` |
 | Translate target languages | `settings.googleTranslationTargets` |
@@ -150,6 +151,10 @@ derive "answered" from the restored grant.
 | Snippets prefix and rules | `textReplacement.prefix`, `.rules` |
 | Custom commands | `customCommands` |
 | AI commands (names, prompts, per-command models) | `aiCommands` |
+| AI commands use Quick AI Chat (default on) | `settings.aiCommandsUseQuickChat` |
+
+An older snapshot without `aiCommandsUseQuickChat` leaves the local choice unchanged. Command message
+metadata stores the original selection separately from the rendered model prompt within chat sessions.
 
 A file written before AI commands existed carries the two built-ins' prompts and models in
 `pluginPrefs.selectionTools` and `settings.openRouterDefinitionModel` / `.openRouterGrammarModel`
@@ -233,5 +238,10 @@ a backup is the consent act that may restore its saved toggles and keys. Request
 their owning consent flag around every network call and use private cacheless sessions.
 
 Settings-originated export, import and folder pickers are attached sheets. Cancelling restores the originating window, including when a floating Note is open. Palette-originated operations retain their modal fallback. Backup explains the content scope and links directly to Notes Settings.
+
+Backup also imports Snippets and Quicklinks from Raycast v2+ `.rayconfig` exports. The passphrase is
+used locally for scrypt plus AES-GCM decryption, and gzip payloads have explicit expansion limits.
+Only data records are mapped; extension JavaScript, commands and executables are never installed or
+run. Existing Spotter rows are preserved and exact name/content duplicates are skipped.
 
 AI Chat streaming drafts are process-local. Automatic sync observes committed sessions and selected session changes, not token-level view updates.

@@ -84,7 +84,10 @@ Never break these without an explicit task to do so.
   and never hardcode a literal white/black (use the semantic `NSColor`s in AppKit code). The dark
   stops are the original design and must not drift — `Tools/theme-test.swift` pins both stops of
   every token. Rasterized art is the one exception: an `IconCache` symbol tile bakes its colors, so
-  the appearance is part of its cache key and the view re-decodes on a flip.
+  the appearance is part of its cache key and the view re-decodes on a flip. Quick AI Chat's
+  owner-requested Siri-style surface contrasts with the system: black in light mode and white in
+  dark mode, with inverse native text and glass. Its appearance mapping and translucent backdrop
+  live in `Theme.QuickAI`.
 - **The flat `selection` index must match the visible selectable-row order exactly.** The empty-query
   dashboard is non-selectable; visually, background tasks sit below it and above Favorites. Among
   selectable rows, tasks come first, then the inline calculator/plugin card, then normal results.
@@ -214,7 +217,7 @@ Never break these without an explicit task to do so.
   `await`. Because the question is asked exactly once, **"asked" and "granted" are two separate
   persisted facts** (`dashboard-widgets.weather-consent-asked` and
   `dashboard-widgets.weather-enabled`): a decline records the answer and leaves weather off, is never
-  asked again on a later launch, and leaves Settings ▸ Widgets a way to grant it later. There is no
+  asked again on a later launch, and leaves Settings ▸ General → Weather a way to grant it later. There is no
   off switch; `DashboardWeatherEngine.consentState`/`shouldPresentConsent` hold that rule as pure
   logic and `Tools/dashboard-widgets-test.swift` pins it. The Clock follows that located place, and the sharing
   runs **one way only** — the fix sets the clock's zone, but setting a zone reaches no location and
@@ -308,21 +311,28 @@ Never break these without an explicit task to do so.
   concept, and do not confuse it with a **network consent gate**, which belongs to the owning store
   and stays: `CurrencyRateStore` is the reference, and its Settings switch is that consent act, not a
   plugin switch. See [`docs/plugins.md`](docs/plugins.md) and use the tracked `spotter-plugin` skill.
-- **AI Chat MCP/Cua tools are an opt-in experiment.** `AppCore` owns `AIToolStore`; it owns device-local
-  configuration and consent, excluded from backup/sync. Editing configuration revokes consent. The
-  OpenRouter key gate still applies, with both gates rechecked around awaits. Every tool call goes
+- **AI Chat MCP/Cua tools are available for configured servers without an enable switch** (owner decision, Oct 2026). `AppCore` owns `AIToolStore` and its device-local configuration, excluded from backup/sync. Saving configuration cancels active work and makes the new servers available on the next request. Legacy off flags are ignored; no configured servers means ordinary chat. The OpenRouter key and active request identity are rechecked around awaits. Every tool call goes
   through the Cancel-first palette confirmation; dismissing it cancels the call. Connections live
   only for a request. Cua uses a separately installed `cua-driver mcp` and its own macOS grants,
   never Spotter's TCC identity. Tool results/screenshots/reasoning are ephemeral; ordinary chat and
   selected-text command answers retain their existing streaming path. `AIToolTypes.swift` remains
   pure Foundation, and `AIToolStore` stays Foundation + Combine for the fixture-backed
   `Tools/ai-tools-test.swift` harness. MCP does not introduce runtime-loaded Spotter plugins.
+- **Jev classifies tasks; Spotter chooses the configured model.** `OpenRouterStore` owns always-on
+  `AIRoutingPreferences` (owner decision, Oct 2026), with Everyday / Professional / Deep Reasoning model mappings. One Jev
+  Decisions request precedes each unpinned chat turn, using only its prompt and bounded recent
+  conversation. Cancellation and key/configuration changes must never turn into a fallback. Unavailable
+  or uncertain classification falls back to the captured Everyday model with a visible label; failures
+  after answer/tool execution starts remain failures. Explicit command model pins bypass routing.
+  Configuration rides trusted settings backup/sync, and missing legacy fields leave local choices
+  intact. `AIRoutingTypes.swift` stays pure Foundation; `JevDecisionClient.swift` uses a bounded,
+  cacheless request. Reply routing metadata is optional so old history remains readable.
 - **Quick AI Chat is an owner-requested floating-window exception.** ⌥Space opens an independent
-  Liquid Glass composer above the Dock, expanding to twice its compact width after a send and growing upward with measured content, capped at the palette height. `AppCore`
+  Liquid Glass composer above the Dock, expanding to twice its compact width after the first send, then directly to the palette height on the first nonempty AI reply. Later replies scroll without resizing. `AppCore`
   solely owns `QuickAIChatController`; it owns the frame, draft and session reference. Both chat
   surfaces share `AIChatStore`, one in-flight request gate and `AIChatTranscriptView`; floating
   requests must never redirect the palette's selected conversation. Closing preserves the chat and
-  unsent draft in memory. Use the shared `PaletteDragHandleView` and native window dragging.
+  unsent draft in memory. Drag the header between Close and New Chat through native window dragging; there is no handle or extra strip. Native Regular glass carries a black-to-translucent vertical backdrop with light content, retaining 35% black opacity at the bottom in both sizes; the expanded composer is a native glass capsule with no custom border.
   `QuickAIChatLayout.swift` stays pure Foundation + CoreGraphics. MCP/Cua still uses the Cancel-first
   palette confirmation and restores focus before dispatch. Screenshot cleanup hides the floating panel.
 - **SF Symbols uses Apple's separately installed CLI.** `AppCore` owns `SFSymbolStore`. Search and
@@ -333,16 +343,10 @@ Never break these without an explicit task to do so.
   for `Tools/sf-symbols-test.swift`. Do not load private frameworks or ship a copied symbol catalog.
 - **AI Chat and Widgets are system features; Commands is a plugin.** Both reuse registry wiring.
   AI Chat uses `settingsPlacement: .system`;
-  Widgets uses `.system` too, with **one page for the whole strip** (owner decision, Aug 2026,
-  superseding both the per-card panes and the Arrangement pane that briefly replaced them): a
-  section per card that has something to configure, no pane of its own for any card. A card with
-  nothing to set gets no section at all (Device Battery and File Info, owner decision, Sep 2026),
-  and cards that share a setting share one section — Clock and Weather share the pane's opening
-  section, which like every pane's first group carries **no header**; it reports the located place
-  rather than offering one, with no city field, no time-zone picker and no way to turn weather off;
-  the Music section carries no
-  Automation Permission row either (owner decision, Sep 2026 — the Finder and Music reads and macOS's
-  own Automation prompt are unchanged, only the row is gone). **Order is set by dragging the cards in the
+  Widgets uses `.system` too but has no registered Settings page (owner decision, Oct 2026).
+  General embeds its Weather section: Location with Update Now, plus Units. Conditions, Music
+  status and the Calendar shortcut are removed; weather consent and Calendar's own settings remain.
+  There is no city field, time-zone picker or weather off switch. **Order is set by dragging the cards in the
   palette**, which is the thing being arranged — do not reintroduce a list of names for it. Strip
   order is `DashboardWidgetPreferences.widgetOrder`, which is the strip's *only* preference:
   every card shows, with no on/off state at all (owner decision, Aug 2026 — do not reintroduce a Show
@@ -354,15 +358,17 @@ Never break these without an explicit task to do so.
   same record as one the user writes, keeping their historical launcher entry ids and
   `KeyboardShortcuts_plugin.selection-tools.*` binding keys — their prompt, model and shortcut are
   editable and resettable, their name and identity are not, and they cannot be deleted. Commands
-  owns the custom-command Settings view and dynamic launcher entries.
+  owns the custom-command Settings view and dynamic launcher entries. AI commands open Quick AI Chat
+  by default; `AICommandStore` owns the synced opt-out. Their bubbles show the command symbol and
+  original selection, while the rendered prompt remains intact in model context and stored history.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
   registered `PluginPaletteScreenRegistration` and the shared `PluginPaletteList`; they must not
   create a separate window, search field, list chrome or footer. Dedicated plugin windows are limited
   to sustained editors/canvases or complex multi-step workspaces that cannot fit the launcher model,
   and must still go through `AppCore.showPluginWindow`. Kill Process is the palette-screen reference.
   Quick Clipboard History is an explicit owner-requested exception (Sep 2026): caret-anchored (mouse fallback)
-  history in a continuously scrolling vertical list sharing one Liquid Glass menu, with a five-row viewport, visible-only 48-point image previews, SQLite cursor paging beyond the memory window and a fixed footer containing centered Text / Images / Files filters (default Text each summon) and a right-aligned full-history icon, in a non-key panel owned by `AppCore`, with input only while visible.
-  Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. One native `NSGlassEffectView` uses `.clear` (owner decision, Sep 2026) with rounded menu corners and borderless rows inside its content view, without custom tint or dimming; glass ancestors stay fully opaque. Up/down arrows reveal selected rows; left/right cycles the three categories, and Tab cycles forward. One menu shadow is masked out of the entire glass interior. Dismissal ends input immediately while a mouse-ignoring panel animates out.
+  history sharing one Liquid Glass menu, with a five-row mixed list or a three-column square image grid with three visible rows, visible-only image previews, SQLite cursor paging beyond the memory window and a fixed footer containing spaced, centered All / Text / Images / Files filters (default All each summon) and a right-aligned full-history icon, in a non-key panel owned by `AppCore`, with input only while visible.
+  Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. One native `NSGlassEffectView` uses `.clear` (owner decision, Sep 2026) with rounded menu corners and borderless rows inside its content view, without custom tint or dimming; glass ancestors stay fully opaque. Up/down arrows reveal successive entries; only Tab cycles categories. Left/right remain unclaimed outside Images and navigate the image grid while that filter is selected. Text-only entries omit leading symbols. One menu shadow is masked out of the entire glass interior. Dismissal ends input immediately while a mouse-ignoring panel animates out.
 - **Confirmations are in-palette.** Every destructive palette flow (Mole actions, built-in Commands,
   custom commands, Quit All) asks through `AppCore.confirmInPalette` / `ConfirmationCard`, never an
   `NSAlert`, and the card's highlight always starts on Cancel — a reflexive second ↵ must never be

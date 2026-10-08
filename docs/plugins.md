@@ -105,10 +105,9 @@ Every registration supplies `metadata` and a standard Settings view. Everything 
   changes or disappears, activation falls back to the base command's parameter-selection surface.
   `PluginCommandSnapshot` holds displayed entries until the query changes or the palette reopens,
   so rebuilding the result list during activation cannot substitute a different target first.
-- `metadata.settingsPlacement` places a registration under Settings → System, Settings → Widgets or
-  Settings → Plugins. System features may reuse the registry's command, shortcut and Settings routing
-  without being presented as optional plugins. Widgets is one of them: the whole card strip is
-  configured on a single System page, a section per card.
+- `metadata.settingsPlacement` places registrations with a Settings view under System or Plugins.
+  Registrations without a Settings view have no sidebar row. Widgets remains a system feature,
+  with its weather settings embedded in General rather than a separate registered page.
 - `PluginCommandRegistration.actionKey` links a launcher row to its bindable shortcut so the row
   renders the recorded keycap. Pass the plugin's *existing* `shortcutActions` key rather than
   minting a second one: one `PluginActionKey` then serves the plugin's own Settings pane, its
@@ -270,11 +269,20 @@ shell-command feature; do not use shell commands as an internal plugin API.
   in the default browser. It also owns **AI commands** — a prompt with `{selection}` in it, its own
   shortcut and its own model — which appear as dynamic launcher entries; Define Selected Text and
   Check Selected Text Grammar are the two Spotter ships, and each starts a follow-up-ready
-  conversation. The launcher's final query
+  conversation, defaulting to Quick AI Chat with an opt-out in AI command settings. Command bubbles
+  show the command symbol and selected input while retaining the rendered prompt in model context.
+  The launcher's final query
   destination rows reuse both paths without adding registry commands. Quick AI Chat (⌥Space) is an
   owner-requested independent floating Liquid Glass composer, expanding upward into the shared
   transcript layout and sharing history, model settings and request ownership. Its native window
-  shadow follows the compact capsule and expanded rounded glass.
+  shadow follows the compact capsule and expanded rounded glass. Expansion occurs on the first send
+  and first AI reply; its blank header is draggable. A Siri-inspired backdrop fades evenly
+  to 35% opacity while compact and retains an opaque reading area when expanded. It is black in
+  light mode and white in dark mode, with inverse text and native Regular glass. The first send
+  shows the prompt at the top; live status uses stage-specific symbols and a moving text highlight.
+  Jev selection classifies each unpinned turn as Everyday, Professional or Deep Reasoning
+  and calls the user's configured model. The three mappings live in OpenRouterStore
+  and trusted settings sync; routed replies carry their selected category/model and fallback label.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
   the launcher dashboard and is configured on one System page. It adds five square cards above the
   empty launcher — Clock, Uptime, Device Battery, Calendar and File Info — switched on or off in that
@@ -293,7 +301,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — image-first pasteboard capture (including copied local image files) and generic file/folder references with a persisted history;
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
   The palette's type filters use a Liquid Glass dropdown with a checked native menu and preserve search-field focus.
-  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for continuously scrolling history in a compact vertical list sharing one native Clear glass menu, with visible-only image previews, a fixed footer of Text / Images / Files filters (default Text, symbol-only selection), left/right and Tab category navigation, a right-aligned full-history icon, and one menu shadow,
+  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for continuously scrolling history sharing one native Clear glass menu, with a mixed list or three-column square image grid, visible-only previews, a fixed footer of spaced All / Text / Images / Files filters (default All, symbol-only selection), Tab-only category navigation, a right-aligned full-history icon, and one menu shadow,
   below the active text caret when space permits (falling back to the captured mouse position and flipping above near the bottom edge), an explicit user-requested exception to palette-first interaction.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
@@ -375,9 +383,9 @@ Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](
 [Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md),
 and [File Search](file-search.md).
 
-Settings search derives destinations from the existing registry and matches shipped option keywords without indexing user content. Multi-control settings rows preserve independent accessibility children; explicit field prompts avoid duplicate native Form labels.
+Settings lists all destinations from the existing registry without a search field. Multi-control settings rows preserve independent accessibility children; explicit field prompts avoid duplicate native Form labels.
 
-Ordinary AI Chat and AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures. Opt-in MCP/Cua chat uses bounded tool rounds, per-call palette confirmation, device-local configuration and ephemeral tool activity. Unavailable MCP servers do not block healthy
+Ordinary AI Chat and AI commands share the OpenRouter streaming transport; partial replies survive Stop and failures. Configured MCP/Cua chat uses bounded tool rounds, per-call palette confirmation, device-local configuration and ephemeral tool activity. Unavailable MCP servers do not block healthy
 tools; with none available, chat falls back to ordinary streaming with explicit capability limits. See [AI Chat](ai-chat.md#mcp-and-cua-experiment).
 
 AI Chat reveals completed visual lines using SwiftUI text layout, with brief fades and bounded burst pacing; animation changes neither received content nor persistence.
@@ -411,3 +419,9 @@ mode guards are tested against the actual AppKit overlay without capturing the u
   shared palette, with the shared result list, a persistent large preview, name/SwiftUI copying and
   PNG/SVG-template export. `AppCore` owns its debounced, cancelable store. Missing CLI versions show an
   update instruction; no copied catalog, network fetch or persisted preferences. See [sf-symbols.md](sf-symbols.md).
+- **Apple Shortcuts** (`Spotter/Plugins/AppleShortcuts/`) — lists Apple's separately managed
+  shortcuts through `/usr/bin/shortcuts`, publishes each one as a dynamic launcher command and runs
+  the selected UUID without shell interpolation.
+- **Navigation** (`Spotter/Plugins/Navigation/`) — Accessibility-backed search for open application
+  windows and the frontmost application's menu commands. AX reads are bounded and canceled with the
+  palette session; activation refinds the element instead of retaining stale AX objects.

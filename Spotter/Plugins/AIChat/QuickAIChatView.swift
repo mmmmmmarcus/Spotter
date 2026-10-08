@@ -12,14 +12,16 @@ struct QuickAIChatView: View {
             if let sessionID = controller.sessionID {
                 HStack {
                     closeButton
-                    Spacer()
+                    QuickAIChatDragArea()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     toolbarButton(symbol: "square.and.pencil", help: "New Chat (⌘N)", action: controller.newConversation)
                         .keyboardShortcut("n", modifiers: .command)
                 }
-                .padding(.horizontal, Theme.Spacing.xxl)
-                .frame(height: Theme.Size.headerHeight)
-                AIChatTranscriptView(chat: chat, tools: tools, sessionID: sessionID, isFloating: true,
-                    onContentSizeChange: { controller.updateTranscriptSize($0, sessionID: sessionID) })
+                .frame(height: Theme.Size.noteGlassButton)
+                .padding(.horizontal, Theme.Spacing.xl)
+                .padding(.top, Theme.Spacing.xl)
+                .padding(.bottom, Theme.Spacing.md)
+                AIChatTranscriptView(chat: chat, tools: tools, sessionID: sessionID, isFloating: true, awaitingFirstReply: !controller.hasReceivedReply)
                     .id(sessionID)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -29,20 +31,21 @@ struct QuickAIChatView: View {
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Theme.Spacing.xxl)
+                    .padding(.horizontal, Theme.Spacing.xl)
                     .frame(height: Theme.Size.headerHeight)
             }
             if controller.isExpanded {
                 composer
                     .glassEffect(.regular, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Theme.Colors.border, lineWidth: 1))
                     .padding(.horizontal, Theme.Spacing.xl)
-                    .padding(.vertical, Theme.Spacing.md)
+                    .padding(.vertical, Theme.Spacing.xl)
             } else {
                 composer
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background { Theme.QuickAI.backdrop(isExpanded: controller.isExpanded).allowsHitTesting(false) }
+        .tint(.primary)
         .onAppear { composerFocused = true }
         .onChange(of: controller.focusToken) { composerFocused = true }
     }
@@ -69,13 +72,26 @@ struct QuickAIChatView: View {
 
     private var composer: some View {
         HStack(spacing: Theme.Spacing.md) {
-            TextField("Message", text: $controller.draft, prompt: Text("Ask anything…"))
+            Button { AppCore.shared.chooseAIChatAttachments() } label: {
+                Image(systemName: chat.pendingAttachments.isEmpty ? "paperclip" : "paperclip.circle.fill")
+                    .symbolRenderingMode(.monochrome)
+            }
+            .buttonStyle(.plain)
+            .help(chat.pendingAttachments.isEmpty ? "Attach Files" : "\(chat.pendingAttachments.count) attachment(s)")
+            .accessibilityLabel("Attach Files")
+            .contextMenu {
+                if !chat.pendingAttachments.isEmpty {
+                    Button("Clear Attachments", role: .destructive) { chat.clearPendingAttachments() }
+                }
+            }
+            TextField("Message", text: $controller.draft, prompt: Text("Ask Spotter")
+                .foregroundStyle(Theme.Colors.textSecondary))
                 .textFieldStyle(.plain)
                 .font(Theme.Typography.rowTitle)
                 .focused($composerFocused)
                 .onSubmit { controller.submit() }
                 .accessibilityLabel("Quick AI Chat message")
-            if !router.isReady {
+            if !chat.isReady {
                 Button(action: controller.openSettings) {
                     Image(systemName: "key")
                         .symbolRenderingMode(.monochrome)

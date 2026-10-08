@@ -24,6 +24,13 @@ struct BackupSettingsView: View {
                     Button("Choose Folder…") { BackupActions.chooseSettingsSyncFolder() }
                         .controlSize(.small)
                 }
+                SettingsRow(
+                    title: "Raycast Migration",
+                    subtitle: "Import Snippets and Quicklinks from an encrypted .rayconfig export."
+                ) {
+                    Button("Import…") { BackupActions.importRaycastLibraries() }
+                        .controlSize(.small)
+                }
                 SettingsRow(title: "Automatic Sync", subtitle: settingsSync.statusText) {
                     Toggle(
                         "",

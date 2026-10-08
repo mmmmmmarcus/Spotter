@@ -79,6 +79,7 @@ struct SettingsRow<Trailing: View>: View {
     let title: String
     /// Reserved for copy that *reports* — a version, a timestamp, a count, a granted state, a path, an error. Never a description of what the row is.
     var subtitle: String? = nil
+    var systemImage: String? = nil
     /// Optional state indicator rendered after the title (green = active, orange = attention).
     var statusDot: Color? = nil
     var containsMultipleControls = false
@@ -104,7 +105,7 @@ struct SettingsRow<Trailing: View>: View {
     private var labeled: some View {
         if containsMultipleControls {
             HStack(spacing: Theme.Spacing.lg) {
-                Text(title)
+                titleLabel
                 Spacer(minLength: Theme.Spacing.xl)
                 trailing
             }
@@ -114,18 +115,28 @@ struct SettingsRow<Trailing: View>: View {
         }
     }
 
+    private var titleLabel: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                    .accessibilityHidden(true)
+            }
+            Text(title)
+            if let statusDot {
+                Circle()
+                    .fill(statusDot)
+                    .frame(width: Theme.Size.statusDot, height: Theme.Size.statusDot)
+            }
+        }
+    }
+
     private var singleControlRow: some View {
         LabeledContent {
             trailing
         } label: {
-            HStack(spacing: Theme.Spacing.sm) {
-                Text(title)
-                if let statusDot {
-                    Circle()
-                        .fill(statusDot)
-                        .frame(width: Theme.Size.statusDot, height: Theme.Size.statusDot)
-                }
-            }
+            titleLabel
         }
     }
 }

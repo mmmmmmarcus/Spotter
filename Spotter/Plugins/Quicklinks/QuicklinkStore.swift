@@ -63,6 +63,21 @@ final class QuicklinkStore: ObservableObject {
         persist()
     }
 
+    @discardableResult
+    func importQuicklinks(_ imported: [Quicklink]) -> Int {
+        var count = 0
+        for link in imported where !quicklinks.contains(where: {
+            $0.name.caseInsensitiveCompare(link.name) == .orderedSame && $0.link == link.link
+        }) {
+            guard !link.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                !link.link.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            quicklinks.append(link)
+            count += 1
+        }
+        if count > 0 { persist() }
+        return count
+    }
+
     var sorted: [Quicklink] { quicklinks.sorted(by: Quicklink.precedes) }
 
     private func persist() {

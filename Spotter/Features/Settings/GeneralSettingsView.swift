@@ -94,6 +94,9 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            DashboardWeatherSettingsSection(
+                store: AppCore.shared.dashboardWidgets, weather: AppCore.shared.dashboardWeather)
+
             Section("Hyper Key") {
                 SettingsRow(
                     title: "Hyper Key", subtitle: hyperSubtitle, statusDot: hyperStatusDot

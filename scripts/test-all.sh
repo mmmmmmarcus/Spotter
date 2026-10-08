@@ -16,6 +16,11 @@ TESTS=(
     calc
     clipboard
     clipboard-capture
+    apple-shortcuts
+    navigation
+    dynamic-template
+    clipboard-color
+    raycast-import
     quick-clipboard
     scopes
     file-search
@@ -34,13 +39,13 @@ TESTS=(
     note-editor
     text-replacement
     settings-sync
-    settings-search
     update
     window-command
     background-task
     mole
     coffee
     ai-chat
+    ai-routing
     quick-ai-chat
     ai-tools
     dashboard-widgets
@@ -77,9 +82,29 @@ run_harness() {
     local output="$2"
 
     case "$name" in
-        settings-search)
-            swiftc -swift-version 6 Spotter/Features/Settings/SettingsSearch.swift \
-                Tools/settings-search-test.swift -o "$output" && "$output"
+        apple-shortcuts)
+            swiftc -swift-version 6 Spotter/Plugins/AppleShortcuts/AppleShortcutTypes.swift \
+                Tools/apple-shortcuts-test.swift -o "$output" && "$output"
+            ;;
+        navigation)
+            swiftc -swift-version 6 Spotter/Plugins/Navigation/NavigationTypes.swift \
+                Tools/navigation-test.swift -o "$output" && "$output"
+            ;;
+        dynamic-template)
+            swiftc -swift-version 6 Spotter/Plugins/Infrastructure/DynamicTemplate.swift \
+                Tools/dynamic-template-test.swift -o "$output" && "$output"
+            ;;
+        clipboard-color)
+            swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardColor.swift \
+                Tools/clipboard-color-test.swift -o "$output" && "$output"
+            ;;
+        raycast-import)
+            swiftc -swift-version 6 Spotter/Core/RaycastImport/Zlib.swift \
+                Spotter/Core/RaycastImport/Scrypt.swift Spotter/Core/RaycastImport/RaycastDecoder.swift \
+                Spotter/Core/RaycastImport/RaycastLibraryImport.swift \
+                Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \
+                Spotter/Plugins/Quicklinks/QuicklinkTypes.swift Tools/raycast-import-test.swift \
+                -o "$output" && "$output"
             ;;
         app-identity-migration)
             swiftc -swift-version 6 Spotter/Core/AppIdentityMigration.swift \
@@ -124,6 +149,7 @@ run_harness() {
         quick-clipboard)
             swiftc -swift-version 6 Spotter/Core/ImageThumbnail.swift \
                 Spotter/Plugins/Clipboard/ClipboardStore.swift \
+                Spotter/Plugins/Clipboard/ClipboardColor.swift \
                 Spotter/Plugins/Clipboard/ClipboardFilter.swift \
                 Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
                 Spotter/Plugins/Clipboard/QuickClipboardAnchor.swift \
@@ -134,6 +160,8 @@ run_harness() {
             ;;
         clipboard)
             swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
+                Spotter/Plugins/Clipboard/ClipboardColor.swift \
+                Spotter/Plugins/Clipboard/ClipboardTextIndexer.swift \
                 Spotter/Plugins/Clipboard/ClipboardShortcutMigration.swift \
                 Spotter/Plugins/Clipboard/ClipboardFilter.swift \
                 Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
@@ -230,6 +258,7 @@ run_harness() {
             ;;
         settings-sync)
             swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
+                Spotter/Plugins/AIChat/AIRoutingTypes.swift \
                 Spotter/Core/Backup/PluginShortcutSync.swift \
                 Spotter/Core/Backup/SettingsBackupData.swift \
                 Tools/settings-sync-test.swift -o "$output" && "$output"
@@ -275,7 +304,8 @@ run_harness() {
             ;;
         quick-ai-chat)
             swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
-                Spotter/Core/PaletteDragHandle.swift Spotter/Plugins/AIChat/AIChatTypes.swift \
+                Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+                Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
                 Spotter/Plugins/AIChat/AIChatStore.swift Spotter/Plugins/AIChat/QuickAIChatLayout.swift \
                 Spotter/Plugins/AIChat/QuickAIChatPanel.swift Spotter/Plugins/AIChat/QuickAIChatController.swift \
@@ -283,12 +313,22 @@ run_harness() {
             ;;
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
+                Spotter/Plugins/AIChat/AIRoutingTypes.swift \
                 Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift \
                 Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
                 Spotter/Plugins/AIChat/AICommand.swift \
                 Spotter/Plugins/AIChat/AICommandStore.swift \
                 Spotter/Core/OpenRouterStream.swift \
                 Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
+                -o "$output" && "$output"
+            ;;
+        ai-routing)
+            swiftc -swift-version 6 Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+                Spotter/Plugins/AIChat/JevDecisionClient.swift Spotter/Plugins/AIChat/AIChatTypes.swift \
+                Spotter/Plugins/AIChat/AIToolTypes.swift Spotter/Plugins/AIChat/AIToolStore.swift \
+                Spotter/Plugins/AIChat/AIMCPConnection.swift Spotter/Core/ProcessPipe.swift \
+                Spotter/Core/OpenRouterStore.swift Spotter/Core/OpenRouterStream.swift \
+                Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-routing-test.swift \
                 -o "$output" && "$output"
             ;;
         weather-refresh)

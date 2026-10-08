@@ -90,8 +90,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     let id: UUID
     var name: String
     var prompt: String
-    /// The model this command asks. `nil` means the chat model, so a command that pins nothing keeps
-    /// following the default as the default changes.
+    // A nil model delegates to Jev using the configured category mappings.
     var model: String?
     /// Set for the two shipped commands, `nil` for user-created ones.
     let builtIn: AIBuiltInCommand?
@@ -138,14 +137,11 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
         return UUID(uuidString: String(entryID.dropFirst(entryIDPrefix.count)))
     }
 
-    /// The model actually asked: the pinned id, or the chat model when this command follows the
-    /// default. A pinned id is never rewritten — a model the key can no longer reach stays the
-    /// command's choice, and the request fails visibly rather than silently answering as some other
-    /// model.
-    func resolvedModel(chatModel: String) -> String {
+    // Unpinned commands always delegate to Jev; explicit model choices stay authoritative.
+    func resolvedModel() -> String? {
         guard let trimmed = model?.trimmingCharacters(in: .whitespacesAndNewlines),
             !trimmed.isEmpty
-        else { return chatModel }
+        else { return nil }
         return trimmed
     }
 

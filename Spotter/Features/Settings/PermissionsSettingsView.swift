@@ -16,7 +16,7 @@ struct PermissionsSettingsView: View {
     var body: some View {
         SettingsPane(title: "Permissions") {
             Section {
-                SettingsRow(title: "Accessibility") {
+                SettingsRow(title: "Accessibility", systemImage: "accessibility") {
                     if accessibilityTrusted {
                         grantedBadge
                     } else {
@@ -27,23 +27,25 @@ struct PermissionsSettingsView: View {
 
                 // Automation has no queryable per-app state: macOS asks the first time Spotter drives
                 // another app, so the row can only ever offer the pane it is managed in.
-                SettingsRow(title: "App Automation") {
+                SettingsRow(title: "App Automation", systemImage: "gearshape.2") {
                     Button("Open Settings…") { Permissions.openAutomationSettings() }
                         .controlSize(.small)
                 }
 
-                SettingsRow(title: "Calendar Events") {
+                SettingsRow(title: "Calendar Events", systemImage: "calendar") {
                     calendarControl
                 }
 
-                SettingsRow(title: "Location", containsMultipleControls: true) {
+                SettingsRow(title: "Location", systemImage: "location", containsMultipleControls: true) {
                     locationControl
-                    Button("Open Settings…") { Permissions.openLocationSettings() }
-                        .controlSize(.small)
-                        .accessibilityLabel("Open Location Services Settings")
+                    if weather.authorization != .authorized {
+                        Button("Open Settings…") { Permissions.openLocationSettings() }
+                            .controlSize(.small)
+                            .accessibilityLabel("Open Location Services Settings")
+                    }
                 }
 
-                SettingsRow(title: "Screen Recording") {
+                SettingsRow(title: "Screen Recording", systemImage: "record.circle") {
                     if screenRecordingAllowed {
                         grantedBadge
                     } else {
@@ -74,7 +76,9 @@ struct PermissionsSettingsView: View {
 
     @ViewBuilder
     private var locationControl: some View {
-        if !weather.isEnabled {
+        if weather.authorization == .authorized {
+            grantedBadge
+        } else if !weather.isEnabled {
             Text("Not in use")
                 .foregroundStyle(.secondary)
         } else {
@@ -93,7 +97,8 @@ struct PermissionsSettingsView: View {
     }
 
     private var grantedBadge: some View {
-        statusBadge("Granted", symbol: "checkmark.circle.fill", color: .green)
+        Text("Granted")
+            .foregroundStyle(.green)
     }
 
     private func statusBadge(_ label: String, symbol: String, color: Color) -> some View {

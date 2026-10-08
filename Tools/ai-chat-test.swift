@@ -1,4 +1,4 @@
-// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
+// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
 import Foundation
 import CoreGraphics
 
@@ -98,6 +98,15 @@ struct AIChatTests {
         ]
         check(
             "an exact-budget fit keeps both", AIChatEngine.transcriptWindow(exact, budget: 100).count == 2)
+        let attachment = AIChatMessage.Attachment(name: "reference.pdf", kind: .pdf,
+            content: String(repeating: "document ", count: 20))
+        let attached = [message(.assistant, "previous"),
+            AIChatMessage(role: .user, text: "Analyze this", attachments: [attachment])]
+        check("attachment content counts toward the transcript budget",
+            AIChatEngine.transcriptWindow(attached, budget: 100).count == 1)
+        let routing = AIChatEngine.routingMessages(attached)
+        check("model routing sees the prompt but not attachment contents",
+            routing.last?.content == "Analyze this" && !routing.last!.content.contains("document"))
 
         // Session titles derive from the first user turn, like Notes titles.
         check("empty session titles as New Session", AIChatEngine.sessionTitle(for: []) == "New Session")
@@ -227,6 +236,8 @@ struct AIChatTests {
             .paragraph("just an answer")
         ])
         check("empty text has no blocks", AIChatMarkdown.blocks(in: "  \n\n ").isEmpty)
+        check("display equations become math blocks",
+            AIChatMarkdown.blocks(in: "$$\\sum_{i=1}^n i$$") == [.math("\\sum_{i=1}^n i")])
         check(
             "inline emphasis is left to the inline parser",
             AIChatMarkdown.blocks(in: "**bold** and `code`") == [.paragraph("**bold** and `code`")])
@@ -463,17 +474,21 @@ struct AIChatTests {
         // A command follows the chat model unless it pins one, and a pinned id is never rewritten —
         // a model the key can no longer reach stays the command's choice.
         check(
-            "no pinned model means the chat model",
-            userCommand.resolvedModel(chatModel: "anthropic/claude-sonnet-5")
-                == "anthropic/claude-sonnet-5")
+            "no pinned model delegates to Jev",
+            userCommand.resolvedModel() == nil)
         check(
-            "a blank pinned model falls back to the chat model",
+            "a blank pinned model delegates to Jev",
             AICommand(name: "Blank", prompt: "p", model: "   ")
-                .resolvedModel(chatModel: "chat/model") == "chat/model")
+                .resolvedModel() == nil)
         check(
             "a withdrawn model stays the command's choice",
             AICommand(name: "Pinned", prompt: "p", model: "vendor/retired-model")
-                .resolvedModel(chatModel: "chat/model") == "vendor/retired-model")
+                .resolvedModel() == "vendor/retired-model")
+        check("an unpinned command delegates to Jev when automatic selection is enabled",
+            userCommand.resolvedModel() == nil)
+        check("a command pin wins over automatic selection",
+            AICommand(name: "Pinned", prompt: "p", model: "vendor/pinned")
+                .resolvedModel() == "vendor/pinned")
         check(
             "a withdrawn model still has a name to show",
             OpenRouterModelCatalog.modelName(for: "vendor/retired-model", in: [])
@@ -545,6 +560,19 @@ struct AIChatTests {
         commandDefaults.set("vendor/definition-model", forKey: "openrouter.definition-model")
         commandDefaults.set("vendor/shared-model", forKey: "openrouter.model")
         let store = AICommandStore(defaults: commandDefaults)
+        check("AI commands default to the floating chat", store.usesQuickChat)
+        store.setUsesQuickChat(false)
+        check("an explicit palette choice survives reload", !AICommandStore(defaults: commandDefaults).usesQuickChat)
+        store.setUsesQuickChat(true)
+        check("the floating preference can be restored", AICommandStore(defaults: commandDefaults).usesQuickChat)
+        let compactInput = AIChatMessage(role: .user, text: "Long preset instructions: selected text",
+            commandInput: .init(name: "Define", text: "selected text"))
+        let compactReloaded = try! JSONDecoder().decode(AIChatMessage.self, from: JSONEncoder().encode(compactInput))
+        check("command presentation survives sync while retaining the actual prompt",
+            compactReloaded == compactInput && compactReloaded.displayedText == "selected text"
+                && compactReloaded.text == "Long preset instructions: selected text")
+        check("ordinary messages retain their complete displayed text",
+            AIChatMessage(role: .user, text: "Regular prompt").displayedText == "Regular prompt")
         check("the store starts with both shipped commands", store.commands.count == 2)
         check(
             "a customized prompt migrates onto its command",

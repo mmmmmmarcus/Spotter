@@ -25,6 +25,7 @@ struct ClipboardTests {
         textFormClassification()
         typeFilterSplitsTheHistory()
         typeFilterJoinsTheSearchMemo()
+        textIndexLifecycle()
         persistence()
         migrationFromShippedDatabase()
         await portableSnapshot()
@@ -36,6 +37,41 @@ struct ClipboardTests {
 
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
+    }
+
+    static func textIndexLifecycle() {
+        let root = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ClipboardStore(directory: root.appendingPathComponent("store"))
+        store.maxAge = .greatestFiniteMagnitude
+        let first = ClipboardItem(imagePath: "/tmp/index-one.png", sourceBundleID: nil)
+        let second = ClipboardItem(imagePath: "/tmp/index-two.png", sourceBundleID: nil)
+        _ = store.importEntries([first, second])
+        let cacheDirectory = root.appendingPathComponent("index")
+        try! FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        let cacheURL = cacheDirectory.appendingPathComponent("clipboard-text-index.json")
+        let seeded = [first.id.uuidString: "first hidden phrase", second.id.uuidString: "second hidden phrase"]
+        try! JSONEncoder().encode(seeded).write(to: cacheURL)
+        let indexer = ClipboardTextIndexer(store: store, directory: cacheDirectory)
+
+        indexer.start(enabled: false)
+        expect(store.search("hidden phrase").isEmpty,
+            "a disabled local text index never contributes cached OCR results")
+        indexer.setEnabled(true)
+        expect(Set(store.search("hidden phrase").map(\.id)) == Set([first.id, second.id]),
+            "enabling local text search restores cached OCR annotations")
+        indexer.setEnabled(false)
+        expect(store.search("hidden phrase").isEmpty,
+            "turning local text search off removes its annotations immediately")
+
+        indexer.setEnabled(true)
+        store.remove(first)
+        let afterDelete = try! JSONDecoder().decode([String: String].self, from: Data(contentsOf: cacheURL))
+        expect(afterDelete[first.id.uuidString] == nil && afterDelete[second.id.uuidString] != nil,
+            "deleting one clipboard entry removes only its cached recognized text")
+        store.clearAll()
+        expect(!FileManager.default.fileExists(atPath: cacheURL.path),
+            "clearing clipboard history removes the recognized-text cache")
     }
 
     static func shortcutMigration() {
@@ -83,11 +119,25 @@ struct ClipboardTests {
         let image = ClipboardItem(imagePath: "/tmp/example_SpotterScreenshot_2609291200.png", sourceBundleID: nil)
         let file = ClipboardItem(fileURLs: [URL(fileURLWithPath: "/tmp/file.txt")], sourceBundleID: nil)
         _ = store.importEntries(texts + otherText + [image, file])
+        let firstAll = store.historyPage()
+        expect(firstAll.count == 50 && firstAll.contains { $0.id == image.id }
+            && firstAll.contains { $0.id == file.id } && firstAll.contains { $0.kind == .text },
+            "All pages mixed clipboard types in one newest-first history")
         let first = store.historyPage(kind: .text)
         expect(first.count == 50 && first.contains { $0.text == "https://example.com" }
             && first.contains { $0.text == "name@example.com" } && first.contains { $0.text == "123" },
             "broad text category includes links, email addresses and numbers")
         store.addText("Inserted during pagination", sourceBundleID: nil)
+        var all = firstAll
+        while let last = all.last {
+            let next = store.historyPage(before: last.id)
+            if next.isEmpty { break }
+            all += next
+        }
+        expect(all.count == 1110 && Set(all.map(\.id)).count == 1110,
+            "All cursor paging crosses the memory window without duplicates after a new capture")
+        expect(store.historyPage(limit: 0).isEmpty && store.historyPage(before: all.last!.id).isEmpty,
+            "empty and exhausted mixed-history pages stay empty")
         var collected = first
         while let last = collected.last {
             let next = store.historyPage(kind: .text, before: last.id)
