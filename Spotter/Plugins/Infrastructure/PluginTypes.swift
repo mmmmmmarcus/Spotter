@@ -157,12 +157,21 @@ struct PluginPaletteAccessory: Equatable, Sendable {
 }
 
 /// One selectable result supplied by a plugin palette screen.
+struct PluginPaletteStackedDetail: Equatable, Sendable {
+    let leadingCaption: String
+    let trailingCaption: String
+    let trailingSymbol: String
+    let trailingValue: String
+    let numericValue: Double
+}
+
 struct PluginPaletteItem: Equatable, Identifiable, Sendable {
     let id: String
     let title: String
     let subtitle: String?
     let icon: PluginPaletteIcon
     var accessories: [PluginPaletteAccessory] = []
+    var stackedDetail: PluginPaletteStackedDetail? = nil
     var titleLineLimit: Int? = 1
     var subtitleLineLimit: Int? = 1
     let primaryActionTitle: String

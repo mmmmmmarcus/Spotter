@@ -21,6 +21,7 @@ final class PaletteDragHandleView: NSView {
     private var hideTimer: Timer?
     private var dragStart: NSPoint?
     private var didDrag = false
+    private let dragCursor = WindowDragCursor()
 
     init() {
         super.init(frame: .zero)
@@ -93,6 +94,16 @@ final class PaletteDragHandleView: NSView {
     override func mouseDown(with event: NSEvent) {
         dragStart = NSEvent.mouseLocation
         didDrag = false
+        dragCursor.begin(in: self) { [weak self] in
+            self?.dragStart = nil
+            self?.didDrag = false
+            self?.scheduleHide(after: 0.8)
+        }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow !== window { dragCursor.end() }
+        super.viewWillMove(toWindow: newWindow)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -102,10 +113,13 @@ final class PaletteDragHandleView: NSView {
         didDrag = true
         // Hand the rest of the gesture to the window server: the native drag, fed this event's own window and coordinates, is exactly what `isMovableByWindowBackground` would have done.
         window?.performDrag(with: event)
+        NSCursor.closedHand.set()
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard dragStart != nil else { return }
         let wasDrag = didDrag
+        dragCursor.end()
         dragStart = nil
         didDrag = false
         scheduleHide(after: 0.8)

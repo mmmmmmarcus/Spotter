@@ -161,7 +161,7 @@ appearances.
 
 - **`PalettePanel`** is a borderless `NSPanel`: `isOpaque = false`, `backgroundColor = .clear`, `.floating` level, `hasShadow`, `animationBehavior = .none`, `.fullSizeContentView`, drag-movable by its background. It hosts SwiftUI via `NSHostingView`. `PaletteWindowController` anchors its **top edge** at `paletteTopMarginFraction` (0.18) of the visible height, resolved once per summon so the window grows downward, and dismisses it on `windowDidResignKey`.
 - **The results layer fills the whole panel.** The header and bottom bar attach via `.safeAreaInset(edge: .top/.bottom)` as transparent overlays that float _over_ the list. The top inset carries `headerContentGap 10` of spacing so the results clear the search row; the gap is the inset's spacing rather than part of `headerHeight`, which would grow the compact bar and move the window anchor. The list underlaps them and dissolves at the edges.
-- **Header** (`headerHeight 44`): a **mode glyph** _or_ a back chevron, then the plain `TextField` (no border/background). A Tab-cycle stop (Apps, AI Chat, Clipboard, Emoji — see [palette.md](palette.md)) shows its own mode glyph, so the header names the surface you are on rather than offering a way back out of it; clicking it cycles forward, exactly as Tab does. Every mode outside the cycle (Calculator History, Software Update, plugin screens) shows the back chevron instead. Both are bare `headerIcon` glyphs in the fixed `headerIconSlot 22` — no container, no fill — so the search icon keeps aligning horizontally with row content and the field's x never moves between modes. The glyph swap is **instant**: it fires on every Tab, and a transition there reads as lag rather than polish.
+- **Header** (`headerHeight 44`): a **mode glyph** _or_ a back chevron, then the plain `TextField` (no border/background). A Tab-cycle stop (Apps, Clipboard, Emoji — see [palette.md](palette.md)) shows its own mode glyph, so the header names the surface you are on rather than offering a way back out of it; clicking it cycles forward, exactly as Tab does. Every mode outside the cycle (Calculator History, Software Update, plugin screens) shows the back chevron instead. Both are bare `headerIcon` glyphs in the fixed `headerIconSlot 22` — no container, no fill — so the search icon keeps aligning horizontally with row content and the field's x never moves between modes. The glyph swap is **instant**: it fires on every Tab, and a transition there reads as lag rather than polish.
 - **Compact keyboard entry:** pressing `↓` in the collapsed launcher expands the results and selects the first row without replacing or defocusing the shared search field.
 - **Bottom bar** (`bottomBarHeight 52`): a menu circle on the left, the action group on the right — both floating glass, no bar background. The action group is one glass `Capsule` holding the primary-action pill (label + `↵`) and the Actions toggle (`⌘K`).
 
@@ -776,6 +776,8 @@ insets and 14-point semantic label text. It is 320 points wide, grows to fit the
 320 points high and scrolls longer text. Only translations appear on completion, separated by
 blank lines for multiple targets. It opens below the pointer when space permits and flips above
 near the screen edge. Native window shadow separates it from the desktop; it never takes focus.
+It fades in over 200 ms with a 6-point upward settle, showing the original text first.
+The reply replaces it with a 180 ms fade and resize. Reduce Motion retains fades only.
 Escape and click-away dismiss it. The typed Translate page retains its existing palette layout.
 
 Quick AI Chat opens with a 220 ms fade and an 8-point upward settle, and closes with a
@@ -789,3 +791,40 @@ text-only with the existing shimmer; failure rows retain their warning symbol.
 Raycast extensions reuse the main palette for List, Grid, Detail and Form. The native Actions menu retains extension sections and submenus; the shared keyboard action picker also exposes flattened actions with submenu titles. Preferences, installation, updates and cleanup live in Settings → Raycast Extensions.
 
 Local AI CLI rows offer only Enter Path, opening a path entry dialog; saving an empty path restores automatic detection. Validation status appears beneath the provider name.
+
+
+Raycast extension installation uses the shared Palette search, selectable results and footer.
+Settings lists each installed extension as its own destination under the exact sidebar heading
+“Raycast Extension”; there is no combined installed-extension settings page. Global runtime and
+source-build options live in General. Launcher command artwork is decoded from the extension’s
+image file, rather than represented by the system’s document-type icon.
+
+Quick AI Chat submits with Enter; the right-hand paperclip replaces the send arrow. Stop remains available while waiting. AI command editors expose an SF Symbol name with a live preview and validate it before saving. MCP settings list servers directly with Add Server, Edit and Delete actions.
+
+Quick Translate uses secondary original text while loading and an overlapping crossfade to the result. Its bottom-left symbol buttons copy the full translation and toggle original-above/translation-below comparison. Word hover highlights linked spans in both texts; the shared scroll region keeps the footer visible.
+
+World Clock uses the shared palette row's optional stacked detail presentation: metadata above city,
+day/night above time. Shared selection, activation and scrolling remain unchanged. Time changes
+use SwiftUI numericText and a 250 ms snappy animation, disabled by Reduce Motion.
+
+Quick Clipboard History has a 5–12 item initial viewport preference. Panel and scroll viewport use the same geometry, including on history updates and pagination; a short screen reduces the viewport instead of placing content offscreen.
+
+Quick AI Chat owns the sole chat UI. Sidebar is at the upper left, New Chat then Close at the upper
+right. Its left history column expands the native window, preserving the conversation width where
+screen space allows; the compact composer also exposes history without requiring a first message.
+
+Assistant Markdown is rendered in a transparent WebKit document inside the existing chat glass.
+`Theme.ChatMarkdown` resolves semantic native colors against that surface's effective appearance.
+Links are underlined; tables/code scroll horizontally, code has Copy, and the document resizes to
+content instead of creating a separate vertical scroll area. Raw HTML stays literal.
+
+Quick Chat's compact history control is a separate circle to the left of the input, not inside its
+capsule. The native glass backing excludes the circle/gap while the SwiftUI host spans the whole
+window. Expanded toolbar controls use `quickAIControlTint` for visible native glass edges. Session
+rows are single-line titles with icons, grouped by local calendar date without an overall heading
+or settings entry.
+
+Quick AI Chat and floating Notes explicitly use AppKit managed collection behavior and participate
+in window cycling, so their floating level does not default to hiding them in Mission Control.
+They retain their existing all-Spaces and full-screen auxiliary behavior. Sidebar transitions keep
+the expanded chat column fixed-width and anchor the window's trailing edge when screen space allows.

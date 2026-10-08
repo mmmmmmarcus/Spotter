@@ -6,7 +6,6 @@ enum PaletteMode: Equatable, Identifiable {
     case clipboard
     case calculatorHistory
     case emoji
-    case aiChat
     case updates
     case plugin(PluginID)
 
@@ -16,7 +15,6 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "clipboard"
         case .calculatorHistory: return "calculator-history"
         case .emoji: return "emoji"
-        case .aiChat: return "ai-chat"
         case .updates: return "updates"
         case .plugin(let id): return "plugin:" + id.rawValue
         }
@@ -31,7 +29,6 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "Clipboard"
         case .calculatorHistory: return "Calculator History"
         case .emoji: return "Emoji & Symbols"
-        case .aiChat: return "AI Chat"
         case .updates: return "Software Update"
         case .plugin: return "Plugin"
         }
@@ -42,7 +39,6 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "doc.on.doc"
         case .calculatorHistory: return "plus.forwardslash.minus"
         case .emoji: return "face.smiling"
-        case .aiChat: return "sparkles"
         case .updates: return "arrow.down.circle"
         case .plugin: return "puzzlepiece.extension"
         }
@@ -50,7 +46,7 @@ enum PaletteMode: Equatable, Identifiable {
     /// The Tab cycle's stops, in order. The single source of truth for both the key handling and the
     /// header glyph, so the affordance can't promise a loop the keys don't perform. Every mode left
     /// out is a sub-screen reached from the launcher and keeps its back chevron.
-    static let cycle: [PaletteMode] = [.launcher, .aiChat, .clipboard, .emoji]
+    static let cycle: [PaletteMode] = [.launcher, .clipboard, .emoji]
 
     var placeholder: String {
         switch self {
@@ -58,7 +54,6 @@ enum PaletteMode: Equatable, Identifiable {
         case .clipboard: return "Type to filter entries…"
         case .calculatorHistory: return "Do math, convert units, or search your past calculations…"
         case .emoji: return "Search emoji and symbols…"
-        case .aiChat: return "Ask anything, then press ↵…"
         case .updates: return "Software Update"
         case .plugin: return "Search plugin results…"
         }
@@ -234,7 +229,11 @@ final class AppCore: ObservableObject {
     lazy var extensions = ExtensionManager(clipboardStore: clipboardStore)
     lazy var extensionCoordinator = ExtensionCoordinator(core: self)
     let translate = TranslateManager()
-    lazy var quickTranslate = QuickTranslateController(manager: translate, hotKeys: hotKeys)
+    lazy var raycastStore = RaycastStoreController(core: self)
+    lazy var quickTranslate = QuickTranslateController(manager: translate, hotKeys: hotKeys) { [weak self] source, target in
+        guard let self else { throw CancellationError() }
+        return try await TranslationAlignmentClient.align(source: source, target: target, router: self.openRouter)
+    }
     let notes: NoteStore
     let noteFolderSync: NoteFolderSyncManager
     /// Deliberately unstarted: the CloudKit engine is kept whole but has no entry point since Notes
@@ -252,8 +251,8 @@ final class AppCore: ObservableObject {
 
 
     private lazy var windowController = PaletteWindowController(core: self)
-    private lazy var quickClipboard = QuickClipboardController(store: clipboardStore, hotKeys: hotKeys)
-    private lazy var quickAIChat = QuickAIChatController(chat: aiChat, tools: aiTools, router: openRouter) { [weak self] in
+    private lazy var quickClipboard = QuickClipboardController(store: clipboardStore, hotKeys: hotKeys) { [weak self] in self?.settings.quickClipboardVisibleCount ?? 5 }
+    lazy var quickAIChat = QuickAIChatController(chat: aiChat, tools: aiTools, router: openRouter) { [weak self] in
         self?.showSettings(plugin: .aiChat)
     }
     private lazy var auxWindows = AuxWindowController { [weak self] in
@@ -368,7 +367,6 @@ final class AppCore: ObservableObject {
             guard let self else { return }
             if let sessionID = aiChat.waitingSessionID {
                 if quickAIChat.owns(sessionID) { quickAIChat.hide(restoreFocus: true) }
-                openAIChat(sessionID: sessionID)
             }
             confirmInPalette(PaletteConfirmation(title: approval.title,
                 message: "Review the arguments. Run this tool on the configured server?",
@@ -401,8 +399,7 @@ final class AppCore: ObservableObject {
             guard let self else { return }
             // The row exists to carry a reply the user walked away from. Landing in front of them,
             // in that very conversation, is the reply being read — there is nothing to come back to.
-            if (isPaletteShowing && palette.mode == .aiChat && aiChat.currentID == sessionID)
-                || (quickAIChat.isVisible && quickAIChat.owns(sessionID)) {
+            if quickAIChat.isVisible && quickAIChat.owns(sessionID) {
                 backgroundTasks.discard(id: taskID)
                 return
             }
@@ -632,7 +629,7 @@ final class AppCore: ObservableObject {
         showSettings(destination: .plugin(id))
     }
 
-    private func showSettings(destination: SettingsDestination) {
+    func showSettings(destination: SettingsDestination) {
         let isNew = auxWindows.show(
             id: "settings", title: "Settings",
             size: CGSize(
@@ -640,7 +637,7 @@ final class AppCore: ObservableObject {
                 height: Theme.Size.settingsWindowHeight),
             seamlessTitleBar: true
         ) {
-            SettingsRootView(initialDestination: destination)
+            SettingsRootView(core: self, initialDestination: destination)
                 .environmentObject(self.appIndex)
                 .environmentObject(self.visibility)
                 .environmentObject(self.aliases)

@@ -76,7 +76,7 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
   content and the top edge drifts on the compact↔expanded swap. The panel is drag-movable by its
   background; a drag re-anchors the session, and with **Remember position** on it persists across
   summons. The panel auto-dismisses on `windowDidResignKey`.
-- **Settings / About** — plain `NSWindow`s via `AuxWindowController` (in
+- **Settings / About** — `SettingsRootView` requires its owning `AppCore` as an initializer argument, so missing ownership wiring fails at compile time rather than crashing when the sidebar renders. Both use plain `NSWindow`s via `AuxWindowController` (in
   `Features/About/AboutView.swift`). SwiftUI `Settings` / `Window` scenes are unreliable for accessory
   apps, so this is deliberate.
 - **Software Update** — a core command-palette sub-screen opened by the launcher command. It observes
@@ -164,3 +164,20 @@ Each EventKit read constructs and disposes its native objects off the main actor
 ## Raycast extensions
 
 AppCore owns `ExtensionManager` and `ExtensionCoordinator`. Raycast commands enter the existing native plugin registry as dynamic launcher commands and shortcuts; their React render trees are mapped to native palette views. The JavaScriptCore runtime is the explicit external-extension exception. See [Raycast extensions](raycast-extensions.md).
+
+
+`AppCore.raycastStore` owns Raycast Store search/install tasks. The existing Raycast palette
+registration switches between the shared installation list and extension runtime canvas. Dynamic
+`SettingsDestination.raycastExtension` values use installed extension names and disappear on uninstall.
+
+QuickAIChatController owns the sole chat surface, its sidebar visibility, selected session and
+per-session in-memory drafts/attachments. PaletteMode no longer includes AI Chat. Launcher AI
+fallbacks and background tasks route to the floating controller; MCP confirmation stays in Palette.
+
+The reply renderer uses checked-in JavaScript resources through an isolated nonpersistent WebKit
+view; its native bridge handles only content height, explicit link navigation, copy and internal
+footnote scroll. No feature manager or runtime plugin is added. Theme owns the document colors.
+
+QuickAIChatPanel keeps its SwiftUI host beside the native glass backing, rather than clipped inside
+it, so the compact external sidebar circle can draw independently. The controller reserves its width
+and only the composer receives the compact native backdrop; expanded glass fills the panel again.

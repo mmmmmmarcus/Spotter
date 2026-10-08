@@ -61,6 +61,11 @@ private struct RoutingTests {
     }
 
     static func main() async throws {
+        let webOnly = try AIRoutingDecision.request(messages: [.init(role: "user", content: "Latest news")], routeModel: false)
+        check(Set(webOnly.questions.keys) == ["web_search"], "follow-up only asks for web search")
+        let webAnswer = Data(#"{"answers":{"web_search":{"type":"choice","choice":"yes","probabilities":{"yes":0.9,"no":0.1}}}}"#.utf8)
+        let webSelection = try AIRoutingDecision.selection(from: webAnswer, preferences: preferences, defaultModel: "pinned", routeModel: false)
+        check(webSelection.model == "pinned" && webSelection.webSearch == true, "web decision preserves pinned model")
         try pureDecisions()
         try await transportAndConsent()
         print("AI Routing: \(count) checks passed")

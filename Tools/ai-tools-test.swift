@@ -115,7 +115,14 @@ private struct Tests {
         let store = AIToolStore(defaults: defaults)
         let messages = [(role: "system", content: "Fixture"), (role: "user", content: "Echo this")]
         let session = UUID()
-        check(!store.isConfigured, "a fresh install has no servers to connect")
+        check(store.isConfigured && store.serverCount == 1, "a fresh install configures Cua")
+        try store.saveConfiguration(AIMCPConfiguration.empty)
+        check(!AIToolStore(defaults: defaults).isConfigured, "removing the default server survives relaunch")
+        let imageModel = Model()
+        imageModel.rounds = 1
+        try await store.run(messages: messages, model: "fixture", webSearch: false,
+            sessionID: session, router: imageModel, imageDataURLs: [1: ["data:image/png;base64,fixture"]]) { _ in }
+        check(imageModel.captured.contains { $0["content"]?.array?.last?["image_url"]?["url"]?.string == "data:image/png;base64,fixture" }, "images survive the no-MCP fallback")
         defaults.set(false, forKey: "ai-chat.tools-consent")
         try store.saveConfiguration(config)
         check(store.isConfigured && AIToolStore(defaults: defaults).isConfigured,

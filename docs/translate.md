@@ -87,9 +87,10 @@ The selected-text experiment uses the result bubble described below.
 
 **Selection.** Translate Selected Text presents a non-activating native Clear Liquid Glass bubble
 near the pointer, an owner-requested experiment matching Quick Clipboard History. Completed content
-contains only translated text, with blank lines between configured target languages; there is no
-original-text row, search field, header or footer. The 320-point-wide bubble fits short results and
-scrolls longer ones within a 320-point height. Loading and errors appear in the same bubble. Escape
+starts with translated text, with blank lines between configured target languages. A symbol-only footer copies the full translation or toggles original/translation comparison. Comparison puts the original above a divider and the translation below; Copy always copies only the complete translated text. The 320-point-wide bubble fits short results and
+scrolls longer ones within a 320-point height. The bubble fades in over 200 ms with a 6-point upward settle and shows the original in secondary text during loading.
+Results replace the original with a 180 ms overlapping crossfade and frame resize; cached replies also wait until
+the entry finishes. Reduce Motion removes movement and animated resizing. Errors appear in the same bubble. Escape
 or clicking outside dismisses it and cancels pending work. Opening the palette or taking a screenshot
 also closes it. `AppCore` owns `QuickTranslateController`; requests still use the same manager,
 source detection, key gate and memo as the typed page.
@@ -114,3 +115,29 @@ renders the blocked page rather than a live one. Clearing the key cancels the ac
 the memo and clears the in-memory result, and both commands then refuse rather than translating.
 
 The Settings API-key field has a hidden label and an in-field example prompt; the provider disclosure and key persistence behavior are unchanged.
+
+
+## Word alignment in Quick Translate
+
+Opening comparison sends the original and translated word arrays once to
+`google/gemini-2.5-flash-lite` using the existing OpenRouter key. This owner-requested AI feature uses
+the OpenRouter key gate, with the provider/data disclosure in Translate settings and the comparison
+tooltip. It does not use Jev, tools or web search, and does not alter the translation or chat history.
+The Google translation alone never triggers alignment. No OpenRouter key means comparison still
+works and its status explains how to enable word matching.
+
+`TranslationWordAlignment` uses on-device NaturalLanguage word tokenization and UTF-16 ranges for
+AppKit. The model returns validated token-index links, supporting reordered and many-to-many words;
+there is no position-based fallback. Mouse hit testing checks actual glyph bounds, and temporary
+background attributes preserve selection and copy behavior. Model mistakes remain possible;
+unmatched words highlight only themselves. Requests are bounded to 600 tokens per side, 24 KB word
+content, 100 KB response and 12,000 completion tokens. The mapping lives only for the current panel;
+toggling comparison reuses successful results, hovering sends nothing, dismissal cancels work, and
+failed matching can be retried by reopening comparison. Credential changes are checked by the
+shared OpenRouter transport around delivery. The original and translation remain usable during
+matching or errors.
+
+Comparison hover emphasizes the matched words with the primary text color and dims all other text
+on both sides to secondary gray, without a background highlight. In light appearance the focused
+words remain black; dark appearance keeps the native readable primary color. Leaving a word restores
+the original text colors, including the source text's normal muted appearance.

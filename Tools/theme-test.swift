@@ -90,13 +90,18 @@ struct ThemeTests {
               darkWhite: false, darkAlpha: 0.55, lightWhite: true, lightAlpha: 0.40)
         check("quickAIBackdropBottom", Theme.Colors.quickAIBackdropBottom,
               darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.18)
+        check("quickAIControlTint", Theme.Colors.quickAIControlTint,
+              darkWhite: true, darkAlpha: 0.16, lightWhite: false, lightAlpha: 0.08)
         // Frost brightens glass; a dark tint would shadow it.
         check(
             "glassFrost", Theme.Colors.glassFrost,
             darkWhite: true, darkAlpha: 0.05, lightWhite: true, lightAlpha: 0.30)
-        check(
-            "screenshotSelectionBorder", Theme.Colors.screenshotSelectionBorder,
-            darkWhite: true, darkAlpha: 1.0, lightWhite: false, lightAlpha: 1.0)
+        for (appearance, gray) in [(NSAppearance.Name.darkAqua, CGFloat(0.72)), (.aqua, CGFloat(0.42))] {
+            let border = resolve(Theme.Colors.screenshotSelectionBorder, appearance)
+            check("screenshotSelectionBorder uses opaque neutral gray in \(appearance.rawValue)",
+                abs(border.r - gray) < 0.001 && abs(border.g - gray) < 0.001
+                    && abs(border.b - gray) < 0.001 && border.a == 1)
+        }
         check(
             "screenshotHitSurface", Theme.Colors.screenshotHitSurface,
             darkWhite: false, darkAlpha: 1.0 / 255.0,

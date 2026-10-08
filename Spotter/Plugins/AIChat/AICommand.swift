@@ -92,18 +92,20 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     var prompt: String
     // A nil model delegates to Jev using the configured category mappings.
     var model: String?
+    var symbol: String?
     /// Set for the two shipped commands, `nil` for user-created ones.
     let builtIn: AIBuiltInCommand?
 
     init(
         id: UUID = UUID(), name: String, prompt: String, model: String? = nil,
-        builtIn: AIBuiltInCommand? = nil
+        builtIn: AIBuiltInCommand? = nil, symbol: String? = nil
     ) {
         self.id = id
         self.name = name
         self.prompt = prompt
         self.model = model
         self.builtIn = builtIn
+        self.symbol = symbol
     }
 
     /// The shipped record for a built-in, before any customization.
@@ -115,7 +117,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
 
     var isBuiltIn: Bool { builtIn != nil }
     var entryID: String { builtIn?.entryID ?? Self.entryIDPrefix + id.uuidString.lowercased() }
-    var systemImage: String { builtIn?.systemImage ?? "sparkles" }
+    var systemImage: String { symbol ?? builtIn?.systemImage ?? "sparkles" }
     /// A user command's session is titled by the command; a built-in keeps its shorter session name.
     var sessionTitle: String { builtIn?.sessionTitle ?? name }
     var shortcutDefaultsKey: String { Self.shortcutDefaultsKey(forID: id) }
@@ -153,7 +155,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     var isDefault: Bool {
         guard let builtIn else { return false }
         let shipped = Self.makeBuiltIn(builtIn)
-        return prompt == shipped.prompt && model == shipped.model
+        return prompt == shipped.prompt && model == shipped.model && systemImage == shipped.systemImage
     }
 }
 
@@ -265,7 +267,7 @@ enum AICommandEngine {
             id: id, name: command.name.trimmingCharacters(in: .whitespacesAndNewlines),
             prompt: command.prompt.trimmingCharacters(in: .whitespacesAndNewlines),
             model: command.model?.trimmingCharacters(in: .whitespacesAndNewlines),
-            builtIn: command.builtIn)
+            builtIn: command.builtIn, symbol: command.symbol)
         if value.model?.isEmpty == true { value.model = nil }
         guard !value.name.isEmpty, !value.prompt.isEmpty, !value.name.contains("\0"),
             !value.prompt.contains("\0")

@@ -14,6 +14,14 @@ struct TranslateTests {
             }
         }
 
+        check("quick panel hides idle", TranslateState.idle.quickPanelText == nil)
+        check("quick panel shows source while loading", TranslateState.loading(original: "Hello", targets: []).quickPanelText == "Hello")
+        check("quick panel preserves failure feedback", TranslateState.failed("Offline").quickPanelText == "Offline")
+        let quickResult = TranslationResult(original: "Hello", sourceLanguage: "en", rows: [
+            TranslationRow(code: "zh-CN", name: "Chinese", text: "你好"),
+            TranslationRow(code: "ja", name: "Japanese", text: "こんにちは")])
+        check("quick panel replaces source with target text only", TranslateState.translated(quickResult).quickPanelText == "你好\n\nこんにちは")
+
         do {
             let request = GoogleTranslationRequest(q: "你好 & hello", target: "en")
             let data = try JSONEncoder().encode(request)

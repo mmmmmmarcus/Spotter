@@ -106,6 +106,7 @@ extension SettingsBackup {
         let dashboard = core.dashboardWidgets.preferences
         var backup = SettingsBackup()
         backup.settings = SettingsBackupData(
+            quickClipboardVisibleCount: s.quickClipboardVisibleCount,
             clipboardRetentionDays: s.clipboardRetention.rawValue,
             clipboardDisabledApps: s.clipboardDisabledApps,
             launchAtLogin: s.launchAtLogin,
@@ -131,9 +132,7 @@ extension SettingsBackup {
             openRouterDefinitionModel: core.aiCommands.command(.define)?.model,
             openRouterGrammarModel: core.aiCommands.command(.grammar)?.model,
             openRouterChatModel: core.openRouter.chatModel,
-            openRouterChatWebSearch: core.openRouter.chatWebSearch,
             aiRouting: core.openRouter.aiRouting,
-            aiCommandsUseQuickChat: core.aiCommands.usesQuickChat,
             googleTranslationAPIKey: core.translate.apiKey,
             googleTranslationTargets: core.translate.targetCodes,
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
@@ -414,6 +413,10 @@ extension SettingsBackup {
     private func applySettings(_ s: SettingsBackupData, to core: AppCore, mode: ApplyMode) -> Int {
         let settings = core.settings
         var count = 0
+        if let countValue = s.quickClipboardVisibleCount {
+            settings.quickClipboardVisibleCount = min(12, max(5, countValue))
+            count += 1
+        }
         if let days = s.clipboardRetentionDays, let retention = ClipboardRetention(rawValue: days) {
             settings.clipboardRetention = retention
             core.clipboardStore.maxAge = retention.maxAge
@@ -519,18 +522,12 @@ extension SettingsBackup {
             core.openRouter.setChatModel(model)
             count += 1
         }
-        if let webSearch = s.openRouterChatWebSearch {
-            core.openRouter.setChatWebSearch(webSearch)
-            count += 1
-        }
+
         if let preferences = s.aiRouting {
             core.openRouter.setAIRouting(preferences)
             count += 1
         }
-        if let usesQuickChat = s.aiCommandsUseQuickChat {
-            core.aiCommands.setUsesQuickChat(usesQuickChat)
-            count += 1
-        }
+
         if let key = s.googleTranslationAPIKey {
             core.translate.setAPIKey(key)
             count += 1

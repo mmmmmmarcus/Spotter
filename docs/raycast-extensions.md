@@ -7,11 +7,11 @@ extension bundles, separate from the existing Raycast Snippets/Quicklinks import
 
 ## Use
 
-1. Open Settings → Raycast Extensions and enable the compatibility runtime.
-2. Search Raycast Store and install an extension, import a built extension folder, import existing
-   Raycast installations, or enter a GitHub extension folder URL.
-3. Configure the extension's preferences and use Run, search its command in the main palette, or
-   assign a shortcut. Commands with arguments prompt before execution.
+1. Search **Raycast extension store** in the palette. Enable the compatibility runtime there if needed.
+2. Type in the palette search field to search Raycast Store, then press Return to install. Paste a GitHub extension folder URL for source installation. Clear the query for local/Raycast import, updates and cleanup. Real installation stages appear in the palette, and Cancel or closing the palette cancels pending work.
+3. Each installed extension has its own Settings sidebar destination under **Raycast Extension**. Configure preferences there and use Run, search its command in the main palette, or
+   assign a shortcut. Search matches command titles, extension names and declared keywords; rows show
+   the owning extension. Commands with arguments prompt before execution.
 
 Store and built-folder installs need no Node runtime. GitHub source installs require a local Node.js
 and supported package manager, and execute third-party build scripts. The package manager and extra
@@ -64,7 +64,14 @@ that every store extension works. See [third-party attribution](vendor/tinycast-
 Slack (Momme) was installed and reinstalled through Spotter's store UI on October 8, 2026. All nine
 commands were registered, and Open Channel launched the real bundle and opened Slack's workspace
 sign-in page in the default browser. Workspace authorization and signed-in Slack operations remain
-untested. Installation now reports completion and expands the installed extension's commands.
+untested. The current installer reports completion in the palette; installed extensions have independent Settings pages.
 The native selection modifier must be inside both extension environment injections; reversing that
 order crashes SwiftUI before the command screen can render. While OAuth is pending, reopening the
 extension screen explains that sign-in must be completed in the browser.
+
+
+Global runtime consent, launcher visibility and source-build options live under General → Raycast
+Extension. Installation controls and the combined installed-extension list have been removed from
+Settings. Uninstall removes the dynamic sidebar destination. Command artwork is decoded as image
+content through ExtensionIconCache, with assets-directory and extension-root resolution; the
+launcher does not ask NSWorkspace for the image file’s generic document icon.

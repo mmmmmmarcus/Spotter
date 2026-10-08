@@ -9,7 +9,21 @@ enum LocalAIModel: String, CaseIterable, Identifiable, Sendable {
     var title: String { self == .claude ? "Claude CLI" : "Codex CLI" }
     var executable: String { self == .claude ? "claude" : "codex" }
 
-    static func resolve(_ id: String) -> Self? { Self(rawValue: id) }
+    static func resolve(_ id: String) -> Self? {
+        codexModelID(id) != nil ? .codex : Self(rawValue: id)
+    }
+
+    static func codexModelID(_ id: String) -> String? {
+        let prefix = codex.rawValue + "/"
+        guard id.hasPrefix(prefix) else { return nil }
+        let model = String(id.dropFirst(prefix.count))
+        return model.isEmpty ? nil : model
+    }
+
+    static func label(_ id: String) -> String? {
+        if let model = codexModelID(id) { return "Codex CLI · " + model }
+        return resolve(id)?.title
+    }
 }
 
 enum LocalAIError: LocalizedError {
@@ -29,6 +43,8 @@ enum LocalAIError: LocalizedError {
 @MainActor
 final class LocalAIStore: ObservableObject {
     @Published private(set) var paths: [LocalAIModel: String] = [:]
+    @Published private(set) var codexModels: [CodexCLIModel] = []
+    @Published private(set) var codexCatalogError: String?
     @Published private(set) var isRefreshing = false
     @Published private(set) var customPaths: [LocalAIModel: String]
     @Published private(set) var pathErrors: [LocalAIModel: String] = [:]
@@ -66,9 +82,15 @@ final class LocalAIStore: ObservableObject {
         let custom = customPaths
         isRefreshing = true
         Task { [weak self] in
-            let result = await Task.detached(priority: .utility) { Self.discover(custom: custom) }.value
+            let (result, catalog) = await Task.detached(priority: .utility) {
+                let result = Self.discover(custom: custom)
+                let catalog = result.paths[.codex].map { Self.readCodexModels(executable: $0) } ?? []
+                return (result, catalog)
+            }.value
             guard let self, refreshID == id else { return }
             paths = result.paths
+            codexModels = catalog
+            codexCatalogError = catalog.isEmpty ? "Model list unavailable. Update Codex CLI or use its default model." : nil
             pathErrors = result.errors
             isRefreshing = false
         }
@@ -77,14 +99,14 @@ final class LocalAIStore: ObservableObject {
     func path(for model: LocalAIModel) -> String? { paths[model] }
 
     func chat(
-        messages: [(role: String, content: String)], modelID: String,
+        messages: [(role: String, content: String)], modelID: String, webSearch: Bool = false, images: [Data] = [],
         onDelta: @escaping @MainActor @Sendable (String) -> Void
     ) async throws {
         guard let model = LocalAIModel.resolve(modelID), let path = paths[model] else {
             throw LocalAIError.unavailable(LocalAIModel.resolve(modelID)?.title ?? modelID)
         }
         let prompt = Self.prompt(messages)
-        let reply = try await Self.run(model: model, executable: path, prompt: prompt, workspace: workspace)
+        let reply = try await Self.run(model: model, executable: path, prompt: prompt, workspace: workspace, codexModel: LocalAIModel.codexModelID(modelID), webSearch: webSearch, images: images)
         try Task.checkCancellation()
         onDelta(reply)
     }
@@ -141,6 +163,31 @@ final class LocalAIStore: ObservableObject {
         return value
     }
 
+    private nonisolated static func readCodexModels(executable: String) -> [CodexCLIModel] {
+        let process = Process()
+        let output = Pipe()
+        let capture = LocalAICapture(limit: 8_388_608)
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = ["debug", "models", "--bundled"]
+        process.environment = environment(for: executable)
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        output.fileHandleForReading.readabilityHandler = { capture.appendOutput($0.availableData) }
+        defer { output.fileHandleForReading.readabilityHandler = nil }
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+        do { try process.run() } catch { return [] }
+        guard finished.wait(timeout: .now() + 5) == .success else {
+            process.terminate()
+            return []
+        }
+        output.fileHandleForReading.readabilityHandler = nil
+        capture.appendOutput(output.fileHandleForReading.readDataToEndOfFile())
+        guard process.terminationStatus == 0 else { return [] }
+        return CodexCLIModel.decode(capture.strings().0)
+    }
+
     private nonisolated static func isUsable(_ path: String) -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
@@ -167,7 +214,7 @@ final class LocalAIStore: ObservableObject {
     }
 
     private nonisolated static func run(
-        model: LocalAIModel, executable: String, prompt: String, workspace: URL
+        model: LocalAIModel, executable: String, prompt: String, workspace: URL, codexModel: String?, webSearch: Bool, images: [Data]
     ) async throws -> String {
         let process = Process()
         let input = Pipe()
@@ -181,6 +228,33 @@ final class LocalAIStore: ObservableObject {
         process.arguments = model == .claude
             ? ["-p", "--output-format", "text", "--tools", ""]
             : ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-"]
+        if model == .codex, let codexModel { process.arguments?.insert(contentsOf: ["--model", codexModel], at: 1) }
+        var inputData = Data(prompt.utf8)
+        let imageDirectory = workspace.appendingPathComponent("attachments-" + UUID().uuidString, isDirectory: true)
+        defer { if !images.isEmpty { try? FileManager.default.removeItem(at: imageDirectory) } }
+        if model == .codex {
+            process.arguments?.insert(contentsOf: ["-c", "web_search=\"\(webSearch ? "live" : "disabled")\""], at: 1)
+            if !images.isEmpty {
+                try FileManager.default.createDirectory(at: imageDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                for (index, data) in images.enumerated() {
+                    let url = imageDirectory.appendingPathComponent("image-\(index).png")
+                    try data.write(to: url, options: .atomic)
+                    process.arguments?.insert(contentsOf: ["--image", url.path], at: 1)
+                }
+            }
+        } else {
+            if webSearch { process.arguments = ["-p", "--output-format", "text", "--tools", "WebSearch", "--allowedTools", "WebSearch"] }
+            if !images.isEmpty {
+                process.arguments = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--tools", webSearch ? "WebSearch" : ""]
+                if webSearch { process.arguments?.append(contentsOf: ["--allowedTools", "WebSearch"]) }
+                let content: [[String: Any]] = [["type": "text", "text": prompt]] + images.map {
+                    ["type": "image", "source": ["type": "base64", "media_type": "image/png", "data": $0.base64EncodedString()]]
+                }
+                inputData = try JSONSerialization.data(withJSONObject: ["type": "user", "message": ["role": "user", "content": content]])
+                inputData.append(0x0A)
+            }
+        }
+        let requestData = inputData
         process.standardInput = input
         process.standardOutput = output
         process.standardError = errors
@@ -196,14 +270,14 @@ final class LocalAIStore: ObservableObject {
                     let (stdout, stderr) = capture.strings()
                     do {
                         continuation.resume(returning: try LocalAIResponse.reply(
-                            model: model, status: finished.terminationStatus, stdout: stdout, stderr: stderr))
+                            model: model, status: finished.terminationStatus, stdout: stdout, stderr: stderr, structured: model == .claude && !images.isEmpty))
                     } catch {
                         continuation.resume(throwing: error)
                     }
                 }
                 do {
                     try process.run()
-                    input.fileHandleForWriting.write(Data(prompt.utf8))
+                    input.fileHandleForWriting.write(requestData)
                     try? input.fileHandleForWriting.close()
                 } catch {
                     continuation.resume(throwing: error)
@@ -241,9 +315,18 @@ private final class LocalAICapture: @unchecked Sendable {
 
 
 enum LocalAIResponse {
-    static func reply(model: LocalAIModel, status: Int32, stdout: String, stderr: String) throws -> String {
+    static func reply(model: LocalAIModel, status: Int32, stdout: String, stderr: String, structured: Bool = false) throws -> String {
         guard model == .codex else {
             guard status == 0 else { throw LocalAIError.failed(diagnostic(stderr, model: model, status: status)) }
+            for line in stdout.split(separator: "\n").reversed() {
+                if let event = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                    event["type"] as? String == "result" {
+                    guard event["is_error"] as? Bool != true else { throw LocalAIError.failed("Claude could not complete the attachment request.") }
+                    guard let result = event["result"] as? String, !result.isEmpty else { throw LocalAIError.emptyReply }
+                    return result
+                }
+            }
+            guard !structured else { throw LocalAIError.emptyReply }
             let text = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { throw LocalAIError.emptyReply }
             return text
@@ -288,5 +371,22 @@ enum LocalAIResponse {
             return String(line.prefix(1200))
         }
         return "\(model.title) could not complete the request (exit \(status)). Check the CLI's login and configuration in Terminal."
+    }
+}
+
+struct CodexCLIModel: Identifiable, Equatable, Sendable {
+    let slug: String
+    let title: String
+    var id: String { LocalAIModel.codex.rawValue + "/" + slug }
+
+    static func decode(_ json: String) -> [Self] {
+        guard let root = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
+            let models = root["models"] as? [[String: Any]] else { return [] }
+        var seen = Set<String>()
+        return models.compactMap { model in
+            guard let slug = model["slug"] as? String, !slug.isEmpty,
+                model["visibility"] as? String != "hide", seen.insert(slug).inserted else { return nil }
+            return Self(slug: slug, title: model["display_name"] as? String ?? slug)
+        }
     }
 }

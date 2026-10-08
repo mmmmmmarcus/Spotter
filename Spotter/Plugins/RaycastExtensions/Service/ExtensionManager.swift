@@ -170,7 +170,7 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
         return AppEntry(id: reference.entryID, name: command.title, url: owner.directory,
             bundleID: nil, kind: .command, symbolImage: "puzzlepiece.extension",
             iconFilePath: commandIconPath(command, in: owner) ?? owner.iconPath,
-            detailLabel: owner.title, alternateNames: command.keywords)
+            detailLabel: owner.title, alternateNames: command.launcherSearchNames(extensionTitle: owner.title, extensionName: owner.id))
     }
 
     /// Persist and re-publish, so rows change under the user rather than on the next scan.
@@ -181,8 +181,7 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
 
     private func commandIconPath(_ command: ExtensionCommand, in owner: InstalledExtension) -> String? {
         guard let icon = command.icon else { return nil }
-        let candidate = owner.directory.appendingPathComponent("assets").appendingPathComponent(icon)
-        return FileManager.default.fileExists(atPath: candidate.path) ? candidate.path : nil
+        return owner.artworkPath(icon)
     }
 
     // MARK: - Install / uninstall

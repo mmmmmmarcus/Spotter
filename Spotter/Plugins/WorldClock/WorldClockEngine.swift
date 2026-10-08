@@ -208,6 +208,26 @@ enum WorldClockEngine {
             localDate: local.date)
     }
 
+    static func rowCaption(timeZone: TimeZone, instant: Date, localTimeZone: TimeZone) -> String {
+        let minutes = (timeZone.secondsFromGMT(for: instant) - localTimeZone.secondsFromGMT(for: instant)) / 60
+        let absolute = abs(minutes)
+        let offset = (minutes < 0 ? "−" : minutes > 0 ? "+" : "") + "\(absolute / 60)H"
+            + (absolute % 60 == 0 ? "" : "\(absolute % 60)M")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let remoteDay = calendar.startOfDay(for: instant.addingTimeInterval(TimeInterval(timeZone.secondsFromGMT(for: instant))))
+        let localDay = calendar.startOfDay(for: instant.addingTimeInterval(TimeInterval(localTimeZone.secondsFromGMT(for: instant))))
+        let difference = calendar.dateComponents([.day], from: localDay, to: remoteDay).day ?? 0
+        let day: String
+        switch difference {
+        case -1: day = "YESTERDAY"
+        case 0: day = "TODAY"
+        case 1: day = "TOMORROW"
+        default: day = "\(difference > 0 ? "+" : "")\(difference) DAYS"
+        }
+        return offset + " / " + (timeZone.abbreviation(for: instant) ?? timeZone.identifier) + " · " + day
+    }
+
     // MARK: - Time conversion
 
     static let conversionRowPrefix = "convert:"

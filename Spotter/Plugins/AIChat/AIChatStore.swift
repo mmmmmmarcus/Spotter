@@ -66,14 +66,26 @@ final class AIChatStore: ObservableObject {
     }
 
     /// The current conversation as copyable text.
-    var transcript: String {
-        messages.map { ($0.role == .user ? "You: " : "Assistant: ") + $0.text }
+    var transcript: String { transcript(in: currentID) }
+
+    func transcript(in sessionID: UUID) -> String {
+        messages(in: sessionID).map { ($0.role == .user ? "You: " : "Assistant: ") + $0.text }
             .joined(separator: "\n\n")
     }
 
-    func addPendingAttachments(_ attachments: [AIChatMessage.Attachment]) {
-        let existing = Set(pendingAttachments.map { $0.name + "\u{0}" + $0.content })
-        pendingAttachments.append(contentsOf: attachments.filter { !existing.contains($0.name + "\u{0}" + $0.content) })
+    @discardableResult
+    func addPendingAttachments(_ attachments: [AIChatMessage.Attachment]) -> [String] {
+        var failures: [String] = []
+        for attachment in attachments {
+            if pendingAttachments.contains(where: { $0.name == attachment.name && $0.content == attachment.content && $0.imageData == attachment.imageData }) { continue }
+            let bytes = pendingAttachments.reduce(0) { $0 + ($1.imageData?.count ?? $1.content.utf8.count) }
+            guard pendingAttachments.count < 10, bytes + (attachment.imageData?.count ?? attachment.content.utf8.count) <= 20 * 1024 * 1024 else {
+                failures.append("\(attachment.name): the message attachment limit is 10 files / 20 MB.")
+                continue
+            }
+            pendingAttachments.append(attachment)
+        }
+        return failures
     }
 
     func removePendingAttachment(id: UUID) {
@@ -92,15 +104,9 @@ final class AIChatStore: ObservableObject {
         AIChatEngine.historySessions(sessions)
     }
 
-    /// The root palette reads this same predicate as the view so its flat selection count always
-    /// matches the rows actually on screen.
-    var showsHistory: Bool {
-        isReady && messages.isEmpty && phase == .idle && !isWaiting && !historySessions.isEmpty
-    }
-
     // MARK: - Sessions
 
-    // A floating conversation shares history without changing the palette's selected session.
+    // Creating a conversation does not discard or change any existing session.
     func createSession() -> UUID {
         let session = AIChatSession()
         sessions.append(session)
@@ -122,12 +128,16 @@ final class AIChatStore: ObservableObject {
     }
 
     func deleteCurrentSession() {
-        let deletedID = currentID
-        if waitingSessionID == deletedID { stop() }
-        sessions.removeAll { $0.id == currentID }
-        requests.remove(sessionID: deletedID)
+        deleteSession(currentID)
+    }
+
+    func deleteSession(_ id: UUID) {
+        guard sessions.contains(where: { $0.id == id }) else { return }
+        if waitingSessionID == id { stop() }
+        sessions.removeAll { $0.id == id }
+        requests.remove(sessionID: id)
         if sessions.isEmpty { sessions = [AIChatSession()] }
-        currentID = orderedSessions[0].id
+        if currentID == id { currentID = orderedSessions[0].id }
     }
 
     /// An active local request wins so sync cannot detach its executor from the owning session.
@@ -171,9 +181,8 @@ final class AIChatStore: ObservableObject {
         let pinnedModel = model.flatMap { value -> String? in
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
-        }
+        } ?? session.routingModel
         let requestModel = pinnedModel ?? openRouter.chatModel
-        let requestWebSearch = webSearch ?? openRouter.chatWebSearch
         let usesTools = allowsTools && tools.isConfigured
         pendingReply = ""
         streamingReply = nil
@@ -192,12 +201,17 @@ final class AIChatStore: ObservableObject {
                 let turns =
                     [(role: "system", content: systemPrompt)]
                     + window.map { (role: $0.role.rawValue, content: $0.modelText) }
+                var imageDataURLs: [Int: [String]] = [:]
+                for (index, message) in window.enumerated() {
+                    let images = message.attachments.compactMap(\.imageData)
+                    if !images.isEmpty { imageDataURLs[index + 1] = images.map { "data:image/png;base64," + $0.base64EncodedString() } }
+                }
                 let routingTurns = AIChatEngine.routingMessages(messages(in: sessionID))
                 let selection: AIRoutingSelection?
-                if pinnedModel != nil {
+                if openRouter.isReady {
+                    selection = try await openRouter.selectChatModel(messages: routingTurns, defaultModel: requestModel, routeModel: pinnedModel == nil)
+                } else if pinnedModel != nil {
                     selection = nil
-                } else if openRouter.isReady {
-                    selection = try await openRouter.selectChatModel(messages: routingTurns, defaultModel: requestModel)
                 } else {
                     let fallback = openRouter.aiRouting.everydayModel
                     guard LocalAIModel.resolve(fallback) != nil else { throw OpenRouterError.notConfigured }
@@ -205,9 +219,13 @@ final class AIChatStore: ObservableObject {
                 }
                 try Task.checkCancellation()
                 guard waitingSessionID == sessionID, replyID == expectedReply else { throw CancellationError() }
-                routingSelection = selection
+                let requestWebSearch = webSearch ?? selection?.webSearch ?? false
+                routingSelection = pinnedModel == nil ? selection : nil
                 isChoosingModel = false
                 let selectedModel = routingSelection?.model ?? requestModel
+                if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
+                    sessions[index].selectedModel = selectedModel
+                }
                 let receive: @MainActor @Sendable (String) -> Void = { [weak self] delta in
                     guard !Task.isCancelled, let self, self.waitingSessionID == sessionID else { return }
                     self.pendingReply += delta
@@ -215,12 +233,12 @@ final class AIChatStore: ObservableObject {
                     self.startReveal(for: sessionID)
                 }
                 if LocalAIModel.resolve(selectedModel) != nil {
-                    try await localAI.chat(messages: turns, modelID: selectedModel, onDelta: receive)
+                    try await localAI.chat(messages: turns, modelID: selectedModel, webSearch: requestWebSearch, images: window.flatMap { $0.attachments.compactMap(\.imageData) }, onDelta: receive)
                 } else if usesTools {
                     try await tools.run(messages: turns, model: selectedModel, webSearch: requestWebSearch,
-                        sessionID: sessionID, router: openRouter, onText: receive)
+                        sessionID: sessionID, router: openRouter, imageDataURLs: imageDataURLs, onText: receive)
                 } else {
-                    try await openRouter.chat(messages: turns, model: selectedModel, webSearch: requestWebSearch, onDelta: receive)
+                    try await openRouter.chat(messages: turns, model: selectedModel, webSearch: requestWebSearch, imageDataURLs: imageDataURLs, onDelta: receive)
                 }
                 guard !Task.isCancelled else { return }
                 self.finishRequest(for: sessionID, failure: nil)
@@ -237,28 +255,28 @@ final class AIChatStore: ObservableObject {
 
     // Keep the full rendered prompt in model context while the transcript presents only the command input.
     @discardableResult
-    func startCommandConversation(command: AICommand, selection: String, selectInPalette: Bool = true) -> UUID {
+    func startCommandConversation(command: AICommand, selection: String, selectSession: Bool = true) -> UUID {
         stop()
-        let session = createCommandSession(command, selectInPalette: selectInPalette)
+        let session = createCommandSession(command, selectSession: selectSession)
         _ = send(
             command.rendered(selection: selection),
             model: command.resolvedModel(),
-            webSearch: false, allowsTools: false, sessionID: session.id,
-            commandInput: .init(name: command.name, text: selection))
+            allowsTools: false, sessionID: session.id,
+            commandInput: .init(name: command.name, text: selection, symbol: command.systemImage))
         return session.id
     }
 
     @discardableResult
-    func showCommandFailure(command: AICommand, message: String, selectInPalette: Bool = true) -> UUID {
+    func showCommandFailure(command: AICommand, message: String, selectSession: Bool = true) -> UUID {
         stop()
-        let session = createCommandSession(command, selectInPalette: selectInPalette)
+        let session = createCommandSession(command, selectSession: selectSession)
         requests.setFailure(message, for: session.id)
         return session.id
     }
 
-    private func createCommandSession(_ command: AICommand, selectInPalette: Bool) -> AIChatSession {
+    private func createCommandSession(_ command: AICommand, selectSession: Bool) -> AIChatSession {
         let session = AIChatSession(titleOverride: command.sessionTitle, sourceSystemImage: command.systemImage)
-        if selectInPalette { replaceEmptySession(with: session) }
+        if selectSession { replaceEmptySession(with: session) }
         else { sessions.append(session) }
         return session
     }

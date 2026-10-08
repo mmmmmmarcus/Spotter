@@ -29,10 +29,35 @@ struct ExtensionFormTests {
         dateSuggestions()
         ExtensionListKeyTests.run(check: check)
         formActivation()
+        screenActions()
 
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         print("\(passes) passed, \(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    static func screenActions() {
+        func screen(_ type: String, children: String = "", actions: String = "") -> ExtensionScreen {
+            let json = """
+            {"children":[{"id":1,"type":"__screen","props":{"active":true},"children":[{"id":2,"type":"\(type)","props":{\(actions)},"children":[\(children)]}]}]}
+            """
+            return ExtensionScreen(tree: RenderTree(json: json)!, query: "")
+        }
+        let submit = #""actions":{"id":3,"type":"ActionPanel","props":{},"children":[{"id":4,"type":"Action","props":{"title":"Submit","onAction":{"$fn":"submit"}},"children":[]}]}"#
+        let detail = screen("Detail", actions: submit)
+        check("rowless detail keeps screen action", detail.items.isEmpty && detail.actsWithoutRows && detail.primaryAction(at: 0)?.handler == "submit")
+        check("detail primary title", detail.primaryActionTitle(at: 0) == "Submit")
+        let form = screen("Form", actions: submit)
+        check("form hides search", form.hidesSearchField)
+        check("empty form retains submit", form.actsWithoutRows && form.primaryAction(at: 0) != nil)
+        check("single submit has no redundant actions menu", !form.hasActions(at: 0))
+        let fields = screen("Form", children: #"{"id":5,"type":"Form.TextArea","props":{"id":"body"},"children":[]},{"id":6,"type":"Form.TextField","props":{"id":"name"},"children":[]}"#)
+        check("text area owns vertical keys", fields.ownsVerticalKeys(at: 0))
+        check("single-line field allows vertical navigation", !fields.ownsVerticalKeys(at: 1))
+        let submenu = screen("Detail", actions: #""actions":{"id":3,"type":"ActionPanel","props":{},"children":[{"id":7,"type":"ActionPanel.Submenu","props":{"title":"Choose"},"children":[{"id":4,"type":"Action","props":{"title":"Delete","onAction":{"$fn":"delete"}},"children":[]}]}]}"#)
+        check("submenu title is primary", submenu.primaryActionTitle(at: 0) == "Choose")
+        check("submenu opens before executing leaf", submenu.primaryAction(at: 0)?.enclosingSubmenuTitle != nil)
+        check("list retains search", !screen("List").hidesSearchField)
     }
 
     static func formActivation() {

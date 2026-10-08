@@ -29,6 +29,7 @@ final class AppSettings: ObservableObject {
     private let defaults = UserDefaults.standard
     private enum Key {
         static let showInDock = "\(Bundle.main.bundleIdentifier ?? "com.spotter.app1").showInDock"
+        static let quickClipboardVisibleCount = "quickClipboardVisibleCount"
         static let clipboardRetention = "clipboardRetentionDays"
         static let clipboardDisabledApps = "clipboardDisabledApps"
         static let clipboardTextSearch = "\(Bundle.main.bundleIdentifier ?? "com.spotter.app1").clipboardTextSearch"
@@ -54,6 +55,13 @@ final class AppSettings: ObservableObject {
     /// Folders (and individual `.app` bundles) `AppIndex` scans, in scan order. Editing this re-indexes — `AppIndex.start(settings:)` observes it.
     @Published var searchScopes: [String] {
         didSet { defaults.set(searchScopes, forKey: Key.searchScopes) }
+    }
+
+    @Published var quickClipboardVisibleCount: Int {
+        didSet {
+            quickClipboardVisibleCount = min(12, max(5, quickClipboardVisibleCount))
+            defaults.set(quickClipboardVisibleCount, forKey: Key.quickClipboardVisibleCount)
+        }
     }
 
     @Published var clipboardRetention: ClipboardRetention {
@@ -199,6 +207,7 @@ final class AppSettings: ObservableObject {
                 x: defaults.double(forKey: Key.palettePositionX),
                 y: defaults.double(forKey: Key.palettePositionY))
         // integer(forKey:) returns 0 when unset, which no case matches — falls through to 3 Months.
+        quickClipboardVisibleCount = min(12, max(5, defaults.object(forKey: Key.quickClipboardVisibleCount) as? Int ?? 5))
         clipboardRetention =
             ClipboardRetention(rawValue: defaults.integer(forKey: Key.clipboardRetention))
             ?? .threeMonths

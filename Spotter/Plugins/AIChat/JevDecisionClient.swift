@@ -16,9 +16,9 @@ struct JevDecisionClient: Sendable {
         }
     }
 
-    func decide(messages: [AIRoutingDecision.Message], key: String) async throws -> Data {
+    func decide(messages: [AIRoutingDecision.Message], key: String, routeModel: Bool = true) async throws -> Data {
         try Task.checkCancellation()
-        let body = try AIRoutingDecision.request(messages: messages)
+        let body = try AIRoutingDecision.request(messages: messages, routeModel: routeModel)
         var request = URLRequest(url: Self.endpoint, timeoutInterval: 6)
         request.httpMethod = "POST"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")

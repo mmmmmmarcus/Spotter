@@ -98,14 +98,14 @@ final class QuickClipboardMenuView: NSView {
         NotificationCenter.default.removeObserver(self)
     }
 
-    func update(_ items: [ClipboardItem], selection: Int, filter: QuickClipboardFilter = .all) {
+    func update(_ items: [ClipboardItem], selection: Int, filter: QuickClipboardFilter = .all, visibleCount: Int = QuickClipboardPresentation.visibleRows, maximumHeight: CGFloat = .greatestFiniteMagnitude) {
         updating = true
         let topOffset = self.filter == filter ? documentView.bounds.height - scrollView.contentView.bounds.maxY : 0
         self.filter = filter
         self.selection = selection
         displayedItems = items
         frames = QuickClipboardPresentation.rowFrames(items: items, filter: filter)
-        let size = QuickClipboardPresentation.size(items: items, filter: filter)
+        let size = QuickClipboardPresentation.size(items: items, filter: filter, visibleCount: visibleCount, maximumHeight: maximumHeight)
         let margin = QuickClipboardPresentation.canvasMargin
         if glassView.frame.size != size {
             setFrameSize(CGSize(width: size.width + margin * 2, height: size.height + margin * 2))
@@ -113,7 +113,7 @@ final class QuickClipboardMenuView: NSView {
             glassView.frame = CGRect(origin: CGPoint(x: margin, y: margin), size: size)
             rowsView.frame = CGRect(origin: .zero, size: size)
         }
-        scrollView.frame = QuickClipboardPresentation.listFrame(items: items, filter: filter)
+        scrollView.frame = QuickClipboardPresentation.listFrame(items: items, filter: filter, visibleCount: visibleCount, maximumHeight: maximumHeight)
         documentView.frame = CGRect(x: 0, y: 0, width: scrollView.bounds.width,
             height: max(scrollView.contentSize.height, frames.first?.maxY ?? 0))
         let offset = max(0, documentView.bounds.height - scrollView.contentView.bounds.height - max(0, topOffset))

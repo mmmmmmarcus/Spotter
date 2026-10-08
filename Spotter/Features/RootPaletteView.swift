@@ -16,6 +16,7 @@ struct RootPaletteView: View {
     @EnvironmentObject private var emojiIndex: EmojiIndex
     @EnvironmentObject private var frequentEmoji: FrequentEmojiStore
     @EnvironmentObject private var plugins: PluginRegistry
+    @ObservedObject private var extensionCoordinator = AppCore.shared.extensionCoordinator
     @ObservedObject private var updates = AppCore.shared.updates
     /// Observed so the AI Chat fallback row renames itself the moment the chat model or the key changes.
     @ObservedObject private var openRouter = AppCore.shared.openRouter
@@ -134,9 +135,6 @@ struct RootPaletteView: View {
         return plugins.paletteSnapshot(for: id, query: vm.query)
     }
     private var pluginResults: [PluginPaletteItem] { pluginSnapshot?.items ?? [] }
-    private var aiChatHistorySessions: [AIChatSession] {
-        core.aiChat.showsHistory ? core.aiChat.historySessions : []
-    }
 
     /// Calculator stays available as core functionality; currency syntax is gated by its plugin.
     private var calcResult: CalcResult? {
@@ -154,7 +152,7 @@ struct RootPaletteView: View {
         switch vm.mode {
         case .launcher: return launcherInlineResult
         case .calculatorHistory: return calcResult.map(PaletteInlineResult.calculator)
-        case .clipboard, .emoji, .aiChat, .updates, .plugin: return nil
+        case .clipboard, .emoji, .updates, .plugin: return nil
         }
     }
 
@@ -189,7 +187,6 @@ struct RootPaletteView: View {
         case .clipboard: return clipResults.count
         case .calculatorHistory: return histResults.count + inlineCount
         case .emoji: return emojiResults.count
-        case .aiChat: return aiChatHistorySessions.count
         case .updates: return updates.presentation.actions.count
         case .plugin: return pluginResults.count
         }
@@ -239,6 +236,12 @@ struct RootPaletteView: View {
     private var selectedPluginItem: PluginPaletteItem? {
         pluginResults.indices.contains(selection) ? pluginResults[selection] : nil
     }
+
+    private var raycastScreen: ExtensionScreen? {
+        vm.mode == .plugin(.raycastExtensions) && !extensionCoordinator.isBrowsingStore ? core.extensionCoordinator.screen : nil
+    }
+
+    private var wantsSearchFocus: Bool { vm.mode != .updates && raycastScreen?.hidesSearchField != true && !(raycastScreen != nil && core.extensionCoordinator.pendingArguments != nil) }
 
     /// The bottom-right Actions menu content for the current mode's selection, or nil when the selection has no actions.
     private var actionsContent: PopoverMenuContent? {
@@ -293,13 +296,11 @@ struct RootPaletteView: View {
             ) {
                 openMenu = .emojiSkinTone
             }
-        case .aiChat:
-            return AIChatActionsMenu.content(core: core)
         case .updates:
             return nil
         case .plugin(let id):
-            guard let item = selectedPluginItem else { return nil }
-            return plugins.paletteActions(pluginID: id, itemID: item.id)
+            guard let itemID = selectedPluginItem?.id ?? (raycastScreen?.actsWithoutRows == true ? "0" : nil) else { return nil }
+            return plugins.paletteActions(pluginID: id, itemID: itemID)
         }
     }
 
@@ -317,9 +318,8 @@ struct RootPaletteView: View {
             ])
     }
 
-    /// The bottom-left menu: About/Settings everywhere, the session list in chat mode.
+    /// The bottom-left menu provides About and Settings.
     private var appMenuContent: PopoverMenuContent {
-        if vm.mode == .aiChat { return AIChatSessionsMenu.content(core: core) }
         return PopoverMenuContent(items: [
             PopoverMenuItem(title: "About Spotter", systemImage: "info.circle") {
                 core.showAbout()
@@ -359,7 +359,6 @@ struct RootPaletteView: View {
         let emojis = emojiSections.flatMap(\.entries)
         let plugin = activePluginID.flatMap { plugins.paletteSnapshot(for: $0, query: vm.query) }
         let pluginItems = plugin?.items ?? []
-        let chatSessions = vm.mode == .aiChat ? aiChatHistorySessions : []
         let dashboard = vm.mode == .launcher && isQueryEmpty
             ? plugins.launcherDashboardView() : nil
         // Newest stored clip + the reorder token: the pair changes only when the store mutates, never when a query filters the list.
@@ -375,7 +374,7 @@ struct RootPaletteView: View {
         // Only the active mode is non-empty.
         let count =
             apps.count + fallbacks.count + taskOffset + inlineOffset + clips.count + hist.count
-            + emojis.count + chatSessions.count
+            + emojis.count
             + pluginItems.count + (vm.mode == .updates ? updates.presentation.actions.count : 0)
         let sel = count == 0 ? 0 : min(max(vm.selection, 0), count - 1)
         let selectedTask = tasks.indices.contains(sel) ? tasks[sel] : nil
@@ -388,28 +387,27 @@ struct RootPaletteView: View {
         let selectedFallback = fallbacks.indices.contains(fallbackIndex)
             ? fallbacks[fallbackIndex] : nil
         let selectedPlugin = pluginItems.indices.contains(sel) ? pluginItems[sel] : nil
-        let selectedChatSession = chatSessions.indices.contains(sel) ? chatSessions[sel] : nil
         // Derive the footer label from the already-resolved selection so `bottomBar` doesn't re-run `appResults` (its filter/sort aren't memoized). The primary/Actions group is hidden when there's nothing to act on: no results in any mode, or an error calc card (selectable but action-less).
         let pillLabel = actionPillLabel(
             selectedTask: selectedTask, selectedApp: selectedApp, selectedPlugin: selectedPlugin,
-            selectedFallback: selectedFallback, selectedChatSession: selectedChatSession,
+            selectedFallback: selectedFallback,
             inlineActionTitle: inlineActionTitle)
         // A task row earns a ↵ pill only when Return has somewhere to go; live work that can merely
         // be called off shows the Actions button alone, so ↵ never stops anything by reflex.
         let taskPrimary = selectedTask.map { $0.isDismissible || backgroundTasks.canOpen(id: $0.id) }
-        let showPrimaryAction = vm.mode == .updates ? updatePrimaryActionTitle != nil : (taskPrimary ?? (vm.mode != .emoji || !emojis.isEmpty))
+        let showPrimaryAction = raycastScreen.map { $0.primaryAction(at: selection) != nil } ?? (vm.mode == .updates ? updatePrimaryActionTitle != nil : (taskPrimary ?? (vm.mode != .emoji || !emojis.isEmpty)))
         let showActionGroup = vm.mode == .updates ? updatePrimaryActionTitle != nil : (selectedTask.map {
             (taskPrimary ?? false) || backgroundTasks.canCancel(id: $0.id)
         }
-            ?? (((count > 0 || vm.mode == .aiChat || vm.mode == .emoji)
+            ?? (((count > 0 || raycastScreen?.actsWithoutRows == true || vm.mode == .emoji)
                 && !(inlineSelected && inlineActionTitle == nil))
                 || (vm.mode == .updates && updatePrimaryActionTitle != nil)))
-        let showActionsButton = vm.mode != .updates
+        let showActionsButton = (raycastScreen?.hasActions(at: selection) ?? true) && vm.mode != .updates
             && (selectedTask.map { backgroundTasks.canCancel(id: $0.id) } ?? (selectedFallback == nil))
 
         let layout = paletteLayout(
             apps: apps, tasks: tasks, clips: clips, hist: hist, emojiSections: emojiSections,
-            chatSessions: chatSessions, inline: inline, fallbacks: fallbacks, plugin: plugin,
+            inline: inline, fallbacks: fallbacks, plugin: plugin,
             dashboard: dashboard,
             selection: sel,
             sections: browse?.sections, usage: browse?.usage ?? [:], pillLabel: pillLabel,
@@ -426,7 +424,7 @@ struct RootPaletteView: View {
     private func paletteLayout(
         apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
         hist: [CalcHistoryEntry],
-        emojiSections: [EmojiGridSection], chatSessions: [AIChatSession],
+        emojiSections: [EmojiGridSection],
         inline: PaletteInlineResult?,
         fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
@@ -441,7 +439,7 @@ struct RootPaletteView: View {
             } else {
                 content(
                     apps: apps, tasks: tasks, clips: clips, hist: hist,
-                    emojiSections: emojiSections, chatSessions: chatSessions, inline: inline,
+                    emojiSections: emojiSections, inline: inline,
                     fallbacks: fallbacks, plugin: plugin,
                     dashboard: dashboard, selection: selection,
                     sections: sections, usage: usage
@@ -477,10 +475,19 @@ struct RootPaletteView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if openMenu == .actions || openMenu == .emojiSkinTone, let content = menuContent {
-                PopoverMenu(
-                    header: content.header, items: content.items, selection: $menuSelection,
-                    onActivate: activateMenuItem
-                )
+                Group {
+                    if let screen = raycastScreen {
+                        let actions = core.extensionCoordinator.actions(at: selection, query: vm.menuTypeaheadQuery)
+                        let assets = core.extensions.running.flatMap { core.extensions.extensionNamed($0.extensionName)?.assetsPath }
+                        ExtensionActionsPanel(header: ExtensionActionsMenu.header(screen: screen, selection: selection),
+                            items: ExtensionActionsMenu.rows(actions, assetsPath: assets), selection: $menuSelection,
+                            onActivate: activateMenuItem,
+                            shortcutRow: { key, modifiers in actions.firstIndex { $0.matches(key: key, modifiers: modifiers) } })
+                            .environment(core.extensionCoordinator.controls)
+                    } else {
+                        PopoverMenu(header: content.header, items: content.items, selection: $menuSelection, onActivate: activateMenuItem)
+                    }
+                }
                 .padding(Self.menuInset)
                 .transition(Self.menuTransition(.bottomTrailing))
             }
@@ -527,7 +534,7 @@ struct RootPaletteView: View {
     private func paletteWithStateHandlers<Content: View>(
         _ content: Content, clips: [ClipboardItem], clipFollow: ClipFollowKey
     ) -> some View {
-        content
+        let observed = content
         .onChange(of: visibleCompletedTaskIDs, initial: true) {
             backgroundTasks.markCompletionsSeen(ids: visibleCompletedTaskIDs)
         }
@@ -536,9 +543,14 @@ struct RootPaletteView: View {
             plugins.resetParameterizedCommands()
             aliasTarget = nil
             aliasFocused = false
-            searchFocused = vm.mode != .updates
+            searchFocused = wantsSearchFocus
             openMenu = nil
             scroll = ScrollIntent(kind: .top)
+        }
+        .onChange(of: raycastScreen?.hidesSearchField) { searchFocused = wantsSearchFocus }
+        .onReceive(core.extensionCoordinator.$actionsRequest.dropFirst()) { _ in
+            guard raycastScreen != nil else { return }
+            openActions()
         }
         .onChange(of: vm.query) {
             plugins.resetParameterizedCommands()
@@ -553,7 +565,7 @@ struct RootPaletteView: View {
             aliasTarget = nil
             aliasFocused = false
             scroll = ScrollIntent(kind: .top)
-            searchFocused = vm.mode != .updates
+            searchFocused = wantsSearchFocus
         }
         .onChange(of: updates.presentation.actions) { previous, _ in
             guard vm.mode == .updates else { return }
@@ -576,6 +588,7 @@ struct RootPaletteView: View {
             vm.resetMenuTypeahead()
             syncMenuInputState()
         }
+        return observed
         // The confirmation rides the same input-freeze channel as the menus: caret hidden, typing swallowed, nav keys through. Highlight always starts on Cancel.
         .onChange(of: confirmOpen) {
             if confirmOpen {
@@ -585,6 +598,7 @@ struct RootPaletteView: View {
             syncMenuInputState()
         }
         .onChange(of: vm.menuTypeaheadQuery) {
+            core.extensionCoordinator.controls.menuQuery = vm.menuTypeaheadQuery
             guard openMenu == .actions || openMenu == .emojiSkinTone, let items = menuContent?.items,
                 let index = PaletteMenuTypeahead.bestMatch(
                     query: vm.menuTypeaheadQuery, titles: items.map(\.title))
@@ -609,7 +623,7 @@ struct RootPaletteView: View {
         }
         // Shift-Tab reaches us as a token for the same reason ⌘. does: AppKit gives the chord to the field editor before `onKeyPress` can see it.
         .onChange(of: vm.backTabToken) { handleTab(shift: true) }
-        .onAppear { searchFocused = vm.mode != .updates }
+        .onAppear { searchFocused = wantsSearchFocus }
         // Typing/clearing/overflow/settings all flip `paletteIsCollapsed`; resize the window to match.
         .onChange(of: core.paletteIsCollapsed) { core.syncPaletteSize() }
     }
@@ -645,6 +659,7 @@ struct RootPaletteView: View {
                 return .handled
             }
             if vm.mode == .plugin(.calendarSchedule), core.dashboardWidgets.calendarAccess.canRead { return .ignored }
+            if raycastScreen?.ownsVerticalKeys(at: selection) == true { return .ignored }
             if vm.mode == .emoji { moveEmojiRow(1) } else { move(1) }
             return .handled
         }
@@ -656,6 +671,7 @@ struct RootPaletteView: View {
                 return .handled
             }
             if vm.mode == .plugin(.calendarSchedule), core.dashboardWidgets.calendarAccess.canRead { return .ignored }
+            if raycastScreen?.ownsVerticalKeys(at: selection) == true { return .ignored }
             if vm.mode == .emoji { moveEmojiRow(-1) } else { move(-1) }
             return .handled
         }
@@ -736,10 +752,6 @@ struct RootPaletteView: View {
                 guard command, let item = selectedPluginItem,
                     plugins.performPaletteSecondaryAction(pluginID: id, itemID: item.id)
                 else { return .ignored }
-            case .aiChat:
-                // ⌘↵ sends like plain ↵ — muscle memory from the launcher's ask-AI chord shouldn't misfire in the composer.
-                guard command else { return .ignored }
-                sendChatMessage()
             case .updates:
                 return .ignored
             }
@@ -795,7 +807,7 @@ struct RootPaletteView: View {
             // The Actions menu has no anchor in the compact bar (no bottom bar); swallow ⌘K there.
             guard !isCollapsed else { return .handled }
             // Chat and Emoji have actions available even without a selected result.
-            guard resultCount > 0 || vm.mode == .aiChat || vm.mode == .emoji else { return .handled }
+            guard resultCount > 0 || raycastScreen?.actsWithoutRows == true || vm.mode == .emoji else { return .handled }
             // A task row's only menu is calling the work off, so it opens only when it can be.
             if let task = selectedBackgroundTask {
                 if backgroundTasks.canCancel(id: task.id) { toggleActions() }
@@ -820,20 +832,9 @@ struct RootPaletteView: View {
                 deleteSelectedClip()
             case .calculatorHistory:
                 deleteSelectedHistoryEntry()
-            case .launcher, .emoji, .aiChat, .updates, .plugin:
+            case .launcher, .emoji, .updates, .plugin:
                 return .ignored
             }
-            return .handled
-        }
-        // ⌘N starts a fresh chat session — the same action as the session menu's top row, and like
-        // the other advertised chords it works while a footer menu is open.
-        .onKeyPress(keys: ["n"], phases: .down) { press in
-            guard press.modifiers.contains(.command), vm.mode == .aiChat, !aliasEditorOpen
-            else { return .ignored }
-            core.aiChat.startNewSession()
-            vm.query = ""
-            vm.selection = 0
-            closeMenus()
             return .handled
         }
         // Keep the filter shortcut useful without opening a menu; Shift reverses the cycle.
@@ -895,8 +896,17 @@ struct RootPaletteView: View {
                     .font(Theme.Typography.searchField)
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            } else if raycastScreen != nil, core.extensionCoordinator.pendingArguments != nil {
+                RaycastArgumentsHeader(coordinator: core.extensionCoordinator)
+            } else if let screen = raycastScreen, screen.hidesSearchField {
+                Text(screen.navigationTitle ?? "Extension")
+                    .font(Theme.Typography.searchField)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 searchField
+            }
+            if raycastScreen != nil {
+                RaycastSearchAccessory(core: core)
             }
             // The clipboard's type filter sits at the trailing edge of its own search bar, where it filters.
             if vm.mode == .clipboard, !isCollapsed {
@@ -952,7 +962,7 @@ struct RootPaletteView: View {
     private func content(
         apps: [AppEntry], tasks: [BackgroundTaskItem], clips: [ClipboardItem],
         hist: [CalcHistoryEntry],
-        emojiSections: [EmojiGridSection], chatSessions: [AIChatSession],
+        emojiSections: [EmojiGridSection],
         inline: PaletteInlineResult?,
         fallbacks: [LauncherFallback],
         plugin: PluginPaletteSnapshot?, dashboard: AnyView?,
@@ -1069,14 +1079,6 @@ struct RootPaletteView: View {
                     }
                 )
             }
-        case .aiChat:
-            let selected = chatSessions.indices.contains(selection) ? chatSessions[selection] : nil
-            AIChatView(
-                chat: core.aiChat, selectedID: selected?.id, scroll: scroll,
-                onActivate: { session in
-                    if let index = chatSessions.firstIndex(of: session) { vm.selection = index }
-                    core.aiChat.switchTo(session.id)
-                })
         case .updates:
             UpdatePaletteView(selection: selection) { index in
                 vm.selection = index
@@ -1116,7 +1118,7 @@ struct RootPaletteView: View {
                         activateSelection()
                     },
                     actions: { id in
-                        guard let index = plugin.items.firstIndex(where: { $0.id == id }) else { return }
+                        guard let index = plugin.items.firstIndex(where: { $0.id == id }) ?? (raycastScreen?.actsWithoutRows == true ? 0 : nil) else { return }
                         vm.selection = index
                         openActions()
                     })) {
@@ -1214,19 +1216,11 @@ struct RootPaletteView: View {
     private func actionPillLabel(
         selectedTask: BackgroundTaskItem?, selectedApp: AppEntry?,
         selectedPlugin: PluginPaletteItem?, selectedFallback: LauncherFallback?,
-        selectedChatSession: AIChatSession?, inlineActionTitle: String?
+        inlineActionTitle: String?
     ) -> String {
         switch vm.mode {
         case .clipboard, .emoji:
             return vm.pasteTarget?.pasteTitle ?? "Paste"
-        case .aiChat:
-            if core.aiChat.isWaiting { return AIChatEngine.waitingStatus }
-            if vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                selectedChatSession != nil
-            {
-                return "Open Conversation"
-            }
-            return "Send"
         case .updates:
             return updatePrimaryActionTitle ?? "Check Again"
         case .calculatorHistory:
@@ -1244,7 +1238,7 @@ struct RootPaletteView: View {
             default: return "Open Application"
             }
         case .plugin:
-            return selectedPlugin?.primaryActionTitle ?? "Run Action"
+            return raycastScreen?.primaryActionTitle(at: selection) ?? selectedPlugin?.primaryActionTitle ?? "Run Action"
         }
     }
 
@@ -1318,10 +1312,11 @@ struct RootPaletteView: View {
         withAnimation(Self.menuAnimation) { aliasTarget = nil }
         aliasDraft = ""
         aliasFocused = false
-        searchFocused = vm.mode != .updates
+        searchFocused = wantsSearchFocus
     }
 
     private func syncMenuInputState() {
+        if raycastScreen != nil { core.extensionCoordinator.controls.menuOpen = menuOpen || confirmOpen }
         vm.menuOpen = menuOpen || confirmOpen
         vm.menuTypeaheadEnabled = (openMenu == .actions || openMenu == .emojiSkinTone) && !confirmOpen
     }
@@ -1411,6 +1406,13 @@ struct RootPaletteView: View {
             return
         }
         if menuOpen { return }
+        if raycastScreen != nil, let pending = extensionCoordinator.pendingArguments {
+            let names = pending.command.arguments.map(\.name)
+            guard !names.isEmpty else { return }
+            let index = names.firstIndex(of: extensionCoordinator.argumentFocus ?? "") ?? 0
+            extensionCoordinator.argumentFocus = names[(index + (shift ? names.count - 1 : 1)) % names.count]
+            return
+        }
         // Tab never sends: ↵ / ⌘↵ own sending now, so both Tab directions are purely the cycle.
         cycleMode(forward: !shift)
     }
@@ -1418,9 +1420,7 @@ struct RootPaletteView: View {
     /// The Tab cycle's stops for the current plugin set; also decides which modes get the header disc.
     private var modeCycle: [PaletteMode] { PaletteMode.cycle }
 
-    /// Tab walks the empty root surfaces forward, Shift-Tab backward, so any stop is at most one
-    /// press away in some direction. A typed launcher query starts a fresh AI Chat turn instead, and
-    /// a sub-screen (which is not a stop) exits to the launcher.
+    // Tab cycles Palette surfaces; chat is an independent floating window.
     private func cycleMode(forward: Bool) {
         let cycle = modeCycle
         guard cycle.count > 1 else { return }
@@ -1430,30 +1430,7 @@ struct RootPaletteView: View {
         }
         let step = forward ? 1 : cycle.count - 1
         let next = cycle[(index + step) % cycle.count]
-        // Chat carries the draft in; every other stop arrives fresh. `prepare` rather than a bare
-        // mode assignment: each surface has its own row order, so a selection carried across would
-        // point at the wrong row.
-        if next == .aiChat {
-            // Only the launcher's query is a question worth asking; a clipboard or emoji filter
-            // string arriving as a chat prompt would be a stray message nobody typed.
-            enterChat(prompt: vm.mode == .launcher ? vm.query : "")
-        } else {
-            vm.prepare(mode: next)
-        }
-    }
-
-    /// Tab's chat contract: always a fresh session, with a typed launcher query carried into the
-    /// composer *unsent* — ⌘↵ from the launcher is the chord that both enters and asks.
-    private func enterChat(prompt: String) {
-        vm.selection = 0
-        core.openAIChat(draft: prompt)
-    }
-
-    /// The chat composer is the shared search field: ↵ (or ⌘↵) sends through Spotter and clears it.
-    private func sendChatMessage() {
-        let text = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !core.aiChat.isWaiting else { return }
-        if core.aiChat.send(text) { vm.query = "" }
+        vm.prepare(mode: next)
     }
 
     /// Back out to a fresh root search — `prepare` is the same reset used when the palette is shown (clears query/selection, bumps focusToken to refocus the field).
@@ -1504,17 +1481,13 @@ struct RootPaletteView: View {
         case .emoji:
             guard emojiResults.indices.contains(selection) else { return }
             core.pasteEmoji(emojiResults[selection])
-        case .aiChat:
-            let draft = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !draft.isEmpty {
-                sendChatMessage()
-                return
-            }
-            guard aiChatHistorySessions.indices.contains(selection) else { return }
-            core.aiChat.switchTo(aiChatHistorySessions[selection].id)
         case .updates:
             core.performUpdatePrimaryAction()
         case .plugin(let id):
+            if id == .raycastExtensions, !extensionCoordinator.isBrowsingStore {
+                RaycastExtensionsPlugin.activate(core, index: selection)
+                return
+            }
             guard pluginResults.indices.contains(selection) else { return }
             plugins.performPalettePrimaryAction(pluginID: id, itemID: pluginResults[selection].id)
         }

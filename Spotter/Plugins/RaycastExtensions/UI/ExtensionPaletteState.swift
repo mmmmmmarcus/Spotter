@@ -5,7 +5,7 @@ import SwiftUI
 final class ExtensionPaletteState {
     var menuQuery = ""
     var menuOpen = false
-    var isComposing = false
+    var isComposing: Bool { (NSApp.keyWindow?.firstResponder as? NSTextView)?.hasMarkedText() == true }
     var hoverHighlightArmed = true
     var controlListDismissToken = UUID()
     private let palette: PaletteViewModel

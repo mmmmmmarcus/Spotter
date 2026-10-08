@@ -53,13 +53,16 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 enum SettingsDestination: Hashable {
     case system(SettingsTab)
     case plugin(PluginID)
+    case raycastExtension(String)
 }
 
 struct SettingsRootView: View {
+    private let core: AppCore
     @EnvironmentObject private var plugins: PluginRegistry
     @State private var destination: SettingsDestination
 
-    init(initialDestination: SettingsDestination = .system(.general)) {
+    init(core: AppCore, initialDestination: SettingsDestination = .system(.general)) {
+        self.core = core
         _destination = State(initialValue: initialDestination)
     }
 
@@ -76,6 +79,7 @@ struct SettingsRootView: View {
                 case .system(.diagnostics): DiagnosticsSettingsView()
                 case .system(.about): AboutView()
                 case .plugin(let id): plugins.settingsView(for: id)
+                case .raycastExtension(let id): RaycastExtensionsSettingsView(core: core, extensionID: id).id(id)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -85,6 +89,11 @@ struct SettingsRootView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: core.extensions.installed.map(\.id)) {
+            if case .raycastExtension(let id) = destination, core.extensions.extensionNamed(id) == nil {
+                destination = .system(.general)
+            }
+        }
         .onReceive(
             NotificationCenter.default.publisher(for: .spotterSelectSettingsDestination)
         ) { note in
@@ -115,6 +124,13 @@ struct SettingsRootView: View {
                         sidebarRow(
                             title: plugin.name, systemImage: plugin.systemImage,
                             tint: plugin.tint.color, destination: .plugin(plugin.id))
+                    }
+                }
+                if !core.extensions.installed.isEmpty {
+                    sidebarHeader("Raycast Extension").padding(.top, Theme.Spacing.md)
+                    ForEach(core.extensions.installed.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }) { owner in
+                        sidebarRow(title: owner.title, systemImage: "puzzlepiece.extension", tint: .purple,
+                            destination: .raycastExtension(owner.id))
                     }
                 }
                 sidebarHeader("Spotter")

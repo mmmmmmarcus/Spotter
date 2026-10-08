@@ -33,6 +33,7 @@ TESTS=(
     selection-tools
     selected-text-capture
     translate
+    translation-alignment
     note
     note-editor
     text-replacement
@@ -41,6 +42,8 @@ TESTS=(
     window-command
     background-task
     ai-chat
+    ai-markdown
+    ai-attachments
     local-ai
     ai-routing
     quick-ai-chat
@@ -218,6 +221,11 @@ run_harness() {
                 Spotter/Plugins/SelectionTools/SelectionToolsResults.swift \
                 Tools/selection-tools-test.swift -o "$output" && "$output"
             ;;
+        translation-alignment)
+            swiftc -swift-version 6 Spotter/Plugins/Translate/TranslationWordAlignment.swift \
+                Spotter/Plugins/Translate/TranslationAlignmentClient.swift Tools/translation-alignment-test.swift \
+                -o "$output" && "$output"
+            ;;
         translate)
             swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
                 Spotter/Plugins/Translate/TranslateTypes.swift \
@@ -282,7 +290,7 @@ run_harness() {
                 Spotter/Core/ProcessPipe.swift Tools/ai-tools-test.swift -o "$output" && "$output"
             ;;
         quick-ai-chat)
-            swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
+            swiftc -swift-version 6 Spotter/Core/WindowDragCursor.swift Spotter/Core/PaletteDragHandle.swift Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
                 Spotter/Plugins/AIChat/AIRoutingTypes.swift \
                 Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
@@ -290,10 +298,18 @@ run_harness() {
                 Spotter/Plugins/AIChat/QuickAIChatPanel.swift Spotter/Plugins/AIChat/QuickAIChatController.swift \
                 Tools/quick-ai-chat-test.swift -o "$output" && "$output"
             ;;
+        ai-attachments)
+            swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatAttachmentReader.swift \
+                Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+                Tools/ai-attachments-test.swift -o "$output" && "$output"
+            ;;
+        ai-markdown)
+            swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
+                Spotter/Plugins/AIChat/AIChatLink.swift Tools/ai-markdown-test.swift -o "$output" && "$output"
+            ;;
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AIRoutingTypes.swift \
-                Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift \
                 Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
                 Spotter/Plugins/AIChat/AICommand.swift \
                 Spotter/Plugins/AIChat/AICommandStore.swift \

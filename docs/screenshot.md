@@ -57,8 +57,9 @@ left-button drag is clamped to its starting display. The overlay
 does not dim the screen: the panel's full-screen surface uses only one 8-bit black alpha step, which is
 visually transparent but preserves the mouse hit region that macOS 26 drops for a fully clear panel.
 During a drag, the selected rectangle is replaced with an exact 5% overlay so its extent is
-clear without obscuring the source. Both that fill and the selection border follow the system
-appearance — white on dark, black on light — since a black outline disappears into a dark desktop. With Rounded Corners on, both that fill and the selection border
+clear without obscuring the source. The fill remains white on dark and black on light. The selection
+border is opaque neutral gray in both appearances: 72% gray in dark mode and 42% gray in light mode,
+so a black capture background retains a visible boundary. With Rounded Corners on, both that fill and the selection border
 use a four-physical-pixel radius on every display scale. Releasing the button accepts any region at
 least one point in both dimensions. Escape or a zero-area click cancels without touching the
 clipboard — a right click deliberately does not: it is the window capture (below) — and every exit

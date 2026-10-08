@@ -133,7 +133,10 @@ extension AppCore {
         case .success(let snapshot):
             translate.translate(snapshot.text)
         }
-        quickTranslate.show(at: point)
+        let original: String?
+        if case .success(let snapshot) = capture { original = snapshot.text }
+        else { original = nil }
+        quickTranslate.show(at: point, original: original)
     }
 
     private func showTranslationFailure(_ message: String) {

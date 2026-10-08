@@ -50,94 +50,6 @@ enum AIChatPlugin {
     }
 }
 
-/// The chat mode's ⌘K menu — fixed content, since the transcript has no row selection.
-@MainActor
-enum AIChatActionsMenu {
-    static func content(core: AppCore) -> PopoverMenuContent {
-        var items: [PopoverMenuItem] = []
-        if core.aiChat.isWaiting {
-            items.append(
-                PopoverMenuItem(title: core.aiTools.isRunning ? "Stop Tools" : "Stop Waiting", systemImage: "stop.circle") {
-                    core.aiChat.stop()
-                })
-        }
-        items.append(
-            PopoverMenuItem(title: "Attach Files…", systemImage: "paperclip") {
-                core.chooseAIChatAttachments()
-            })
-        if !core.aiChat.pendingAttachments.isEmpty {
-            items.append(
-                PopoverMenuItem(title: "Clear \(core.aiChat.pendingAttachments.count) Attachments",
-                    systemImage: "paperclip.badge.ellipsis", isDestructive: true) {
-                    core.aiChat.clearPendingAttachments()
-                })
-        }
-        // The web handoff is an action on the draft, so it lives here rather than in the footer.
-        // Sampled when the menu opens, which is exactly when typing is frozen, so it can't go stale.
-        let draft = core.palette.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !draft.isEmpty {
-            items.append(
-                PopoverMenuItem(title: "Send to ChatGPT", systemImage: "globe") {
-                    if core.sendAIChatPromptToChatGPT(draft) { core.palette.query = "" }
-                })
-        }
-        if let reply = core.aiChat.lastAssistantReply {
-            items.append(
-                PopoverMenuItem(title: "Copy Last Reply", systemImage: "doc.on.doc") {
-                    core.hidePalette(restoreFocus: false)
-                    Paster.copyPlainText(reply)
-                })
-        }
-        if !core.aiChat.messages.isEmpty {
-            items.append(
-                PopoverMenuItem(title: "Copy Conversation", systemImage: "doc.on.clipboard") {
-                    core.hidePalette(restoreFocus: false)
-                    Paster.copyPlainText(core.aiChat.transcript)
-                })
-            items.append(
-                PopoverMenuItem(
-                    title: "New Session", systemImage: "square.and.pencil", shortcut: "⌘N"
-                ) { core.aiChat.startNewSession() })
-            items.append(
-                PopoverMenuItem(
-                    title: "Delete Session", systemImage: "trash", isDestructive: true
-                ) { core.confirmDeleteAIChatSession() })
-        }
-        items.append(
-            PopoverMenuItem(
-                title: core.openRouter.chatWebSearch ? "Web Search: On" : "Web Search: Off",
-                systemImage: "globe"
-            ) { core.openRouter.setChatWebSearch(!core.openRouter.chatWebSearch) })
-        items.append(
-            PopoverMenuItem(title: "AI Chat Settings…", systemImage: "gearshape") {
-                core.hidePalette(restoreFocus: false)
-                core.showSettings(plugin: .aiChat)
-            })
-        return PopoverMenuContent(header: "AI Chat", items: items)
-    }
-}
-
-/// The bottom-left menu in chat mode: the session list, newest first, plus New Session — the same
-/// role the notes list plays for Notes.
-@MainActor
-enum AIChatSessionsMenu {
-    static func content(core: AppCore) -> PopoverMenuContent {
-        var items = [
-            PopoverMenuItem(
-                title: "New Session", systemImage: "square.and.pencil", shortcut: "⌘N"
-            ) { core.aiChat.startNewSession() }
-        ]
-        items += core.aiChat.orderedSessions.prefix(12).map { session in
-            PopoverMenuItem(
-                title: session.title,
-                systemImage: session.id == core.aiChat.currentID
-                    ? "checkmark.circle.fill" : session.systemImage
-            ) { core.aiChat.switchTo(session.id) }
-        }
-        return PopoverMenuContent(header: "Sessions", items: items)
-    }
-}
-
 extension AppCore {
     func chooseAIChatAttachments() {
         let panel = NSOpenPanel()
@@ -148,38 +60,49 @@ extension AppCore {
         guard response == .OK else { return }
         Task { [weak self] in
             guard let self else { return }
-            let attachments = await AIChatAttachmentReader.read(panel.urls)
-            aiChat.addPendingAttachments(attachments)
-            if attachments.isEmpty {
-                hud.show(title: "No Readable Attachments", symbol: "paperclip", isNoOp: true)
+            let batch = await AIChatAttachmentReader.read(panel.urls)
+            let failures = batch.failures + aiChat.addPendingAttachments(batch.attachments)
+            if !failures.isEmpty {
+                let alert = NSAlert()
+                alert.messageText = "Some attachments could not be added"
+                alert.informativeText = failures.joined(separator: "\n")
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
             }
         }
     }
 
     func openAIChat() {
-        showPalette(mode: .aiChat)
+        showQuickAIChat()
     }
 
-    /// Return on a running AI row: back into the conversation that is waiting.
     func openAIChat(sessionID: UUID) {
-        aiChat.switchTo(sessionID)
-        palette.prepare(mode: .aiChat)
-        showPalette(mode: .aiChat)
+        showQuickAIChat(sessionID: sessionID)
     }
 
-    /// Enter chat with the draft in the composer, unsent — Tab's carry-in path.
     func openAIChat(draft: String) {
-        aiChat.startNewSession()
-        palette.mode = .aiChat
-        palette.query = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        quickAIChat.newConversation()
+        quickAIChat.draft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        showQuickAIChat()
     }
 
-    func startAIChat(prompt rawPrompt: String) {
-        aiChat.startNewSession()
-        palette.mode = .aiChat
-        let prompt = rawPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        palette.query = prompt
-        if !prompt.isEmpty, aiChat.send(prompt) { palette.query = "" }
+    func startAIChat(prompt: String) {
+        openAIChat(draft: prompt)
+        quickAIChat.submit()
+    }
+
+    func confirmDeleteAIChatSession(_ id: UUID) {
+        guard let session = aiChat.sessions.first(where: { $0.id == id }) else { return }
+        quickAIChat.hide(restoreFocus: true)
+        confirmInPalette(PaletteConfirmation(
+            title: "Delete \(session.title)?",
+            message: "This conversation will be permanently removed from synced Spotter data.",
+            actionTitle: "Delete", onCancel: { [weak self] in self?.showQuickAIChat() }
+        ) { [weak self] in
+            guard let self else { return }
+            quickAIChat.deleteSession(id)
+            showQuickAIChat()
+        })
     }
 
     @discardableResult
@@ -193,18 +116,6 @@ extension AppCore {
         }
         hidePalette(restoreFocus: false)
         return true
-    }
-
-    func confirmDeleteAIChatSession() {
-        let title = aiChat.current.title
-        confirmInPalette(
-            PaletteConfirmation(
-                title: "Delete \(title)?",
-                message: "This conversation will be permanently removed from synced Spotter data.",
-                actionTitle: "Delete"
-            ) { [weak self] in
-                self?.aiChat.deleteCurrentSession()
-            })
     }
 
     /// The one funnel for an AI command's global shortcut. The key is the gate: with none, the
@@ -252,26 +163,21 @@ extension AppCore {
         switch capture {
         case .failure(let error):
             sessionID = aiChat.showCommandFailure(command: command, message: error.message,
-                selectInPalette: !aiCommands.usesQuickChat)
+                selectSession: false)
         case .success(let snapshot):
             sessionID = aiChat.startCommandConversation(command: command, selection: snapshot.text,
-                selectInPalette: !aiCommands.usesQuickChat)
+                selectSession: false)
         }
         showAICommandSession(sessionID)
     }
 
     private func showAICommandFailure(_ command: AICommand, message: String) {
         let sessionID = aiChat.showCommandFailure(command: command, message: message,
-            selectInPalette: !aiCommands.usesQuickChat)
+            selectSession: false)
         showAICommandSession(sessionID)
     }
 
     private func showAICommandSession(_ sessionID: UUID) {
-        if aiCommands.usesQuickChat {
-            showQuickAIChat(sessionID: sessionID)
-        } else {
-            palette.prepare(mode: .aiChat)
-            showPalette(mode: .aiChat)
-        }
+        showQuickAIChat(sessionID: sessionID)
     }
 }

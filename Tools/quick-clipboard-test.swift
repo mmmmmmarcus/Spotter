@@ -63,8 +63,8 @@ struct QuickClipboardTests {
         let menu = QuickClipboardMenuView(items: [])
         menu.update(items, selection: 0, filter: .image)
         let size = menu.frame.size
-        expect(menu.rowButtons.count == 9 && menu.rowButtons.first?.frame == frames[0],
-            "the image grid initially shows three rows starting with the newest image")
+        expect(menu.rowButtons.count == 6 && menu.rowButtons.first?.frame == frames[0],
+            "the default count rounds up to two complete image rows")
         menu.select(601)
         expect(menu.frame.size == size && menu.rowButtons.count <= 12
             && menu.rowButtons.contains { $0.isSelected && $0.frame == frames[601] },
@@ -291,6 +291,18 @@ struct QuickClipboardTests {
         expect(QuickClipboardPresentation.rowFrames(items: textItems(50)).count == 50
             && QuickClipboardPresentation.size(items: textItems(50)) == QuickClipboardPresentation.size(items: textItems(5)),
             "the document keeps older rows while the viewport remains compact")
+        expect(QuickClipboardPresentation.size(items: textItems(50), visibleCount: 12).height == 436,
+            "twelve visible text rows determine the viewport height")
+        expect(QuickClipboardPresentation.size(items: textItems(50), visibleCount: 1).height == 212
+            && QuickClipboardPresentation.size(items: textItems(50), visibleCount: 99).height == 436,
+            "visible count is clamped to five through twelve")
+        let bounded = QuickClipboardPresentation.frame(anchor: low, screen: CGRect(x: 0, y: 0, width: 800, height: 300), items: textItems(50), visibleCount: 12)
+        expect(bounded.height == 284, "small screens cap the viewport while the document remains scrollable")
+        let configuredMenu = QuickClipboardMenuView(items: [])
+        configuredMenu.update(textItems(50), selection: 0, visibleCount: 12)
+        expect(configuredMenu.rowButtons.count == 12, "the native viewport initially exposes twelve text records")
+        configuredMenu.select(40)
+        expect(configuredMenu.rowButtons.contains { $0.isSelected }, "configured viewport still scrolls to older records")
         let image = ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil)
         let mixed = QuickClipboardPresentation.rowFrames(items: [image] + textItems(1))
         expect(mixed.map(\.height) == [64, 32] && mixed[0].minY == mixed[1].maxY,

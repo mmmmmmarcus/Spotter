@@ -374,7 +374,7 @@ struct AppIconView: View {
             initialValue: app.isSymbolIcon
                 ? IconCache.cachedSymbol(
                     named: app.symbolIconName, dark: NSApp.effectiveAppearance.isDark)
-                : IconCache.cached(forFile: app.iconPath))
+                : app.isExtensionArtwork ? ExtensionIconCache.cached(atPath: app.iconPath) : IconCache.cached(forFile: app.iconPath))
     }
 
     var body: some View {
@@ -386,19 +386,19 @@ struct AppIconView: View {
                     .fill(Theme.Colors.surfaceGlow)
             }
         }
-        .task(id: Reload(id: app.id, dark: scheme == .dark)) {
+        .task(id: Reload(id: app.id, path: app.iconPath, dark: scheme == .dark)) {
             // An app icon is appearance-independent, so only a symbol tile re-decodes on a flip.
-            guard image == nil || app.isSymbolIcon else { return }
             image =
                 app.isSymbolIcon
                 ? await IconCache.loadSymbolAsync(
                     named: app.symbolIconName, dark: scheme == .dark)
-                : await IconCache.loadAsync(forFile: app.iconPath)
+                : app.isExtensionArtwork ? await ExtensionIconCache.loadAsync(atPath: app.iconPath) : await IconCache.loadAsync(forFile: app.iconPath)
         }
     }
 
     private struct Reload: Equatable {
         let id: String
+        let path: String
         let dark: Bool
     }
 }

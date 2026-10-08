@@ -17,7 +17,8 @@ final class OpenRouterStore: ObservableObject {
     var requests: [[(role: String, content: String)]] = []
     private var completions: [CheckedContinuation<Void, Error>] = []
 
-    func selectChatModel(messages: [(role: String, content: String)], defaultModel: String) async throws -> AIRoutingSelection? {
+    func selectChatModel(messages: [(role: String, content: String)], defaultModel: String, routeModel: Bool = true) async throws -> AIRoutingSelection? {
+        if !routeModel { return AIRoutingSelection(model: defaultModel, category: nil, webSearch: false) }
         decisionRequests.append(messages)
         if waitsForDecision { try await withCheckedThrowingContinuation { decisions.append($0) } }
         if !ignoresDecisionCancellation { try Task.checkCancellation() }
@@ -26,7 +27,7 @@ final class OpenRouterStore: ObservableObject {
 
     func completeDecision() { decisions.removeFirst().resume() }
 
-    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool,
+    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool, imageDataURLs: [Int: [String]] = [:],
               onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         requests.append(messages)
         models.append(model)
@@ -48,7 +49,7 @@ enum LocalAIModel {
 @MainActor
 final class LocalAIStore: ObservableObject {
     var isAvailable = false
-    func chat(messages: [(role: String, content: String)], modelID: String,
+    func chat(messages: [(role: String, content: String)], modelID: String, webSearch: Bool = false, images: [Data] = [],
               onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         throw OpenRouterError.notConfigured
     }
@@ -59,7 +60,7 @@ final class AIToolStore: ObservableObject {
     var isConfigured = false
     func stop() {}
     func run(messages: [(role: String, content: String)], model: String, webSearch: Bool,
-             sessionID: UUID, router: OpenRouterStore, onText: @escaping @MainActor @Sendable (String) -> Void) async throws {
+             sessionID: UUID, router: OpenRouterStore, imageDataURLs: [Int: [String]] = [:], onText: @escaping @MainActor @Sendable (String) -> Void) async throws {
         try await router.chat(messages: messages, model: model, webSearch: webSearch, onDelta: onText)
     }
 }
@@ -101,6 +102,7 @@ struct QuickAIChatTests {
         await nativePanel()
         headerDragging()
         await conversations()
+        await sidebarSessions()
         await routing()
         await commandConversations()
         print("\(passes)/\(passes + failures) passed")
@@ -112,15 +114,17 @@ struct QuickAIChatTests {
         let tools = AIToolStore()
         let chat = AIChatStore(openRouter: router, localAI: LocalAIStore(), tools: tools)
         let quick = QuickAIChatController(chat: chat, tools: tools, router: router, showSettings: {})
-        let paletteID = chat.currentID
         let command = AICommand(name: "Explain", prompt: "Explain this clearly: {selection}", model: "command-model")
         let input = "A selection with {selection} and\na second line"
-        let commandID = chat.startCommandConversation(command: command, selection: input, selectInPalette: false)
+        let commandID = chat.startCommandConversation(command: command, selection: input, selectSession: false)
         quick.draft = "An unsent draft"
         quick.openSession(commandID)
-        expect(chat.currentID == paletteID && quick.owns(commandID) && quick.isExpanded && !quick.hasReceivedReply,
-            "floating commands open at the first expansion without redirecting the palette")
-        expect(quick.draft == "An unsent draft", "opening a command result preserves an unsent floating draft")
+        expect(chat.currentID == commandID && quick.owns(commandID) && quick.isExpanded && !quick.hasReceivedReply,
+            "commands open at the first expansion and become the selected session")
+        expect(quick.draft.isEmpty, "a command session does not inherit another composer draft")
+        quick.newConversation()
+        expect(quick.draft == "An unsent draft", "the new-conversation draft survives a command detour")
+        quick.openSession(commandID)
         expect(chat.messages(in: commandID).first?.displayedText == input
             && chat.messages(in: commandID).first?.commandInput?.name == "Explain",
             "command bubbles retain just the selected input and the command name")
@@ -137,13 +141,13 @@ struct QuickAIChatTests {
             "follow-ups keep command instructions in context and remain ordinary chat bubbles")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
-        let failedID = chat.showCommandFailure(command: command, message: "No selected text", selectInPalette: false)
+        let failedID = chat.showCommandFailure(command: command, message: "No selected text", selectSession: false)
         quick.openSession(failedID)
-        expect(chat.currentID == paletteID && quick.owns(failedID) && !quick.hasReceivedReply
+        expect(chat.currentID == failedID && quick.owns(failedID) && !quick.hasReceivedReply
             && chat.requests.phase(for: failedID) == .failed("No selected text"),
-            "command capture failures use the floating session without leaking to the palette")
+            "command capture failures stay in their owning session")
         let mainID = chat.startCommandConversation(command: command, selection: "Palette input")
-        expect(chat.currentID == mainID, "turning off floating commands retains the palette conversation path")
+        expect(chat.currentID == mainID, "a directly created command can select its session")
         await waitUntil { router.requests.count == 3 }
         router.completeNext()
         await waitUntil { !chat.isWaiting }
@@ -166,6 +170,14 @@ struct QuickAIChatTests {
         let clamped = QuickAIChatLayout.resizedFrame(nearTop, width: compact.width * 2, height: 475, visibleFrame: visible, margin: 8)
         expect(visible.insetBy(dx: 8, dy: 8).contains(clamped) && clamped.width == compact.width * 2,
             "expansion after dragging to an edge keeps the close button and entire frame on screen")
+        let withSidebar = QuickAIChatLayout.resizedFrame(expanded,
+            width: expanded.width + Theme.QuickAI.sidebarWidth, height: expanded.height,
+            visibleFrame: visible, margin: 8, anchorTrailing: true)
+        expect(withSidebar.maxX == expanded.maxX && withSidebar.width - Theme.QuickAI.sidebarWidth == expanded.width,
+            "sidebar grows leftward while preserving the conversation width and trailing edge")
+        let withoutSidebar = QuickAIChatLayout.resizedFrame(withSidebar,
+            width: expanded.width, height: expanded.height, visibleFrame: visible, margin: 8, anchorTrailing: true)
+        expect(withoutSidebar == expanded, "closing the sidebar restores the same conversation frame")
         let restored = QuickAIChatLayout.resizedFrame(expanded, width: compact.width, height: Theme.Size.quickAIComposerHeight, visibleFrame: visible, margin: 8)
         expect(restored == compact, "starting another chat collapses onto the same composer anchor")
         let small = CGRect(x: 200, y: -600, width: 500, height: 400)
@@ -202,7 +214,7 @@ struct QuickAIChatTests {
         expect(panel.hasShadow && panel.glassView.layer?.masksToBounds == true
             && panel.glassView.layer?.cornerRadius == 16 && panel.glassView.layer?.cornerCurve == .circular,
             "the native window shadow is enabled while the glass backing keeps its capsule silhouette")
-        let host = panel.glassView.contentView?.subviews.first as? NSHostingView<Text>
+        let host = panel.contentView?.subviews.compactMap { $0 as? NSHostingView<Text> }.first
         expect(host?.sizingOptions == [], "SwiftUI cannot drive the window size")
         panel.setFrame(CGRect(x: -10000, y: -10000, width: Theme.Size.quickAIWidth * 2, height: 475), display: false)
         panel.contentView?.layoutSubtreeIfNeeded()
@@ -213,7 +225,7 @@ struct QuickAIChatTests {
             "the expanded chat restores its larger continuous window corners")
         expect(host?.frame.size == CGSize(width: Theme.Size.quickAIWidth * 2, height: 475),
             "the transcript host follows the glass content size")
-        expect(panel.contentView?.subviews.count == 1, "the panel has no separate drag handle")
+        expect(panel.contentView?.subviews.count == 2, "glass backing and full-window content are separate without a drag handle")
         for height: CGFloat in [44, 32] {
             panel.setFrame(CGRect(x: -10000, y: -10000, width: Theme.Size.quickAIWidth,
                 height: height), display: false)
@@ -222,6 +234,20 @@ struct QuickAIChatTests {
                 && panel.glassView.layer?.cornerCurve == .circular,
                 "compact and transitional heights use matching half-height circular ends")
         }
+        panel.setFrame(CGRect(x: -10000, y: -10000,
+            width: Theme.Size.quickAIWidth + Theme.QuickAI.compactAccessoryWidth,
+            height: Theme.Size.quickAIComposerHeight), display: false)
+        panel.compactAccessoryWidth = Theme.QuickAI.compactAccessoryWidth
+        panel.contentView?.layoutSubtreeIfNeeded()
+        expect(panel.glassView.frame.minX == Theme.QuickAI.compactAccessoryWidth
+            && panel.glassView.frame.width == Theme.Size.quickAIWidth,
+            "compact glass starts after the external circular button and transparent gap")
+        expect(host?.frame.width == panel.contentView?.bounds.width,
+            "the content host keeps the external sidebar button outside the composer's clip")
+        panel.compactAccessoryWidth = 0
+        expect(panel.glassView.frame.minX == 0, "expanded glass reclaims the full panel width")
+        expect(panel.collectionBehavior.contains(.managed) && panel.collectionBehavior.contains(.participatesInCycle)
+            && !panel.collectionBehavior.contains(.transient), "Quick AI Chat participates in Mission Control and window cycling")
         expect(!panel.isVisible, "native panel checks never show a window or take user focus")
         panel.close()
     }
@@ -237,8 +263,32 @@ struct QuickAIChatTests {
         expect(area.acceptsFirstMouse(for: event), "header dragging works when the floating panel is inactive")
         expect(window.contentView?.hitTest(CGPoint(x: 80, y: 32)) === area,
             "the empty header area receives pointer events")
+        let previousCursor = NSCursor.current
         area.mouseDown(with: event)
-        expect(window.dragEvents == 1 && !window.isVisible, "header dragging uses the native window drag without showing a test window")
+        expect(NSCursor.current === NSCursor.closedHand && !window.areCursorRectsEnabled,
+            "native drag retains a closed hand after performDrag returns")
+        area.mouseUp(with: event)
+        expect(NSCursor.current === previousCursor && window.areCursorRectsEnabled,
+            "mouse release restores the cursor and window cursor rectangles")
+        let cursor = WindowDragCursor()
+        cursor.begin(in: area)
+        cursor.update(isPressed: false)
+        cursor.end()
+        expect(NSCursor.current === previousCursor && window.areCursorRectsEnabled,
+            "a consumed mouse-up restores the cursor exactly once")
+        let handle = PaletteDragHandleView()
+        window.contentView?.addSubview(handle)
+        var clicks = 0
+        handle.onClick = { clicks += 1 }
+        handle.mouseDown(with: event)
+        expect(NSCursor.current === NSCursor.closedHand, "palette uses a closed hand from mouse-down")
+        handle.mouseUp(with: event)
+        expect(clicks == 1 && NSCursor.current === previousCursor, "palette click still recenters and restores the cursor")
+        area.mouseDown(with: event)
+        area.removeFromSuperview()
+        expect(NSCursor.current === previousCursor && window.areCursorRectsEnabled,
+            "removing a dragging view restores cursor state")
+        expect(window.dragEvents == 2 && !window.isVisible, "header dragging uses the native window drag without showing a test window")
         window.close()
     }
 
@@ -264,8 +314,8 @@ struct QuickAIChatTests {
         expect(!quick.hasReceivedReply, "sending alone does not trigger the second expansion")
         expect(chat.messages(in: quickID).first?.text == "Quick question" && chat.waitingStatus == "Jev is choosing a model…",
             "the first expansion already has the submitted prompt and an accurate waiting status")
-        expect(chat.currentID == palette.id && chat.messages == palette.messages,
-            "the floating chat does not replace the palette's selected conversation")
+        expect(chat.currentID == quickID && chat.messages(in: palette.id) == palette.messages,
+            "Quick Chat selects its session without changing historical messages")
         await waitUntil { router.requests.count == 1 }
         expect(quick.hasReceivedReply && quick.bodyHeight == Theme.Size.panelHeight,
             "the first nonempty streamed reply immediately selects the final height")
@@ -273,7 +323,7 @@ struct QuickAIChatTests {
             && !router.requests[0].contains { $0.content == "Palette-only context" },
             "the model receives only the owning floating conversation")
         expect(chat.waitingStatus == "Generating reply…", "received text advances the progress to generating")
-        expect(chat.messages(in: quickID).last?.text == "Partial " && chat.messages == palette.messages,
+        expect(chat.messages(in: quickID).last?.text == "Partial " && chat.messages(in: palette.id) == palette.messages,
             "streaming output stays scoped to the session that asked")
         expect(!chat.send("Competing palette prompt"), "the two surfaces share one in-flight request gate")
         quick.draft = "Follow up"
@@ -317,6 +367,59 @@ struct QuickAIChatTests {
             "a stale session reference cannot dispatch a request")
     }
 
+    private static func sidebarSessions() async {
+        let router = OpenRouterStore()
+        let chat = AIChatStore(openRouter: router, localAI: LocalAIStore(), tools: AIToolStore())
+        let tools = AIToolStore()
+        let first = AIChatSession(messages: [AIChatMessage(role: .user, text: "First")])
+        let second = AIChatSession(messages: [AIChatMessage(role: .user, text: "Second"),
+            AIChatMessage(role: .assistant, text: "Answer")])
+        chat.replace(sessions: [first, second], currentID: first.id)
+        let quick = QuickAIChatController(chat: chat, tools: tools, router: router, showSettings: {})
+        quick.draft = "Unsent new question"
+        quick.toggleSidebar()
+        expect(quick.showsSidebar && quick.isExpanded && quick.bodyHeight == Theme.Size.panelHeight,
+            "history is reachable from a compact empty composer without creating a session")
+        expect(chat.sessions.count == 2, "opening history creates no blank session")
+        quick.openSession(first.id)
+        quick.draft = "First draft"
+        let attachment = AIChatMessage.Attachment(name: "first.txt", kind: .text, content: "First attachment")
+        _ = chat.addPendingAttachments([attachment])
+        quick.openSession(second.id)
+        expect(chat.pendingAttachments.isEmpty, "attachments do not leak into another session")
+        expect(quick.draft.isEmpty && quick.hasReceivedReply && chat.currentID == second.id,
+            "switching sessions selects the matching transcript and attained size")
+        quick.draft = "Second draft"
+        quick.openSession(first.id)
+        expect(quick.draft == "First draft" && chat.pendingAttachments == [attachment],
+            "each session restores its own unsent draft and attachments")
+        quick.newConversation()
+        expect(quick.draft == "Unsent new question" && quick.showsSidebar,
+            "returning to a new conversation restores its draft and keeps history open")
+        quick.openSession(second.id)
+        expect(quick.draft == "Second draft", "returning through new conversation preserves historical drafts")
+        quick.draft = "Request in second"
+        quick.submit()
+        await waitUntil { router.requests.count == 1 }
+        quick.openSession(first.id)
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        expect(chat.messages(in: second.id).last?.text == "Partial answer"
+            && chat.messages(in: first.id).count == 1 && quick.sessionID == first.id,
+            "switching while a reply streams never redirects it to the selected transcript")
+        quick.openSession(second.id)
+        quick.draft = "Second draft"
+        quick.deleteSession(first.id)
+        expect(quick.sessionID == second.id && quick.draft == "Second draft" && chat.sessions.count == 1,
+            "deleting an unselected session leaves the current draft intact")
+        quick.deleteSession(second.id)
+        expect(quick.sessionID == nil && quick.draft == "Unsent new question" && !chat.sessions.isEmpty,
+            "deleting the selected last session returns to the new composer safely")
+        quick.toggleSidebar()
+        expect(!quick.isExpanded && quick.bodyHeight == Theme.Size.quickAIComposerHeight,
+            "closing history on an empty composer returns to compact size")
+    }
+
     private static func routing() async {
         let router = OpenRouterStore()
         router.waitsForDecision = true
@@ -347,6 +450,7 @@ struct QuickAIChatTests {
         router.completeNext()
         await waitUntil { !chat.isWaiting }
 
+        chat.startNewSession()
         tools.isConfigured = true
         router.route = AIRoutingSelection(model: "fallback-model", category: nil, fallback: .unavailable)
         chat.send("Follow up through tools")
@@ -355,9 +459,10 @@ struct QuickAIChatTests {
             "the selected fallback also reaches the existing tool path and is labelled")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
-        expect(router.decisionRequests.last?.map(\.content).contains("Pinned") == true,
-            "follow-up routing includes the owning session's previous conversation")
+        expect(router.decisionRequests.last?.map(\.content).contains("Follow up through tools") == true,
+            "new session routing uses its own prompt")
 
+        chat.startNewSession()
         router.waitsForDecision = true
         router.ignoresDecisionCancellation = true
         chat.send("Cancel while deciding")

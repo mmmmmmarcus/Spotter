@@ -1,160 +1,187 @@
+import AppKit
 import SwiftUI
+import WebKit
 
-/// Renders one assistant reply's Markdown: `AIChatMarkdown` splits the blocks, SwiftUI's own parser
-/// handles the inline spans inside each one.
 struct AIChatMarkdownText: View {
     let text: String
     var isStreaming = false
-
-    private var blocks: [AIChatMarkdownBlock] { AIChatMarkdown.blocks(in: text) }
+    @State private var height: CGFloat = 24
+    @State private var failed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                block.view
+        Group {
+            if failed {
+                Text(text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                AIChatMarkdownWebView(text: text, isStreaming: isStreaming, reduceMotion: reduceMotion,
+                    height: $height, failed: $failed)
+                    .frame(height: height)
+                    .frame(maxWidth: .infinity)
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .modifier(AIChatLineReveal(isStreaming: isStreaming))
-    }
-}
-
-extension AIChatMarkdownBlock {
-    @ViewBuilder
-    fileprivate var view: some View {
-        switch self {
-        case .paragraph(let text):
-            AIChatInlineText(text: text)
-        case .heading(let level, let text):
-            AIChatInlineText(text: text)
-                .font(headingFont(level))
-        case .listItem(let marker, let text, let depth):
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.md) {
-                Text(marker)
-                    .font(Theme.Typography.rowTitle)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .monospacedDigit()
-                AIChatInlineText(text: text)
-            }
-            .padding(.leading, CGFloat(depth) * Theme.Spacing.xl)
-        case .quote(let text):
-            HStack(alignment: .top, spacing: Theme.Spacing.md) {
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(Theme.Colors.border)
-                    .frame(width: 2)
-                AIChatInlineText(text: text)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
-            .fixedSize(horizontal: false, vertical: true)
-        case .code(_, let text):
-            Text(text)
-                .font(Theme.Typography.chatCode)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Theme.Spacing.lg)
-                .padding(.vertical, Theme.Spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                        .fill(Theme.Colors.controlSurface)
-                )
-        case .math(let source):
-            Text(AIFormulaDisplay.render(source))
-                .font(.system(size: 18, weight: .regular, design: .serif))
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, Theme.Spacing.lg)
-                .padding(.vertical, Theme.Spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                        .fill(Theme.Colors.controlSurface)
-                )
-                .accessibilityLabel(source)
-        case .table(let header, let rows):
-            AIChatMarkdownTable(header: header, rows: rows)
-        case .rule:
-            Rectangle()
-                .fill(Theme.Colors.separator)
-                .frame(height: 1)
-        }
-    }
-
-    private func headingFont(_ level: Int) -> Font {
-        switch level {
-        case 1: Theme.Typography.chatHeading
-        case 2: Theme.Typography.chatSubheading
-        default: Theme.Typography.chatMinorHeading
         }
     }
 }
 
-/// A single run of inline Markdown — bold, italics, code spans, strikethrough and links.
-private struct AIChatInlineText: View {
+struct AIChatMarkdownWebView: NSViewRepresentable {
     let text: String
+    let isStreaming: Bool
+    let reduceMotion: Bool
+    @Binding var height: CGFloat
+    @Binding var failed: Bool
 
-    var body: some View {
-        Text(Self.attributed(text))
-            .font(Theme.Typography.rowTitle)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.userContentController.add(context.coordinator, name: "markdown")
+        let view = MarkdownWebView(frame: .zero, configuration: configuration)
+        view.setValue(false, forKey: "drawsBackground")
+        view.navigationDelegate = context.coordinator
+        view.appearanceChanged = { [weak coordinator = context.coordinator] in coordinator?.render() }
+        context.coordinator.webView = view
+        guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "AIChatMarkdown") else {
+            DispatchQueue.main.async { failed = true }
+            return view
+        }
+        view.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        return view
     }
 
-    /// Whitespace is preserved so a hard-wrapped paragraph keeps its own line breaks; a reply that
-    /// fails to parse renders as the plain text the model sent rather than disappearing.
-    static func attributed(_ text: String) -> AttributedString {
-        guard
-            var attributed = try? AttributedString(
-                markdown: text,
-                options: .init(
-                    interpretedSyntax: .inlineOnlyPreservingWhitespace,
-                    failurePolicy: .returnPartiallyParsedIfPossible))
-        else { return AttributedString(text) }
-        let codeRuns = attributed.runs.filter {
-            $0.inlinePresentationIntent?.contains(.code) == true
-        }.map(\.range)
-        for range in codeRuns {
-            attributed[range].font = Theme.Typography.chatInlineCode
+    func updateNSView(_ view: WKWebView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.render()
+    }
+
+    static func dismantleNSView(_ view: WKWebView, coordinator: Coordinator) {
+        coordinator.renderTask?.cancel()
+        view.stopLoading()
+        view.navigationDelegate = nil
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "markdown")
+    }
+
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        var parent: AIChatMarkdownWebView
+        weak var webView: WKWebView?
+        var ready = false
+        var renderTask: Task<Void, Never>?
+        private var lastInput: String?
+
+        init(_ parent: AIChatMarkdownWebView) { self.parent = parent }
+
+        func render() {
+            guard ready, let webView, renderTask == nil else { return }
+            let style = Theme.ChatMarkdown.styles(appearance: webView.effectiveAppearance)
+            let signature = parent.text + style + "\(parent.isStreaming)-\(parent.reduceMotion)"
+            guard signature != lastInput else { return }
+            renderTask = Task { @MainActor [weak self, weak webView] in
+                guard let self else { return }
+                if parent.isStreaming {
+                    do { try await Task.sleep(for: .milliseconds(40)) } catch { return }
+                }
+                guard let webView, !Task.isCancelled else { return }
+                let style = Theme.ChatMarkdown.styles(appearance: webView.effectiveAppearance)
+                let text = parent.text, streaming = parent.isStreaming, reducedMotion = parent.reduceMotion
+                lastInput = text + style + "\(streaming)-\(reducedMotion)"
+                do {
+                    _ = try await webView.callAsyncJavaScript(
+                        "await window.spotterRender(text, style, streaming, reducedMotion)",
+                        arguments: ["text": text, "style": style, "streaming": streaming, "reducedMotion": reducedMotion],
+                        in: nil, contentWorld: .page)
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    AppLog.error("ai-chat", "Markdown rendering failed: \(error.localizedDescription)")
+                    parent.failed = true
+                }
+                renderTask = nil
+                if !parent.failed { render() }
+            }
         }
-        return attributed
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.frameInfo.isMainFrame,
+                let payload = message.body as? [String: Any], let kind = payload["kind"] as? String else { return }
+            switch kind {
+            case "ready": ready = true; render()
+            case "height":
+                if let value = payload["value"] as? Double, value.isFinite, value >= 0 {
+                    let measured = max(1, CGFloat(value))
+                    if abs(parent.height - measured) > 0.5 { parent.height = measured }
+                }
+            case "copy":
+                if let value = payload["value"] as? String { Paster.copyPlainText(value) }
+            case "link":
+                if let value = payload["value"] as? String { Self.open(value) }
+            case "scroll":
+                if let top = payload["value"] as? Double, let webView {
+                    let y = webView.isFlipped ? top : webView.bounds.height - top - 24
+                    webView.scrollToVisible(CGRect(x: 0, y: y, width: 1, height: 24))
+                }
+            default: break
+            }
+        }
+
+        static func open(_ value: String) {
+            let workspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.spotter.app1")
+                .appendingPathComponent("AIChat/Workspace")
+            guard let target = AIChatLinkTarget.resolve(value, workspace: workspace) else { return }
+            switch target {
+            case .web(let url): NSWorkspace.shared.open(url)
+            case .file(let url, let line):
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    AppLog.error("ai-chat", "A linked file is unavailable: \(url.path)")
+                    return
+                }
+                let editor = NSWorkspace.shared.urlForApplication(toOpen: url).flatMap { Bundle(url: $0)?.bundleIdentifier }
+                if let line, editor == "com.apple.dt.Xcode" {
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/xed")
+                    process.arguments = ["--line", String(line), url.path]
+                    try? process.run()
+                } else if let line, let editor, ["com.microsoft.VSCode", "com.todesktop.230313mzl4w4u92"].contains(editor) {
+                    var destination = URLComponents()
+                    destination.scheme = editor == "com.microsoft.VSCode" ? "vscode" : "cursor"
+                    destination.host = "file"
+                    destination.path = url.path + ":\(line)"
+                    if let destination = destination.url { NSWorkspace.shared.open(destination) }
+                } else {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+            }
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if action.navigationType == .linkActivated {
+                if let url = action.request.url { Self.open(url.absoluteString) }
+                decisionHandler(.cancel)
+            } else {
+                decisionHandler(action.request.url?.isFileURL == true ? .allow : .cancel)
+            }
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { parent.failed = true }
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard !ready else { return }
+            Task { @MainActor [weak self, weak webView] in
+                guard let self, let webView else { return }
+                let loaded = try? await webView.evaluateJavaScript("typeof window.spotterRender === 'function'")
+                if loaded as? Bool == true { ready = true; render() }
+                else { parent.failed = true }
+            }
+        }
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            parent.failed = true
+        }
     }
 }
 
-private struct AIChatMarkdownTable: View {
-    let header: [String]
-    let rows: [[String]]
-
-    var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: Theme.Spacing.xl, verticalSpacing: Theme.Spacing.sm) {
-            GridRow {
-                ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
-                    cellText(cell)
-                        .font(Theme.Typography.sectionHeader)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                }
-            }
-            Rectangle()
-                .fill(Theme.Colors.separator)
-                .frame(height: 1)
-                .gridCellUnsizedAxes(.horizontal)
-                .gridCellColumns(max(header.count, 1))
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                GridRow {
-                    // Padded to the header width so a short row cannot shift its columns left.
-                    ForEach(0..<header.count, id: \.self) { column in
-                        cellText(column < row.count ? row[column] : "")
-                    }
-                }
-            }
-        }
-    }
-
-    private func cellText(_ text: String) -> some View {
-        Text(AIChatInlineText.attributed(text))
-            .font(Theme.Typography.rowTitle)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+private final class MarkdownWebView: WKWebView {
+    var appearanceChanged: (() -> Void)?
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        appearanceChanged?()
     }
 }

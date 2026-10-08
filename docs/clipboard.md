@@ -165,7 +165,7 @@ mouse menus prefer below/right, keeping the first row nearest the anchor when th
 Both flip above/left as necessary and leave 12 points at the anchor
 and at least 8 points inside the screen's visible frame.
 
-The 276-point menu keeps a viewport of up to five list rows, or three rows of three square tiles in
+The 276-point menu keeps a viewport of a configurable 5–12 list entries, or complete three-column tile rows in
 the Images category, with continuous native scrolling through retained history. `ClipboardStore.historyPage` reads 50 matching records at a time using a rowid
 cursor (with the kind index for filtered categories), reaching beyond the resident 1000-row window. Captures cannot shift a
 cursor page as an offset would. The menu creates buttons and loads thumbnails only for visible rows;
@@ -234,3 +234,5 @@ selected entry dismisses it. No new polling, network access, history duplication
 introduced. `QuickClipboardPresentation` stays pure Foundation + CoreGraphics. The clipboard harness covers content/order/positioning, and the
 quick-clipboard harness validates native surface focus/material
 invariants, animation setup/reversal fallback and Reduce Motion without visual UI acceptance.
+
+Quick Clipboard History settings include Default Visible Items, an integer from 5 through 12 (default 5). All/Text/Files size to that many actual rows, including taller image entries in All; fewer records shrink the panel. Images round up to complete three-column rows. Screen height caps the viewport, never the scrollable history. The bundle-scoped preference participates in settings backup/sync; legacy snapshots preserve the local choice.

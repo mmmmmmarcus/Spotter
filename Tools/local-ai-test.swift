@@ -15,6 +15,10 @@ struct LocalAITests {
         try Data("""
         #!/bin/sh
         if [ "$2" = "--version" ]; then echo fixture-version; exit 0; fi
+        if [ "$2" = "debug" ]; then
+          echo '{"models":[{"slug":"test-fast","display_name":"Test Fast","visibility":"list"}]}'
+          exit 0
+        fi
         pwd > workspace.txt
         printf '%s\\n' "$@" > arguments.txt
         cat >/dev/null
@@ -35,6 +39,18 @@ struct LocalAITests {
         var reply = ""
         try await store.chat(messages: [], modelID: LocalAIModel.codex.rawValue) { reply += $0 }
         precondition(reply == "fixture-reply")
+        precondition(store.codexModels.map(\.slug) == ["test-fast"])
+        precondition(LocalAIModel.resolve("local-cli/codex/test-fast") == .codex)
+        precondition(LocalAIModel.codexModelID("local-cli/codex") == nil)
+        precondition(LocalAIModel.resolve("local-cli/codex/") == nil)
+        precondition(CodexCLIModel.decode("invalid").isEmpty)
+        precondition(CodexCLIModel.decode(#"{"models":[{"slug":"x","visibility":"hide"},{"slug":"y"},{"slug":"y"}]}"#).map(\.slug) == ["y"])
+        try await store.chat(messages: [], modelID: "local-cli/codex/test-fast", webSearch: true, images: [Data([1, 2, 3])]) { _ in }
+        let selectedArguments = try String(contentsOf: workspace.appendingPathComponent("arguments.txt"), encoding: .utf8)
+        precondition(selectedArguments.contains("--model\ntest-fast\n"))
+        precondition(selectedArguments.contains("web_search=\"live\"") && selectedArguments.contains("--image"))
+        let children = try FileManager.default.contentsOfDirectory(atPath: workspace.path)
+        precondition(!children.contains(where: { $0.hasPrefix("attachments-") }), "temporary images are removed")
         let cwd = try String(contentsOf: workspace.appendingPathComponent("workspace.txt"), encoding: .utf8)
         precondition(URL(fileURLWithPath: cwd.trimmingCharacters(in: .whitespacesAndNewlines)).resolvingSymlinksInPath().path == workspace.resolvingSymlinksInPath().path)
         let arguments = try String(contentsOf: workspace.appendingPathComponent("arguments.txt"), encoding: .utf8)
@@ -64,6 +80,13 @@ struct LocalAITests {
         """
         let answer = try LocalAIResponse.reply(model: .codex, status: 0, stdout: events, stderr: "missing field `base_instructions`")
         precondition(answer == "Final answer")
+        let formatted = "[OpenAI](https://openai.com)\n\n| A | B |\n|---|---|\n|1|2|\n\n```swift\nlet x = 1\n```"
+        let formattedItem: [String: Any] = ["type": "item.completed", "item": ["type": "agent_message", "text": formatted]]
+        let formattedEvent = String(data: try JSONSerialization.data(withJSONObject: formattedItem), encoding: .utf8)!
+        let formattedAnswer = try LocalAIResponse.reply(model: .codex, status: 0,
+            stdout: formattedEvent + "\n" + #"{"type":"turn.completed"}"#, stderr: "")
+        precondition(formattedAnswer == formatted, "Codex JSONL preserves link destinations and all Markdown punctuation")
+
         for (status, output, errors, expected) in [
             (Int32(1), events, "missing field `base_instructions`\nSystem: secret prompt", "model cache"),
             (Int32(1), "", "timeout waiting for child process to exit\nSystem: secret prompt", "timed out"),
@@ -81,6 +104,13 @@ struct LocalAITests {
         }
         let claude = try LocalAIResponse.reply(model: .claude, status: 0, stdout: "Claude answer\n", stderr: "warning")
         precondition(claude == "Claude answer")
+        let streamed = try LocalAIResponse.reply(model: .claude, status: 0,
+            stdout: #"{"type":"result","is_error":false,"result":"Visual answer"}"#, stderr: "")
+        precondition(streamed == "Visual answer")
+        do {
+            _ = try LocalAIResponse.reply(model: .claude, status: 0, stdout: #"{"type":"system"}"#, stderr: "", structured: true)
+            fatalError("Incomplete structured output must not become the reply")
+        } catch {}
         print("PASS JSON answer extraction, warnings, failures, transcript exclusion, dedicated workspace and CLI arguments")
     }
 

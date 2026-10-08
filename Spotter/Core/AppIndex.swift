@@ -88,6 +88,8 @@ struct AppEntry: Identifiable, Hashable, Sendable {
     var canRevealInFinder: Bool { kind != .command }
 
     /// Command entries draw an SF Symbol tile unless they borrowed a bundle; everything else uses its file icon.
+    var isExtensionArtwork: Bool { kind == .command && iconFilePath != nil && pluginActionKey?.pluginID == .raycastExtensions }
+
     var isSymbolIcon: Bool { kind == .command && iconFilePath == nil }
     var symbolIconName: String {
         symbolImage ?? (CustomCommand.id(fromEntryID: id) == nil ? "questionmark" : "terminal")

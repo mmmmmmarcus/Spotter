@@ -6,18 +6,15 @@ import Foundation
 @MainActor
 final class AICommandStore: ObservableObject {
     private static let defaultsKey = "ai-commands"
-    private static let quickChatKey = "ai-commands.use-quick-chat"
     /// One release stored a single shared model for every selected-text action.
     private static let sharedLegacyModelKey = "openrouter.model"
 
     private let defaults: UserDefaults
-    @Published private(set) var usesQuickChat: Bool
     @Published private(set) var commands: [AICommand]
     var onChange: (([AICommand]) -> Void)?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        usesQuickChat = defaults.object(forKey: Self.quickChatKey) as? Bool ?? true
         let decoded =
             defaults.data(forKey: Self.defaultsKey)
             .flatMap { try? JSONDecoder().decode([AICommand].self, from: $0) }
@@ -26,12 +23,6 @@ final class AICommandStore: ObservableObject {
         commands = AICommandEngine.normalized(
             decoded ?? [], seed: Self.legacySeed(from: defaults))
         if commands != decoded { persist() }
-    }
-
-    func setUsesQuickChat(_ enabled: Bool) {
-        guard usesQuickChat != enabled else { return }
-        usesQuickChat = enabled
-        defaults.set(enabled, forKey: Self.quickChatKey)
     }
 
     func command(id: UUID) -> AICommand? {

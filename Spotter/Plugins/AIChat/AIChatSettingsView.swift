@@ -25,7 +25,15 @@ struct AIChatSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "AI Chat & Command") {
-            OpenRouterSettingsSection()
+            Section("Multiple Providers") {
+                OpenRouterSettingsSection()
+                ForEach(LocalAIModel.allCases) { model in
+                    SettingsRow(title: model.title,
+                        subtitle: localAI.pathErrors[model] ?? localAI.path(for: model) ?? (localAI.isRefreshing ? "Checking…" : "Not found")) {
+                        Button("Enter Path…") { enterCLIPath(model) }
+                    }
+                }
+            }
 
             Section("Model Selection") {
                 ForEach(AIRoutingCategory.allCases) { category in
@@ -43,28 +51,6 @@ struct AIChatSettingsView: View {
             }
 
             Section {
-                ForEach(LocalAIModel.allCases) { model in
-                    SettingsRow(title: model.title,
-                        subtitle: localAI.pathErrors[model] ?? localAI.path(for: model) ?? (localAI.isRefreshing ? "Checking…" : "Not found")) {
-                        Button("Enter Path…") { enterCLIPath(model) }
-                    }
-                }
-            } header: {
-                Text("Local AI CLIs")
-            } footer: {
-                Text("Local CLIs run with your current macOS account. Spotter passes the conversation through standard input and does not enable CLI tools or file writes.")
-            }
-
-            Section {
-                SettingsRow(title: "Open in Quick AI Chat", subtitle: "Show AI command results in the floating chat window. Turn off to use the palette.") {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { commands.usesQuickChat },
-                            set: { commands.setUsesQuickChat($0) }))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                }
                 ForEach(commands.commands) { command in
                     AICommandSettingsRow(
                         command: command,
@@ -84,19 +70,7 @@ struct AIChatSettingsView: View {
 
             AIToolSettingsSection()
 
-            Section("Web Search") {
-                SettingsRow(title: "Search the Web") {
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { openRouter.chatWebSearch },
-                            set: { openRouter.setChatWebSearch($0) })
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
+
         }
         // "Latest models" means what OpenRouter publishes when this pane is opened, not at launch.
         .onAppear { openRouter.refreshCatalog(force: true); localAI.refresh() }
@@ -130,7 +104,7 @@ private struct AICommandSettingsRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        SettingsRow(title: command.name) {
+        SettingsRow(title: command.name, systemImage: command.systemImage) {
             HStack(spacing: Theme.Spacing.md) {
                 Button("Edit…", action: onEdit)
                     .controlSize(.small)
@@ -156,6 +130,7 @@ private struct AICommandSettingsRow: View {
 /// top, so an older or withdrawn choice is never silently rewritten. Passing a `chatModel` adds the
 /// Default row, which is what an AI command holds when it pins nothing.
 private struct AIChatModelMenu: View {
+    @ObservedObject private var localAI = AppCore.shared.localAI
     let brands: [OpenRouterModelBrand]
     let selected: String?
     /// The model a nil selection resolves to, or nil for the chat model's own row (which has no default).
@@ -166,9 +141,17 @@ private struct AIChatModelMenu: View {
     var body: some View {
         Menu {
             Section("On This Mac") {
-                ForEach(LocalAIModel.allCases) { model in
-                    item(id: model.id, name: model.title)
+                item(id: LocalAIModel.claude.id, name: LocalAIModel.claude.title)
+                Menu("Codex CLI") {
+                    item(id: LocalAIModel.codex.id, name: "Use CLI Default")
+                    ForEach(localAI.codexModels) { model in item(id: model.id, name: model.title) }
+                    if let selected, let model = LocalAIModel.codexModelID(selected), !localAI.codexModels.contains(where: { $0.id == selected }) {
+                        item(id: selected, name: model)
+                    }
+                    if localAI.isRefreshing { Text("Loading models…") }
+                    else if let error = localAI.codexCatalogError { Text(error) }
                 }
+
             }
             if let chatModel {
                 Section("Default") {
@@ -205,7 +188,7 @@ private struct AIChatModelMenu: View {
 
     private var catalogLabel: String? {
         guard let selected else { return nil }
-        return LocalAIModel.resolve(selected)?.title ?? OpenRouterModelCatalog.label(for: selected, in: brands)
+        return LocalAIModel.label(selected) ?? OpenRouterModelCatalog.label(for: selected, in: brands)
     }
 
     private var label: String {
@@ -230,6 +213,7 @@ private struct AICommandEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var openRouter = AppCore.shared.openRouter
     @State private var name: String
+    @State private var symbol: String
     @State private var prompt: String
     @State private var model: String?
     @State private var errorMessage: String?
@@ -237,6 +221,7 @@ private struct AICommandEditorSheet: View {
     init(command: AICommand?) {
         self.command = command
         _name = State(initialValue: command?.name ?? "")
+        _symbol = State(initialValue: command?.systemImage ?? "sparkles")
         _prompt = State(initialValue: command?.prompt ?? "")
         _model = State(initialValue: command?.model)
     }
@@ -253,6 +238,12 @@ private struct AICommandEditorSheet: View {
                     .textFieldStyle(.roundedBorder)
                     // A built-in's name is Spotter's: the launcher, the docs and the shortcut list all promise it.
                     .disabled(command?.isBuiltIn == true)
+            }
+
+            HStack {
+                Image(systemName: symbol).frame(width: 24)
+                TextField("SF Symbol", text: $symbol).textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Command SF Symbol")
             }
 
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
@@ -343,10 +334,14 @@ private struct AICommandEditorSheet: View {
     }
 
     private func save() {
+        guard NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil else {
+            errorMessage = "Enter a valid SF Symbol name."
+            return
+        }
         // Editing keeps the UUID, and with it the command's shortcut, favorite and ranking references.
         let draft = AICommand(
             id: command?.id ?? UUID(), name: name, prompt: prompt,
-            model: model, builtIn: command?.builtIn)
+            model: model, builtIn: command?.builtIn, symbol: symbol)
         do {
             if command == nil {
                 try AppCore.shared.addAICommand(draft)
@@ -367,14 +362,14 @@ private struct OpenRouterSettingsSection: View {
     @State private var keyDraft = AppCore.shared.openRouter.apiKey
 
     var body: some View {
-        Section("AI (OpenRouter)") {
+        Group {
             SettingsRow(
-                title: "Open Router API key", subtitle: keySubtitle,
+                title: "OpenRouter API key", subtitle: keySubtitle,
                 statusDot: store.isReady ? .green : nil
             ) {
                 HStack(spacing: Theme.Spacing.md) {
                     SecureField("", text: $keyDraft)
-                        .accessibilityLabel("Open Router API key")
+                        .accessibilityLabel("OpenRouter API key")
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 220)
                         .onSubmit { store.setAPIKey(keyDraft) }

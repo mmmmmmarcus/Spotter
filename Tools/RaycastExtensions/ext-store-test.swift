@@ -14,10 +14,45 @@ struct ExtensionStoreTests {
         gitHubTree()
         packageManagers()
         abbreviation()
+        launcherSearch()
+        paletteInstallation()
 
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         print("\(passes) passed, \(failures) failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    static func paletteInstallation() {
+        func snapshot(_ query: String = "", enabled: Bool = true, busy: Bool = false) -> PluginPaletteSnapshot {
+            RaycastStorePresentation.snapshot(query: query, enabled: enabled, busy: busy,
+                searching: false, status: nil, results: [], installedNames: [])
+        }
+        check("disabled store offers consent instead of installs", snapshot(enabled: false).items.map(\.id) == ["enable"])
+        check("empty store preserves local import", snapshot().items.contains { $0.id == "local" })
+        check("empty store preserves Raycast import", snapshot().items.contains { $0.id == "raycast" })
+        check("GitHub URL becomes an install row", snapshot("https://github.com/raycast/extensions/tree/main/extensions/slack").items.map(\.id) == ["source"])
+        check("busy installer only offers cancellation", snapshot(busy: true).items.map(\.id) == ["cancel"])
+        check("unmatched search has no unrelated maintenance rows", snapshot("unknown").items.isEmpty)
+        let listing = ExtensionListing(id: "local", name: "fixture", title: "Fixture", summary: "Test",
+            author: "Author", lightIconURL: nil, darkIconURL: nil, commandCount: 1, downloadCount: nil,
+            downloadURL: URL(string: "https://example.com/extension.zip")!, commitSHA: nil)
+        let installed = RaycastStorePresentation.snapshot(query: "fixture", enabled: true, busy: false,
+            searching: false, status: nil, results: [listing], installedNames: ["fixture"])
+        check("store IDs cannot collide with import actions", installed.items.first?.id == "listing:local")
+        check("installed search result offers reinstall", installed.items.first?.primaryActionTitle == "Reinstall")
+        let failure = RaycastStorePresentation.snapshot(query: "fixture", enabled: true, busy: false,
+            searching: false, status: "Offline", results: [], installedNames: [])
+        check("search failures remain visible without rows", failure.emptyMessage == "Offline")
+    }
+
+    static func launcherSearch() {
+        let command = ExtensionCommand(json: ["name": "search", "title": "Open Channel", "keywords": ["chat"]])!
+        let fields = SearchFields(names: [command.title], alternateNames: command.launcherSearchNames(
+            extensionTitle: "Slack", extensionName: "slack"))
+        for query in ["Slack", "Open Channel", "Slack Open Channel", "Open Channel Slack", "chat"] {
+            check("extension command matches \(query)", SearchRelevance.score(query: query, fields: fields) != nil)
+        }
+        check("unrelated extensions do not match", SearchRelevance.score(query: "Coffee", fields: fields) == nil)
     }
 
     // MARK: - A GitHub source

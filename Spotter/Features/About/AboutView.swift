@@ -207,7 +207,7 @@ final class AuxWindowController: NSObject, NSWindowDelegate {
             }
             if floating {
                 window.level = .floating
-                window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+                window.collectionBehavior.formUnion([.managed, .participatesInCycle, .canJoinAllSpaces, .fullScreenAuxiliary])
             }
             // Let the content run edge-to-edge under a transparent titlebar so the window reads as one continuous surface — the modern inspector look.
             if seamlessTitleBar {

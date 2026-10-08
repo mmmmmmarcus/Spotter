@@ -8,6 +8,13 @@ struct ClipboardSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "Clipboard") {
+            Section("Quick Clipboard History") {
+                SettingsRow(title: "Default Visible Items") {
+                    Picker("Default Visible Items", selection: $settings.quickClipboardVisibleCount) {
+                        ForEach(5...12, id: \.self) { count in Text("\(count)").tag(count) }
+                    }.labelsHidden().fixedSize()
+                }
+            }
             Section("History") {
                 SettingsRow(title: "Keep history for") {
                     Picker("", selection: $settings.clipboardRetention) {

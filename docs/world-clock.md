@@ -131,3 +131,12 @@ Settings keeps saved cities in the list and an Add City button in its trailing f
 opens a focused search popover that excludes saved cities. Clicking a result or pressing Return on
 the first match adds it and closes the popover; Escape or an outside click cancels. No-match searches
 show an empty result state. Restore Defaults sits beside Add City when applicable.
+
+## Two-line city rows
+
+Saved and converted city rows place the relative UTC-offset difference, timezone abbreviation and
+Yesterday/Today/Tomorrow caption above the city name. Day/Night and its SF Symbol sit above the
+right-aligned time. Offset and day relationship compare both zones at the previewed instant,
+including DST and fractional offsets. The existing solar geometry determines daylight when a
+coordinate is available. SwiftUI numericText transitions animate time changes while preserving row
+identity; Reduce Motion disables those animations. Add-city results retain their normal action rows.

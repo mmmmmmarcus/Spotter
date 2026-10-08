@@ -257,3 +257,10 @@ struct ExtensionManifest: Sendable, Hashable {
         preferences = (json["preferences"] as? [Any] ?? []).compactMap(ExtensionPreferenceSchema.init(json:))
     }
 }
+
+
+extension ExtensionCommand {
+    func launcherSearchNames(extensionTitle: String, extensionName: String) -> [String] {
+        [extensionTitle, extensionName, "\(extensionTitle) \(title)", "\(title) \(extensionTitle)"] + keywords
+    }
+}

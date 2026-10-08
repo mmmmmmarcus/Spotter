@@ -5,6 +5,7 @@ import Combine
 final class QuickClipboardController {
     private let store: ClipboardStore
     private let hotKeys: HotKeyManager
+    private let visibleCount: () -> Int
     private var items: [ClipboardItem] = []
     private var selection = 0
     private var filter: QuickClipboardFilter = .all
@@ -28,7 +29,8 @@ final class QuickClipboardController {
     private static let imageKeys = QuickClipboardPresentation.imageNavigationKeys
     private static var allKeys: [UInt16] { keys + imageKeys }
 
-    init(store: ClipboardStore, hotKeys: HotKeyManager) {
+    init(store: ClipboardStore, hotKeys: HotKeyManager, visibleCount: @escaping () -> Int) {
+        self.visibleCount = visibleCount
         self.store = store
         self.hotKeys = hotKeys
     }
@@ -110,8 +112,8 @@ final class QuickClipboardController {
     private func updatePresentation(opening: Bool = false) {
         guard let panel, let menu, let placement else { return }
         motion?.stop(closingPanel: false)
-        menu.update(items, selection: selection, filter: filter)
-        let target = QuickClipboardPresentation.frame(anchor: placement.anchor, screen: placement.screen, items: items, filter: filter)
+        menu.update(items, selection: selection, filter: filter, visibleCount: visibleCount(), maximumHeight: placement.screen.height - QuickClipboardPresentation.safety * 2)
+        let target = QuickClipboardPresentation.frame(anchor: placement.anchor, screen: placement.screen, items: items, filter: filter, visibleCount: visibleCount())
         let point = CGPoint(x: placement.anchor.midX, y: placement.anchor.midY)
         let margin = QuickClipboardPresentation.canvasMargin
         let windowFrame = target.insetBy(dx: -margin - 8, dy: -margin - 8)
@@ -187,7 +189,7 @@ final class QuickClipboardController {
             let count = max(QuickClipboardPresentation.pageSize, items.count)
             let recent = store.historyPage(kind: filter.kind, limit: count)
             hasMore = recent.count == count
-            let oldSize = QuickClipboardPresentation.size(items: items, filter: filter)
+            let oldSize = QuickClipboardPresentation.size(items: items, filter: filter, visibleCount: visibleCount())
             let selectedHistory = selection == items.count
             let selectedID = items.indices.contains(selection) ? items[selection].id : nil
             if let selectedID, !recent.contains(where: { $0.id == selectedID }) {
@@ -196,8 +198,8 @@ final class QuickClipboardController {
             }
             items = recent
             selection = selectedHistory ? recent.count : (selectedID.flatMap { id in recent.firstIndex { $0.id == id } } ?? 0)
-            if QuickClipboardPresentation.size(items: items, filter: filter) != oldSize { updatePresentation() }
-            else { menu?.update(items, selection: selection, filter: filter) }
+            if QuickClipboardPresentation.size(items: items, filter: filter, visibleCount: visibleCount()) != oldSize { updatePresentation() }
+            else { menu?.update(items, selection: selection, filter: filter, visibleCount: visibleCount(), maximumHeight: (placement?.screen.height ?? .greatestFiniteMagnitude) - QuickClipboardPresentation.safety * 2) }
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
             MainActor.assumeIsolated {
@@ -230,7 +232,7 @@ final class QuickClipboardController {
         let selectedHistory = selection == items.count
         items.append(contentsOf: page)
         if selectedHistory { selection = items.count }
-        menu?.update(items, selection: selection, filter: filter)
+        menu?.update(items, selection: selection, filter: filter, visibleCount: visibleCount(), maximumHeight: (placement?.screen.height ?? .greatestFiniteMagnitude) - QuickClipboardPresentation.safety * 2)
     }
 
     private func move(_ offset: Int) {

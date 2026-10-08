@@ -249,3 +249,14 @@ enum GoogleTranslationError: LocalizedError, Equatable, Sendable {
         }
     }
 }
+
+extension TranslateState {
+    var quickPanelText: String? {
+        switch self {
+        case .idle: nil
+        case .loading(let original, _): original
+        case .failed(let message): message
+        case .translated(let result): result.rows.map(\.text).joined(separator: "\n\n")
+        }
+    }
+}

@@ -363,3 +363,28 @@ struct ExtensionAction: Equatable, Identifiable {
         }
     }
 }
+
+// Host-facing behavior from Tinycast's ExtensionCommandScreen at 71279c8.
+extension ExtensionScreen {
+    var hidesSearchField: Bool { kind == .form }
+    var actsWithoutRows: Bool { kind == .form || kind == .detail }
+
+    func ownsVerticalKeys(at selection: Int) -> Bool {
+        guard kind == .form, items.indices.contains(selection) else { return false }
+        return ExtensionFormField(type: items[selection].node.type).ownsVerticalKeys
+    }
+
+    func primaryAction(at selection: Int) -> ExtensionAction? {
+        Self.actions(in: actionPanel(forItemAt: selection)).first
+    }
+
+    func primaryActionTitle(at selection: Int) -> String {
+        let action = primaryAction(at: selection)
+        return action?.enclosingSubmenuTitle ?? action?.title ?? "Run"
+    }
+
+    func hasActions(at selection: Int) -> Bool {
+        let actions = Self.actions(in: actionPanel(forItemAt: selection))
+        return kind == .form ? actions.count > 1 : !actions.isEmpty
+    }
+}

@@ -314,19 +314,19 @@ Never break these without an explicit task to do so.
   `Tools/ai-tools-test.swift` harness. MCP does not introduce runtime-loaded Spotter plugins.
 - **Jev classifies tasks; Spotter chooses the configured model.** `OpenRouterStore` owns always-on
   `AIRoutingPreferences` (owner decision, Oct 2026), with Everyday / Professional / Deep Reasoning model mappings. One Jev
-  Decisions request precedes each unpinned chat turn, using only its prompt and bounded recent
-  conversation. Cancellation and key/configuration changes must never turn into a fallback. Unavailable
+  Decisions request precedes the first unpinned chat turn, using only its prompt and bounded recent
+  conversation. The session persists the selected model and reuses it for later turns (owner decision, Oct 2026). Cancellation and key/configuration changes must never turn into a fallback. Unavailable
   or uncertain classification falls back to the captured Everyday model with a visible label; failures
-  after answer/tool execution starts remain failures. Explicit command model pins bypass routing.
+  after answer/tool execution starts remain failures. Explicit command model pins bypass model routing. Jev separately decides web search for every turn, including pinned models; no user search toggle remains.
   Configuration rides trusted settings backup/sync, and missing legacy fields leave local choices
   intact. `AIRoutingTypes.swift` stays pure Foundation; `JevDecisionClient.swift` uses a bounded,
   cacheless request. Reply routing metadata is optional so old history remains readable.
 - **Quick AI Chat is an owner-requested floating-window exception.** ⌥Space opens an independent
   Liquid Glass composer above the Dock, expanding to twice its compact width after the first send, then directly to the palette height on the first nonempty AI reply. Later replies scroll without resizing. `AppCore`
-  solely owns `QuickAIChatController`; it owns the frame, draft and session reference. Both chat
-  surfaces share `AIChatStore`, one in-flight request gate and `AIChatTranscriptView`; floating
-  requests must never redirect the palette's selected conversation. Closing preserves the chat and
-  unsent draft in memory. Drag the header between Close and New Chat through native window dragging; there is no handle or extra strip. Native Regular glass carries a black-to-translucent vertical backdrop with light content, retaining 35% black opacity at the bottom in both sizes; the expanded composer is a native glass capsule with no custom border.
+  solely owns `QuickAIChatController`; it owns the frame, draft and session reference. Quick AI is the only chat surface (owner decision, Oct 2026); the Palette has no AI Chat mode.
+  `AIChatStore` retains one in-flight request gate and session-scoped results. The left sidebar shows
+  historical conversations; switching preserves per-session drafts and attachments in memory. Closing preserves the chat and
+  unsent draft in memory. Drag the header between Sidebar and New Chat through native window dragging; there is no handle or extra strip. Native Regular glass carries a black-to-translucent vertical backdrop with light content, retaining 35% black opacity at the bottom in both sizes; the expanded composer is a native glass capsule with no custom border.
   `QuickAIChatLayout.swift` stays pure Foundation + CoreGraphics. MCP/Cua still uses the Cancel-first
   palette confirmation and restores focus before dispatch. Screenshot cleanup hides the floating panel.
 - **SF Symbols uses Apple's separately installed CLI.** `AppCore` owns `SFSymbolStore`. Search and
@@ -352,8 +352,7 @@ Never break these without an explicit task to do so.
   same record as one the user writes, keeping their historical launcher entry ids and
   `KeyboardShortcuts_plugin.selection-tools.*` binding keys — their prompt, model and shortcut are
   editable and resettable, their name and identity are not, and they cannot be deleted. Commands
-  owns the custom-command Settings view and dynamic launcher entries. AI commands open Quick AI Chat
-  by default; `AICommandStore` owns the synced opt-out. Their bubbles show the command symbol and
+  owns the custom-command Settings view and dynamic launcher entries. AI commands always open Quick AI Chat; old surface preferences are ignored. Their bubbles show the command symbol and
   original selection, while the rendered prompt remains intact in model context and stored history.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
   registered `PluginPaletteScreenRegistration` and the shared `PluginPaletteList`; they must not
@@ -490,3 +489,10 @@ Never break these without an explicit task to do so.
 - [`docs/development.md`](docs/development.md) — build, test, package, release.
 - [`docs/signing.md`](docs/signing.md) — signing model and Gatekeeper.
 - [`docs/updates.md`](docs/updates.md) — updater channels, consent, trust and installation flow.
+
+- **Quick Translate word matching (owner decision, Oct 2026):** opening original/translation comparison may send bounded word arrays to Gemini 2.5 Flash-Lite through the existing OpenRouter key gate, with no additional toggle. Ordinary translation and hovering do not request alignment. Successful mappings are panel-local, dismissal cancels work, and malformed/unavailable matches never become positional guesses. `TranslationWordAlignment.swift` uses Foundation + NaturalLanguage and is tested with real Unicode offsets.
+
+- AI reply Markdown resources in `Spotter/Resources/AIChatMarkdown` are generated with the pinned
+  `Tools/AIChatMarkdown` build. Never load renderer code from a CDN or execute model-supplied HTML.
+  `AIChatLink.swift` stays Foundation-only; the `ai-markdown` harness exercises the real offline WebKit
+  assets. Effective-appearance CSS colors live only in `Theme.ChatMarkdown`.

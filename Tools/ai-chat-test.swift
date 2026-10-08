@@ -1,4 +1,4 @@
-// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
+// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
 import Foundation
 import CoreGraphics
 
@@ -16,16 +16,17 @@ struct AIChatTests {
             }
         }
 
-        let textLine = CGRect(x: 20, y: 2, width: 200, height: 18)
-        let marker = CGRect(x: 0, y: 0, width: 10, height: 22)
-        let nextLine = CGRect(x: 20, y: 24, width: 200, height: 18)
-        check("mixed fonts and list markers reveal as one row",
-            AIChatLineLayout.tops(for: [textLine, marker, nextLine]) == [0, 24])
-        check("table columns share visual rows regardless of enumeration order",
-            AIChatLineLayout.tops(for: [nextLine.offsetBy(dx: 220, dy: 0), textLine, nextLine]) == [2, 24])
-        check("touching lines remain distinct",
-            AIChatLineLayout.tops(for: [textLine, textLine.offsetBy(dx: 0, dy: 18)]) == [2, 20])
-        check("empty geometry creates no reveal rows", AIChatLineLayout.tops(for: [.zero]).isEmpty)
+        var routedSession = AIChatSession()
+        check("new sessions require initial routing", routedSession.routingModel == nil)
+        routedSession.selectedModel = "local-cli/codex/test-fast"
+        check("session pins its first selected model", routedSession.routingModel == "local-cli/codex/test-fast")
+        let savedSession = try! JSONEncoder().encode(routedSession)
+        let restoredSession = try! JSONDecoder().decode(AIChatSession.self, from: savedSession)
+        check("session model survives persistence", restoredSession.routingModel == routedSession.routingModel)
+        var legacyJSON = try! JSONSerialization.jsonObject(with: savedSession) as! [String: Any]
+        legacyJSON.removeValue(forKey: "selectedModel")
+        let legacyData = try! JSONSerialization.data(withJSONObject: legacyJSON)
+        check("older sessions decode without a model", (try! JSONDecoder().decode(AIChatSession.self, from: legacyData)).routingModel == nil)
 
         func stream(_ input: String) throws -> String {
             var parser = OpenRouterStream()
@@ -58,6 +59,26 @@ struct AIChatTests {
             "history excludes blank sessions and orders newest first",
             AIChatEngine.historySessions([olderSession, blankSession, newerSession]).map(\.id)
                 == [newerSession.id, olderSession.id])
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        calendar.firstWeekday = 2
+        func date(_ month: Int, _ day: Int, _ hour: Int = 12) -> Date {
+            calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour))!
+        }
+        let dated = [9, 8, 6, 1].map { day in
+            AIChatSession(messages: [message(.user, "Day \(day)")], startedAt: date(10, day))
+        }
+        let sections = AIChatEngine.historySections(dated.reversed(), now: date(10, 9), calendar: calendar)
+        check("history groups by local calendar in fixed order",
+            sections.map(\.period) == [.today, .yesterday, .thisWeek, .earlier])
+        check("history groups retain the corresponding sessions", sections.flatMap(\.sessions).map(\.id) == dated.map(\.id))
+        check("empty history has no empty headers", AIChatEngine.historySections([], now: date(10, 9), calendar: calendar).isEmpty)
+        let sunday = AIChatSession(messages: [message(.user, "DST Sunday")], startedAt: date(3, 8, 0))
+        let dst = AIChatEngine.historySections([sunday], now: date(3, 9, 1), calendar: calendar)
+        check("Yesterday wins across week and daylight-saving boundaries", dst.first?.period == .yesterday)
+        let midnight = AIChatSession(messages: [message(.user, "Late yesterday")], startedAt: date(10, 8, 23))
+        check("local midnight differs from UTC day", AIChatEngine.historySections([midnight], now: date(10, 9, 0), calendar: calendar).first?.period == .yesterday)
 
         check("empty transcript stays empty", AIChatEngine.transcriptWindow([]).isEmpty)
 
@@ -230,96 +251,6 @@ struct AIChatTests {
             "the shipped prompts still invite follow-ups",
             AIChatSelectionPrompts.defaultDefinition.contains("follow-up")
                 && AIChatSelectionPrompts.defaultGrammar.contains("if asked"))
-
-        // Markdown block splitting: inline spans stay in the text, structure becomes blocks.
-        check("plain text is one paragraph", AIChatMarkdown.blocks(in: "just an answer") == [
-            .paragraph("just an answer")
-        ])
-        check("empty text has no blocks", AIChatMarkdown.blocks(in: "  \n\n ").isEmpty)
-        check("display equations become math blocks",
-            AIChatMarkdown.blocks(in: "$$\\sum_{i=1}^n i$$") == [.math("\\sum_{i=1}^n i")])
-        check(
-            "inline emphasis is left to the inline parser",
-            AIChatMarkdown.blocks(in: "**bold** and `code`") == [.paragraph("**bold** and `code`")])
-        check(
-            "a blank line splits paragraphs",
-            AIChatMarkdown.blocks(in: "first\n\nsecond") == [
-                .paragraph("first"), .paragraph("second"),
-            ])
-        check(
-            "soft-wrapped lines stay one paragraph",
-            AIChatMarkdown.blocks(in: "first\nsecond") == [.paragraph("first\nsecond")])
-
-        check(
-            "headings carry their level",
-            AIChatMarkdown.blocks(in: "## Title ##") == [.heading(level: 2, text: "Title")])
-        check("a bare hash is not a heading", AIChatMarkdown.blocks(in: "#tag") == [.paragraph("#tag")])
-        check(
-            "seven hashes are not a heading",
-            AIChatMarkdown.blocks(in: "####### deep") == [.paragraph("####### deep")])
-
-        check(
-            "dash bullets become list items",
-            AIChatMarkdown.blocks(in: "- **Waste disposal** – trash\n- Data dumping") == [
-                .listItem(marker: "•", text: "**Waste disposal** – trash", depth: 0),
-                .listItem(marker: "•", text: "Data dumping", depth: 0),
-            ])
-        check(
-            "numbered lists keep their numbers",
-            AIChatMarkdown.blocks(in: "1. one\n2) two") == [
-                .listItem(marker: "1.", text: "one", depth: 0),
-                .listItem(marker: "2.", text: "two", depth: 0),
-            ])
-        check(
-            "indentation becomes depth, capped",
-            AIChatMarkdown.blocks(in: "  - two spaces\n            - very deep") == [
-                .listItem(marker: "•", text: "two spaces", depth: 1),
-                .listItem(marker: "•", text: "very deep", depth: 3),
-            ])
-        check(
-            "a marker needs its space",
-            AIChatMarkdown.blocks(in: "-not a list") == [.paragraph("-not a list")])
-        check(
-            "task boxes replace the raw brackets",
-            AIChatMarkdown.blocks(in: "- [ ] todo\n- [x] done") == [
-                .listItem(marker: "☐", text: "todo", depth: 0),
-                .listItem(marker: "☑", text: "done", depth: 0),
-            ])
-
-        check(
-            "fenced code keeps its language and body verbatim",
-            AIChatMarkdown.blocks(in: "```swift\nlet x = 1\n\n  indented\n```") == [
-                .code(language: "swift", text: "let x = 1\n\n  indented")
-            ])
-        check(
-            "an unterminated fence still renders as code",
-            AIChatMarkdown.blocks(in: "```\nlet x = 1") == [.code(language: nil, text: "let x = 1")])
-        check(
-            "a fence interrupts the paragraph around it",
-            AIChatMarkdown.blocks(in: "before\n```\ncode\n```\nafter") == [
-                .paragraph("before"), .code(language: nil, text: "code"), .paragraph("after"),
-            ])
-        check(
-            "an inline code span never opens a fence",
-            AIChatMarkdown.blocks(in: "``code`` here") == [.paragraph("``code`` here")])
-
-        check(
-            "consecutive quoted lines are one block",
-            AIChatMarkdown.blocks(in: "> first\n> second") == [.quote("first\nsecond")])
-        check("a rule is its own block", AIChatMarkdown.blocks(in: "a\n\n---\n\nb") == [
-            .paragraph("a"), .rule, .paragraph("b"),
-        ])
-
-        check(
-            "a delimiter row makes a table",
-            AIChatMarkdown.blocks(in: "| A | B |\n| --- | :-: |\n| 1 | 2 |\n| 3 |") == [
-                .table(header: ["A", "B"], rows: [["1", "2"], ["3"]])
-            ])
-        check(
-            "a pipe without a delimiter row stays prose",
-            AIChatMarkdown.blocks(in: "use a | pipe\nnot a table") == [
-                .paragraph("use a | pipe\nnot a table")
-            ])
 
         // The OpenRouter model catalog behind the Settings brand → model menus.
         let payload = """
@@ -560,11 +491,10 @@ struct AIChatTests {
         commandDefaults.set("vendor/definition-model", forKey: "openrouter.definition-model")
         commandDefaults.set("vendor/shared-model", forKey: "openrouter.model")
         let store = AICommandStore(defaults: commandDefaults)
-        check("AI commands default to the floating chat", store.usesQuickChat)
-        store.setUsesQuickChat(false)
-        check("an explicit palette choice survives reload", !AICommandStore(defaults: commandDefaults).usesQuickChat)
-        store.setUsesQuickChat(true)
-        check("the floating preference can be restored", AICommandStore(defaults: commandDefaults).usesQuickChat)
+        let symbolCommand = AICommand(name: "Test", prompt: "Test", symbol: "star")
+        try! store.add(symbolCommand)
+        check("command symbol persists", AICommandStore(defaults: commandDefaults).command(id: symbolCommand.id)?.systemImage == "star")
+        _ = store.remove(id: symbolCommand.id)
         let compactInput = AIChatMessage(role: .user, text: "Long preset instructions: selected text",
             commandInput: .init(name: "Define", text: "selected text"))
         let compactReloaded = try! JSONDecoder().decode(AIChatMessage.self, from: JSONEncoder().encode(compactInput))

@@ -7,6 +7,17 @@ struct WorldClockTests {
     static var failed = 0
 
     static func main() {
+        let preview = ISO8601DateFormatter().date(from: "2026-10-08T23:00:00Z")!
+        let rowCaption = WorldClockEngine.rowCaption(timeZone: TimeZone(identifier: "America/New_York")!,
+            instant: preview, localTimeZone: TimeZone(identifier: "Asia/Shanghai")!)
+        expect(rowCaption == "−12H / EDT · YESTERDAY", "row caption compares the previewed local day and DST offset")
+        let fractional = WorldClockEngine.rowCaption(timeZone: TimeZone(identifier: "Asia/Kathmandu")!,
+            instant: preview, localTimeZone: TimeZone(secondsFromGMT: 0)!)
+        expect(fractional.hasPrefix("+5H45M / ") && fractional.hasSuffix("TOMORROW"), "fractional offsets and midnight crossing")
+        let winter = ISO8601DateFormatter().date(from: "2026-01-08T12:00:00Z")!
+        expect(WorldClockEngine.rowCaption(timeZone: TimeZone(identifier: "America/New_York")!, instant: winter,
+            localTimeZone: TimeZone(secondsFromGMT: 0)!) == "−5H / EST · TODAY", "winter caption uses standard time")
+
         expect(WorldClockMapGeometry.croppedY(latitude: 60, width: 600, height: 100) == 0, "crop top is northern mid-latitudes")
         expect(WorldClockMapGeometry.croppedY(latitude: 0, width: 600, height: 100) == 100, "crop bottom preserves original map scale")
         expect(WorldClockMapGeometry.croppedY(latitude: 90, width: 300, height: 150) == 0, "full-height event map starts at north pole without an empty margin")

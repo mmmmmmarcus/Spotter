@@ -1,0 +1,2 @@
+# Bundled dependencies retain whitespace in string literals and license notices.
+Spotter/Resources/AIChatMarkdown/renderer.js -whitespace linguist-generated=true

@@ -128,6 +128,8 @@ enum WorldClockPlugin {
                 accessories: [
                     PluginPaletteAccessory(systemImage: "clock.fill", text: result.time)
                 ],
+                stackedDetail: stackedDetail(name: city.name, zone: city.timeZoneIdentifier,
+                    time: result.time, instant: store.mapInstant(for: trimmed), store: store),
                 primaryActionTitle: "Copy Time")
         }
         if !trimmed.isEmpty {
@@ -157,11 +159,31 @@ enum WorldClockPlugin {
                 accessories: [
                     PluginPaletteAccessory(systemImage: "clock.fill", text: row.time)
                 ],
+                stackedDetail: stackedDetail(name: row.name, zone: row.timeZoneIdentifier,
+                    time: row.time, instant: conversion.instant, store: store),
                 primaryActionTitle: "Copy Time")
         }
         return PluginPaletteSnapshot(
             sectionTitle: conversion.headline, items: items,
             emptyMessage: "No cities to convert into.")
+    }
+
+    private static func stackedDetail(name: String, zone: String, time: String, instant: Date,
+        store: WorldClockStore) -> PluginPaletteStackedDetail? {
+        guard let timeZone = TimeZone(identifier: zone) else { return nil }
+        let city = WorldClockCity(name: name, timeZoneIdentifier: zone)
+        let daylight: Bool
+        if let coordinate = store.coordinate(for: city) {
+            daylight = WorldClockMapGeometry.isDaylight(at: coordinate, sun: WorldClockMapGeometry.sun(at: instant))
+        } else {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = timeZone
+            daylight = (6..<18).contains(calendar.component(.hour, from: instant))
+        }
+        return PluginPaletteStackedDetail(
+            leadingCaption: WorldClockEngine.rowCaption(timeZone: timeZone, instant: instant, localTimeZone: .autoupdatingCurrent),
+            trailingCaption: daylight ? "DAY" : "NIGHT", trailingSymbol: daylight ? "sun.max.fill" : "moon.fill",
+            trailingValue: time, numericValue: floor(instant.timeIntervalSince1970 / 60))
     }
 
     private static func displayPhrase(_ phrase: String) -> String {

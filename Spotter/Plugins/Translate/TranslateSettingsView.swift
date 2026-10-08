@@ -17,6 +17,12 @@ struct TranslateSettingsView: View {
             }
 
             Section {
+                SettingsRow(title: "Word Matching", subtitle: "Opening original/translation comparison sends both texts to Gemini 2.5 Flash-Lite through your OpenRouter key, once per panel. Hovering makes no requests.") {
+                    Text("Gemini Flash-Lite").foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
                 SettingsRow(
                     title: "API Key",
                     subtitle:

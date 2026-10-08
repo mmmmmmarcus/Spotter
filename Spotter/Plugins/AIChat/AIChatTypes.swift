@@ -10,6 +10,7 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
     struct CommandInput: Equatable, Codable, Sendable {
         let name: String
         let text: String
+        var symbol: String? = nil
     }
 
     struct Attachment: Identifiable, Equatable, Codable, Sendable {
@@ -18,12 +19,14 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
         let name: String
         let kind: Kind
         let content: String
+        var imageData: Data? = nil
 
-        init(id: UUID = UUID(), name: String, kind: Kind, content: String) {
+        init(id: UUID = UUID(), name: String, kind: Kind, content: String, imageData: Data? = nil) {
             self.id = id
             self.name = name
             self.kind = kind
             self.content = content
+            self.imageData = imageData
         }
     }
 
@@ -37,7 +40,11 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
     var modelText: String {
         guard !attachments.isEmpty else { return text }
         let documents = attachments.map { attachment in
-            "<attachment name=\"\(attachment.name)\" type=\"\(attachment.kind.rawValue)\">\n\(attachment.content)\n</attachment>"
+            let name = attachment.name.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.map(String.init).joined()
+            let runs = attachment.content.split(whereSeparator: { $0 != "`" }).map(\.count)
+            let fence = String(repeating: "`", count: max(3, (runs.max() ?? 0) + 1))
+            return "Attachment: \(String(name.prefix(128))) (\(attachment.kind.rawValue))\n\(fence)\n\(attachment.content)\n\(fence)"
+
         }.joined(separator: "\n\n")
         return text + "\n\n" + documents
     }
@@ -70,6 +77,7 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
 struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     var messages: [AIChatMessage]
+    var selectedModel: String?
     let startedAt: Date
     let titleOverride: String?
     let sourceSystemImage: String?
@@ -88,6 +96,10 @@ struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
         self.titleOverride = titleOverride
         self.sourceSystemImage = sourceSystemImage
         self.systemPrompt = systemPrompt
+    }
+
+    var routingModel: String? {
+        selectedModel ?? messages.last(where: { $0.role == .assistant && $0.routing != nil })?.routing?.model
     }
 
     var title: String { titleOverride ?? AIChatEngine.sessionTitle(for: messages) }
@@ -155,7 +167,37 @@ struct AIChatRequestLedger: Equatable, Sendable {
 
 /// The pure half of AI Chat: prompt text and transcript windowing. Foundation-only so
 /// `Tools/ai-chat-test.swift` compiles it standalone; the network lives in `OpenRouterStore`.
+enum AIChatHistoryPeriod: String, CaseIterable, Sendable {
+    case today = "Today"
+    case yesterday = "Yesterday"
+    case thisWeek = "This week"
+    case earlier = "Earlier"
+}
+
+struct AIChatHistorySection: Identifiable, Sendable {
+    let period: AIChatHistoryPeriod
+    let sessions: [AIChatSession]
+    var id: String { period.rawValue }
+}
+
 enum AIChatEngine {
+    static func historySections(_ sessions: [AIChatSession], now: Date, calendar: Calendar) -> [AIChatHistorySection] {
+        let today = calendar.startOfDay(for: now)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let week = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? today
+        let grouped = Dictionary(grouping: sessions) { session -> AIChatHistoryPeriod in
+            if session.startedAt >= today { return .today }
+            if session.startedAt >= yesterday { return .yesterday }
+            if session.startedAt >= week { return .thisWeek }
+            return .earlier
+        }
+        return AIChatHistoryPeriod.allCases.compactMap { period in
+            guard let values = grouped[period], !values.isEmpty else { return nil }
+            return AIChatHistorySection(period: period, sessions: values.sorted {
+                $0.startedAt == $1.startedAt ? $0.id.uuidString < $1.id.uuidString : $0.startedAt > $1.startedAt
+            })
+        }
+    }
     /// Short and general — the palette is a quick-answer surface, not a document editor.
     static let systemPrompt = """
         You are Spotter's assistant, answering inside a small macOS launcher window. \
@@ -200,9 +242,11 @@ enum AIChatEngine {
         guard let last = messages.last else { return [] }
         var kept: [AIChatMessage] = [last]
         var used = last.modelText.count
+        var imageBytes = last.attachments.reduce(0) { $0 + ($1.imageData?.count ?? 0) }
         for message in messages.dropLast().reversed() {
             used += message.modelText.count
-            guard used <= budget else { break }
+            imageBytes += message.attachments.reduce(0) { $0 + ($1.imageData?.count ?? 0) }
+            guard used <= budget, imageBytes <= 20 * 1024 * 1024 else { break }
             kept.append(message)
         }
         return kept.reversed()

@@ -5,6 +5,11 @@ final class QuickAIChatPanel: NSPanel {
     let glassView: QuickAIChatGlassView
     private var appearanceObservation: NSKeyValueObservation?
     var onDismiss: (() -> Void)?
+    var compactAccessoryWidth: CGFloat = 0 {
+        didSet {
+            (contentView as? QuickAIChatContainerView)?.accessoryWidth = compactAccessoryWidth
+        }
+    }
 
     init<Content: View>(rootView: Content, size: CGSize, cornerRadius: CGFloat) {
         glassView = QuickAIChatGlassView(maximumCornerRadius: cornerRadius)
@@ -14,7 +19,7 @@ final class QuickAIChatPanel: NSPanel {
         appearance = Theme.QuickAI.appearance(for: NSApp.effectiveAppearance)
         isFloatingPanel = true
         level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        collectionBehavior = [.managed, .participatesInCycle, .canJoinAllSpaces, .fullScreenAuxiliary]
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
@@ -22,18 +27,17 @@ final class QuickAIChatPanel: NSPanel {
         isReleasedWhenClosed = false
         isMovableByWindowBackground = false
         animationBehavior = .none
-        let container = NSView(frame: CGRect(origin: .zero, size: size))
+        let container = QuickAIChatContainerView(frame: CGRect(origin: .zero, size: size))
         glassView.frame = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         glassView.autoresizingMask = [.width, .height]
-        let body = NSView(frame: glassView.bounds)
         let host = NSHostingView(rootView: rootView)
         // Only the controller can resize the window during the two expansion stages.
         host.sizingOptions = []
-        host.frame = body.bounds
+        host.frame = container.bounds
         host.autoresizingMask = [.width, .height]
-        body.addSubview(host)
-        glassView.contentView = body
         container.addSubview(glassView)
+        container.addSubview(host)
+        container.glass = glassView
         contentView = container
         appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
             Task { @MainActor [weak self] in
@@ -59,6 +63,20 @@ final class QuickAIChatPanel: NSPanel {
             return
         }
         super.sendEvent(event)
+    }
+}
+
+private final class QuickAIChatContainerView: NSView {
+    weak var glass: QuickAIChatGlassView?
+    var accessoryWidth: CGFloat = 0 {
+        didSet { needsLayout = true; layoutSubtreeIfNeeded() }
+    }
+
+    override func layout() {
+        super.layout()
+        let inset = min(accessoryWidth, bounds.width)
+        glass?.frame = CGRect(x: inset, y: 0, width: bounds.width - inset, height: bounds.height)
+        window?.invalidateShadow()
     }
 }
 
@@ -102,10 +120,18 @@ struct QuickAIChatDragArea: NSViewRepresentable {
 }
 
 final class QuickAIChatDragView: NSView {
+    private let dragCursor = WindowDragCursor()
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {
+        dragCursor.begin(in: self)
         window?.performDrag(with: event)
+        NSCursor.closedHand.set()
+    }
+    override func mouseUp(with event: NSEvent) { dragCursor.end() }
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow !== window { dragCursor.end() }
+        super.viewWillMove(toWindow: newWindow)
     }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
 }

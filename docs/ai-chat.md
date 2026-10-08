@@ -1,38 +1,23 @@
 # AI Chat
 
-A conversation inside the palette, at launcher size. The shared header search field is the composer,
-the body renders the running transcript, and **↵** (or ⌘↵) sends through Spotter's OpenRouter-backed
-chat. That is the only send binding, and the footer says so: one primary button, `Send ↵`, exactly
-like every other surface. Tab never sends — both Tab directions are purely the surface cycle, which
-the header's mode glyph already advertises ("Switch surface (⇥)").
+AI Chat uses Quick AI Chat as its only conversation surface. The launcher commands, ⌥Space,
+AI commands, running-task rows and the launcher's Ask AI fallback all open the floating panel.
+⌘↵ with a typed launcher query opens a new conversation and sends it. The main Palette no longer
+contains a chat mode, composer, history list or chat actions menu; Tab cycles Apps, Clipboard and Emoji.
+The launcher's Send to ChatGPT fallback remains a separate browser handoff.
 
-The web handoff is **Send to ChatGPT** in the ⌘K Actions menu, on the draft in the composer. It has
-no key binding of its own (owner decision, Sep 2026): the Hyper-C chord — and with it
-`PaletteViewModel.chatGPTChordToken` and the `PalettePanel.sendEvent` interception that carried it —
-is gone, from the launcher as well as from chat. Nothing was persisted for that chord (it was
-hardcoded, never a recorded shortcut), so no binding, recorder row or `KeyboardShortcuts_*` key is
-orphaned by the removal, and the launcher's `Send to ChatGPT` row still reaches the same handoff.
-
-From the launcher, **⌘↵** with a typed query starts a fresh AI Chat session and sends immediately,
-while **Tab** enters chat carrying the draft into the composer unsent;
-without a key, the text stays in the composer beside the add-a-key notice. With no draft, Tab keeps
-the Apps → AI Chat → Clipboard → Emoji surface cycle and Shift-Tab walks it backward. Only the
-launcher's query follows into chat; arriving from Clipboard or Emoji, the filter string is dropped
-rather than sent. An already-empty current session is reused so cycling
-modes cannot pile up blanks. Entering chat on that empty session shows **History**: every past
-conversation as a row (title, relative start, turn count), one click from resuming. The palette's
-shared selection drives this list: ↑/↓ moves the highlight and keeps it visible, while ↵ opens the
-selected conversation. Typing a draft keeps ↵ as Send and starts the fresh conversation. Earlier
-conversations also live in the **session
-menu**: the bottom-left palette menu in chat mode lists sessions newest-first (titled by their first
-user turn, the Notes derive-don't-ask rule) plus New Session (also **⌘N** anywhere in chat), and the
-⌘K menu adds Delete Session.
-
-Every non-empty launcher query also exposes those same two destinations in a final `Try With` group,
-after any normal results. The AI Chat row names the selected chat model — `Ask Gemini 2.0 Flash…`,
-from `OpenRouterModelCatalog.modelName(for:in:)` — and falls back to `Send to AI Chat` with no API
-key, since the key is the gate and an unkeyed row can't promise a model. Activating AI Chat follows
-the fresh-session Tab path; activating ChatGPT follows the same web handoff the Actions menu runs.
+The upper-left `sidebar.left` glass button toggles all historical conversations, newest first.
+The compact state places this button outside the composer on its left, as a separate 32-point
+glass circle matching the input height, with a transparent 8-point gap. The input keeps its own width.
+Opening history expands the panel to its full height and adds a 220-point left column; the normal
+conversation width is retained when the screen allows. New Chat and Close sit at the upper right,
+in that order. The blank header between Sidebar and New Chat remains draggable.
+Selecting a session restores its transcript and per-session unsent draft and attachments. Closing
+history leaves that conversation selected. The sidebar marks the current conversation and shows
+progress on the session with an active request. Its context menu offers Copy Conversation and
+Delete Conversation; deletion uses the existing Cancel-first Palette confirmation. The sidebar has no settings shortcut or overall title. Sessions use one title line with their icon,
+grouped by local creation date into Today, Yesterday, This week and Earlier; empty groups are omitted. History remains in the existing backup/sync data; drafts remain local
+in-memory state. Merely opening history never creates an empty session.
 
 AI Chat is an always-available system feature, shown in the Settings sidebar as **AI Chat &
 Command**, but remains inert without an OpenRouter API key — the key is the gate and lives on that
@@ -56,24 +41,24 @@ plumbing without being presented as an optional plugin.
 | `AIToolTypes.swift` | Foundation-only JSON values, MCP configuration validation, tool calls and multimodal result conversion. |
 | `AIMCPConnection.swift` | Per-request MCP client: stdio processes and cacheless Streamable HTTP/SSE. |
 | `AIToolStore.swift` | AppCore-owned configuration, tool discovery, bounded model/tool loop and approval continuations. |
-| `AIToolSettingsView.swift` | Device-local MCP configuration editor, Cua preset and per-call confirmation. |
+| `AIToolSettingsView.swift` | Individual device-local MCP server editors and per-call confirmation. |
 | `AIChatSelectionPrompts.swift` | Foundation-only: the prompts the two shipped AI commands start with. |
 | `AICommand.swift` | Foundation-only, pure: the AI command record, built-in identity, `{selection}` substitution and list repair. |
 | `AICommandStore.swift` | Foundation + Combine: the saved commands, their validation and the upgrade from the old prompt/model keys. |
-| `AIChatMarkdown.swift` | Foundation-only, pure: splits a reply into Markdown blocks. |
-| `AIChatPlugin.swift` | Registration, the ⌘K menu, and `AppCore.openAIChat`. |
-| `AIChatView.swift` | The transcript body, in the palette's own list chrome. |
+| `AIChatLink.swift` | Foundation-only URL policy and Codex file/line reference normalization. |
+| `AIChatPlugin.swift` | Registration and floating conversation entry points. |
+| `AIChatView.swift` | The floating transcript and message rows. |
 | `QuickAIChatController.swift` | AppCore-owned floating chat, composer state, focus and frame changes. |
 | `QuickAIChatPanel.swift` | A native Liquid Glass panel with an invisible header drag area. |
 | `QuickAIChatView.swift` | Compact composer and expanded conversation using the shared `AIChatTranscriptView`. |
 | `QuickAIChatLayout.swift` | Pure Foundation + CoreGraphics placement and bottom-anchored expansion. |
-| `AIChatMarkdownView.swift` | Renders those blocks; inline spans go through SwiftUI's own parser. |
+| `AIChatMarkdownView.swift` | Transparent, self-sizing WebKit Markdown view and explicit link/copy bridge. |
 | `AIChatSettingsView.swift` | The OpenRouter API key, the chat model and web search, plus the AI command list and its editor sheet. |
 
 `Core/OpenRouterModelCatalog.swift` is Foundation-only and pure too: it turns the `/models` payload
 into the brand → model menus.
 
-`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift`, `AIChatMarkdown.swift`,
+`Tools/ai-chat-test.swift` compiles `AIChatTypes.swift`,
 `AIRoutingTypes.swift`, `AIChatSelectionPrompts.swift`, `AICommand.swift`, `AICommandStore.swift` and
 `Core/OpenRouterModelCatalog.swift` standalone, so these stay free of AppKit and SwiftUI. The
 network lives in `OpenRouterStore`, never in any pure source.
@@ -92,7 +77,7 @@ surface contains a roughly 209-point-wide, 32-point-high composer labelled **Ask
 of the palette width and half its compact height). Return sends. Expansion has two stages: accepting
 the first prompt doubles the width to 418 points and opens a 220-point waiting conversation; the
 first nonempty assistant text expands directly to the final 475-point height. Further tokens and
-follow-ups scroll without changing the size. New Chat restores the 209-point compact width. Closing
+follow-ups scroll without changing the size. New Chat restores the 209-point compact width when history is closed. Closing
 and reopening retains the attained stage. Replies for another session cannot resize this window.
 After a drag, expansion preserves the current horizontal center and bottom position, clamped to fit
 the visible screen. SwiftUI never owns the window frame. Compact glass corners use half-height
@@ -106,19 +91,19 @@ white surface with dark text, updating an open panel when the system changes. In
 white gradient ends at 18% opacity, with its expanded 90% stop at 40%; light mode retains the
 black gradient’s 35% bottom opacity.
 
-The expanded view uses the same `AIChatTranscriptView` as the palette: user bubbles, Markdown,
+The expanded view uses `AIChatTranscriptView`: user bubbles, Markdown,
 streaming line reveal, tool activity, errors and follow-to-bottom behavior. Before the first reply,
 the 120-point transcript starts at the submitted prompt without a top fade or automatic bottom scroll. A bottom composer supports
 follow-ups and Stop inside a native regular Liquid Glass capsule, with no solid fill or custom border.
-Close and New Chat use the same interactive circular glass treatment as Notes, with equal 12-point top and side insets, matching the composer’s outer side and bottom padding. The close button appears at the top left only after a chat starts; the compact
+Sidebar, Close and New Chat use tinted native interactive circular glass, with equal 12-point top and side insets, matching the composer’s outer side and bottom padding. The close button appears to the right of New Chat in expanded mode; the compact
 composer has no close button. Escape, ⌘W and the shortcut can hide either state; closing
 keeps the conversation and unsent draft in memory for the next summon. It stays visible on click-away,
-and the shortcut refocuses it when it is not key. New Chat (⌘N) returns to the compact input while
-keeping the previous conversation in the shared history. The blank header region between Close and New Chat uses native window dragging without a visible
+and the shortcut refocuses it when it is not key. New Chat (⌘N) returns to a fresh input while
+keeping the previous conversation in the shared history. The blank header region between Sidebar and New Chat uses native window dragging without a visible
 handle. The buttons, transcript and composer keep their own click and text-selection behavior. Reduce Motion disables frame animation.
 
-Both surfaces share `AIChatStore`, OpenRouter settings, key gate and the single in-flight request gate.
-Quick Chat owns a session ID without changing the palette's selected conversation; every request,
+Quick Chat uses `AIChatStore`, OpenRouter settings, the key gate and the single in-flight request gate.
+Quick Chat selects the current session in the shared history; every request,
 partial reply and failure remains scoped to the session that asked. Rejected sends keep the draft.
 Conversations use the existing trusted history backup/sync; window state and unsent drafts are
 process-local and are not synced. Closing does not cancel an answer: background tasks can return to
@@ -133,7 +118,7 @@ conversation afterward. No separate model, connection, permission or automatic t
 ### Automatic selection with Jev
 
 Settings → AI Chat & Command → **Model Selection** shows right-aligned model menus for Everyday,
-Professional and Deep Reasoning. Jev classifies every unpinned turn automatically, with no enable
+Professional and Deep Reasoning. Jev classifies the first unpinned turn of each conversation automatically, with no enable
 switch. Entering the pane reloads the model catalog; no Chat Model or Reload row remains. The three
 rows contain titles and model menus only.
 
@@ -162,12 +147,12 @@ accuracy. An uncertain, malformed, unavailable or timed-out decision uses the ca
 and labels the fallback. Authentication failure, cancellation or withdrawn access never fall back.
 Once an answer or tool call starts, failures are preserved rather than rerunning with another model.
 
-A branch symbol and requested model name appear above each routed assistant reply; the chosen
+In the full Palette, a branch symbol and requested model name appear above routed assistant replies; Quick AI Chat hides this caption. the chosen
 category and fallback details are available in its tooltip. This metadata remains with the reply
 through streaming, Stop, history and backup. They describe Spotter's selection; choosing
 a provider-side router as a target still delegates its final internal model selection to that provider.
 Old messages without this optional metadata remain readable. Explicit command model pins skip Jev;
-commands set to Default use automatic selection when enabled. Follow-ups classify again with context.
+commands set to Default use automatic selection when enabled. Follow-ups reuse the session’s selected model.
 
 API contract: [OpenRouter Jev tutorial](https://openrouter.ai/docs/guides/community/jev-tutorial).
 
@@ -202,17 +187,34 @@ every other OpenRouter call.
 
 ## Reply formatting
 
-Models answer in Markdown whether or not they are asked to, so assistant turns render it.
-`AIChatMarkdown.blocks(in:)` splits a reply into paragraphs, headings, bullet / numbered / task list
-items, block quotes, fenced code, pipe tables and rules; `AIChatMarkdownText` styles each block and
-hands the inline spans — bold, italics, code, strikethrough, links — to SwiftUI's own Markdown
-parser, which keeps the split shallow and the pure half testable. Structure is only recognized where
-Markdown means it: a heading needs its space, a table needs its delimiter row, and unparseable text
-falls back to the literal characters the model sent. A truncated reply's unterminated fence still
-renders as code. User turns stay literal — a typed asterisk is an asterisk.
+Codex `exec --json` wraps the answer in `item.completed` / `agent_message.text`; Spotter retains
+that text verbatim and keeps commentary and tool/command logs out of the reply. Formatting follows
+CommonMark plus the tables, task lists, strikethrough and local file links used by Codex's CLI renderer.
 
-Because a reply is now several `Text` views, a drag selects within one block rather than across the
-whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw Markdown.
+`AIChatMarkdownText` uses a transparent, self-sizing `WKWebView` with a nonpersistent data store.
+The bundled markdown-it parser handles headings (ATX and setext), nested lists/quotes, task lists,
+hard/soft breaks, reference links, bare URLs, inline emphasis/code, escaped pipes, tables and fenced
+or indented code. highlight.js renders code syntax; code blocks have language labels and Copy.
+KaTeX renders inline/display mathematics and Mermaid renders complete diagram fences after streaming
+finishes; invalid diagrams retain readable source. Footnotes link within the containing transcript.
+All scripts, styles and fonts are bundled locally, with pinned dependencies and licenses in
+`Resources/AIChatMarkdown`; there is no CDN or automatic rendering request.
+
+Links are visibly underlined and dispatched explicitly through the native bridge. HTTP(S) and email
+links open the system handler. Codex file references resolve relative to the dedicated CLI workspace,
+including `:line[:column]` and `#Lline` suffixes; Xcode/VS Code/Cursor receive line numbers when they
+are the associated editor, otherwise Finder reveals the file. Unsupported schemes are not dispatched.
+Image Markdown becomes an explicit Open Image link, matching the CLI's text-oriented output without
+silently fetching remote resources. Raw HTML is escaped, KaTeX trust is off and Mermaid uses strict
+mode; the page CSP disallows network connections, frames and image requests. User turns stay literal.
+
+Streaming updates are throttled to 40 ms with the latest text, and newly added vertical space reveals
+over 140 ms unless Reduce Motion is enabled. ResizeObserver reports the actual document height as
+text, diagrams, fonts or window width change. A renderer failure falls back to selectable raw text.
+Text selection spans the whole answer; code Copy preserves its source, and the history sidebar can
+copy the raw conversation. `Tools/ai-markdown-test.swift` exercises actual bundled assets in WebKit,
+including clickable link and copy events, rich blocks, CSP, resizing and incomplete streamed fences.
+`Tools/AIChatMarkdown/test.mjs` additionally pins parser edge cases when rebuilding the assets.
 
 ## Interaction
 
@@ -229,7 +231,7 @@ whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw M
   bubbles (`chatBubble` radius, `controlSurface` fill), assistant turns as unadorned leading result
   text without an icon, and everything is text-selectable.
 - **⌘K**: Stop Waiting (while in flight), Send to ChatGPT (with a draft), Copy Last Reply, Copy
-  Conversation, New Session, Delete Session, a Web Search on/off toggle, and AI Chat Settings… Delete Session uses the shared
+  Conversation, New Session, Delete Session, and AI Chat Settings… Delete Session uses the shared
   in-palette confirmation card with Cancel selected first.
 - **Esc** backs out to the launcher (the standard ladder); the conversation survives, and re-entering
   chat resumes it. An in-flight request appears there as an indeterminate background task **titled
@@ -251,11 +253,8 @@ whole reply; ⌘K → Copy Last Reply / Copy Conversation still copies the raw M
 An **AI command** is a name, a prompt, a shortcut and a model choice. The prompt is a template:
 `{selection}` — the same single-brace shape a quicklink's `{argument}` uses — is where the selected
 text lands. Running one captures the selection through the `AppCore`-owned `SelectedTextCapture`,
-renders the prompt, opens a new titled chat session and sends immediately. Commands default to
-Quick AI Chat; Settings → AI Chat & Command → Commands → **Open in Quick AI Chat** switches them
-back to the palette. `AICommandStore` owns this preference, which participates in trusted sync;
-legacy snapshots without the field preserve the local choice. Floating command sessions and their
-capture/key errors do not redirect the palette's selected conversation. Opening a command preserves
+renders the prompt, opens a new titled chat session and sends immediately. Commands always open Quick AI Chat. The old surface preference is ignored. Each command has an editable SF Symbol, shown in Settings, launcher results and compact user bubbles; old records keep their existing default icon. Floating command sessions and their
+capture/key errors open their owning floating conversation. Opening a command preserves
 an unsent floating composer draft.
 
 The rendered prompt remains the first model-facing user turn. Optional `AIChatMessage.commandInput`
@@ -346,7 +345,7 @@ browser's signed-in account.
 
 AI Chat and AI commands request OpenRouter SSE streaming. A stable assistant message reveals complete visual lines; a transient draft is committed once on completion, Stop, or failure, preserving partial text. Session changes never redirect an active reply. SSE framing handles UTF-8, comments, multiline data, usage frames and provider errors; EOF without [DONE] is a failure. Transport is cancelled on Stop and late delivery checks the exact request key.
 
-The Markdown renderer measures actual SwiftUI text lines at the current width. Completed lines fade in over 120 ms; the unfinished last line waits for the next line or completion. Bursts are paced within 120 ms rather than building a long animation queue. Completion, Stop and failure immediately show all received text. Reduce Motion disables the fades.
+The bundled Markdown renderer follows actual WebKit document height at the current width; streaming reveals new vertical space without hiding existing text. Completion, Stop and failure render all received text. Reduce Motion disables the reveal.
 
 History rows show the session's source icon: translation, definition, grammar check, or chat.
 AI commands capture their own symbol when creating a session, including a failed start, and the
@@ -358,10 +357,7 @@ with the current session still marked by a check.
 
 ## MCP and Cua experiment
 
-Settings → AI Chat & Command → **MCP & Computer Use · Experimental** configures tools. Fresh
-installs have no servers; configured servers on existing installations are available automatically
-without an Allow AI Tools switch. The OpenRouter key and per-call confirmation still apply.
-Configure uses the common `mcpServers` JSON shape:
+Settings → AI Chat & Command → **MCP** lists servers individually with Add Server, Edit and Delete. Editors expose local executable/arguments/environment or HTTP URL/headers. Servers are active once saved. The OpenRouter key and per-call confirmation still apply. Persistence uses the common `mcpServers` JSON shape:
 
 ```json
 {
@@ -383,8 +379,8 @@ and sync. Configured servers are always available during chat requests; the old
 `ai-chat.tools-consent` flag is ignored. Saving configuration cancels active work and clears tool
 activity; new servers become available on the next request. No servers means ordinary streaming.
 
-**Add Cua** inserts a `cua` server with the installed `cua-driver` executable and `["mcp"]` arguments.
-Install [Cua Driver](https://cua.ai/docs/how-to-guides/driver/connect-your-agent) separately; Spotter
+A one-time default migration inserts a `cua` server first in the list with the installed `cua-driver` executable and `["mcp"]` arguments.
+Deleting this default is permanent across relaunches. Install [Cua Driver](https://cua.ai/docs/how-to-guides/driver/connect-your-agent) separately; Spotter
 does not bundle or auto-update it. CuaDriver.app owns its Accessibility and Screen Recording grants;
 Spotter never grants them or treats Spotter's grants as Cua's. This preset operates the current Mac,
 not a VM. Driver installation and a model that supports both tools and images are required for the
@@ -437,23 +433,22 @@ show only the branch symbol and selected model name; routing category/fallback d
 The three Jev routing tiers may select `Claude CLI` or `Codex CLI` alongside OpenRouter models.
 `LocalAIStore` discovers a usable executable through common package-manager locations and a login
 shell, verifies it with `--version`, and passes the bounded conversation through stdin.
-Settings → AI Chat → Local AI CLIs offers Enter Path for each provider; saving an empty path restores automatic detection.
+Settings → AI Chat → Multiple Providers offers Enter Path for each provider; saving an empty path restores automatic detection.
 Explicit paths take precedence without silently falling back when invalid; validation errors remain
 visible. Paths are device-local UserDefaults, scoped to the bundle identifier and excluded from
 backup/sync. Validation has a three-second timeout and ignores stale discovery results. Both
 validation and chat prepend the selected executable directory to PATH for npm/nvm dependencies. Claude runs
-in print mode with tools disabled; Codex runs `exec --json` in its read-only sandbox. Both use the
+in print mode with only WebSearch allowed when Jev selects it; Codex runs `exec --json` in its read-only sandbox. Both use the
 bundle-scoped `Application Support/<bundle-id>/AIChat/Workspace` directory, created with owner-only
 permissions, rather than the user's home directory. CLI login/configuration locations remain unchanged;
 the working directory is not a new filesystem sandbox. Codex replies come only from completed
 `agent_message` events after `turn.completed`; diagnostic output, reasoning, tools and prompt echoes
 never become the answer. Failed runs display a bounded error, with specific guidance for incompatible
 model caches and model-refresh timeouts. See [Codex non-interactive output](https://learn.chatgpt.com/docs/non-interactive-mode).
-MCP, Cua and web
-search remain OpenRouter-only. A missing or broken CLI fails that request without changing provider.
+MCP and Cua remain OpenRouter-only. Web Search follows Jev on OpenRouter, Codex and Claude; unavailable Jev decisions leave search off. A missing or broken CLI fails that request without changing provider.
 
 The paperclip in Quick AI Chat and **Attach Files…** in AI Chat Actions accept up to ten local files.
-UTF-8 documents and PDF text are read locally; images are converted to text with Vision. Inputs and
+UTF-8 and BOM-marked UTF-16 documents (including SVG source) and PDF text are read locally; scanned PDFs use Vision. Raster images are downsampled to 1568 pixels and sent as actual PNG images, including images with no text. OpenRouter receives image content blocks; Codex receives temporary image files removed after the request; Claude receives structured image input. Failed files are named explicitly, while accepted files remain attached. A message is limited to 10 files and 20 MB. Inputs and
 extracted content are bounded before being included in the user turn. Attachment names render under
 the user's bubble and the extracted text becomes part of that turn's saved model context.
 
@@ -467,3 +462,38 @@ Quick AI Chat opens with a 220 ms fade and an 8-point upward settle, and closes 
 interrupted transitions resume from the current frame. Reduce Motion removes window movement and
 keeps the fade. Screenshot cleanup hides the panel immediately. Waiting and tool progress are
 text-only with the existing shimmer; failure rows retain their warning symbol.
+
+
+### Codex CLI model selection
+
+The existing routing-category menus expand Codex CLI into concrete models read locally from
+`codex debug models --bundled` when Settings opens. This bundled catalog does not verify account
+entitlement; Codex checks availability when invoked. Older CLIs that cannot report the catalog
+retain Use CLI Default and any saved selection. Concrete selections are stored as
+`local-cli/codex/<slug>` and passed as a separate `--model` argument; the legacy `local-cli/codex`
+value continues to use CLI configuration. Opening Settings makes no model-inference request.
+
+Jev runs for the first unpinned turn of a conversation. The selected model is retained on the
+session and included in existing history persistence; later turns reuse it. Previously saved
+routing metadata supplies the model for older sessions. Changes to category mappings affect new
+conversations. Explicit command model selections also pin their conversation.
+
+
+## AI settings organization and per-turn search
+
+Settings groups are Multiple Providers (OpenRouter key, Claude CLI, Codex CLI), Model Selection
+(the three category mappings), Commands, and MCP. There is no surface toggle or Web Search toggle.
+Jev receives a separate `web_search` choice on every turn, including explicitly pinned commands and
+follow-ups. Follow-ups omit the model-routing question and preserve the session's model. Ambiguous,
+missing or unavailable search decisions leave search off. No OpenRouter key means no Jev call.
+Quick Chat uses Enter to submit; its paperclip is on the right and the send arrow is removed.
+
+Attachment staging follows Tinycast's approach of named refusals and bounded native images
+([upstream reader](https://github.com/abue-ammar/tinycast/blob/71279c8de18fe77c56aa1cfaaeb68bf07748bbdd/Tinycast/Features/AI/UI/ChatAttachmentReader.swift)); SVG source and UTF-16 support are Spotter additions.
+Local search arguments follow [Codex Web Search](https://developers.openai.com/codex/web-search)
+and [Claude CLI reference](https://code.claude.com/docs/en/cli-reference).
+
+Quick AI Chat animates each successfully submitted user message from the composer's bounds to its
+transcript row using a short spring. A temporary overlay crosses the scroll-view boundary while the
+real row reserves its layout; history reopening does not replay it. Closing or switching conversations
+clears the transient message identity. Reduce Motion uses a brief fade without displacement or scale.

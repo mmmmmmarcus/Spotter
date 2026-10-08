@@ -27,6 +27,8 @@ struct PluginCommandRegistration {
     var actionKey: PluginActionKey?
     var defaultVisible = true
     var parameterIdentity: String?
+    var alternateNames: [String] = []
+    var detailLabel: String?
     let perform: () -> Void
 
     var entry: AppEntry {
@@ -35,7 +37,7 @@ struct PluginCommandRegistration {
             url: URL(string: "spotter://plugin-command/" + id)!,
             bundleID: nil, kind: .command, symbolImage: systemImage,
             iconFilePath: iconFilePath, pluginActionKey: actionKey,
-            parameterIdentity: parameterIdentity)
+            detailLabel: detailLabel, parameterIdentity: parameterIdentity, alternateNames: alternateNames)
     }
 }
 

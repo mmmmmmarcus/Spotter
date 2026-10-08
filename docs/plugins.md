@@ -414,3 +414,25 @@ mode guards are tested against the actual AppKit overlay without capturing the u
 The owner-approved `RaycastExtensions` adapter hosts user-installed Raycast JavaScript commands using JavaScriptCore and native SwiftUI views. It has a separate opt-in trust gate; built-in plugins remain native and always on. See [Raycast extensions](raycast-extensions.md) for installation, compatibility and validation.
 
 AI Chat’s local CLI executable overrides belong to `LocalAIStore`, remain device-local, and are edited from its Settings pane. They are not extension package-manager search paths.
+
+
+RaycastExtensions installs through its Palette screen. Each installed extension has a separate
+dynamic Settings destination in the Raycast Extension sidebar group; these are adapter-owned pages,
+not additional native plugin registrations. Global adapter options are embedded in General.
+
+AI Chat settings expose Multiple Providers, Model Selection, Commands and individually editable MCP servers. AI commands always open Quick AI Chat and retain their custom SF Symbol in synced records. Cua is a one-time default server preset, removable like other servers; its external driver is not bundled.
+
+Translate's floating selection result supports original/translation comparison and on-demand AI word alignment. This reuses the OpenRouter key gate only when comparison is opened, without changing the Google translation request/memo policy.
+
+`PluginPaletteItem.stackedDetail` provides a generic two-line caption/value row presentation, used
+by World Clock. It retains the common palette list and interaction handling.
+
+Clipboard settings own the Quick Clipboard History default visible-item preference; the shared AppSettings backup carries it and its range is clamped on restoration.
+
+AI Chat entry points all open Quick AI Chat. Its sidebar owns history selection, copy and deletion;
+the old Palette chat mode and its session/actions menus are removed. Stable command IDs and shortcuts
+remain registered so existing bindings open the floating surface.
+
+AI replies and release notes share the bundled CommonMark/GFM renderer. The WebKit surface is local,
+transparent and self-sizing, with explicit native link/copy dispatch; Mermaid and KaTeX stay offline.
+See `docs/ai-chat.md` for supported formats and the renderer regeneration/tests.

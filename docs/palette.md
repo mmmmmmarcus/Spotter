@@ -15,7 +15,6 @@ the top rather than wherever it was left. `RootPaletteView` switches its content
 - `.clipboard` → `ClipboardList` + preview
 - `.calculatorHistory` → `CalculatorHistoryList`
 - `.emoji` → the emoji grid
-- `.aiChat` → the AI Chat transcript ([ai-chat.md](ai-chat.md)); the shared search field is the composer
 - `.updates` → the Software Update status and install flow
 - `.plugin(id)` → registry snapshot rendered by the shared `PluginPaletteList`
 
@@ -29,24 +28,19 @@ more when the scroll view's top content inset lands, since a scroll view that mo
 `safeAreaInset` header settles one header below the origin; keying that on the inset makes the
 correction deterministic where a post-mount timer only raced it.
 
-**Tab cycles empty root surfaces, Shift-Tab cycles them backward** — Apps → AI Chat → Clipboard →
-Emoji → Apps. `PaletteMode.cycle(isPluginEnabled:)` is the single source of truth for the stop list,
+**Tab cycles empty root surfaces, Shift-Tab cycles them backward** — Apps → Clipboard →
+Emoji → Apps. `PaletteMode.cycle` is the single source of truth for the stop list,
 read by both the key handling and the header glyph so the affordance can't promise a loop the keys
-don't perform. Apps, AI Chat, Clipboard and Emoji are the four stops; every other mode is a
+don't perform. Apps, Clipboard and Emoji are the three stops; every other mode is a
 sub-screen reached from the launcher and keeps its back chevron. Walking in both directions keeps
 every stop at most one press away
 in some direction. Each hop goes through `prepare`, so the arriving surface starts with a cleared
 query and selection — every surface has its own row order, and a selection carried across would
 point at the wrong row.
 
-With a typed launcher query, Tab enters a fresh AI Chat session carrying the draft into the
-composer *unsent*; ⌘↵ from the launcher both enters and asks, and in the composer ↵ (or ⌘↵) sends.
-The ChatGPT web handoff (`https://chatgpt.com/?q=…` in the default browser) has no chord of its own:
-in chat it is a ⌘K Actions row, from the launcher it is the `Send to ChatGPT` query row. Shift-Tab is
-always the plain backward cycle. With a typed launcher draft ⌘↵ is
-the ask-AI chord, so Reveal in Finder keeps ⌘↵ only on an empty query (and stays in the Actions
-menu). Only the launcher's query follows into chat — a clipboard or emoji filter string is dropped
-rather than sent as a message nobody typed.
+With a typed launcher query, ⌘↵ opens Quick AI Chat and sends the draft. Tab and Shift-Tab only
+cycle Palette surfaces; AI Chat has no Palette mode. The ChatGPT web handoff remains available
+through the launcher's `Send to ChatGPT` row. Reveal in Finder keeps ⌘↵ on an empty query.
 
 Every mode outside the cycle (Calculator History, Software Update, plugin screens) is a sub-screen
 reached from the launcher by a command or a hotkey; Tab from one exits back to the launcher rather

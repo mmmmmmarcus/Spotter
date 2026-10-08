@@ -58,9 +58,6 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
 
     @Published private(set) var apiKey: String
     @Published private(set) var chatModel: String
-    /// Lets chat requests search the web through OpenRouter's Exa-backed plugin. Off by default —
-    /// each search adds a small per-request cost on the same key.
-    @Published private(set) var chatWebSearch: Bool
     @Published private(set) var aiRouting: AIRoutingPreferences
     @Published private(set) var validation: Validation = .unknown
     /// The published model list behind the Settings brand → model menus. Session-only: never
@@ -70,7 +67,6 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
 
     private static let keyKey = "openrouter.api-key"
     private static let chatModelKey = "openrouter.chat-model"
-    private static let chatWebSearchKey = "openrouter.chat-web-search"
     private static let routingKey = "openrouter.ai-routing"
     private let defaults: UserDefaults
     private let decisionClient: JevDecisionClient
@@ -84,7 +80,6 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
         let previousModel = Self.resolve(defaults.string(forKey: Self.chatModelKey) ?? "", default: Self.defaultChatModel)
         chatModel = previousModel
-        chatWebSearch = defaults.bool(forKey: Self.chatWebSearchKey)
         aiRouting = (defaults.data(forKey: Self.routingKey)
             .flatMap { try? JSONDecoder().decode(AIRoutingPreferences.self, from: $0) } ?? AIRoutingPreferences())
             .normalized(fallbackModel: previousModel)
@@ -107,17 +102,17 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         onRoutingChanged?()
     }
 
-    func selectChatModel(messages: [(role: String, content: String)], defaultModel: String) async throws -> AIRoutingSelection? {
+    func selectChatModel(messages: [(role: String, content: String)], defaultModel: String, routeModel: Bool = true) async throws -> AIRoutingSelection? {
         try Task.checkCancellation()
         guard isReady else { throw OpenRouterError.notConfigured }
         let key = apiKey
         let preferences = aiRouting
-        let fallbackModel = preferences.everydayModel.isEmpty ? defaultModel : preferences.everydayModel
+        let fallbackModel = !routeModel || preferences.everydayModel.isEmpty ? defaultModel : preferences.everydayModel
         let revision = routingRevision
         do {
-            let data = try await decisionClient.decide(messages: messages.map { .init(role: $0.role, content: $0.content) }, key: key)
+            let data = try await decisionClient.decide(messages: messages.map { .init(role: $0.role, content: $0.content) }, key: key, routeModel: routeModel)
             try validateRoutingRequest(key: key, revision: revision)
-            return try AIRoutingDecision.selection(from: data, preferences: preferences, defaultModel: fallbackModel)
+            return try AIRoutingDecision.selection(from: data, preferences: preferences, defaultModel: fallbackModel, routeModel: routeModel)
         } catch {
             try validateRoutingRequest(key: key, revision: revision)
             if error is CancellationError || (error as? URLError)?.code == .cancelled { throw CancellationError() }
@@ -152,11 +147,6 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         }
     }
 
-    func setChatWebSearch(_ enabled: Bool) {
-        guard enabled != chatWebSearch else { return }
-        chatWebSearch = enabled
-        defaults.set(enabled, forKey: Self.chatWebSearchKey)
-    }
 
     func setChatModel(_ newModel: String) {
         let resolved = Self.resolve(newModel, default: Self.defaultChatModel)
@@ -263,12 +253,23 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         messages: [(role: String, content: String)], model: String, webSearch: Bool = false,
         onDelta: @escaping @MainActor @Sendable (String) -> Void
     ) async throws {
+        try await chat(messages: messages, model: model, webSearch: webSearch, imageDataURLs: [:], onDelta: onDelta)
+    }
+
+    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool,
+        imageDataURLs: [Int: [String]], completionLimit: Int = 4096, onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         guard isReady else { throw OpenRouterError.notConfigured }
         let requestKey = apiKey
         let body = ChatRequest(
             model: model,
-            messages: messages.map { .init(role: $0.role, content: $0.content) },
-            max_tokens: Self.maxCompletionTokens,
+            messages: messages.enumerated().map { index, message in
+                let images = imageDataURLs[index] ?? []
+                let content: AIJSON = images.isEmpty ? .string(message.content) : .array(
+                    [.object(["type": .string("text"), "text": .string(message.content)])]
+                    + images.map { .object(["type": .string("image_url"), "image_url": .object(["url": .string($0)])]) })
+                return .init(role: message.role, content: content)
+            },
+            max_tokens: min(max(completionLimit, 1), 16_384),
             plugins: webSearch ? [.init(id: "web", max_results: 5)] : nil)
         var request = URLRequest(url: Self.chatEndpoint, timeoutInterval: 60)
         request.httpMethod = "POST"
@@ -298,9 +299,9 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     private nonisolated static func fetchToolTurn(messages: [AIJSON], tools: [AIJSON], model: String,
         webSearch: Bool, key: String) async throws -> AIToolTurn {
         var body: [String: AIJSON] = ["model": .string(model), "messages": .array(messages),
-            "tools": .array(tools), "tool_choice": .string("auto"),
             "max_tokens": .number(Double(maxCompletionTokens)), "stream": .bool(false),
             "provider": .object(["require_parameters": .bool(true)])]
+        if !tools.isEmpty { body["tools"] = .array(tools); body["tool_choice"] = .string("auto") }
         if webSearch { body["plugins"] = .array([.object(["id": .string("web"), "max_results": .number(5)])]) }
         var request = URLRequest(url: chatEndpoint, timeoutInterval: 120)
         request.httpMethod = "POST"
@@ -395,7 +396,7 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     private struct ChatRequest: Encodable {
         struct Message: Encodable {
             let role: String
-            let content: String
+            let content: AIJSON
         }
         struct Plugin: Encodable {
             let id: String

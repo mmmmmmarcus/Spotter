@@ -12,12 +12,23 @@ final class ExtensionCoordinator: ObservableObject {
     @Published var customSearchPaths = UserDefaults.standard.string(forKey: "raycast-extensions.search-paths") ?? "" {
         didSet { UserDefaults.standard.set(customSearchPaths, forKey: "raycast-extensions.search-paths") }
     }
+    @Published var isBrowsingStore = false
     private var queryObserver: AnyCancellable?
     private var invalidation: (@MainActor () -> Void)?
     private var generation = UUID()
     private var runGeneration = UUID()
     private var hostHiding = false
     lazy var controls = ExtensionPaletteState(palette: core.palette)
+    struct PendingArguments {
+        let entry: AppEntry
+        let command: ExtensionCommand
+        let fallbackText: String?
+        let launchContext: [String: RenderValue]
+    }
+    @Published var pendingArguments: PendingArguments?
+    @Published var argumentFocus: String?
+    @Published var argumentValues: [String: String] = [:]
+    @Published var actionsRequest = UUID()
     var target: NSRunningApplication?
 
     init(core: AppCore) { self.core = core }
@@ -44,14 +55,24 @@ final class ExtensionCoordinator: ObservableObject {
         }
         enabled = value
         UserDefaults.standard.set(value, forKey: "raycast-extensions.enabled")
-        Task { await core.extensions.setEnabled(value) }
+        if !value { core.raycastStore.close() }
+        Task {
+            await core.extensions.setEnabled(value)
+            if isBrowsingStore { core.raycastStore.queryChanged(core.palette.query) }
+        }
     }
 
     func observe(_ invalidate: @escaping @MainActor () -> Void) -> AnyCancellable {
         invalidation = invalidate
         generation = UUID()
         track(generation)
-        return AnyCancellable { [weak self] in Task { @MainActor in self?.generation = UUID(); self?.invalidation = nil } }
+        let storeObserver = core.raycastStore.objectWillChange.sink { Task { @MainActor in invalidate() } }
+        let modeObserver = objectWillChange.sink { Task { @MainActor in invalidate() } }
+        return AnyCancellable { [weak self] in
+            storeObserver.cancel()
+            modeObserver.cancel()
+            Task { @MainActor in self?.generation = UUID(); self?.invalidation = nil }
+        }
     }
 
     private func track(_ token: UUID) {
@@ -71,63 +92,60 @@ final class ExtensionCoordinator: ObservableObject {
 
     func beginQuery() {
         queryObserver = core.palette.$query.removeDuplicates().sink { [weak self] query in
-            guard let self, let handler = screen.searchTextHandler else { return }
+            guard let self else { return }
+            if isBrowsingStore { core.raycastStore.queryChanged(query); return }
+            guard let handler = screen.searchTextHandler else { return }
             core.extensions.dispatch(handler: handler, arguments: [query])
         }
     }
 
     func endQuery() {
         queryObserver = nil
+        if isBrowsingStore { core.raycastStore.close(); isBrowsingStore = false; return }
         controls.dismissControlList()
+        pendingArguments = nil
+        argumentValues = [:]
         guard !hostHiding, !core.extensions.isAuthorizing else { return }
         let token = runGeneration
         Task { if runGeneration == token { await core.extensions.stop() } }
     }
 
     var screen: ExtensionScreen {
+        if pendingArguments != nil { return .empty }
         if case .rendered(let tree) = core.extensions.state { return ExtensionScreen(tree: tree, query: core.palette.query) }
         return .empty
+    }
+
+    func actions(at selection: Int, query: String = "") -> [ExtensionAction] {
+        let actions = ExtensionScreen.actions(in: screen.actionPanel(forItemAt: selection))
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return actions }
+        let needle = FuzzyMatch.Query(text)
+        return actions.filter { FuzzyMatch.match(needle, candidate: $0.title) != nil }
     }
 
     func runExtensionCommand(_ entry: AppEntry, arguments: [String: String] = [:], fallbackText: String? = nil,
         launchType: ExtensionLaunchType = .userInitiated, launchContext: [String: RenderValue] = [:]) {
         guard enabled, let (owner, command) = core.extensions.resolve(entry) else { return }
+        if isBrowsingStore { core.raycastStore.close(); isBrowsingStore = false }
         if !core.isPaletteShowing { target = NSWorkspace.shared.frontmostApplication }
-        var resolvedArguments = arguments
-        if launchType == .userInitiated, !command.arguments.isEmpty {
-            let missing = command.arguments.filter { resolvedArguments[$0.name] == nil }
-            if !missing.isEmpty {
-                target = core.extensionPasteTarget ?? target
-                core.hidePalette(restoreFocus: false)
-                let alert = NSAlert()
-                alert.messageText = command.title
-                alert.addButton(withTitle: "Cancel")
-                alert.addButton(withTitle: "Run")
-                let stack = NSStackView()
-                stack.orientation = .vertical
-                stack.alignment = .leading
-                var fields: [(ExtensionCommandArgument, NSTextField)] = []
-                for argument in missing {
-                    let field = argument.type == "password" ? NSSecureTextField() : NSTextField()
-                    field.placeholderString = argument.placeholder + (argument.required ? " (required)" : "")
-                    field.setFrameSize(NSSize(width: 320, height: 24))
-                    field.widthAnchor.constraint(equalToConstant: 320).isActive = true
-                    stack.addArrangedSubview(field)
-                    fields.append((argument, field))
-                }
-                alert.accessoryView = stack
-                guard alert.runModal() == .alertSecondButtonReturn else { return }
-                for (argument, field) in fields {
-                    guard !argument.required || !field.stringValue.isEmpty else { showHUD("Missing required argument: " + argument.placeholder); return }
-                    resolvedArguments[argument.name] = field.stringValue
-                }
-            }
+        if launchType == .userInitiated, command.arguments.contains(where: { arguments[$0.name] == nil }) {
+            argumentFocus = command.arguments.first?.name
+            argumentValues = arguments
+            pendingArguments = PendingArguments(entry: entry, command: command, fallbackText: fallbackText, launchContext: launchContext)
+            runGeneration = UUID()
+            core.showPalette(mode: .plugin(.raycastExtensions))
+            return
         }
+        pendingArguments = nil
         runGeneration = UUID()
-        if command.mode == .view { core.showPalette(mode: .plugin(.raycastExtensions)) }
+        if command.mode == .view {
+            core.showPalette(mode: .plugin(.raycastExtensions))
+            if let fallbackText { core.palette.query = fallbackText }
+        }
         else { core.hidePalette(restoreFocus: false) }
         Task {
-            await core.extensions.run(owner, command: command, arguments: resolvedArguments,
+            await core.extensions.run(owner, command: command, arguments: arguments,
                 fallbackText: fallbackText, launchType: launchType, launchContext: launchContext)
         }
     }
@@ -152,7 +170,8 @@ final class ExtensionCoordinator: ObservableObject {
     }
 
     func handleKey(_ event: NSEvent) -> Bool {
-        guard core.palette.mode == .plugin(.raycastExtensions), !controls.menuOpen else { return false }
+        guard !isBrowsingStore, core.palette.mode == .plugin(.raycastExtensions), !controls.menuOpen else { return false }
+        if pendingArguments != nil { return false }
         let screen = self.screen
         var modifiers: EventModifiers = []
         if event.modifierFlags.contains(.command) { modifiers.insert(.command) }
@@ -188,6 +207,12 @@ final class ExtensionCoordinator: ObservableObject {
             core.palette.followToken = UUID()
             return true
         }
+        if screen.kind == .form, modifiers.isEmpty, [125, 126].contains(event.keyCode) {
+            guard !screen.ownsVerticalKeys(at: core.palette.selection) else { return false }
+            core.palette.selection = min(max(0, core.palette.selection + (event.keyCode == 125 ? 1 : -1)), max(0, screen.items.count - 1))
+            core.palette.followToken = UUID()
+            return true
+        }
         if screen.kind == .form, event.keyCode == 48, modifiers.isSubset(of: [.shift]) {
             let count = screen.items.count
             guard count > 0 else { return true }
@@ -198,7 +223,31 @@ final class ExtensionCoordinator: ObservableObject {
         return false
     }
 
-    func showExtensionSettings(for owner: InstalledExtension) { core.showSettings(plugin: .raycastExtensions) }
+    func submitArguments() {
+        guard let pending = pendingArguments else { return }
+        var values = argumentValues
+        for argument in pending.command.arguments {
+            let value = values[argument.name] ?? ""
+            guard !argument.required || !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                showHUD("Missing required argument: " + argument.placeholder)
+                return
+            }
+            values[argument.name] = value
+        }
+        runExtensionCommand(pending.entry, arguments: values, fallbackText: pending.fallbackText, launchContext: pending.launchContext)
+    }
+
+    func showExtensionSettings(for owner: InstalledExtension) {
+        core.showSettings(destination: .raycastExtension(owner.id))
+    }
+
+    func openStore() {
+        Task { await core.extensions.stop() }
+        isBrowsingStore = true
+        core.showPalette(mode: .plugin(.raycastExtensions))
+        core.palette.query = ""
+        beginQuery()
+    }
     var pasteTarget: NSRunningApplication? { core.isPaletteShowing ? core.extensionPasteTarget : (target ?? core.extensionPasteTarget) }
     var applicationURLs: [URL] { core.appIndex.apps.filter { $0.kind == .application }.map(\.url) }
     var isPaletteVisible: Bool { core.isPaletteShowing }

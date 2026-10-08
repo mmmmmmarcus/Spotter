@@ -39,6 +39,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         SettingsPane(title: "General") {
+            RaycastSupportSettings(core: AppCore.shared)
             Section("General") {
                 SettingsRow(title: "Run in Terminal uses") {
                     Picker("", selection: $settings.preferredTerminal) {

@@ -4,13 +4,68 @@ import SwiftUI
 /// Central design tokens for the palette UI (see `docs/ui.md`). Colors are a single alpha ramp
 /// mirrored per appearance, so the app follows the system between light and dark.
 enum Theme {
+    enum ChatMarkdown {
+        static func styles(appearance: NSAppearance) -> String {
+            var colors: [String: String] = [:]
+            appearance.performAsCurrentDrawingAppearance {
+                for (name, color) in ["text": NSColor.labelColor, "secondary": .secondaryLabelColor,
+                    "link": .linkColor, "surface": .quaternaryLabelColor, "border": .separatorColor,
+                    "selection": .selectedTextBackgroundColor, "blue": .systemBlue, "green": .systemGreen,
+                    "orange": .systemOrange, "purple": .systemPurple, "red": .systemRed] {
+                    let rgb = color.usingColorSpace(.sRGB) ?? color
+                    colors[name] = "rgba(\(Int(rgb.redComponent * 255)),\(Int(rgb.greenComponent * 255)),\(Int(rgb.blueComponent * 255)),\(rgb.alphaComponent))"
+                }
+            }
+            let variables = colors.sorted { $0.key < $1.key }.map { "--\($0.key):\($0.value);" }.joined()
+            return """
+                :root { \(variables) color-scheme: \(appearance.isDark ? "dark" : "light"); }
+                * { box-sizing:border-box; }
+                html,body { margin:0; padding:0; background:transparent; overflow:hidden; }
+                body { font:13px/1.55 -apple-system,BlinkMacSystemFont,sans-serif; color:var(--text); overflow-wrap:anywhere; }
+                article { display:flow-root; width:100%; }
+                article>:first-child { margin-top:0; } article>:last-child { margin-bottom:0; }
+                p,ul,ol,blockquote,pre,table,section { margin:0 0 10px; }
+                a { color:var(--link); text-decoration:underline; cursor:pointer; }
+                h1,h2,h3,h4,h5,h6 { line-height:1.3; margin:14px 0 8px; }
+                h1 { font-size:21px; } h2 { font-size:18px; } h3 { font-size:15px; }
+                h4,h5,h6 { font-size:13px; }
+                ul,ol { padding-left:24px; } li>p { margin-bottom:4px; } li ul,li ol { margin:4px 0; }
+                blockquote { margin-left:0; padding-left:12px; border-left:2px solid var(--border); color:var(--secondary); }
+                code { font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--surface); border-radius:4px; padding:1px 4px; }
+                pre { overflow-x:auto; white-space:pre; padding:10px; margin:0; }
+                pre code { background:transparent; padding:0; overflow-wrap:normal; }
+                .code-block { border-radius:9px; background:var(--surface); overflow:hidden; }
+                .code-block header { display:flex; justify-content:space-between; align-items:center; padding:6px 10px; color:var(--secondary); font-size:11px; }
+                button { color:var(--text); background:transparent; border:0; font:inherit; cursor:pointer; }
+                table { display:block; overflow-x:auto; border-collapse:collapse; max-width:100%; }
+                td,th { padding:6px 10px; border:1px solid var(--border); min-width:65px; }
+                th { font-weight:600; } hr { border:0; border-top:1px solid var(--border); margin:12px 0; }
+                .task-list-item { list-style:none; } input { accent-color:var(--link); }
+                .math,.katex-display,.diagram { overflow-x:auto; max-width:100%; }
+                .diagram svg { max-width:100%; height:auto; } .diagram:empty { display:none; }
+                .hljs-keyword,.hljs-selector-tag,.hljs-literal { color:var(--purple); }
+                .hljs-string,.hljs-attr { color:var(--green); } .hljs-number,.hljs-symbol { color:var(--orange); }
+                .hljs-comment { color:var(--secondary); } .hljs-title,.hljs-built_in,.hljs-type { color:var(--blue); }
+                .hljs-deletion { color:var(--red); } .hljs-addition { color:var(--green); }
+                ::selection { background:var(--selection); }
+                """
+        }
+    }
+
     enum QuickTranslate {
+        static var focusedWord: NSColor { .labelColor }
+        static var unfocusedWord: NSColor { .secondaryLabelColor }
+        static let revealDuration: TimeInterval = 0.20
+        static let replaceDuration: TimeInterval = 0.18
+        static let revealOffset: CGFloat = 6
         static let width: CGFloat = 320
         static let maxHeight: CGFloat = 320
         static let fontSize: CGFloat = 14
     }
 
     enum QuickAI {
+        static let compactAccessoryWidth = Size.quickAIComposerHeight + Spacing.md
+        static let sidebarWidth: CGFloat = 220
         static let revealDuration: TimeInterval = 0.22
         static let dismissDuration: TimeInterval = 0.14
         static let expandDuration: TimeInterval = 0.30
@@ -227,12 +282,14 @@ enum Theme {
         /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
         /// and a dark tint over light glass would read as a shadow instead of frost.
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
+        static let quickAIControlTint = adaptive(dark: .white.opacity(0.16), light: .black.opacity(0.08))
         static let quickAIBackdrop = adaptive(dark: .black, light: .white)
         // Quick AI uses inverse appearance, so the white stops apply when the system is dark.
         static let quickAIBackdropLower = adaptive(dark: .black.opacity(0.55), light: .white.opacity(0.40))
         static let quickAIBackdropBottom = adaptive(dark: .black.opacity(0.35), light: .white.opacity(0.18))
-        /// The capture selection outline. It follows the appearance rather than staying black: on a dark desktop a black outline disappears into the pixels it is meant to bound.
-        static let screenshotSelectionBorder = adaptive(dark: .white, light: .black)
+        // Opaque neutral gray keeps the capture boundary visible against black in either appearance.
+        static let screenshotSelectionBorder = adaptive(
+            dark: Color(white: 0.72), light: Color(white: 0.42))
         /// One 8-bit alpha step keeps the full-screen capture panel mouse-hittable without perceptibly dimming the display.
         static let screenshotHitSurface = adaptive(
             dark: .black.opacity(1.0 / 255.0), light: .black.opacity(1.0 / 255.0))

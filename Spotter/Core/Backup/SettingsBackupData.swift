@@ -24,6 +24,7 @@ struct SettingsBackupData: Codable, Sendable {
         /// files written then; new files carry it in `SettingsBackupPluginPrefs.Uptime` instead.
     }
 
+    var quickClipboardVisibleCount: Int?
     var clipboardRetentionDays: Int?
     var clipboardDisabledApps: [String]?
     var launchAtLogin: Bool?
@@ -52,9 +53,7 @@ struct SettingsBackupData: Codable, Sendable {
     var openRouterDefinitionModel: String?
     var openRouterGrammarModel: String?
     var openRouterChatModel: String?
-    var openRouterChatWebSearch: Bool?
     var aiRouting: AIRoutingPreferences?
-    var aiCommandsUseQuickChat: Bool?
     var googleTranslationAPIKey: String?
     /// Decode-only: the separate translation consent toggle is gone, the API key is the gate.
     var googleTranslationEnabled: Bool?

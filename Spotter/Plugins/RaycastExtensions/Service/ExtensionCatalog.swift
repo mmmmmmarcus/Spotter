@@ -13,11 +13,15 @@ struct InstalledExtension: Sendable, Hashable, Identifiable {
     /// Assets usually live in `assets/`, but a few manifests point at the extension root.
     var iconPath: String? {
         guard let icon = manifest.icon else { return nil }
-        let candidates = [
-            directory.appendingPathComponent("assets").appendingPathComponent(icon),
-            directory.appendingPathComponent(icon)
-        ]
-        return candidates.first { FileManager.default.fileExists(atPath: $0.path) }?.path
+        return artworkPath(icon)
+    }
+
+    func artworkPath(_ name: String) -> String? {
+        let root = directory.standardizedFileURL.resolvingSymlinksInPath().path + "/"
+        return [directory.appendingPathComponent("assets").appendingPathComponent(name),
+            directory.appendingPathComponent(name)]
+            .map { $0.standardizedFileURL.resolvingSymlinksInPath() }
+            .first { $0.path.hasPrefix(root) && FileManager.default.fileExists(atPath: $0.path) }?.path
     }
 
     var assetsPath: String { directory.appendingPathComponent("assets").path }

@@ -248,11 +248,10 @@ swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift Tools/background-
     -o /tmp/background-task-test && /tmp/background-task-test     # task lifetime + dismissal
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     Spotter/Plugins/AIChat/AIRoutingTypes.swift \
-    Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift \
     Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
     Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift \
     Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
-    -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + Markdown blocks + ChatGPT web URL + model catalog
+    -o /tmp/ai-chat-test && /tmp/ai-chat-test                     # transcript + ChatGPT web URL + model catalog
 swiftc -swift-version 6 Spotter/Plugins/DashboardWidgets/DashboardWidgetsEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardWeatherEngine.swift \
     Spotter/Plugins/DashboardWidgets/DashboardMusicEngine.swift \
@@ -579,3 +578,31 @@ retry actions, byte fractions, unknown content lengths and rejection of stale in
 Raycast compatibility checks: `scripts/test-raycast.sh`, `scripts/test-raycast-models.sh`, and `node scripts/raycast-runtime/fixtures.mjs` (requires runtime development dependencies). The generated runtime is committed; ordinary Xcode builds do not need Node. See [Raycast extensions](raycast-extensions.md).
 
 Local AI CLI path regression: `swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o /tmp/spotter-local-ai-test && /tmp/spotter-local-ai-test`. The harness uses isolated defaults and temporary executable fixtures, and is included in `scripts/test-all.sh`.
+
+`test-raycast-models.sh store catalog` also checks the Palette installation states, consent and
+cancellation rows, action identity separation, reinstall labels, visible search errors, and bounded
+command-artwork lookup in assets/root directories.
+
+AI attachment regression: `scripts/test-all.sh --run-case ai-attachments /tmp/spotter-tests` compiles the real reader and message types. It checks SVG encodings, raster images with no text, named failures, payload persistence and document fencing. Local CLI fixtures also verify web-search flags, image arguments and temporary-file cleanup.
+
+Quick Translate word alignment: `scripts/test-all.sh --run-case translation-alignment /tmp/spotter-tests` checks Unicode/Chinese token ranges, repeated words, bidirectional multiword mappings, invalid model indices, input budgets and the OpenRouter key gate with a fixture client.
+
+The world-clock harness also checks row metadata across DST, fractional offsets and date boundaries.
+
+Quick Clipboard regression covers configurable 5–12 item viewport sizes, short-screen bounds, grid rounding and scrolling beyond the configured count.
+
+The quick-ai-chat harness covers sidebar expansion from an empty composer, switching and restoring
+per-session drafts, selected/unselected session deletion and the existing streaming/routing lifecycle.
+
+Markdown integration fixtures (no network or model request):
+
+```sh
+scripts/test-all.sh --run-case ai-markdown /tmp/spotter-tests
+```
+
+To regenerate the pinned local renderer, run `npm --prefix Tools/AIChatMarkdown ci --ignore-scripts`,
+`npm --prefix Tools/AIChatMarkdown test`, and `npm --prefix Tools/AIChatMarkdown run build`. Commit the
+lockfile, generated resources and licenses together. The native harness checks the checked-in assets.
+
+AI history grouping tests inject the calendar/clock and cover midnight, week boundaries and daylight
+saving time. Quick Chat native layout tests pin the separate compact button/gap and full-width host.

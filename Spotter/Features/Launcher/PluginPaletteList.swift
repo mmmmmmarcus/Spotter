@@ -68,6 +68,7 @@ struct PluginPaletteRow: View {
     var isBusy = false
     var progress: Double?
     @State private var hovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var fill: Color {
         if selected { return Theme.Colors.selection }
@@ -76,6 +77,47 @@ struct PluginPaletteRow: View {
     }
 
     var body: some View {
+        Group {
+            if let detail = item.stackedDetail {
+                VStack(spacing: Theme.Spacing.xs) {
+                    HStack {
+                        Text(detail.leadingCaption)
+                            .contentTransition(.numericText())
+                            .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: detail.leadingCaption)
+                        Spacer(minLength: Theme.Spacing.md)
+                        HStack(spacing: Theme.Spacing.xs) {
+                            Text(detail.trailingCaption)
+                            Image(systemName: detail.trailingSymbol)
+                        }
+                    }
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    HStack {
+                        Text(item.title).lineLimit(1)
+                        Spacer(minLength: Theme.Spacing.xl)
+                        Text(detail.trailingValue)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .contentTransition(.numericText(value: detail.numericValue))
+                            .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: detail.numericValue)
+                    }
+                    .font(.title3.weight(.medium))
+                }
+                .padding(.vertical, Theme.Spacing.xs)
+            } else {
+                standardContent
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.vertical, Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous).fill(fill)
+        )
+        .armedHover($hovered)
+    }
+
+    private var standardContent: some View {
         HStack(spacing: Theme.Spacing.lg) {
             Group {
                 if isBusy {
@@ -106,12 +148,7 @@ struct PluginPaletteRow: View {
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.vertical, Theme.Spacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous).fill(fill)
-        )
-        .armedHover($hovered)
+
     }
 }
 
