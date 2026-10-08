@@ -3,7 +3,8 @@
 Spotter's system features and plugins are native Swift modules compiled into the signed application.
 Every registered feature is always on: a plugin cannot be disabled, and there is no enable state to
 read, write, back up or guard on (owner decision, Sep 2026). There is no runtime bundle
-loader, JavaScript runtime or reflection-based discovery. Adding or removing feature source requires
+loader or reflection-based discovery for built-ins. The explicitly approved Raycast adapter hosts
+external JavaScript commands behind its separate trust gate. Adding or removing feature source requires
 rebuilding the app; once built, registry calls have the same performance characteristics as the rest
 of Spotter.
 
@@ -425,3 +426,7 @@ mode guards are tested against the actual AppKit overlay without capturing the u
 - **Navigation** (`Spotter/Plugins/Navigation/`) — Accessibility-backed search for open application
   windows and the frontmost application's menu commands. AX reads are bounded and canceled with the
   palette session; activation refinds the element instead of retaining stale AX objects.
+
+## Raycast extension compatibility
+
+The owner-approved `RaycastExtensions` adapter hosts user-installed Raycast JavaScript commands using JavaScriptCore and native SwiftUI views. It has a separate opt-in trust gate; built-in plugins remain native and always on. See [Raycast extensions](raycast-extensions.md) for installation, compatibility and validation.

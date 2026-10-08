@@ -758,9 +758,9 @@ with equally wide, right-aligned model menus. Jev is always used for unpinned tu
 reloads each time the pane opens; Chat Model, Reload, toggle and explanatory footer rows are absent.
 While classifying, the transcript says
 **Jev is choosing a model…**. Routed replies show only `arrow.trianglehead.branch` and the model name; category and fallback
-details remain available in the tooltip. Live progress uses matching SF Symbols for model selection,
+details remain available in the tooltip. Live progress uses text only for model selection,
 waiting for a reply, generating, connecting tools, planning, confirmation and execution. A text
-highlight sweeps left to right; Reduce Motion disables the sweep and symbol pulse. The launcher says **Ask Spotter** when routing is on.
+highlight sweeps left to right; Reduce Motion disables the text sweep. The launcher says **Ask Spotter** when routing is on.
 
 ## SF Symbols
 
@@ -774,3 +774,22 @@ empty searches and process errors use the existing palette states.
 The full Clipboard search header uses one Liquid Glass dropdown with the selected type symbol and
 title. Its native menu shows all eight filters and marks the current one; choosing a filter restores
 search focus and scrolls results to the top. Command-P and Shift-Command-P continue cycling filters.
+
+## Quick Translate experiment
+
+Selected-text translation uses one native Clear glass bubble with 16-point corners, 12-point
+insets and 14-point semantic label text. It is 320 points wide, grows to fit the result up to
+320 points high and scrolls longer text. Only translations appear on completion, separated by
+blank lines for multiple targets. It opens below the pointer when space permits and flips above
+near the screen edge. Native window shadow separates it from the desktop; it never takes focus.
+Escape and click-away dismiss it. The typed Translate page retains its existing palette layout.
+
+Quick AI Chat opens with a 220 ms fade and an 8-point upward settle, and closes with a
+140 ms fade. Its two expansion stages use a 300 ms critically damped response without overshoot;
+interrupted transitions resume from the current frame. Reduce Motion removes window movement and
+keeps the fade. Screenshot cleanup hides the panel immediately. Waiting and tool progress are
+text-only with the existing shimmer; failure rows retain their warning symbol.
+
+## Raycast extensions
+
+Raycast extensions reuse the main palette for List, Grid, Detail and Form. The native Actions menu retains extension sections and submenus; the shared keyboard action picker also exposes flattened actions with submenu titles. Preferences, installation, updates and cleanup live in Settings → Raycast Extensions.

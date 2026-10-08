@@ -103,14 +103,12 @@ struct AIChatTranscriptView: View {
                     }
                     if phase == .waiting, tools.isRunning {
                         HStack {
-                            AIChatStatusRow(symbol: tools.statusSymbol, text: tools.status, pulses: true)
+                            AIChatStatusRow(text: tools.status, pulses: true)
                             Spacer()
                             Button("Stop") { chat.stop() }.controlSize(.small)
                         }
                     } else if phase == .waiting {
                         AIChatStatusRow(
-                            symbol: chat.isChoosingModel ? "arrow.trianglehead.branch" :
-                                (chat.streamingReply == nil ? "ellipsis.bubble" : "text.line.first.and.arrowtriangle.forward"),
                             text: chat.waitingStatus, pulses: true)
                     }
                     if case .failed(let reason) = phase {
@@ -270,19 +268,21 @@ private struct AIChatRow: View {
 }
 
 private struct AIChatStatusRow: View {
-    let symbol: String
+    var symbol: String? = nil
     let text: String
     let pulses: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: symbol)
+            if let symbol {
+                Image(systemName: symbol)
                 .font(Theme.Typography.rowTrailing)
                 .symbolRenderingMode(.monochrome)
                 .symbolEffect(.pulse, isActive: pulses && !reduceMotion)
                 .foregroundStyle(.secondary)
                 .frame(width: Theme.Size.rowIcon)
+            }
             statusText
                 .foregroundStyle(.secondary)
                 .overlay {

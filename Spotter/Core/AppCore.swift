@@ -231,7 +231,11 @@ final class AppCore: ObservableObject {
     let localAI = LocalAIStore()
     let selectedTextCapture = SelectedTextCapture()
     let selectionTools: SelectionToolsManager
+    var extensionPasteTarget: NSRunningApplication? { windowController.previousApp }
+    lazy var extensions = ExtensionManager(clipboardStore: clipboardStore)
+    lazy var extensionCoordinator = ExtensionCoordinator(core: self)
     let translate = TranslateManager()
+    lazy var quickTranslate = QuickTranslateController(manager: translate, hotKeys: hotKeys)
     let imageModification = ImageModificationManager()
     let notes: NoteStore
     let noteFolderSync: NoteFolderSyncManager
@@ -627,6 +631,7 @@ final class AppCore: ObservableObject {
 
     /// Shows the palette, honoring Pop to Root Search: a reopen within the timeout restores the pre-close state — any mode for the generic summon (`restoreAnyMode`), else only when the preserved mode already matches the requested one.
     func showPalette(mode: PaletteMode, restoreAnyMode: Bool = false) {
+        quickTranslate.dismiss(cancelWork: true)
         quickClipboard.dismiss(restoringFocus: true)
         let preserved = windowController.consumePreservedState()
         if !(preserved && (restoreAnyMode || palette.mode == mode)) {
@@ -764,8 +769,9 @@ final class AppCore: ObservableObject {
     /// Closes Settings, About and every plugin workspace — used before a capture so Spotter's own
     /// windows cannot end up in the shot.
     func closeAuxiliaryWindows() {
+        quickTranslate.dismiss(cancelWork: true)
         quickClipboard.dismiss(restoringFocus: true, animated: false)
-        quickAIChat.hide(restoreFocus: false)
+        quickAIChat.hide(restoreFocus: false, animated: false)
         auxWindows.closeAll()
     }
 

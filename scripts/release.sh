@@ -130,6 +130,8 @@ run_prepare() {
 
     scripts/release-preflight.sh --expected "$version"
     scripts/test-all.sh --jobs "$jobs"
+    scripts/test-raycast.sh
+    scripts/test-raycast-models.sh
     if website_needs_build; then
         echo "▸ Website changes beyond the release version mirror require validation…"
         if [ ! -d website/node_modules ]; then

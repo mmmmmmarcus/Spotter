@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import SwiftUI
 
@@ -123,6 +124,8 @@ extension AppCore {
         _ capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     ) {
         guard translate.isTranslationReady else { return }
+        if isPaletteShowing { hidePalette() }
+        let point = NSEvent.mouseLocation
         translate.prepare(screen: .selection)
         switch capture {
         case .failure(let error):
@@ -130,20 +133,20 @@ extension AppCore {
         case .success(let snapshot):
             translate.translate(snapshot.text)
         }
-        palette.prepare(mode: .plugin(.translate))
-        showPalette(mode: .plugin(.translate))
+        quickTranslate.show(at: point)
     }
 
     private func showTranslationFailure(_ message: String) {
+        if isPaletteShowing { hidePalette() }
         translate.prepare(screen: .selection)
         translate.showFailure(message)
-        palette.prepare(mode: .plugin(.translate))
-        showPalette(mode: .plugin(.translate))
+        quickTranslate.show(at: NSEvent.mouseLocation)
     }
 
     /// Opens the Translate page. It is enterable with no key and no text: the page says what is
     /// missing rather than refusing to open, exactly as the selection screen does.
     func openTranslate() {
+        quickTranslate.dismiss(cancelWork: true)
         translate.prepare(screen: .compose)
         palette.prepare(mode: .plugin(.translate))
         showPalette(mode: .plugin(.translate))

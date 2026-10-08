@@ -106,8 +106,8 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.
-  Search uses this route for browser-search failures; Translate uses it for both its typed-text page
-  and its selected-text result, one row per configured target language. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
+  Search uses this route for browser-search failures; Translate uses it for its typed-text page. Selected-text results use the owner-requested
+  `QuickTranslateController` glass bubble owned by `AppCore`, with no original-text row. AI Chat owns bilingual definition and grammar checking as follow-up-ready chat sessions.
 - **Launcher dashboard** — the registered system feature that owns `launcherDashboard` contributes one
   non-selectable view above the empty-query launcher sections. `RootPaletteView` keeps the dashboard
   inside the palette's existing scroll view and selection model; the plugin owns only its local data
@@ -162,3 +162,7 @@ not establish which descriptors were exhausted in the macOS 27 Core Animation cr
 `AppCore.calendarSchedule` owns transient calendar browsing state and cancelable visible-range reads.
 Each EventKit read constructs and disposes its native objects off the main actor, returning only
 `DashboardEvent` values. Calendar account and all-day preferences remain on `DashboardWidgetsStore`.
+
+## Raycast extensions
+
+AppCore owns `ExtensionManager` and `ExtensionCoordinator`. Raycast commands enter the existing native plugin registry as dynamic launcher commands and shortcuts; their React render trees are mapped to native palette views. The JavaScriptCore runtime is the explicit external-extension exception. See [Raycast extensions](raycast-extensions.md).

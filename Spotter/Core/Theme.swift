@@ -4,7 +4,16 @@ import SwiftUI
 /// Central design tokens for the palette UI (see `docs/ui.md`). Colors are a single alpha ramp
 /// mirrored per appearance, so the app follows the system between light and dark.
 enum Theme {
+    enum QuickTranslate {
+        static let width: CGFloat = 320
+        static let maxHeight: CGFloat = 320
+        static let fontSize: CGFloat = 14
+    }
+
     enum QuickAI {
+        static let revealDuration: TimeInterval = 0.22
+        static let dismissDuration: TimeInterval = 0.14
+        static let expandDuration: TimeInterval = 0.30
         // The floating surface contrasts with the desktop; native text and glass follow its inverse appearance.
         static func appearance(for system: NSAppearance) -> NSAppearance? {
             NSAppearance(named: system.isDark ? .aqua : .darkAqua)

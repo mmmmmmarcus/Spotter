@@ -449,3 +449,9 @@ Assistant replies recognize display math delimited by `$$…$$` or `\[…\]`. Th
 system serif face and maps common TeX operators and Greek names to mathematical Unicode while
 retaining selectable source and an accessibility label. Unsupported TeX remains visible instead of
 loading a network renderer.
+
+Quick AI Chat opens with a 220 ms fade and an 8-point upward settle, and closes with a
+140 ms fade. Its two expansion stages use a 300 ms critically damped response without overshoot;
+interrupted transitions resume from the current frame. Reduce Motion removes window movement and
+keeps the fade. Screenshot cleanup hides the panel immediately. Waiting and tool progress are
+text-only with the existing shimmer; failure rows retain their warning symbol.

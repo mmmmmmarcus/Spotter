@@ -592,3 +592,7 @@ or include it in the complete harness suite.
 
 The update harness also covers command-row selection preservation, install/check busy gates, retained
 retry actions, byte fractions, unknown content lengths and rejection of stale installation progress.
+
+## Raycast extensions
+
+Raycast compatibility checks: `scripts/test-raycast.sh`, `scripts/test-raycast-models.sh`, and `node scripts/raycast-runtime/fixtures.mjs` (requires runtime development dependencies). The generated runtime is committed; ordinary Xcode builds do not need Node. See [Raycast extensions](raycast-extensions.md).

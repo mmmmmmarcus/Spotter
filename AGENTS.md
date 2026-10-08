@@ -301,8 +301,11 @@ Never break these without an explicit task to do so.
   both files and the CloudKit entitlement/provisioning arrangement alone.
 - **Plugins are native compile-time modules, and every one of them is always on.** Every built-in
   plugin owns one `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add
-  runtime-loaded bundles, JavaScript execution, reflection-based discovery or a second plugin
-  registry. **A plugin cannot be disabled** (owner decision, Sep 2026): the registry keeps no enable
+  runtime-loaded bundles, reflection-based discovery or a second built-in plugin registry.
+  **Owner-approved exception (Oct 2026):** `RaycastExtensions` hosts user-installed JavaScript
+  extensions through the Tinycast-derived JavaScriptCore runtime. It is a native registered adapter,
+  owned by AppCore, default-off with explicit third-party-code consent; built-in plugins remain native
+  and always on. See `docs/raycast-extensions.md`. **A plugin cannot be disabled** (owner decision, Sep 2026): the registry keeps no enable
   state, `PluginRegistration` has no `defaultEnabled` / `canDisable` / `exportsEnabledState` /
   `readEnabled` / `writeEnabled` / `onDisable` (only an idempotent `onStart`), no Settings pane
   carries an enable switch, and nothing guards on `isEnabled`. The stale `plugin.<id>.enabled`

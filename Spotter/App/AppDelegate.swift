@@ -10,6 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppCore.shared.start()
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { AppCore.shared.extensionCoordinator.handleURL(url) }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         // The Hyper Key's HID-level caps remap outlives the process; give the key back.
         AppCore.shared.hyperKeyTap.prepareForTermination()

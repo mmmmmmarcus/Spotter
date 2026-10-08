@@ -7,7 +7,9 @@ description: Create, modify, refactor, migrate, debug, test, or remove native bu
 
 Maintain production-quality native Swift plugins compiled into Spotter. Cover the complete plugin
 lifecycle: create, modify, migrate, troubleshoot, or remove. Do not introduce runtime bundles,
-JavaScript plugins, reflection-based discovery, long-lived helper processes, or external loading.
+JavaScript plugins, reflection-based discovery, long-lived helper processes, or external loading
+except the owner-approved RaycastExtensions compatibility adapter documented in
+`docs/raycast-extensions.md`; maintain its existing JavaScriptCore boundary when working on it.
 
 ## Establish context
 

@@ -79,6 +79,19 @@ final class HotKeyManager: ObservableObject {
         syncDoubleTaps()
     }
 
+    /// Removed extension commands lose their live binding but keep the saved shortcut for reinstalls.
+    func refreshPluginActions(_ actions: [PluginActionKey]) {
+        let removed = Set(pluginActions).subtracting(actions)
+        for key in removed {
+            let action = HotKeyAction.plugin(key)
+            center.unregister(id: action.defaultsKey)
+            if recordingAction == action { recordingAction = nil }
+        }
+        pluginActions = actions
+        for key in actions { register(.plugin(key)) }
+        syncDoubleTaps()
+    }
+
     /// Seeds a shipped default once. The marker distinguishes a deliberate later unbind from a fresh install.
     private func seedDefaultPluginShortcuts(
         _ defaults: [(PluginActionKey, KeyShortcut)]

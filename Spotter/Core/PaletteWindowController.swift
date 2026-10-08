@@ -187,10 +187,13 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
                 core.palette.selection = min(max(core.palette.selection + (event.keyCode == 125 ? 1 : -1), 0), count - 1)
                 return true
             }
+            if core.extensionCoordinator.handleKey(event) { return true }
             return core.handleCalendarScheduleKey(event)
         }
         // Backspace in an already-empty search backs out of a sub-screen to a fresh root launcher; `prepare` clears state and re-focuses the field.
         panel.onBareBackspace = { [weak self] in
+            if let core = self?.core, core.palette.mode == .plugin(.raycastExtensions),
+               core.extensionCoordinator.controls.isEditingField { return false }
             guard let vm = self?.core.palette, vm.mode != .launcher, vm.query.isEmpty else {
                 return false
             }

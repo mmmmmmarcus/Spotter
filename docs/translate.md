@@ -3,7 +3,7 @@
 Translate owns everything Google-Translate: the **Translate** page, an enterable palette screen whose
 search field *is* the text being translated, and **Translate Selected Text**, which reads the
 selection in the frontmost app. Both call Google Cloud Translation Basic and present one row per
-configured target language. Every completed row copies its own text with Enter, and rows carry no
+configured target language. Completed palette rows copy their own text with Enter, and rows carry no
 line limit — a translation the user cannot read in full is not a translation.
 
 Split out of Selection Tools (now [Search](selection-tools.md)) in Sep 2026. The plugin ID is new
@@ -82,15 +82,17 @@ anything at Google.
 
 `TranslateManager.screen` says which surface the plugin's one palette screen shows, is set only by
 the entry point that opened it (`AppCore.openTranslate`, or the selection flow), and publishes, so
-switching surfaces invalidates the palette through the registration's normal observation. The shared
-`PluginPaletteList` owns selection, scrolling and Enter activation; the plugin creates no window, no
-search field of its own and no list chrome.
+switching surfaces invalidates the palette through the registration's normal observation. The typed page retains the shared `PluginPaletteList` selection, scrolling and Enter activation.
+The selected-text experiment uses the result bubble described below.
 
-**Selection.** Translate Selected Text switches immediately to a loading snapshot of one pending row
-per target followed by the original, so the original remains visible while the answers fill in. The
-finished snapshot puts translations first and the original last: the translation is what the user
-asked for, and the original is the input they already had. Here the query *filters* rows. Failures
-replace the rows with the provider or capture error.
+**Selection.** Translate Selected Text presents a non-activating native Clear Liquid Glass bubble
+near the pointer, an owner-requested experiment matching Quick Clipboard History. Completed content
+contains only translated text, with blank lines between configured target languages; there is no
+original-text row, search field, header or footer. The 320-point-wide bubble fits short results and
+scrolls longer ones within a 320-point height. Loading and errors appear in the same bubble. Escape
+or clicking outside dismisses it and cancels pending work. Opening the palette or taking a screenshot
+also closes it. `AppCore` owns `QuickTranslateController`; requests still use the same manager,
+source detection, key gate and memo as the typed page.
 
 **Compose.** The Translate page shows no `Original` row — the text is already on screen in the search
 field — and the query is the input, never a filter. While the pause has not elapsed, or while a

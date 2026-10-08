@@ -12,6 +12,9 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     private let router: OpenRouterStore
     private let showSettings: () -> Void
     private var panel: QuickAIChatPanel?
+    private var motion: Task<Void, Never>?
+    private var isClosing = false
+    private var motionTarget: CGRect?
     private var previousApp: NSRunningApplication?
     private weak var previousWindow: NSWindow?
     private var sessionsObservation: AnyCancellable?
@@ -44,7 +47,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     var isVisible: Bool { panel?.isVisible == true }
-    var isKeyWindow: Bool { panel?.isKeyWindow == true }
+    var isKeyWindow: Bool { !isClosing && panel?.isKeyWindow == true }
     var isExpanded: Bool { sessionID != nil }
     func owns(_ id: UUID) -> Bool { sessionID == id }
 
@@ -73,31 +76,58 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func show(previousApplication: NSRunningApplication?) {
-        let wasVisible = isVisible
+        let wasVisible = isVisible && !isClosing
+        let wasClosing = isClosing
+        motion?.cancel()
+        isClosing = false
+        panel?.ignoresMouseEvents = false
         if !wasVisible {
             previousApp = previousApplication
             previousWindow = NSApp.keyWindow
         }
         let panel = ensurePanel()
-        if !wasVisible, let screen = targetScreen() {
+        if !wasVisible, !wasClosing, let screen = targetScreen() {
             let frame = QuickAIChatLayout.initialFrame(
                 size: CGSize(width: bodyWidth, height: bodyHeight),
                 visibleFrame: screen.visibleFrame, bottomGap: Theme.Spacing.xxl, margin: Theme.Spacing.md)
             panel.setFrame(frame, display: true)
         }
+        let destination = motionTarget ?? panel.frame
+        if !wasVisible && !wasClosing {
+            panel.alphaValue = 0
+            if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                panel.setFrame(destination.offsetBy(dx: 0, dy: -Theme.Spacing.md), display: false)
+            }
+        }
         panel.contentView?.layoutSubtreeIfNeeded()
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
+        animate(to: destination, opacity: 1, duration: Theme.QuickAI.revealDuration)
         DispatchQueue.main.async { [weak self, weak panel] in
-            guard let self, let panel, panel.isVisible else { return }
+            guard let self, let panel, panel.isVisible, !self.isClosing else { return }
             panel.makeKeyAndOrderFront(nil)
             self.focusToken = UUID()
         }
     }
 
-    func hide(restoreFocus: Bool = true) {
+    func hide(restoreFocus: Bool = true, animated: Bool = true) {
         let shouldRestore = restoreFocus && isKeyWindow
-        panel?.orderOut(nil)
+        guard let panel else { return }
+        isClosing = true
+        panel.ignoresMouseEvents = true
+        if animated && panel.isVisible {
+            animate(to: motionTarget ?? panel.frame, opacity: 0, duration: Theme.QuickAI.dismissDuration) { [weak self] in
+                self?.panel?.orderOut(nil)
+                self?.isClosing = false
+            }
+        } else {
+            motion?.cancel()
+            motion = nil
+            motionTarget = nil
+            panel.orderOut(nil)
+            panel.alphaValue = 0
+            isClosing = false
+        }
         if shouldRestore {
             if let previousWindow, previousWindow.isVisible { previousWindow.makeKeyAndOrderFront(nil) }
             else { previousApp?.activate() }
@@ -144,12 +174,53 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
 
     private func resize() {
         guard let panel, let screen = panel.screen ?? targetScreen() else { return }
-        let frame = QuickAIChatLayout.resizedFrame(panel.frame, width: bodyWidth,
+        let frame = QuickAIChatLayout.resizedFrame(motionTarget ?? panel.frame, width: bodyWidth,
             height: bodyHeight,
             visibleFrame: screen.visibleFrame, margin: Theme.Spacing.md)
         guard panel.frame != frame else { return }
-        panel.setFrame(frame, display: true,
-            animate: panel.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        if panel.isVisible && !isClosing {
+            animate(to: frame, opacity: 1, duration: Theme.QuickAI.expandDuration)
+        } else {
+            motion?.cancel()
+            motionTarget = nil
+            panel.setFrame(frame, display: true)
+            if isClosing { panel.orderOut(nil); isClosing = false }
+        }
+    }
+
+    private func animate(to frame: CGRect, opacity: CGFloat, duration: TimeInterval, completion: (() -> Void)? = nil) {
+        motion?.cancel()
+        guard let panel else { return }
+        let startFrame = panel.frame
+        let startOpacity = panel.alphaValue
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        motionTarget = frame
+        if reduceMotion { panel.setFrame(frame, display: true) }
+        motion = Task { @MainActor [weak self, weak panel] in
+            let start = ProcessInfo.processInfo.systemUptime
+            while !Task.isCancelled {
+                guard let self, let panel else { return }
+                let t = min(1, (ProcessInfo.processInfo.systemUptime - start) / duration)
+                // A normalized critically damped response settles quickly without bouncing the reading surface.
+                let progress = CGFloat((1 - (1 + 8 * t) * exp(-8 * t)) / (1 - 9 * exp(-8)))
+                if !reduceMotion {
+                    panel.setFrame(CGRect(
+                        x: startFrame.minX + (frame.minX - startFrame.minX) * progress,
+                        y: startFrame.minY + (frame.minY - startFrame.minY) * progress,
+                        width: startFrame.width + (frame.width - startFrame.width) * progress,
+                        height: startFrame.height + (frame.height - startFrame.height) * progress), display: true)
+                }
+                panel.alphaValue = startOpacity + (opacity - startOpacity) * progress
+                if t >= 1 {
+                    motionTarget = nil
+                    motion = nil
+                    completion?()
+                    return
+                }
+                do { try await Task.sleep(for: .milliseconds(8)) }
+                catch { return }
+            }
+        }
     }
 
     private func ensurePanel() -> QuickAIChatPanel {

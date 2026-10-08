@@ -57,3 +57,5 @@ Tuist/.build/
 *.swp
 *.tmp
 *.orig
+# Extension runtime build dependencies; the generated runtime is committed.
+scripts/raycast-runtime/node_modules/

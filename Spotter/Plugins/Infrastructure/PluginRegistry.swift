@@ -86,6 +86,7 @@ struct PluginRegistration {
     let metadata: PluginMetadata
     var permissions: Set<PluginPermission> = []
     var shortcutActions: [PluginActionRegistration] = []
+    var dynamicShortcutActions: (() -> [PluginActionRegistration])?
     var launcherCommands: [PluginCommandRegistration] = []
     var queryProvider: (any PluginQueryProvider)?
     /// Launcher entries a plugin owns that change at runtime (a user's saved quicklinks), re-read on every rebuild rather than captured at registration.
@@ -136,7 +137,9 @@ final class PluginRegistry: ObservableObject {
     }
 
     var shortcutActions: [PluginActionKey] {
-        orderedIDs.flatMap { registrations[$0]?.shortcutActions.map(\.key) ?? [] }
+        orderedIDs.flatMap { id in
+            ((registrations[id]?.shortcutActions ?? []) + (registrations[id]?.dynamicShortcutActions?() ?? [])).map(\.key)
+        }
     }
 
     var defaultShortcutActions: [(PluginActionKey, KeyShortcut)] {
@@ -313,7 +316,7 @@ final class PluginRegistry: ObservableObject {
 
     func perform(_ key: PluginActionKey) {
         guard
-            let action = registrations[key.pluginID]?.shortcutActions.first(where: { $0.key == key })
+            let action = ((registrations[key.pluginID]?.shortcutActions ?? []) + (registrations[key.pluginID]?.dynamicShortcutActions?() ?? [])).first(where: { $0.key == key })
         else { return }
         action.perform()
     }
