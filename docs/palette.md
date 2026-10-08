@@ -65,8 +65,7 @@ activates it, Esc cancels, and the highlight always starts on Cancel so a reflex
 never the confirmation. While the card is up, typing is frozen through the same channel as an open
 footer menu. A confirmation requested with the palette hidden (a global hotkey) shows the palette
 first and forces the compact bar to expand. There are no system confirmation dialogs in palette
-flows; the one deliberate exception is Image Modification's Replace Original alert, which belongs to
-its own workspace window.
+flows.
 
 Plugin palette screens reuse the same header search field, flat selection, keyboard navigation,
 section/row grammar, edge dissolve, bottom action group and ⌘K overlay. The plugin supplies immutable
@@ -108,11 +107,6 @@ rows through `PluginPaletteList`, with London, Shanghai and San Francisco as the
 That screen's single field serves two readings: a query starting with a clock time (`8pm in london`)
 converts that instant into every configured city, anything else keeps searching the catalog to add a
 city. See [world-clock.md](world-clock.md).
-Image Modification uses the same shared screen for Convert, Resize, Scale and Optimize parameters.
-Choosing a command shows presets; typing in that screen accepts custom dimensions, a scale factor or
-quality. A complete root query such as `Convert JPG`, `Scale1.5`, `Resize 1920x1080` or `Optimize 80%`
-instead inserts one parameterized command row, reusing the base command's identity. Both entry paths
-use the same parser and begin input resolution only after the user activates the chosen parameters.
 
 Kill Process also contributes a parameterized row for `kill <application name>`, selecting the best
 matching running application and displaying its full name and icon. The transient process identity

@@ -226,7 +226,6 @@ final class AppCore: ObservableObject {
     let dashboardFileInfo = DashboardFileInfoStore()
     let killProcess = KillProcessManager()
     let fileSearch = FileSearchSession()
-    let changeCase = ChangeCaseStore()
     let openRouter = OpenRouterStore()
     let localAI = LocalAIStore()
     let selectedTextCapture = SelectedTextCapture()
@@ -236,7 +235,6 @@ final class AppCore: ObservableObject {
     lazy var extensionCoordinator = ExtensionCoordinator(core: self)
     let translate = TranslateManager()
     lazy var quickTranslate = QuickTranslateController(manager: translate, hotKeys: hotKeys)
-    let imageModification = ImageModificationManager()
     let notes: NoteStore
     let noteFolderSync: NoteFolderSyncManager
     /// Deliberately unstarted: the CloudKit engine is kept whole but has no entry point since Notes
@@ -248,14 +246,10 @@ final class AppCore: ObservableObject {
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()
-    let mole = MoleManager()
-    let coffee = CoffeeManager()
     lazy var screenshot = ScreenshotManager(hotKeys: hotKeys)
     let updates = UpdateStore()
     let hud = CommandHUD()
 
-    /// Which list the Coffee palette screen is showing; set by the command that opened it.
-    var coffeeScreen: CoffeeScreen = .status
 
     private lazy var windowController = PaletteWindowController(core: self)
     private lazy var quickClipboard = QuickClipboardController(store: clipboardStore, hotKeys: hotKeys)
@@ -327,15 +321,6 @@ final class AppCore: ObservableObject {
             visibility.setItemVisible(false, for: entry)
             UserDefaults.standard.set(true, forKey: key)
         }
-        // One-time unhide: the installer command shipped hidden while it was a Terminal hand-off;
-        // now that it renders in-palette, installs that carry the old seed get the new default once.
-        let installerMigration = "plugin.command.visibility-migrated.command:mole:installer"
-        if !UserDefaults.standard.bool(forKey: installerMigration),
-            let entry = plugins.launcherCommands.first(where: { $0.id == "command:mole:installer" })
-        {
-            visibility.setItemVisible(true, for: entry)
-            UserDefaults.standard.set(true, forKey: installerMigration)
-        }
         appIndex.setPluginCommands(plugins.launcherCommands)
         customCommands.onChange = { [weak self] _ in
             self?.plugins.reloadDynamicCommands(for: .commands)
@@ -372,53 +357,6 @@ final class AppCore: ObservableObject {
         }
         selectedTextCapture.resumeClipboardCapture = { [weak self] in
             self?.clipboardManager.endSuppressingCapture()
-        }
-
-        mole.onRunProgress = { [weak self] taskID, detail, progress in
-            self?.backgroundTasks.update(id: taskID, detail: detail, progress: progress)
-        }
-        mole.onQueuePosition = { [weak self] taskID, detail in
-            self?.backgroundTasks.markQueued(id: taskID, detail: detail)
-        }
-        mole.onRunStarted = { [weak self] taskID, action in
-            self?.backgroundTasks.markRunning(
-                id: taskID, detail: "Starting \(action.title.lowercased())…")
-            // Once Mole starts removing things there are no take-backs: a stopped run would leave
-            // some files gone and some not, with no way to tell the user which.
-            self?.backgroundTasks.dropCancellation(id: taskID)
-        }
-        mole.onRunFinished = { [weak self] taskID, action, summary, succeeded in
-            guard let self else { return }
-            let detail = summary.first ?? "\(action.title) finished."
-            if succeeded {
-                self.backgroundTasks.complete(id: taskID, detail: detail)
-            } else {
-                self.backgroundTasks.fail(id: taskID, detail: detail)
-            }
-        }
-
-        imageModification.onTaskStarted = { [weak self] operation, count in
-            guard let self else { return UUID() }
-            let noun = count == 1 ? "image" : "images"
-            let taskID = self.backgroundTasks.begin(
-                title: operation.title, detail: "Processing \(count) \(noun)…",
-                systemImage: operation.systemImage)
-            self.palette.prepare(mode: .launcher)
-            self.showPalette(mode: .launcher)
-            return taskID
-        }
-        imageModification.onTaskProgress = { [weak self] taskID, detail, progress in
-            self?.backgroundTasks.update(id: taskID, detail: detail, progress: progress)
-        }
-        imageModification.onTaskFinished = { [weak self] taskID, succeeded, detail in
-            if succeeded {
-                self?.backgroundTasks.complete(id: taskID, detail: detail)
-            } else {
-                self?.backgroundTasks.fail(id: taskID, detail: detail)
-            }
-        }
-        imageModification.onTaskCancelled = { [weak self] taskID in
-            self?.backgroundTasks.discard(id: taskID)
         }
 
         openRouter.onCredentialsChanged = { [weak self] in self?.aiChat.stop() }

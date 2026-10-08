@@ -14,6 +14,7 @@ struct ExtensionOAuthAuthorizeResult: Sendable {
 
 /// An OAuth 2.0 PKCE session: the browser authorizes and an `oauth` callback completes it.
 @MainActor
+@Observable
 final class ExtensionOAuthSession {
     private var continuation: CheckedContinuation<[String: String], Error>?
     private var expectedState: String?

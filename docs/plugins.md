@@ -35,13 +35,9 @@ Spotter/Plugins/
 ├── SFSymbols/
 ├── WorldClock/
 ├── KillProcess/
-├── ChangeCase/
 ├── SelectionTools/
 ├── Translate/
-├── ImageModification/
 ├── WindowManagement/
-├── Mole/
-├── Coffee/
 └── Screenshot/
 ```
 
@@ -137,8 +133,7 @@ Every registration supplies `metadata` and a standard Settings view. Everything 
   idempotent.
 - Per-plugin **preferences** sync by extending
   `SettingsBackup.PluginPrefs` — gather effective values, apply through the owning manager when the
-  manager caches state. Change Case, Kill Process, Image Modification, Screenshot, Caffeinate,
-  Window Management and Mole are the current entries; a new plugin with preferences adds its own.
+  manager caches state. Kill Process, Screenshot and Window Management are the current entries; a new plugin with preferences adds its own.
 
 A **network consent gate is not an enable state** and never was: it belongs to the owning store, not
 the registry. Currency Conversion is the reference — the plugin is always registered and always
@@ -152,7 +147,7 @@ selection, row chrome, scrolling or footer in another window. Kill Process is th
 
 Dedicated workspaces are reserved for sustained document/canvas editing or complex multi-step flows
 that cannot fit the launcher model. They use `AppCore.showPluginWindow(id:title:size:content:)`, which
-keeps every `NSWindow` under `AuxWindowController`; Notes, the Change Case browser and the
+keeps every `NSWindow` under `AuxWindowController`; Notes and the
 Screenshot editor are the current examples. A seamless-title-bar window is drag-movable by its whole
 background, which assumes every surface is chrome that real controls opt out of. A window hosting a
 drawing canvas must pass `movableByBackground: false` and supply its own handle — a bare
@@ -335,8 +330,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
   `kill Chrome` and other application-name arguments also resolve directly to a running-app action.
-- **Change Case** (`Spotter/Plugins/ChangeCase/`) — 21 local text transforms, selected-text/clipboard
-  fallback, pinned and recent cases, copy/paste actions and hidden-by-default direct commands.
+
 - **Search** (`Spotter/Plugins/SelectionTools/`, display-renamed from Selection Tools; the id stays
   `selection-tools` so persisted state survives) — captures selected text and
   opens a Google Search in the default browser. Its former AI actions belong to AI Chat and its
@@ -345,24 +339,12 @@ shell-command feature; do not use shell commands as an internal plugin API.
   Translation API key, which is its only gate. A palette page translates what you type once typing
   pauses, and Translate Selected Text translates the frontmost app's selection; both list one row per
   configured target language.
-- **Image Modification** (`Spotter/Plugins/ImageModification/`) — local Core Image, Vision and
-  ImageIO commands with Finder/clipboard/file input and explicit output handling. Convert, Resize,
-  Scale and Optimize use a searchable parameter palette, or accept direct launcher queries such as
-  `Convert JPG` and `Scale1.5`. Parameters are parsed, not enumerated as launcher commands. Every
-  operation reports batch progress through the launcher background-task surface.
+
 - **Window Management** (`Spotter/Plugins/WindowManagement/`) — 30 commands
   covering halves, quarters, thirds, sizing, display moves and fullscreen, on a pure geometry engine
   with an AX mover.
-- **Mole** (`Spotter/Plugins/Mole/`) — idle until the CLI is installed; a
-  launcher front end for the Mole CLI with no Terminal hand-off — the installer screen is Spotter's
-  own scan and native Trash. Launcher app rows offer **Uninstall with Mole**, which confirms first
-  and then resolves the exact copy by path and uninstalls as one background task.
-  Status, clean, optimize, purge, uninstall, disk analysis and history all render as palette screens
-  off a menu hub; state-changing runs preview first, go through one confirmed funnel, then return to
-  the launcher as persistent background-task rows. Nothing hands off to Terminal.
-- **Caffeinate** (`Spotter/Plugins/Coffee/`, display-renamed from Coffee; the id stays `coffee` so
-  persisted state survives) — keeps the Mac awake indefinitely,
-  for a duration, or while a chosen app runs, via a `caffeinate` process the plugin owns.
+
+
 - **Screenshot** (`Spotter/Plugins/Screenshot/`) — Option-Z (seeded once and
   user-editable), the launcher command and the menu-bar menu open the same non-activating crosshair
   overlay without taking focus from the current app. A left drag captures a region through a
@@ -377,10 +359,10 @@ shell-command feature; do not use shell commands as an internal plugin API.
   for tools and colors so they never cover the image, and groups Undo/Redo in one glass capsule.
   The overlay architecture is adapted from Capso under BSL 1.1; no Capso service or idle process is
   loaded.
-Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Uptime](uptime.md), [Widgets](widgets.md), [Kill Process](kill-process.md), [Change Case](change-case.md),
-[Search](selection-tools.md), [Translate](translate.md), [Image Modification](image-modification.md),
+Detailed internals: [Clipboard](clipboard.md), [Emoji](emoji.md), [World Clock](world-clock.md), [Uptime](uptime.md), [Widgets](widgets.md), [Kill Process](kill-process.md),
+[Search](selection-tools.md), [Translate](translate.md),
 [Window Management](window-management.md), [built-in Commands](system-commands.md),
-[Mole](mole.md), [Caffeinate](coffee.md), [Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
+[Quicklinks](quicklinks.md), [AI Chat](ai-chat.md),
 [Notes](notes.md), [Text Replacement](text-replacement.md), [Screenshot](screenshot.md),
 and [File Search](file-search.md).
 

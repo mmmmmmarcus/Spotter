@@ -30,7 +30,7 @@ Use these reference implementations:
 - `KillProcess/` for a process-action palette screen.
 - `CurrencyConversion/` for consent-gated network access.
 - `Note/` for a justified sustained-workspace window.
-- `ImageModification/` for direct commands and off-main processing.
+- `WindowManagement/` for direct commands and explicit action routing.
 
 ## Preserve the plugin architecture
 

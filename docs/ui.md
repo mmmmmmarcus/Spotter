@@ -507,8 +507,7 @@ callouts across every Settings pane are text-only; the sidebar keeps its tinted 
 name a destination rather than decorate a title. Per-item *artwork* is not a glyph and stays — an app
 icon in the Shortcuts list or the Clipboard exclusions, a quicklink's opener icon — since it says
 *which* item the row is. Where a glyph had been carrying meaning on its own it moves into the text:
-a Diagnostics error tints its message rather than showing a warning triangle, and a missing Mole
-binary reports through a `SettingsCallout`'s orange box rather than a red row symbol.
+a Diagnostics error tints its message rather than showing a warning triangle.
 
 **Settings copy reports; it does not explain** (owner decision, Sep 2026). A subtitle earns its line
 only when it tells the user something that changes — a version, a timestamp, a count, a path in use,
@@ -541,9 +540,6 @@ List-oriented plugins do not use a workspace. Register a palette screen and rend
 `PluginPaletteList`, which is copy-identical to the launcher's row grammar and owns selection-over-hover,
 section headers, scrolling and edge dissolve. The shared header and footer remain mounted. Kill
 Process is the reference; its CPU/memory labels are trailing `PluginPaletteAccessory` values.
-Image Modification uses these same rows for format, size, scale and quality parameters. Presets and
-custom typed values share the existing search field; complete launcher queries display a single
-parameterized command row without opening another window.
 Kill Process uses the same command-row grammar for `kill Chrome`, showing the full application name
 and its icon before activation; the direct action is ordinary Kill.
 
@@ -554,8 +550,6 @@ Left Arrow returns to Actions. The search field remains first responder througho
 Snippets settings uses aligned Trigger, Original Text and Actions columns inside its grouped section.
 The trigger includes the shared prefix; keywordless snippets show a dash. The content column expands
 with the window and previews two lines, with the snippet name below; edit/delete stay at the right.
-Mole uses the same trailing accessory slot to mark Homebrew-owned or duplicate-name app rows that are
-reveal-only; the two-line subtitle explains why destructive actions are unavailable.
 AI Chat is the asynchronous selected-text surface for definition and grammar actions: they render
 the captured source as the first user bubble and the AI result as an assistant turn, then reuse the
 shared composer for follow-ups. Its footer carries the same single primary button every other

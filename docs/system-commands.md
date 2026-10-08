@@ -31,7 +31,7 @@ Empty Trash, Eject All Disks and Dismiss Notifications also stay out of Backgrou
 execute asynchronously after the palette closes, then report completion through the HUD;
 permission-aware failures keep their actionable alert.
 
-All 30 commands ship visible in the launcher — unlike Window Management and Change Case, nothing here
+All 30 commands ship visible in the launcher — unlike Window Management, nothing here
 uses `defaultVisible: false`.
 
 ## Permissions

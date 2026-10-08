@@ -9,6 +9,7 @@ struct RaycastExtensionsSettingsView: View {
     @State private var results: [ExtensionListing] = []
     @State private var status: String?
     @State private var busy = false
+    @State private var operationID = UUID()
     @State private var operationTask: Task<Void, Never>?
     @State private var expanded: String?
     @State private var error: String?
@@ -41,10 +42,15 @@ struct RaycastExtensionsSettingsView: View {
                             }
                             Spacer()
                             Button(core.extensions.extensionNamed(result.name) == nil ? "Install" : "Reinstall") {
-                                perform {
+                                perform(successMessage: "Installed \(result.title).") {
+                                    let id = operationID
                                     try await core.extensions.install(result) { progress in
-                                        Task { @MainActor in status = progress.message }
+                                        Task { @MainActor in
+                                            guard busy, operationID == id else { return }
+                                            status = progress.message
+                                        }
                                     }
+                                    expanded = result.name
                                 }
                             }.disabled(busy)
                         }
@@ -53,10 +59,15 @@ struct RaycastExtensionsSettingsView: View {
                         TextField("GitHub extension URL", text: $source)
                         Button("Install from Source") {
                             guard let value = ExtensionGitHubSource(source) else { error = "Enter a GitHub URL to an extension folder."; return }
-                            perform {
-                                _ = try await core.extensions.install(value, packageManager: coordinator.packageManager, additionalSearchPaths: coordinator.customSearchPaths.split(separator: "\n").map(String.init)) { progress in
-                                    Task { @MainActor in status = progress.message }
+                            perform(successMessage: "Extension installed.") {
+                                let id = operationID
+                                let installed = try await core.extensions.install(value, packageManager: coordinator.packageManager, additionalSearchPaths: coordinator.customSearchPaths.split(separator: "\n").map(String.init)) { progress in
+                                    Task { @MainActor in
+                                        guard busy, operationID == id else { return }
+                                        status = progress.message
+                                    }
                                 }
+                                expanded = installed.id
                             }
                         }.disabled(busy)
                     }
@@ -148,13 +159,24 @@ struct RaycastExtensionsSettingsView: View {
                                 alert.addButton(withTitle: "Uninstall")
                                 if alert.runModal() == .alertSecondButtonReturn { perform { await core.extensions.uninstall(owner) } }
                             }
-                        } label: { Text(owner.title) }
+                        } label: {
+                            Button(owner.title) { expanded = expanded == owner.id ? nil : owner.id }
+                                .buttonStyle(.plain)
+                        }
                     }
                 }
             }
         }
         .formStyle(.grouped)
-        .onChange(of: coordinator.enabled) { if !coordinator.enabled { operationTask?.cancel(); busy = false; results = [] } }
+        .onChange(of: coordinator.enabled) {
+            if !coordinator.enabled {
+                operationID = UUID()
+                operationTask?.cancel()
+                busy = false
+                status = nil
+                results = []
+            }
+        }
         .task { if coordinator.enabled { await core.extensions.refresh() } }
     }
 
@@ -162,15 +184,25 @@ struct RaycastExtensionsSettingsView: View {
         perform { results = try await core.extensions.searchStore(query) }
     }
 
-    private func perform(_ operation: @escaping @MainActor () async throws -> Void) {
+    private func perform(successMessage: String? = nil, _ operation: @escaping @MainActor () async throws -> Void) {
         guard !busy else { return }
+        operationID = UUID()
+        let id = operationID
         busy = true
         error = nil
         status = nil
         operationTask = Task { @MainActor in
-            defer { busy = false }
-            do { try await operation() }
-            catch { self.error = error.localizedDescription }
+            defer { if operationID == id { busy = false } }
+            do {
+                try await operation()
+                try Task.checkCancellation()
+                guard operationID == id else { return }
+                if let successMessage { status = successMessage }
+            } catch {
+                guard operationID == id else { return }
+                status = nil
+                if !(error is CancellationError) { self.error = error.localizedDescription }
+            }
         }
     }
 
@@ -179,7 +211,7 @@ struct RaycastExtensionsSettingsView: View {
         picker.canChooseDirectories = true
         picker.canChooseFiles = false
         guard picker.runModal() == .OK, let url = picker.url else { return }
-        perform { try await core.extensions.install(from: url) }
+        perform(successMessage: "Extension imported.") { try await core.extensions.install(from: url) }
     }
 
     private func preferences(_ owner: InstalledExtension) -> some View {

@@ -21,13 +21,9 @@ enum BuiltInPlugins {
             NavigationPlugin.registration(core: core),
             FileSearchPlugin.registration(core: core),
             KillProcessPlugin.registration(core: core),
-            ChangeCasePlugin.registration(core: core),
             SelectionToolsPlugin.registration(core: core),
             TranslatePlugin.registration(core: core),
-            ImageModificationPlugin.registration(core: core),
             WindowManagementPlugin.registration(core: core),
-            MolePlugin.registration(core: core),
-            CoffeePlugin.registration(core: core),
             ScreenshotPlugin.registration(core: core),
         ]
     }

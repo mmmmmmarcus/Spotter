@@ -104,7 +104,7 @@ Never break these without an explicit task to do so.
   `Plugins/EmojiSymbols/` stay AppKit/SwiftUI-free for `Tools/emoji-test.swift`,
   `Plugins/WorldClock/WorldClockEngine.swift` and `Plugins/WorldClock/WorldClockMapGeometry.swift` stay Foundation-only with an injected clock/calendar/
   local time zone while `Plugins/WorldClock/WorldClockStore.swift` stays Foundation + Combine,
-  `Plugins/KillProcess/KillProcessEngine.swift` and `Plugins/ChangeCase/ChangeCaseEngine.swift` stay
+  `Plugins/KillProcess/KillProcessEngine.swift` stays
   Foundation-only and pure, `Plugins/SelectionTools/SelectionToolsTypes.swift`,
   `Plugins/SelectionTools/SelectionToolsResults.swift` and
   `Plugins/SelectionTools/SearchURLBuilder.swift` stay Foundation-only and pure, as do
@@ -134,14 +134,6 @@ Never break these without an explicit task to do so.
   `Plugins/DashboardWidgets/DashboardFileInfoEngine.swift` stay
   Foundation-only and pure for `Tools/dashboard-widgets-test.swift`,
   `Plugins/Uptime/UptimeEngine.swift` stays Foundation-only and pure for `Tools/uptime-test.swift`,
-  `Plugins/Mole/MoleTypes.swift` stays Foundation-only and pure for
-  `Tools/mole-test.swift` (its harness never executes Mole); `MoleProcessRunner` must check the real
-  termination status, retain stderr, and supply synthetic stdin only to a post-confirmation
-  uninstall — a queued run is still one of those, and nothing else may receive it. Mole runs one
-  state-changing command at a time, so confirmed actions wait in `MoleRunQueue`: the ordering rule
-  stays a pure type in `MoleTypes.swift` while `MoleManager` owns the processes, and one
-  confirmation card still buys exactly one queue entry. `Plugins/Coffee/CoffeeTypes.swift` stays Foundation-only and pure for
-  `Tools/coffee-test.swift`,
   `Plugins/CalendarSchedule/CalendarScheduleEngine.swift`, `Plugins/CalendarSchedule/ScheduleNotes.swift` and `Plugins/CalendarSchedule/ScheduleLayout.swift` stay Foundation-only and pure (clock,
   calendar and locale injected) for `Tools/calendar-schedule-test.swift`, the
   `Plugins/Screenshot/ScreenshotWindowPicker.swift`, `ScreenshotGeometry.swift`,
@@ -150,7 +142,6 @@ Never break these without an explicit task to do so.
   stay pure CoreGraphics/CoreText/ImageIO pixel code for `Tools/screenshot-test.swift`, the
   `Plugins/WindowManagement/WindowCommand.swift` / `WindowLayout.swift` / `WindowActionMemory.swift`
   trio stays Foundation + CoreGraphics for `Tools/window-command-test.swift`, and
-  `Plugins/ImageModification/ImageModificationTypes.swift`, `Plugins/ImageModification/ImageCommand.swift` and
   `Plugins/FileSearch/FileSearchTypes.swift` (which `Tools/file-search-test.swift` compiles beside
   the real `Core/SearchRelevance.swift` it ranks with) stay
   Foundation-only so their standalone harnesses compile without app state.
@@ -372,20 +363,15 @@ Never break these without an explicit task to do so.
   Quick Clipboard History is an explicit owner-requested exception (Sep 2026): caret-anchored (mouse fallback)
   history sharing one Liquid Glass menu, with a five-row mixed list or a three-column square image grid with three visible rows, visible-only image previews, SQLite cursor paging beyond the memory window and a fixed footer containing spaced, centered All / Text / Images / Files filters (default All each summon) and a right-aligned full-history icon, in a non-key panel owned by `AppCore`, with input only while visible.
   Its `QuickClipboardPresentation.swift` stays pure Foundation + CoreGraphics. One native `NSGlassEffectView` uses `.clear` (owner decision, Sep 2026) with rounded menu corners and borderless rows inside its content view, without custom tint or dimming; glass ancestors stay fully opaque. Up/down arrows reveal successive entries; only Tab cycles categories. Left/right remain unclaimed outside Images and navigate the image grid while that filter is selected. Text-only entries omit leading symbols. One menu shadow is masked out of the entire glass interior. Dismissal ends input immediately while a mouse-ignoring panel animates out.
-- **Confirmations are in-palette.** Every destructive palette flow (Mole actions, built-in Commands,
+- **Confirmations are in-palette.** Every destructive palette flow (built-in Commands,
   custom commands, Quit All) asks through `AppCore.confirmInPalette` / `ConfirmationCard`, never an
   `NSAlert`, and the card's highlight always starts on Cancel — a reflexive second ↵ must never be
-  the confirmation. The one deliberate exception is Image Modification's Replace Original alert,
-  which belongs to its workspace window.
+  the confirmation.
 - **Potentially long one-shot work returns to the launcher as a background task.** The feature keeps
   ownership of execution and cancellation; `BackgroundTaskStore` owns only the row snapshot. Current
   coverage and deliberate exclusions are pinned in [`docs/background-tasks.md`](docs/background-tasks.md).
-- **Process and image mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
-  executes selected process actions immediately without dismissing its palette. Image Modification's
-  Convert, Resize, Scale and Optimize commands require parameters, selected in a second-level palette
-  or parsed from an explicit launcher query, before any work starts. Image Modification
-  confirms every Replace Original run; pixel work stays off the main actor and temporary output is
-  bundle-identifier-scoped.
+- **Process mutations stay explicit.** Kill Process never exposes PID 0/1 or Spotter and
+  executes selected process actions immediately without dismissing its palette.
 - **Swift 6 language mode: data-race violations are hard errors.** Almost everything is `@MainActor`;
   cross-actor model types are `Sendable`; heavy / IO work (app scan, image decode) is pushed off-main
   via `Task.detached` / `nonisolated`. Keep that boundary. House idioms: `NotificationToken` (RAII) for
@@ -483,16 +469,13 @@ Never break these without an explicit task to do so.
 
 - [`docs/architecture.md`](docs/architecture.md) — core ownership, windows, concurrency.
 - [`docs/plugins.md`](docs/plugins.md) — native plugin contract, directory layout and extension flow.
-- [`docs/kill-process.md`](docs/kill-process.md) · [`docs/change-case.md`](docs/change-case.md) ·
-  [`docs/image-modification.md`](docs/image-modification.md) ·
+- [`docs/kill-process.md`](docs/kill-process.md) ·
   [`docs/notes.md`](docs/notes.md) · [`docs/quicklinks.md`](docs/quicklinks.md) ·
   [`docs/world-clock.md`](docs/world-clock.md) · [`docs/uptime.md`](docs/uptime.md) ·
   [`docs/calendar.md`](docs/calendar.md) ·
   [`docs/selection-tools.md`](docs/selection-tools.md) (Search) ·
   [`docs/translate.md`](docs/translate.md) ·
   [`docs/window-management.md`](docs/window-management.md) · [`docs/system-commands.md`](docs/system-commands.md) ·
-  [`docs/mole.md`](docs/mole.md) ·
-  [`docs/coffee.md`](docs/coffee.md) (Caffeinate) ·
   [`docs/ai-chat.md`](docs/ai-chat.md) ·
   [`docs/custom-commands.md`](docs/custom-commands.md) · [`docs/screenshot.md`](docs/screenshot.md) ·
   [`docs/file-search.md`](docs/file-search.md) · [`docs/widgets.md`](docs/widgets.md)

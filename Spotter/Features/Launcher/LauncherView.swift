@@ -457,14 +457,6 @@ enum AppActionsMenu {
                     core.quit(app)
                 })
         }
-        if core.canUninstallWithMole(app) {
-            items.append(
-                PopoverMenuItem(
-                    title: "Uninstall with Mole", systemImage: "trash", isDestructive: true
-                ) {
-                    core.uninstallWithMole(app)
-                })
-        }
         return PopoverMenuContent(header: app.name, items: items)
     }
 

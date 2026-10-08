@@ -208,8 +208,6 @@ swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
     -o /tmp/world-clock-test && /tmp/world-clock-test              # world-clock engine + store
 swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
     Tools/kill-process-test.swift -o /tmp/kill-process-test && /tmp/kill-process-test
-swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
-    Tools/change-case-test.swift -o /tmp/change-case-test && /tmp/change-case-test
 swiftc -swift-version 6 \
     Spotter/Plugins/Infrastructure/PluginTypes.swift \
     Spotter/Plugins/SelectionTools/SelectionToolsTypes.swift \
@@ -223,11 +221,6 @@ swiftc -swift-version 6 \
     Spotter/Plugins/Translate/TranslateResults.swift \
     Tools/translate-test.swift \
     -o /tmp/translate-test && /tmp/translate-test
-swiftc -swift-version 6 -framework AppKit -framework CoreImage -framework ImageIO -framework Vision \
-    Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
-    Spotter/Plugins/ImageModification/ImageCommand.swift \
-    Spotter/Plugins/ImageModification/ImageModificationEngine.swift Tools/image-modification-test.swift \
-    -o /tmp/image-modification-test && /tmp/image-modification-test
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
     Spotter/Plugins/Note/NoteSyncDocument.swift Spotter/Plugins/Note/NoteFolderDocument.swift \
     Spotter/Plugins/Note/NoteFolderIO.swift \
@@ -253,11 +246,6 @@ swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
     -o /tmp/window-command-test && /tmp/window-command-test   # window geometry + cycling
 swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift Tools/background-task-test.swift \
     -o /tmp/background-task-test && /tmp/background-task-test     # task lifetime + dismissal
-swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
-    Spotter/Plugins/Mole/MoleProcessRunner.swift Spotter/Core/ProcessPipe.swift Tools/mole-test.swift \
-    -o /tmp/mole-test && /tmp/mole-test                           # mole catalog + JSON parsing
-swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift Tools/coffee-test.swift \
-    -o /tmp/coffee-test && /tmp/coffee-test                       # caffeinate args + state
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     Spotter/Plugins/AIChat/AIRoutingTypes.swift \
     Spotter/Plugins/AIChat/AIChatLineLayout.swift Spotter/Plugins/AIChat/AIChatMarkdown.swift \
@@ -312,10 +300,6 @@ formatting and saved-city checks never depend on the wall clock or the user's pr
 The Background Tasks harness checks newest-first ordering, progress clamping, terminal-state
 retention, sync encoding, relaunch interruption and the invariant that a running task cannot be dismissed.
 
-The Mole harness pins its command catalog, parsers, duplicate-app and Homebrew-cask safety gates,
-post-confirmation uninstall input, process exit-status/stderr handling, cancellation and streaming.
-It uses shell fixtures for the runner and never executes Mole or changes user data.
-
 The Launcher Fallbacks harness pins the four query destinations and verifies that arbitrary shell
 text reaches Terminal as one exact `osascript` argument rather than interpolated AppleScript source.
 
@@ -328,13 +312,10 @@ fallbacks, calendar-account/all-day filtering, time-zone resolution and analog-c
 without touching EventKit or the user's files. Participant cases also pin name-only display,
 email stripping, native acceptance and imported names without invented RSVP status.
 
-Kill Process tests parse a fixed `ps` fixture and never signal a real process. Change Case tests the
-real Foundation-only transformer. Search tests URLComponents encoding without opening a browser, and
+Kill Process tests parse a fixed `ps` fixture and never signal a real process. Search tests URLComponents encoding without opening a browser, and
 Translate pins its result ordering, its blocked-without-a-key page and the memo that keeps the same
 text from being billed twice — without making a Google request; AI Chat tests transcript windowing, its ChatGPT web-query URL, and the selected-text
 target-language and prompt logic without sending text over the network or opening a browser.
-Image Modification creates and resizes real temporary pixels through
-Core Image/ImageIO, then deletes its fixture directory.
 
 The Notes harness compiles the real Foundation-only model, store, merge rules and Markdown transformer.
 It validates derived titles/previews, UTF-16 selections, formatting toggles and replacements,

@@ -65,7 +65,7 @@ Spotter requires **macOS 26 or later**.
 - Inspect, terminate or restart processes while excluding protected system processes and Spotter.
 - Convert, resize, optimize, rotate, pad or remove metadata and backgrounds from images.
 - Keep the Mac awake indefinitely, for a duration or while another app runs.
-- Use the optional Mole integration for previewed cleanup, health, uninstall and disk analysis.
+- Install optional Raycast extensions from Settings → Raycast Extensions.
 
 ### Keep it yours
 

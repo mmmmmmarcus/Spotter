@@ -62,7 +62,7 @@ struct SettingsSyncTests {
         testCredentialsRoundTrip()
         testOlderFileLeavesNewFieldsUnset()
         testUnknownFieldsAreIgnored()
-        testRetiredImageFormatIsIgnored()
+        testRemovedPluginsAreIgnored()
         testEmptyObjectDecodesToAllUnset()
         testPluginShortcutVersions()
         print("Settings Sync: ALL PASSED")
@@ -151,25 +151,16 @@ struct SettingsSyncTests {
 
     private static func populatedPluginPrefs() -> SettingsBackupPluginPrefs {
         SettingsBackupPluginPrefs(
-            changeCase: SettingsBackupPluginPrefs.ChangeCase(
-                source: "selectedText", primaryAction: "paste", preserveCase: true,
-                preservePunctuation: false, exceptions: "iOS", prefix: "<", suffix: ">",
-                pinned: ["camel"], recent: ["snake"], disabled: ["kebab"]),
             killProcess: SettingsBackupPluginPrefs.KillProcess(
                 sort: "cpu", groupApps: true, searchPaths: false, searchPIDs: true,
                 prioritizeApps: true, showPID: false, showPath: true, refreshSeconds: 3.5),
-            imageModification: SettingsBackupPluginPrefs.ImageModification(
-                output: "alongside"),
             screenshot: SettingsBackupPluginPrefs.Screenshot(
                 roundedCorners: true, captureScale: "retina", fileFormat: "png",
                 includesWindowShadow: false, hidesSpotterWindows: true, previewDuration: 4.5),
             selectionTools: SettingsBackupPluginPrefs.SelectionTools(
                 definitionPrompt: "define this", grammarPrompt: "fix this"),
-            caffeinate: SettingsBackupPluginPrefs.Caffeinate(
-                keepsDisplayAwake: true, keepsDiskAwake: false),
             windowManagement: SettingsBackupPluginPrefs.WindowManagement(
                 gap: 8, cycleOnRepeat: true),
-            mole: SettingsBackupPluginPrefs.Mole(binaryPath: "/opt/homebrew/bin/mole"),
             note: SettingsBackupPluginPrefs.Note(
                 windowTransparency: 0.25, autoWindowSizing: false),
             dashboardWidgets: SettingsBackupData.DashboardWidgets(
@@ -281,11 +272,14 @@ struct SettingsSyncTests {
         }
     }
 
-    private static func testRetiredImageFormatIsIgnored() {
-        let legacy = Data(#"{"output":"desktop","format":"png"}"#.utf8)
-        let decoded = try! decode(SettingsBackupPluginPrefs.ImageModification.self, from: legacy)
-        precondition(decoded.output == "desktop")
-        precondition(jsonObject(encode(decoded))["format"] == nil)
+    private static func testRemovedPluginsAreIgnored() {
+        let legacy = Data(#"{"changeCase":{"source":"selectedText"},"imageModification":{"output":"desktop"},"mole":{"binaryPath":"/old/mole"},"caffeinate":{"keepsDisplayAwake":true},"windowManagement":{"gap":8}}"#.utf8)
+        let decoded = try! decode(SettingsBackupPluginPrefs.self, from: legacy)
+        precondition(decoded.windowManagement?.gap == 8)
+        let encoded = jsonObject(encode(decoded))
+        for key in ["changeCase", "imageModification", "mole", "caffeinate"] {
+            precondition(encoded[key] == nil)
+        }
     }
 
     private static func encode<T: Encodable>(_ value: T) -> Data {

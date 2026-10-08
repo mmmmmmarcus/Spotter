@@ -69,18 +69,6 @@ struct SettingsBackupData: Codable, Sendable {
 
 /// Per-plugin preferences that live in raw bundle-scoped `UserDefaults`. Gathered as effective values (defaults resolved), so a synced Mac lands on exactly what the source Mac shows.
 struct SettingsBackupPluginPrefs: Codable, Sendable {
-    struct ChangeCase: Codable, Sendable {
-        var source: String?
-        var primaryAction: String?
-        var preserveCase: Bool?
-        var preservePunctuation: Bool?
-        var exceptions: String?
-        var prefix: String?
-        var suffix: String?
-        var pinned: [String]?
-        var recent: [String]?
-        var disabled: [String]?
-    }
     struct KillProcess: Codable, Sendable {
         var sort: String?
         var groupApps: Bool?
@@ -90,9 +78,6 @@ struct SettingsBackupPluginPrefs: Codable, Sendable {
         var showPID: Bool?
         var showPath: Bool?
         var refreshSeconds: Double?
-    }
-    struct ImageModification: Codable, Sendable {
-        var output: String?
     }
     struct Screenshot: Codable, Sendable {
         var roundedCorners: Bool?
@@ -108,17 +93,9 @@ struct SettingsBackupPluginPrefs: Codable, Sendable {
         var definitionPrompt: String?
         var grammarPrompt: String?
     }
-    struct Caffeinate: Codable, Sendable {
-        var keepsDisplayAwake: Bool?
-        var keepsDiskAwake: Bool?
-    }
     struct WindowManagement: Codable, Sendable {
         var gap: Int?
         var cycleOnRepeat: Bool?
-    }
-    struct Mole: Codable, Sendable {
-        // A manual path override; harmless across machines — the locator ignores a path that isn't executable there.
-        var binaryPath: String?
     }
     struct Note: Codable, Sendable {
         // A file written before Notes moved to a folder carries `iCloudSyncEnabled`. It is
@@ -128,14 +105,10 @@ struct SettingsBackupPluginPrefs: Codable, Sendable {
         // Retained only so older v3 files decode; Note windows are now always user-sized.
         var autoWindowSizing: Bool?
     }
-    var changeCase: ChangeCase?
     var killProcess: KillProcess?
-    var imageModification: ImageModification?
     var screenshot: Screenshot?
     var selectionTools: SelectionTools?
-    var caffeinate: Caffeinate?
     var windowManagement: WindowManagement?
-    var mole: Mole?
     var note: Note?
     // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
     var dashboardWidgets: SettingsBackupData.DashboardWidgets?

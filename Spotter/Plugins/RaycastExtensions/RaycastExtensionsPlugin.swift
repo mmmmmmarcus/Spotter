@@ -93,12 +93,16 @@ private struct RaycastExtensionCanvas: View {
                     ForEach(accessory.items, id: \.value) { Text($0.title).tag($0.value) }
                 }.padding(.horizontal, Theme.Spacing.xl)
             }
-            ExtensionCommandView(screen: screen, state: core.extensions.state, selection: selected,
+            if core.extensions.isAuthorizing {
+                EmptyResults(text: "Finish signing in to the extension in your browser.")
+            } else {
+                ExtensionCommandView(screen: screen, state: core.extensions.state, selection: selected,
                 assetsPath: assets, scroll: context.scroll,
                 onSelect: { core.palette.selection = $0 }, onActivate: { RaycastExtensionsPlugin.activate(core, index: $0) },
                 onActions: { context.actions(String($0)) }, onFieldChange: { node, value in
                     if let handler = node.handler("onTinycastChange") { core.extensions.dispatch(handler: handler, arguments: [value]) }
                 })
+            }
             if let panel = screen.actionPanel(forItemAt: selected), !panel.children.isEmpty {
                 HStack {
                     Spacer()
@@ -111,9 +115,9 @@ private struct RaycastExtensionCanvas: View {
                     onDismiss: { core.extensions.hide(toast: toast.id) })
             }
         }
+        .modifier(ExtensionSelectionForwarder(screen: screen, selection: selected))
         .environment(core.extensionCoordinator.controls)
         .environment(core.extensions)
-        .modifier(ExtensionSelectionForwarder(screen: screen, selection: selected))
     }
 }
 

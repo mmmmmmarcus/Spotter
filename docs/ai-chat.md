@@ -442,7 +442,14 @@ Explicit paths take precedence without silently falling back when invalid; valid
 visible. Paths are device-local UserDefaults, scoped to the bundle identifier and excluded from
 backup/sync. Validation has a three-second timeout and ignores stale discovery results. Both
 validation and chat prepend the selected executable directory to PATH for npm/nvm dependencies. Claude runs
-in print mode with tools disabled; Codex runs `exec` in its read-only sandbox. MCP, Cua and web
+in print mode with tools disabled; Codex runs `exec --json` in its read-only sandbox. Both use the
+bundle-scoped `Application Support/<bundle-id>/AIChat/Workspace` directory, created with owner-only
+permissions, rather than the user's home directory. CLI login/configuration locations remain unchanged;
+the working directory is not a new filesystem sandbox. Codex replies come only from completed
+`agent_message` events after `turn.completed`; diagnostic output, reasoning, tools and prompt echoes
+never become the answer. Failed runs display a bounded error, with specific guidance for incompatible
+model caches and model-refresh timeouts. See [Codex non-interactive output](https://learn.chatgpt.com/docs/non-interactive-mode).
+MCP, Cua and web
 search remain OpenRouter-only. A missing or broken CLI fails that request without changing provider.
 
 The paperclip in Quick AI Chat and **Attach Files…** in AI Chat Actions accept up to ten local files.

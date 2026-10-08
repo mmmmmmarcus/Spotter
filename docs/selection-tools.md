@@ -6,7 +6,7 @@ app and opens a Google Search for it in the default browser. Spotter never reque
 Display-renamed from Selection Tools (Sep 2026), when everything Google-Translate moved into its own
 [Translate](translate.md) plugin and searching was all that remained. The `PluginID` stays
 `selection-tools` and the source directory stays `Plugins/SelectionTools/`, following the same
-judgement as Snippets and Caffeinate: the persisted preferences,
+judgement as Snippets: the persisted preferences,
 the `KeyboardShortcuts_plugin.selection-tools.search` binding and the
 `command:selection-tools:search` launcher command all key off that identity, so renaming it would
 silently read as unbound. The action resolves its recorder through `AppEntry.hotKeyAction` in

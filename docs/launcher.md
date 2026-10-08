@@ -160,7 +160,7 @@ restoring a hidden category no UI could bring back.
 
 A registration may mark a secondary command `defaultVisible: false`. `AppCore.start()` seeds that
 visibility exactly once, after which the normal visibility store and System → Shortcuts own the user
-choice. Change Case uses this for its 21 direct transformations and Window Management for 20 of its 30
+choice. Window Management uses this for 20 of its 30
 commands, so the default command list stays compact.
 
 For the Commands plugin, only the display name is indexed. Activation resolves the stable UUID through
@@ -255,9 +255,6 @@ running dot and the availability of the quit actions:
   `.regular` app except Finder — `terminate()` only relaunches it — and Spotter, excluded by PID
   because About/Settings temporarily flips it to `.regular`), the list resolves **once**, the
   in-palette confirmation card asks, and exactly what was confirmed terminates.
-- **Uninstall with Mole** — appended to an application row's ⌘K menu when the Mole plugin is enabled
-  and the CLI installed (never for Spotter itself). It confirms in-palette, then resolves the exact
-  copy and uninstalls entirely as a background-task row ([mole.md](mole.md)).
 
 Both quits are graceful `NSRunningApplication.terminate()`, so an app with unsaved work still puts up
 its own save sheet.

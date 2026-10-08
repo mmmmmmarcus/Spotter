@@ -15,7 +15,7 @@ struct MenuTypeaheadTest {
 
     static func main() {
         let titles = [
-            "Open Application", "Add to Favorites", "Show in Finder", "Uninstall with Mole",
+            "Open Application", "Add to Favorites", "Show in Finder", "Uninstall Extension",
         ]
         check(
             "prefix selects uninstall",

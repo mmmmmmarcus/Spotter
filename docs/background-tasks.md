@@ -59,10 +59,6 @@ progress cannot be hidden in the slim search bar.
 
 The current one-shot work integrated with this surface is:
 
-- every state-changing Mole action: Clean, Optimize, Purge and Uninstall. Mole runs one at a time,
-  so a confirmed action can arrive Queued and start when the one ahead ends; the queue lives in the
-  plugin, not here (see [mole.md](mole.md));
-- every Image Modification operation, including multi-image batches and Vision work;
 - the one in-flight Spotter AI reply, which is also the only task with an activation today: Return
   switches to that conversation and opens the chat. The row is **titled with the conversation**
   (`AIChatSession.title`: a selected-text action's override, otherwise the first user turn) and
@@ -72,15 +68,10 @@ The current one-shot work integrated with this surface is:
   away from, so a reply that lands while the palette is showing that very session is **discarded
   rather than completed** — they have already read it, and there is nothing to come back to.
 
-Mole and image batches publish determinate progress when they have a trustworthy total. Uninstall
-and AI requests stay indeterminate rather than inventing a percentage. Feature-owned cancellation
-(such as Stop Waiting) discards the running row; Mole offers a
-call-off only while a run is still queued, and retires it the moment the run starts, because a
-half-finished uninstall cannot say which files it already removed. User dismissal
-remains limited to Done and Failed rows. Built-in and custom Commands deliberately use the brief HUD
-instead of this persistent surface.
+AI requests stay indeterminate rather than inventing a percentage. Feature-owned cancellation
+(such as Stop Waiting) discards the running row. User dismissal remains limited to Done and Failed
+rows. Built-in and custom Commands deliberately use the brief HUD instead of this persistent surface.
 
-Updater installation is deliberately excluded because it replaces and relaunches Spotter. Mole previews and disk analysis remain attached to their
-result screens because their output is the screen itself and those reads are cancellable. Caffeinate
-and clipboard polling are ongoing services, not dismissible one-shot tasks. Automatic refreshes,
-indexing and rate/dashboard updates are not user-started work and do not enter the launcher.
+Updater installation is excluded because it replaces and relaunches Spotter. Clipboard polling is an
+ongoing service, not a dismissible one-shot task. Automatic refreshes, indexing and rate/dashboard
+updates are not user-started work and do not enter the launcher.

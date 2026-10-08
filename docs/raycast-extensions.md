@@ -60,3 +60,11 @@ progress. Disabling stops runtimes and background commands.
 Color Shades was exercised from a real store bundle: List and an 11-item Grid render tree, with a
 second fresh runtime execution. This is runtime validation, not a visual acceptance check or a claim
 that every store extension works. See [third-party attribution](vendor/tinycast-extensions.md).
+
+Slack (Momme) was installed and reinstalled through Spotter's store UI on October 8, 2026. All nine
+commands were registered, and Open Channel launched the real bundle and opened Slack's workspace
+sign-in page in the default browser. Workspace authorization and signed-in Slack operations remain
+untested. Installation now reports completion and expands the installed extension's commands.
+The native selection modifier must be inside both extension environment injections; reversing that
+order crashes SwiftUI before the command screen can render. While OAuth is pending, reopening the
+extension screen explains that sign-in must be completed in the browser.

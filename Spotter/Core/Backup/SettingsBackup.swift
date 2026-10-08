@@ -220,21 +220,6 @@ extension SettingsBackup {
     private static func gatherPluginPrefs(from core: AppCore) -> SettingsBackupPluginPrefs {
         let d = UserDefaults.standard
         var prefs = SettingsBackupPluginPrefs()
-        prefs.changeCase = SettingsBackupPluginPrefs.ChangeCase(
-            source: d.string(forKey: "change-case.source")
-                ?? ChangeCaseInputSource.selectedText.rawValue,
-            primaryAction: d.string(forKey: "change-case.primary-action")
-                ?? ChangeCasePrimaryAction.paste.rawValue,
-            preserveCase: d.object(forKey: "change-case.preserve-case") == nil
-                || d.bool(forKey: "change-case.preserve-case"),
-            preservePunctuation: d.bool(forKey: "change-case.preserve-punctuation"),
-            exceptions: d.string(forKey: "change-case.exceptions")
-                ?? "iOS, iPadOS, iPhone, macOS, tvOS, watchOS",
-            prefix: d.string(forKey: "change-case.prefix") ?? "",
-            suffix: d.string(forKey: "change-case.suffix") ?? "",
-            pinned: d.stringArray(forKey: "change-case.pinned") ?? [],
-            recent: d.stringArray(forKey: "change-case.recent") ?? [],
-            disabled: d.stringArray(forKey: "change-case.disabled") ?? [])
         prefs.killProcess = SettingsBackupPluginPrefs.KillProcess(
             sort: d.string(forKey: "kill-process.sort") ?? ProcessSort.cpu.rawValue,
             groupApps: d.object(forKey: "kill-process.group-apps") == nil
@@ -249,9 +234,6 @@ extension SettingsBackup {
             showPath: d.bool(forKey: "kill-process.show-path"),
             refreshSeconds: d.object(forKey: "kill-process.refresh-seconds") == nil
                 ? 2.0 : d.double(forKey: "kill-process.refresh-seconds"))
-        prefs.imageModification = SettingsBackupPluginPrefs.ImageModification(
-            output: d.string(forKey: "image-modification.output")
-                ?? ImageOutputLocation.alongside.rawValue)
         prefs.screenshot = SettingsBackupPluginPrefs.Screenshot(
             roundedCorners: core.screenshot.roundedCorners,
             captureScale: core.screenshot.captureScale.rawValue,
@@ -262,14 +244,9 @@ extension SettingsBackup {
         prefs.selectionTools = SettingsBackupPluginPrefs.SelectionTools(
             definitionPrompt: core.aiCommands.command(.define)?.prompt,
             grammarPrompt: core.aiCommands.command(.grammar)?.prompt)
-        prefs.caffeinate = SettingsBackupPluginPrefs.Caffeinate(
-            keepsDisplayAwake: d.object(forKey: "coffee.keeps-display-awake") == nil
-                || d.bool(forKey: "coffee.keeps-display-awake"),
-            keepsDiskAwake: d.bool(forKey: "coffee.keeps-disk-awake"))
         prefs.windowManagement = SettingsBackupPluginPrefs.WindowManagement(
             gap: d.integer(forKey: WindowManagementDefaults.gapKey),
             cycleOnRepeat: d.bool(forKey: WindowManagementDefaults.cycleKey))
-        prefs.mole = SettingsBackupPluginPrefs.Mole(binaryPath: d.string(forKey: "mole.binary-path") ?? "")
         prefs.note = SettingsBackupPluginPrefs.Note(
             windowTransparency: core.notes.windowTransparency,
             autoWindowSizing: nil)
@@ -378,20 +355,6 @@ extension SettingsBackup {
             d.set(value, forKey: key)
             count += 1
         }
-        if let c = prefs.changeCase {
-            set(c.source, "change-case.source")
-            set(c.primaryAction, "change-case.primary-action")
-            set(c.preserveCase, "change-case.preserve-case")
-            set(c.preservePunctuation, "change-case.preserve-punctuation")
-            set(c.exceptions, "change-case.exceptions")
-            set(c.prefix, "change-case.prefix")
-            set(c.suffix, "change-case.suffix")
-            set(c.pinned, "change-case.pinned")
-            set(c.recent, "change-case.recent")
-            set(c.disabled, "change-case.disabled")
-            // Pinned/recent are cached as `@Published` state; re-read so the browser reflects the import without a relaunch.
-            core.changeCase.reloadPersisted()
-        }
         if let k = prefs.killProcess {
             set(k.sort, "kill-process.sort")
             set(k.groupApps, "kill-process.group-apps")
@@ -401,9 +364,6 @@ extension SettingsBackup {
             set(k.showPID, "kill-process.show-pid")
             set(k.showPath, "kill-process.show-path")
             set(k.refreshSeconds, "kill-process.refresh-seconds")
-        }
-        if let i = prefs.imageModification {
-            set(i.output, "image-modification.output")
         }
         if let roundedCorners = prefs.screenshot?.roundedCorners {
             core.screenshot.roundedCorners = roundedCorners
@@ -432,25 +392,9 @@ extension SettingsBackup {
             core.screenshot.hidesSpotterWindows = hides
             count += 1
         }
-        if let c = prefs.caffeinate {
-            // Through the manager, not raw defaults: options are cached `@Published` state, and a
-            // live caffeinate session restarts so the imported flags actually apply.
-            var options = core.coffee.options
-            if let display = c.keepsDisplayAwake { options.keepsDisplayAwake = display }
-            if let disk = c.keepsDiskAwake { options.keepsDiskAwake = disk }
-            if options != core.coffee.options {
-                core.coffee.options = options
-                count += 1
-            }
-        }
         if let w = prefs.windowManagement {
             set(w.gap, WindowManagementDefaults.gapKey)
             set(w.cycleOnRepeat, WindowManagementDefaults.cycleKey)
-        }
-        if let m = prefs.mole, let path = m.binaryPath {
-            // Through the manager so `binaryPath` re-resolves; an empty string clears the override.
-            core.mole.setBinaryPathOverride(path)
-            count += 1
         }
         if let transparency = prefs.note?.windowTransparency {
             core.notes.setWindowTransparency(transparency)

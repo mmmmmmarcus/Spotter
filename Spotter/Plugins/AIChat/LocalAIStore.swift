@@ -32,11 +32,15 @@ final class LocalAIStore: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var customPaths: [LocalAIModel: String]
     @Published private(set) var pathErrors: [LocalAIModel: String] = [:]
+    private let workspace: URL
     private let defaults: UserDefaults
     private let pathsKey = "local-ai.executable-paths"
     private var refreshID = UUID()
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, workspace: URL? = nil) {
+        self.workspace = workspace ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.spotter.app1", isDirectory: true)
+            .appendingPathComponent("AIChat/Workspace", isDirectory: true)
         self.defaults = defaults
         let saved = defaults.dictionary(forKey: pathsKey) as? [String: String] ?? [:]
         customPaths = Dictionary(uniqueKeysWithValues: saved.compactMap { key, value in
@@ -80,7 +84,7 @@ final class LocalAIStore: ObservableObject {
             throw LocalAIError.unavailable(LocalAIModel.resolve(modelID)?.title ?? modelID)
         }
         let prompt = Self.prompt(messages)
-        let reply = try await Self.run(model: model, executable: path, prompt: prompt)
+        let reply = try await Self.run(model: model, executable: path, prompt: prompt, workspace: workspace)
         try Task.checkCancellation()
         onDelta(reply)
     }
@@ -163,7 +167,7 @@ final class LocalAIStore: ObservableObject {
     }
 
     private nonisolated static func run(
-        model: LocalAIModel, executable: String, prompt: String
+        model: LocalAIModel, executable: String, prompt: String, workspace: URL
     ) async throws -> String {
         let process = Process()
         let input = Pipe()
@@ -172,10 +176,11 @@ final class LocalAIStore: ObservableObject {
         let capture = LocalAICapture(limit: 2_097_152)
         process.executableURL = URL(fileURLWithPath: executable)
         process.environment = environment(for: executable)
-        process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        process.currentDirectoryURL = workspace
         process.arguments = model == .claude
             ? ["-p", "--output-format", "text", "--tools", ""]
-            : ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "-"]
+            : ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-"]
         process.standardInput = input
         process.standardOutput = output
         process.standardError = errors
@@ -189,12 +194,11 @@ final class LocalAIStore: ObservableObject {
                     capture.appendOutput(output.fileHandleForReading.readDataToEndOfFile())
                     capture.appendError(errors.fileHandleForReading.readDataToEndOfFile())
                     let (stdout, stderr) = capture.strings()
-                    if finished.terminationStatus != 0 {
-                        continuation.resume(throwing: LocalAIError.failed(stderr.isEmpty ? stdout : stderr))
-                    } else if stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        continuation.resume(throwing: LocalAIError.emptyReply)
-                    } else {
-                        continuation.resume(returning: stdout.trimmingCharacters(in: .whitespacesAndNewlines))
+                    do {
+                        continuation.resume(returning: try LocalAIResponse.reply(
+                            model: model, status: finished.terminationStatus, stdout: stdout, stderr: stderr))
+                    } catch {
+                        continuation.resume(throwing: error)
                     }
                 }
                 do {
@@ -232,5 +236,57 @@ private final class LocalAICapture: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard target.count < limit else { return }
         target.append(data.prefix(limit - target.count))
+    }
+}
+
+
+enum LocalAIResponse {
+    static func reply(model: LocalAIModel, status: Int32, stdout: String, stderr: String) throws -> String {
+        guard model == .codex else {
+            guard status == 0 else { throw LocalAIError.failed(diagnostic(stderr, model: model, status: status)) }
+            let text = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { throw LocalAIError.emptyReply }
+            return text
+        }
+        var answer: String?
+        var failure: String?
+        var completed = false
+        for line in stdout.split(separator: "\n") {
+            guard let event = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                let type = event["type"] as? String else { continue }
+            if type == "item.completed", let item = event["item"] as? [String: Any],
+                item["type"] as? String == "agent_message", item["phase"] as? String != "commentary" {
+                answer = item["text"] as? String
+            } else if type == "turn.completed" {
+                completed = true
+            } else if type == "turn.failed" {
+                failure = (event["error"] as? [String: Any])?["message"] as? String ?? "Codex could not finish the reply."
+            } else if type == "error", let message = event["message"] as? String {
+                failure = message
+            }
+        }
+        guard status == 0, completed else {
+            let detail = failure.map { String($0.prefix(1200)) } ?? diagnostic(stderr, model: model, status: status)
+            throw LocalAIError.failed(detail)
+        }
+        guard let text = answer?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            throw LocalAIError.emptyReply
+        }
+        return text
+    }
+
+    private static func diagnostic(_ stderr: String, model: LocalAIModel, status: Int32) -> String {
+        if stderr.contains("missing field `base_instructions`") {
+            return "Codex could not load its model cache (missing base_instructions). Update the standalone Codex CLI and retry."
+        }
+        if stderr.contains("timeout waiting for child process to exit") {
+            return "Codex timed out while refreshing its models. Check that the selected CLI works in Terminal, then retry."
+        }
+        // CLI stderr can echo the complete prompt; never display the whole process transcript.
+        let lines = stderr.split(separator: "\n").map(String.init)
+        if let line = lines.first(where: { $0.hasPrefix("Error:") || $0.hasPrefix("error:") }) {
+            return String(line.prefix(1200))
+        }
+        return "\(model.title) could not complete the request (exit \(status)). Check the CLI's login and configuration in Terminal."
     }
 }

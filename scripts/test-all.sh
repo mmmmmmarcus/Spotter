@@ -30,11 +30,9 @@ TESTS=(
     commands
     world-clock
     kill-process
-    change-case
     selection-tools
     selected-text-capture
     translate
-    image-modification
     note
     note-editor
     text-replacement
@@ -42,8 +40,6 @@ TESTS=(
     update
     window-command
     background-task
-    mole
-    coffee
     ai-chat
     local-ai
     ai-routing
@@ -210,10 +206,6 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
                 Tools/kill-process-test.swift -o "$output" && "$output"
             ;;
-        change-case)
-            swiftc -swift-version 6 Spotter/Plugins/ChangeCase/ChangeCaseEngine.swift \
-                Tools/change-case-test.swift -o "$output" && "$output"
-            ;;
         selected-text-capture)
             swiftc -swift-version 6 Spotter/Core/SelectedTextReader.swift \
                 Spotter/Core/SelectionCopyCapture.swift Tools/selected-text-capture-test.swift \
@@ -231,14 +223,6 @@ run_harness() {
                 Spotter/Plugins/Translate/TranslateTypes.swift \
                 Spotter/Plugins/Translate/TranslateResults.swift \
                 Tools/translate-test.swift -o "$output" && "$output"
-            ;;
-        image-modification)
-            swiftc -swift-version 6 -framework AppKit -framework CoreImage \
-                -framework ImageIO -framework Vision \
-                Spotter/Plugins/ImageModification/ImageModificationTypes.swift \
-                Spotter/Plugins/ImageModification/ImageCommand.swift \
-                Spotter/Plugins/ImageModification/ImageModificationEngine.swift \
-                Tools/image-modification-test.swift -o "$output" && "$output"
             ;;
         note)
             swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift \
@@ -281,21 +265,12 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift \
                 Tools/background-task-test.swift -o "$output" && "$output"
             ;;
-        mole)
-            swiftc -swift-version 6 Spotter/Plugins/Mole/MoleTypes.swift \
-                Spotter/Plugins/Mole/MoleProcessRunner.swift Spotter/Core/ProcessPipe.swift Tools/mole-test.swift \
-                -o "$output" && "$output"
-            ;;
         calendar-schedule)
             swiftc -swift-version 6 \
                 Spotter/Plugins/CalendarSchedule/CalendarScheduleEngine.swift \
                 Spotter/Plugins/CalendarSchedule/ScheduleNotes.swift \
                 Spotter/Plugins/CalendarSchedule/ScheduleLayout.swift \
                 Tools/calendar-schedule-test.swift -o "$output" && "$output"
-            ;;
-        coffee)
-            swiftc -swift-version 6 Spotter/Plugins/Coffee/CoffeeTypes.swift \
-                Tools/coffee-test.swift -o "$output" && "$output"
             ;;
         sf-symbols)
             swiftc -swift-version 6 Spotter/Plugins/SFSymbols/SFSymbolCatalog.swift \

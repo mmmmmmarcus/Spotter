@@ -111,7 +111,7 @@ File Info is a third pair for the same reason as the others — the half that sh
 stays isolated. `DashboardFileInfoStore`, owned by `AppCore`, holds the last snapshot and discards a
 read that lands after a newer one; `DashboardFileInfoReader` does the Apple Event and the `stat`s off
 the main actor, through `Core/FinderSelection.swift`, the one place in Spotter that asks the Finder
-what is selected (Image Modification's Finder input uses the same reader).
+what is selected.
 `DashboardFileInfoEngine.swift` stays Foundation-only and pure — it decides what the card's three
 lines say — so the same harness covers it.
 

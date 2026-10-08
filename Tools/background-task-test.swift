@@ -93,7 +93,7 @@ struct BackgroundTaskTests {
             store.cancel(id: started)
             return !startedCalledOff
         }())
-        store.fail(id: started, detail: "Mole couldn't remove Figma")
+        store.fail(id: started, detail: "The operation failed")
         check("a failed run reports how it ended", store.tasks.first?.state == .failed)
         check("a finished row is past cancelling", !store.canCancel(id: started))
         check("a finished row never restarts", {

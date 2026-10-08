@@ -1,8 +1,7 @@
 # Hotkeys (in-house, zero dependencies)
 
 Persistence keys are rename-stable by design: a plugin's display name may change while its
-`PluginID` raw value must not — Caffeinate still binds under
-`KeyboardShortcuts_plugin.coffee.<action>` because the id stayed `coffee` through the rename.
+`PluginID` raw value must not change, so existing bindings survive display-name changes.
 
 `Core/HotKey/` holds:
 
@@ -58,16 +57,9 @@ quicklinks theirs in `boundQuicklinkIDs`. Built-in
 plugins expose stable `PluginActionKey` values through `PluginRegistry`; new keys use the
 `plugin.<plugin-id>.<action-id>` namespace while migrated actions may retain legacy defaults keys.
 
-**Settings ▸ Shortcuts is the only pane that records a shortcut.** As of 1.6.0 the two summon
-bindings live in its Global Shortcuts section rather than in General, AI Chat's Open AI Chat row and
-Caffeinate's and Mole's whole Shortcuts sections are gone, and every one of those actions is still
-bound from the same pane — Open AI Chat, the five Caffeinate actions and the nine Mole screens are
-launcher commands, so they were already listed under their owner's heading. The remaining duplicates
-went with them: Notes, Kill Process, Image Modification, Screenshot, Translate, File Search, Search,
-World Clock, Emoji & Symbols, Uptime, Calendar, Change Case, Window Management and Clipboard no
-longer carry a Shortcut(s) card, because every one of those actions is a launcher command whose
-`AppEntry.hotKeyAction` resolves to the same `.plugin(PluginActionKey)` the pane recorder used. Only
-presentation moved: every binding keeps its `KeyboardShortcuts_<name>` defaults key.
+**Settings ▸ Shortcuts is the only pane that records a global shortcut.** Summon bindings live
+in Global Shortcuts; plugin commands appear under their owner's heading. Plugin Settings pages do
+not duplicate those recorders. Each binding retains its `KeyboardShortcuts_<name>` defaults key.
 
 The deliberate exceptions are recorders that configure *the row's own item* rather than duplicate a
 global setting, and they stay where the item is edited: an AI command's editor sheet, the Built-in

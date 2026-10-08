@@ -5,9 +5,9 @@ How Spotter is wired together. See the per-subsystem docs for internals:
 [clipboard](clipboard.md), [plugins](plugins.md), [custom commands](custom-commands.md),
 [hotkeys](hotkeys.md), [background tasks](background-tasks.md), [ui](ui.md),
 [settings-sync](settings-sync.md), [signing](signing.md),
-plus one doc per built-in plugin (emoji, world-clock, kill-process, change-case, selection-tools
-(Search), translate, image-modification, notes, text-replacement, quicklinks, window-management,
-commands (including built-in system commands), mole, coffee, screenshot).
+plus one doc per built-in plugin (emoji, world-clock, kill-process, selection-tools
+(Search), translate, notes, text-replacement, quicklinks, window-management,
+commands (including built-in system commands), screenshot).
 
 ## Single-owner core
 
@@ -15,11 +15,11 @@ commands (including built-in system commands), mole, coffee, screenshot).
 manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `QuickClipboardController`, `HotKeyManager`, `HyperKeyTap`,
 `AppSettings`, `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,
 `CalculatorHistoryStore`, `CurrencyRateStore`, `EmojiIndex`, `FrequentEmojiStore`,
-`RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`, `ChangeCaseStore`,
-`OpenRouterStore`, `AIToolStore`, `SelectionToolsManager`, `TranslateManager`, `ImageModificationManager`, `TextReplacementStore`,
+`RunningAppsMonitor`, `WorldClockStore`, `DashboardWidgetsStore`, `KillProcessManager`,
+`OpenRouterStore`, `AIToolStore`, `SelectionToolsManager`, `TranslateManager`, `TextReplacementStore`,
 `TextReplacementManager`, `NoteStore`, `NoteSyncManager`, `QuicklinkStore`, `QuicklinkManager`,
 `WindowMover`,
-`MoleManager`, `CoffeeManager`, `ScreenshotManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,
+`ScreenshotManager`, `BackgroundTaskStore`, `UpdateStore`, `CommandHUD`,
 `SettingsSyncManager`,
 `PaletteViewModel`, `PluginRegistry`, `AIChatStore` — plus the window
 controllers. One deliberate singleton lives outside this rule: `AppLog.shared`
@@ -58,8 +58,6 @@ lifecycle checklists.
 
 Registrations may also parse a launcher query into a parameterized command. These transient rows reuse
 an existing owned command ID, so visibility and action routing still flow through the same registry.
-Image Modification's Foundation-only `ImageCommand` parser serves both this direct entry and its
-second-level parameter palette; input resolution and pixel work remain in its manager and engine.
 Kill Process uses the same route for running-application names. A transient parameter identity on the
 entry is checked during dispatch so a refreshed process match cannot silently change the target.
 The registry snapshots displayed entries until the query changes or the palette reopens; activation

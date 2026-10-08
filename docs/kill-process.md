@@ -10,7 +10,7 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
 
 - The root palette accepts `kill Chrome`, `kill Safari`, or another running application's name.
   It shows one best matching **Kill <Application>** command with the app icon; exact names rank ahead
-  of prefixes and substrings. This reuses the parameterized-command route used by Image Modification.
+  of prefixes and substrings. This uses the shared parameterized-command route.
   Bare `kill` still finds the normal process-list command. The direct query uses macOS's running-app
   metadata, starts no process polling and launches no `ps` subprocess while typing. Only regular
   running applications are candidates, with Spotter and PID 0/1 excluded.

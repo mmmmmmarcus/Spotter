@@ -16,32 +16,6 @@ enum SelectedTextReader {
     private static let stringForTextMarkerRangeAttribute = "AXStringForTextMarkerRange"
     private static let webAreaRole = "AXWebArea"
 
-    /// Single-shot synchronous read (Change Case's path): focused element, system-wide fallback, one immediate opt-in retry.
-    static func read(pid: pid_t) -> Result<String, SelectedTextReadError> {
-        guard AXIsProcessTrusted() else { return .failure(.accessibilityDenied) }
-
-        let applicationElement = AXUIElementCreateApplication(pid)
-        var foundFocusedElement = false
-        if let result = attempt(
-            application: applicationElement, pid: pid, foundFocusedElement: &foundFocusedElement)
-        {
-            return result
-        }
-
-        let optIn = ChromiumAccessibilityOptIn(application: applicationElement)
-        defer { optIn.restore() }
-        if optIn.enabledAny,
-            let result = attempt(
-                application: applicationElement, pid: pid,
-                foundFocusedElement: &foundFocusedElement)
-        {
-            return result
-        }
-
-        return .failure(
-            foundFocusedElement ? .selectedTextUnavailable : .focusedControlUnavailable)
-    }
-
     /// Full asynchronous read: after opting the app into Chromium accessibility it *waits* for the tree to build — Electron apps (ChatGPT, Figma, Slack…) construct it lazily, so an immediate retry always misses.
     static func readAwaitingAccessibilityTree(pid: pid_t) async
         -> Result<String, SelectedTextReadError>
