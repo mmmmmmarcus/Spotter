@@ -75,7 +75,8 @@ private final class QuickAIChatContainerView: NSView {
     override func layout() {
         super.layout()
         let inset = min(accessoryWidth, bounds.width)
-        glass?.frame = CGRect(x: inset, y: 0, width: bounds.width - inset, height: bounds.height)
+        glass?.frame = CGRect(x: 0, y: 0, width: bounds.width - inset,
+            height: inset > 0 ? min(bounds.height, Theme.Size.quickAIComposerHeight) : bounds.height)
         window?.invalidateShadow()
     }
 }
@@ -112,6 +113,13 @@ final class QuickAIChatGlassView: NSGlassEffectView {
         layer?.cornerCurve = bounds.height <= maximumCornerRadius * 2 ? .circular : .continuous
         window?.invalidateShadow()
     }
+}
+
+struct QuickAIChatCompactGlass: NSViewRepresentable {
+    func makeNSView(context: Context) -> QuickAIChatGlassView {
+        QuickAIChatGlassView(maximumCornerRadius: Theme.Size.quickAIComposerHeight / 2)
+    }
+    func updateNSView(_ view: QuickAIChatGlassView, context: Context) {}
 }
 
 struct QuickAIChatDragArea: NSViewRepresentable {

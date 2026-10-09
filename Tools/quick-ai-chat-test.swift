@@ -102,7 +102,7 @@ struct QuickAIChatTests {
         await nativePanel()
         headerDragging()
         await conversations()
-        await sidebarSessions()
+        await historyPills()
         await routing()
         await commandConversations()
         print("\(passes)/\(passes + failures) passed")
@@ -170,14 +170,6 @@ struct QuickAIChatTests {
         let clamped = QuickAIChatLayout.resizedFrame(nearTop, width: compact.width * 2, height: 475, visibleFrame: visible, margin: 8)
         expect(visible.insetBy(dx: 8, dy: 8).contains(clamped) && clamped.width == compact.width * 2,
             "expansion after dragging to an edge keeps the close button and entire frame on screen")
-        let withSidebar = QuickAIChatLayout.resizedFrame(expanded,
-            width: expanded.width + Theme.QuickAI.sidebarWidth, height: expanded.height,
-            visibleFrame: visible, margin: 8, anchorTrailing: true)
-        expect(withSidebar.maxX == expanded.maxX && withSidebar.width - Theme.QuickAI.sidebarWidth == expanded.width,
-            "sidebar grows leftward while preserving the conversation width and trailing edge")
-        let withoutSidebar = QuickAIChatLayout.resizedFrame(withSidebar,
-            width: expanded.width, height: expanded.height, visibleFrame: visible, margin: 8, anchorTrailing: true)
-        expect(withoutSidebar == expanded, "closing the sidebar restores the same conversation frame")
         let restored = QuickAIChatLayout.resizedFrame(expanded, width: compact.width, height: Theme.Size.quickAIComposerHeight, visibleFrame: visible, margin: 8)
         expect(restored == compact, "starting another chat collapses onto the same composer anchor")
         let small = CGRect(x: 200, y: -600, width: 500, height: 400)
@@ -239,11 +231,11 @@ struct QuickAIChatTests {
             height: Theme.Size.quickAIComposerHeight), display: false)
         panel.compactAccessoryWidth = Theme.QuickAI.compactAccessoryWidth
         panel.contentView?.layoutSubtreeIfNeeded()
-        expect(panel.glassView.frame.minX == Theme.QuickAI.compactAccessoryWidth
+        expect(panel.glassView.frame.minX == 0
             && panel.glassView.frame.width == Theme.Size.quickAIWidth,
-            "compact glass starts after the external circular button and transparent gap")
+            "compact glass ends before the right-hand circular button and transparent gap")
         expect(host?.frame.width == panel.contentView?.bounds.width,
-            "the content host keeps the external sidebar button outside the composer's clip")
+            "the content host keeps the external history button outside the composer's clip")
         panel.compactAccessoryWidth = 0
         expect(panel.glassView.frame.minX == 0, "expanded glass reclaims the full panel width")
         expect(panel.collectionBehavior.contains(.managed) && panel.collectionBehavior.contains(.participatesInCycle)
@@ -367,7 +359,7 @@ struct QuickAIChatTests {
             "a stale session reference cannot dispatch a request")
     }
 
-    private static func sidebarSessions() async {
+    private static func historyPills() async {
         let router = OpenRouterStore()
         let chat = AIChatStore(openRouter: router, localAI: LocalAIStore(), tools: AIToolStore())
         let tools = AIToolStore()
@@ -377,11 +369,20 @@ struct QuickAIChatTests {
         chat.replace(sessions: [first, second], currentID: first.id)
         let quick = QuickAIChatController(chat: chat, tools: tools, router: router, showSettings: {})
         quick.draft = "Unsent new question"
-        quick.toggleSidebar()
-        expect(quick.showsSidebar && quick.isExpanded && quick.bodyHeight == Theme.Size.panelHeight,
+        quick.toggleHistory()
+        expect(quick.showsHistory && !quick.isExpanded && quick.bodyWidth == Theme.Size.quickAIWidth * 2
+            && quick.bodyHeight == Theme.Size.quickAIComposerHeight * 3 + Theme.Spacing.md * 2,
             "history is reachable from a compact empty composer without creating a session")
         expect(chat.sessions.count == 2, "opening history creates no blank session")
+        let extra = (0..<12).map { AIChatSession(messages: [AIChatMessage(role: .user, text: "History \($0)")]) }
+        chat.replace(sessions: [first, second] + extra, currentID: first.id)
+        expect(quick.historySessions.count == 10 && quick.bodyHeight <= Theme.Size.panelHeight,
+            "history shows ten pills without growing beyond the full conversation height")
+        chat.replace(sessions: [first, second], currentID: first.id)
         quick.openSession(first.id)
+        expect(!quick.showsHistory && quick.isExpanded && quick.bodyHeight == Theme.Size.panelHeight,
+            "choosing a pill opens the full-height chat without a sidebar")
+        expect(quick.bodyWidth == Theme.Size.quickAIWidth * 2, "pill selection keeps the history width")
         quick.draft = "First draft"
         let attachment = AIChatMessage.Attachment(name: "first.txt", kind: .text, content: "First attachment")
         _ = chat.addPendingAttachments([attachment])
@@ -394,8 +395,8 @@ struct QuickAIChatTests {
         expect(quick.draft == "First draft" && chat.pendingAttachments == [attachment],
             "each session restores its own unsent draft and attachments")
         quick.newConversation()
-        expect(quick.draft == "Unsent new question" && quick.showsSidebar,
-            "returning to a new conversation restores its draft and keeps history open")
+        expect(quick.draft == "Unsent new question" && !quick.showsHistory,
+            "returning to a new conversation restores its draft and returns to the compact bar")
         quick.openSession(second.id)
         expect(quick.draft == "Second draft", "returning through new conversation preserves historical drafts")
         quick.draft = "Request in second"
@@ -415,7 +416,8 @@ struct QuickAIChatTests {
         quick.deleteSession(second.id)
         expect(quick.sessionID == nil && quick.draft == "Unsent new question" && !chat.sessions.isEmpty,
             "deleting the selected last session returns to the new composer safely")
-        quick.toggleSidebar()
+        quick.toggleHistory()
+        quick.toggleHistory()
         expect(!quick.isExpanded && quick.bodyHeight == Theme.Size.quickAIComposerHeight,
             "closing history on an empty composer returns to compact size")
     }

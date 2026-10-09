@@ -60,26 +60,6 @@ struct AIChatTests {
             AIChatEngine.historySessions([olderSession, blankSession, newerSession]).map(\.id)
                 == [newerSession.id, olderSession.id])
 
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
-        calendar.firstWeekday = 2
-        func date(_ month: Int, _ day: Int, _ hour: Int = 12) -> Date {
-            calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour))!
-        }
-        let dated = [9, 8, 6, 1].map { day in
-            AIChatSession(messages: [message(.user, "Day \(day)")], startedAt: date(10, day))
-        }
-        let sections = AIChatEngine.historySections(dated.reversed(), now: date(10, 9), calendar: calendar)
-        check("history groups by local calendar in fixed order",
-            sections.map(\.period) == [.today, .yesterday, .thisWeek, .earlier])
-        check("history groups retain the corresponding sessions", sections.flatMap(\.sessions).map(\.id) == dated.map(\.id))
-        check("empty history has no empty headers", AIChatEngine.historySections([], now: date(10, 9), calendar: calendar).isEmpty)
-        let sunday = AIChatSession(messages: [message(.user, "DST Sunday")], startedAt: date(3, 8, 0))
-        let dst = AIChatEngine.historySections([sunday], now: date(3, 9, 1), calendar: calendar)
-        check("Yesterday wins across week and daylight-saving boundaries", dst.first?.period == .yesterday)
-        let midnight = AIChatSession(messages: [message(.user, "Late yesterday")], startedAt: date(10, 8, 23))
-        check("local midnight differs from UTC day", AIChatEngine.historySections([midnight], now: date(10, 9, 0), calendar: calendar).first?.period == .yesterday)
-
         check("empty transcript stays empty", AIChatEngine.transcriptWindow([]).isEmpty)
 
         let short = [

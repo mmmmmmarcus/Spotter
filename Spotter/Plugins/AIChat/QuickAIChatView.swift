@@ -6,11 +6,30 @@ struct QuickAIChatView: View {
     @ObservedObject var tools: AIToolStore
     @ObservedObject var router: OpenRouterStore
     @FocusState private var composerFocused: Bool
+    @Namespace private var sessionTransition
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: Theme.Spacing.md) {
-            if !controller.isExpanded { sidebarButton }
-            conversation
+        Group {
+            if controller.isExpanded {
+                conversation
+                    .transition(.opacity)
+            } else {
+                VStack(spacing: Theme.Spacing.md) {
+                    if controller.showsHistory { historyPills }
+                    if let notice = controller.notice {
+                        Text(notice).font(.caption).foregroundStyle(.secondary)
+                            .frame(height: Theme.Size.headerHeight)
+                    }
+                    HStack(spacing: Theme.Spacing.md) {
+                        composer
+                            .background { Theme.QuickAI.backdrop(isExpanded: false).allowsHitTesting(false) }
+                            .clipShape(Capsule())
+                        historyButton
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
         }
         .overlayPreferenceValue(QuickAISendAnchors.self) { anchors in
             GeometryReader { geometry in
@@ -36,9 +55,9 @@ struct QuickAIChatView: View {
         VStack(spacing: 0) {
             if controller.isExpanded {
                 HStack {
-                    sidebarButton
                     QuickAIChatDragArea()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    historyButton
                     toolbarButton(symbol: "square.and.pencil", help: "New Chat (⌘N)", action: controller.newConversation)
                         .keyboardShortcut("n", modifiers: .command)
                     closeButton
@@ -48,21 +67,11 @@ struct QuickAIChatView: View {
                 .padding(.top, Theme.Spacing.xl)
                 .padding(.bottom, Theme.Spacing.md)
             }
-            HStack(spacing: 0) {
-                if controller.showsSidebar {
-                    historySidebar
-                        .frame(width: Theme.QuickAI.sidebarWidth)
-                        .overlay(alignment: .trailing) { Divider() }
-                }
                 VStack(spacing: 0) {
                     if let sessionID = controller.sessionID {
                         AIChatTranscriptView(chat: chat, tools: tools, sessionID: sessionID, isFloating: true,
                             awaitingFirstReply: !controller.hasReceivedReply, sendingMessageID: controller.sendingMessageID)
                             .id(sessionID)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if controller.isExpanded {
-                        Text("Ask Spotter")
-                            .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                     if let notice = controller.notice {
@@ -74,76 +83,84 @@ struct QuickAIChatView: View {
                             .padding(.horizontal, Theme.Spacing.xl)
                             .frame(height: Theme.Size.headerHeight)
                     }
-                    if controller.isExpanded {
-                        composer
-                            .glassEffect(.regular, in: Capsule())
-                            .padding(Theme.Spacing.xl)
-                    } else {
-                        composer
-                    }
+                    composer
+                        .glassEffect(.regular, in: Capsule())
+                        .padding(Theme.Spacing.xl)
                 }
-                .frame(width: controller.isExpanded ? Theme.Size.quickAIWidth * 2 : nil)
+                .frame(width: Theme.Size.quickAIWidth * 2)
                 .frame(maxHeight: .infinity)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .background { Theme.QuickAI.backdrop(isExpanded: controller.isExpanded).allowsHitTesting(false) }
+        .background {
+            if let id = controller.sessionID { sessionSurface(id: id, expanded: true) }
+        }
         .clipShape(RoundedRectangle(cornerRadius: min(Theme.Radius.panel, controller.bodyHeight / 2),
             style: controller.isExpanded ? .continuous : .circular))
     }
 
-    private var sidebarButton: some View {
-        toolbarButton(symbol: "sidebar.left", help: "Toggle Conversation History (⌘⇧S)", action: controller.toggleSidebar,
-            diameter: controller.isExpanded ? Theme.Size.noteGlassButton : Theme.Size.quickAIComposerHeight)
-            .keyboardShortcut("s", modifiers: [.command, .shift])
-            .accessibilityValue(controller.showsSidebar ? "Expanded" : "Collapsed")
+    private var historyButton: some View {
+        Group {
+            if controller.isExpanded {
+                toolbarButton(symbol: "clock", help: "Conversation History (⌘⇧S)", action: controller.toggleHistory)
+            } else {
+                Button(action: controller.toggleHistory) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: Theme.Size.quickAIComposerHeight, height: Theme.Size.quickAIComposerHeight)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .background { Theme.QuickAI.backdrop(isExpanded: false).allowsHitTesting(false) }
+                .clipShape(Circle())
+                .background { QuickAIChatCompactGlass().allowsHitTesting(false) }
+                .accessibilityLabel("Conversation History (⌘⇧S)")
+                .help("Conversation History (⌘⇧S)")
+            }
+        }
+        .keyboardShortcut("s", modifiers: [.command, .shift])
+        .accessibilityValue(controller.showsHistory ? "Expanded" : "Collapsed")
     }
 
-    private var historySidebar: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-            let sections = AIChatEngine.historySections(sidebarSessions, now: context.date, calendar: .current)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    ForEach(sections) { section in
-                        Text(section.period.rawValue)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, Theme.Spacing.md)
-                            .padding(.top, Theme.Spacing.md)
-                            .padding(.bottom, Theme.Spacing.xs)
-                        ForEach(section.sessions) { session in
-                            sessionRow(session)
-                        }
-                    }
-                    if sections.isEmpty {
-                        Text("No conversations yet")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .padding(Theme.Spacing.md)
-                    }
+    private var historyPills: some View {
+        ScrollView {
+            VStack(spacing: Theme.Spacing.md) {
+                ForEach(controller.historySessions) { session in sessionRow(session) }
+                if controller.historySessions.isEmpty {
+                    Text("No conversations yet")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: Theme.Size.quickAIComposerHeight)
+                        .background(Theme.Colors.quickAIBackdrop)
+                        .clipShape(Capsule())
+                        .background { QuickAIChatCompactGlass() }
                 }
             }
-            .padding(.horizontal, Theme.Spacing.sm)
-            .padding(.bottom, Theme.Spacing.md)
         }
+        .scrollIndicators(.hidden)
     }
 
     private func sessionRow(_ session: AIChatSession) -> some View {
-        Button { controller.openSession(session.id) } label: {
+        Button {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(duration: 0.34, bounce: 0.08)) {
+                controller.openSession(session.id)
+            }
+        } label: {
             HStack(spacing: Theme.Spacing.sm) {
                 Image(systemName: session.systemImage).foregroundStyle(.secondary)
                 Text(session.title).lineLimit(1)
                 Spacer(minLength: 0)
                 if chat.waitingSessionID == session.id { ProgressView().controlSize(.mini) }
             }
-            .padding(Theme.Spacing.md)
+            .padding(.horizontal, Theme.Spacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(session.id == controller.sessionID ? Theme.Colors.selection : .clear,
-                in: RoundedRectangle(cornerRadius: Theme.Radius.row))
-            .contentShape(Rectangle())
+            .frame(height: Theme.Size.quickAIComposerHeight)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .background { sessionSurface(id: session.id, expanded: false) }
+        .clipShape(Capsule())
+        .background { QuickAIChatCompactGlass().allowsHitTesting(false) }
         .help(session.title)
         .accessibilityAddTraits(session.id == controller.sessionID ? [.isSelected] : [])
         .contextMenu {
@@ -156,8 +173,17 @@ struct QuickAIChatView: View {
         }
     }
 
-    private var sidebarSessions: [AIChatSession] {
-        chat.orderedSessions.filter { !$0.messages.isEmpty || $0.titleOverride != nil || $0.id == controller.sessionID }
+    @ViewBuilder
+    private func sessionSurface(id: UUID, expanded: Bool) -> some View {
+        let fill = expanded ? Theme.QuickAI.backdrop(isExpanded: true)
+            : LinearGradient(colors: [Theme.Colors.quickAIBackdrop, Theme.Colors.quickAIBackdrop], startPoint: .top, endPoint: .bottom)
+        let surface = RoundedRectangle(cornerRadius: expanded ? Theme.Radius.panel : Theme.Size.quickAIComposerHeight / 2)
+            .fill(fill)
+        if reduceMotion {
+            surface.allowsHitTesting(false)
+        } else {
+            surface.matchedGeometryEffect(id: id, in: sessionTransition).allowsHitTesting(false)
+        }
     }
 
     private var closeButton: some View {

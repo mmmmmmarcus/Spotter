@@ -167,37 +167,7 @@ struct AIChatRequestLedger: Equatable, Sendable {
 
 /// The pure half of AI Chat: prompt text and transcript windowing. Foundation-only so
 /// `Tools/ai-chat-test.swift` compiles it standalone; the network lives in `OpenRouterStore`.
-enum AIChatHistoryPeriod: String, CaseIterable, Sendable {
-    case today = "Today"
-    case yesterday = "Yesterday"
-    case thisWeek = "This week"
-    case earlier = "Earlier"
-}
-
-struct AIChatHistorySection: Identifiable, Sendable {
-    let period: AIChatHistoryPeriod
-    let sessions: [AIChatSession]
-    var id: String { period.rawValue }
-}
-
 enum AIChatEngine {
-    static func historySections(_ sessions: [AIChatSession], now: Date, calendar: Calendar) -> [AIChatHistorySection] {
-        let today = calendar.startOfDay(for: now)
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
-        let week = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? today
-        let grouped = Dictionary(grouping: sessions) { session -> AIChatHistoryPeriod in
-            if session.startedAt >= today { return .today }
-            if session.startedAt >= yesterday { return .yesterday }
-            if session.startedAt >= week { return .thisWeek }
-            return .earlier
-        }
-        return AIChatHistoryPeriod.allCases.compactMap { period in
-            guard let values = grouped[period], !values.isEmpty else { return nil }
-            return AIChatHistorySection(period: period, sessions: values.sorted {
-                $0.startedAt == $1.startedAt ? $0.id.uuidString < $1.id.uuidString : $0.startedAt > $1.startedAt
-            })
-        }
-    }
     /// Short and general — the palette is a quick-answer surface, not a document editor.
     static let systemPrompt = """
         You are Spotter's assistant, answering inside a small macOS launcher window. \

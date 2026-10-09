@@ -324,9 +324,9 @@ Never break these without an explicit task to do so.
 - **Quick AI Chat is an owner-requested floating-window exception.** ⌥Space opens an independent
   Liquid Glass composer above the Dock, expanding to twice its compact width after the first send, then directly to the palette height on the first nonempty AI reply. Later replies scroll without resizing. `AppCore`
   solely owns `QuickAIChatController`; it owns the frame, draft and session reference. Quick AI is the only chat surface (owner decision, Oct 2026); the Palette has no AI Chat mode.
-  `AIChatStore` retains one in-flight request gate and session-scoped results. The left sidebar shows
+  `AIChatStore` retains one in-flight request gate and session-scoped results. The pill history picker shows
   historical conversations; switching preserves per-session drafts and attachments in memory. Closing preserves the chat and
-  unsent draft in memory. Drag the header between Sidebar and New Chat through native window dragging; there is no handle or extra strip. Native Regular glass carries a black-to-translucent vertical backdrop with light content, retaining 35% black opacity at the bottom in both sizes; the expanded composer is a native glass capsule with no custom border.
+  unsent draft in memory. Drag the header to the left of History, New Chat and Close through native window dragging; there is no handle or extra strip. Native Regular glass carries a black-to-translucent vertical backdrop with light content, retaining 35% black opacity at the bottom in both sizes; the expanded composer is a native glass capsule with no custom border.
   `QuickAIChatLayout.swift` stays pure Foundation + CoreGraphics. MCP/Cua still uses the Cancel-first
   palette confirmation and restores focus before dispatch. Screenshot cleanup hides the floating panel.
 - **SF Symbols uses Apple's separately installed CLI.** `AppCore` owns `SFSymbolStore`. Search and

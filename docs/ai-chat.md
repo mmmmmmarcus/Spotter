@@ -6,18 +6,15 @@ AI commands, running-task rows and the launcher's Ask AI fallback all open the f
 contains a chat mode, composer, history list or chat actions menu; Tab cycles Apps, Clipboard and Emoji.
 The launcher's Send to ChatGPT fallback remains a separate browser handoff.
 
-The upper-left `sidebar.left` glass button toggles all historical conversations, newest first.
-The compact state places this button outside the composer on its left, as a separate 32-point
-glass circle matching the input height, with a transparent 8-point gap. The input keeps its own width.
-Opening history expands the panel to its full height and adds a 220-point left column; the normal
-conversation width is retained when the screen allows. New Chat and Close sit at the upper right,
-in that order. The blank header between Sidebar and New Chat remains draggable.
-Selecting a session restores its transcript and per-session unsent draft and attachments. Closing
-history leaves that conversation selected. The sidebar marks the current conversation and shows
-progress on the session with an active request. Its context menu offers Copy Conversation and
-Delete Conversation; deletion uses the existing Cancel-first Palette confirmation. The sidebar has no settings shortcut or overall title. Sessions use one title line with their icon,
-grouped by local creation date into Today, Yesterday, This week and Earlier; empty groups are omitted. History remains in the existing backup/sync data; drafts remain local
-in-memory state. Merely opening history never creates an empty session.
+The compact input has a separate 32-point circular clock button on its right, matching its glass
+and vertical gradient. It opens up to ten recent nonempty sessions as a vertical stack of independent
+32-point capsules above the input, with 8-point gaps. The picker is as wide as the expanded chat.
+Selecting a capsule replaces the picker with its conversation at the same width and grows upward
+to the full conversation height. There is no sidebar or date grouping. Short screens scroll the pills.
+The expanded header has a draggable area followed by History, New Chat and Close on the right.
+Session switching preserves per-session unsent drafts and attachments; the picker retains Copy and
+Delete in each capsule's context menu. Opening history never creates a blank session. History remains
+in existing backup/sync data, while drafts remain local in-memory state.
 
 AI Chat is an always-available system feature, shown in the Settings sidebar as **AI Chat &
 Command**, but remains inert without an OpenRouter API key — the key is the gate and lives on that
@@ -95,11 +92,11 @@ The expanded view uses `AIChatTranscriptView`: user bubbles, Markdown,
 streaming line reveal, tool activity, errors and follow-to-bottom behavior. Before the first reply,
 the 120-point transcript starts at the submitted prompt without a top fade or automatic bottom scroll. A bottom composer supports
 follow-ups and Stop inside a native regular Liquid Glass capsule, with no solid fill or custom border.
-Sidebar, Close and New Chat use tinted native interactive circular glass, with equal 12-point top and side insets, matching the composer’s outer side and bottom padding. The close button appears to the right of New Chat in expanded mode; the compact
+History, Close and New Chat use tinted native interactive circular glass, with equal 12-point top and side insets, matching the composer’s outer side and bottom padding. The close button appears to the right of New Chat in expanded mode; the compact
 composer has no close button. Escape, ⌘W and the shortcut can hide either state; closing
 keeps the conversation and unsent draft in memory for the next summon. It stays visible on click-away,
 and the shortcut refocuses it when it is not key. New Chat (⌘N) returns to a fresh input while
-keeping the previous conversation in the shared history. The blank header region between Sidebar and New Chat uses native window dragging without a visible
+keeping the previous conversation in the shared history. The blank header region to the left of History, New Chat and Close uses native window dragging without a visible
 handle. The buttons, transcript and composer keep their own click and text-selection behavior. Reduce Motion disables frame animation.
 
 Quick Chat uses `AIChatStore`, OpenRouter settings, the key gate and the single in-flight request gate.
@@ -211,7 +208,7 @@ mode; the page CSP disallows network connections, frames and image requests. Use
 Streaming updates are throttled to 40 ms with the latest text, and newly added vertical space reveals
 over 140 ms unless Reduce Motion is enabled. ResizeObserver reports the actual document height as
 text, diagrams, fonts or window width change. A renderer failure falls back to selectable raw text.
-Text selection spans the whole answer; code Copy preserves its source, and the history sidebar can
+Text selection spans the whole answer; code Copy preserves its source, and the history picker can
 copy the raw conversation. `Tools/ai-markdown-test.swift` exercises actual bundled assets in WebKit,
 including clickable link and copy events, rich blocks, CSP, resizing and incomplete streamed fences.
 `Tools/AIChatMarkdown/test.mjs` additionally pins parser edge cases when rebuilding the assets.
@@ -497,3 +494,5 @@ Quick AI Chat animates each successfully submitted user message from the compose
 transcript row using a short spring. A temporary overlay crosses the scroll-view boundary while the
 real row reserves its layout; history reopening does not replay it. Closing or switching conversations
 clears the transient message identity. Reduce Motion uses a brief fade without displacement or scale.
+
+History capsules use the solid Quick AI backdrop token. Selecting a capsule shares its background geometry with the conversation during a short spring, fading in the transcript. Reduce Motion uses only a fade.

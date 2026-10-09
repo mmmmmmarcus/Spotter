@@ -809,22 +809,22 @@ use SwiftUI numericText and a 250 ms snappy animation, disabled by Reduce Motion
 
 Quick Clipboard History has a 5–12 item initial viewport preference. Panel and scroll viewport use the same geometry, including on history updates and pagination; a short screen reduces the viewport instead of placing content offscreen.
 
-Quick AI Chat owns the sole chat UI. Sidebar is at the upper left, New Chat then Close at the upper
-right. Its left history column expands the native window, preserving the conversation width where
-screen space allows; the compact composer also exposes history without requiring a first message.
+Quick AI Chat owns the sole chat UI. The compact composer has a right-hand clock button opening
+up to ten vertically stacked session capsules above it. The capsules and selected conversation use
+the expanded chat width. Selecting one grows the conversation upward without adding a sidebar.
 
 Assistant Markdown is rendered in a transparent WebKit document inside the existing chat glass.
 `Theme.ChatMarkdown` resolves semantic native colors against that surface's effective appearance.
 Links are underlined; tables/code scroll horizontally, code has Copy, and the document resizes to
 content instead of creating a separate vertical scroll area. Raw HTML stays literal.
 
-Quick Chat's compact history control is a separate circle to the left of the input, not inside its
-capsule. The native glass backing excludes the circle/gap while the SwiftUI host spans the whole
-window. Expanded toolbar controls use `quickAIControlTint` for visible native glass edges. Session
-rows are single-line titles with icons, grouped by local calendar date without an overall heading
-or settings entry.
+Quick Chat's compact history control is a separate circle to the right of the input, matching its
+native Regular glass, vertical gradient and height. The native panel backing covers only the bottom
+composer while history is visible; each capsule provides its own glass, leaving the gaps transparent.
+Expanded toolbar controls retain tinted native glass. Session capsules show a single title and icon.
 
 Quick AI Chat and floating Notes explicitly use AppKit managed collection behavior and participate
 in window cycling, so their floating level does not default to hiding them in Mission Control.
-They retain their existing all-Spaces and full-screen auxiliary behavior. Sidebar transitions keep
-the expanded chat column fixed-width and anchor the window's trailing edge when screen space allows.
+They retain their existing all-Spaces and full-screen auxiliary behavior. History selection preserves the expanded width and bottom edge when screen space allows.
+
+History capsules have solid inverse-appearance backgrounds; the bottom input retains its gradient. History stays in the right control group after opening a session. A selected capsule shares its background geometry with the chat surface during the transition, with opacity-only motion reduction.

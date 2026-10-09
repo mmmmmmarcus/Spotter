@@ -65,7 +65,6 @@ enum Theme {
 
     enum QuickAI {
         static let compactAccessoryWidth = Size.quickAIComposerHeight + Spacing.md
-        static let sidebarWidth: CGFloat = 220
         static let revealDuration: TimeInterval = 0.22
         static let dismissDuration: TimeInterval = 0.14
         static let expandDuration: TimeInterval = 0.30

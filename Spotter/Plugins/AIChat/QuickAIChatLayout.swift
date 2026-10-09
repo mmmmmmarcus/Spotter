@@ -10,10 +10,10 @@ enum QuickAIChatLayout {
             y: min(visibleFrame.minY + bottomGap, safe.maxY - height), width: width, height: height)
     }
 
-    static func resizedFrame(_ frame: CGRect, width: CGFloat, height: CGFloat, visibleFrame: CGRect, margin: CGFloat, anchorTrailing: Bool = false) -> CGRect {
+    static func resizedFrame(_ frame: CGRect, width: CGFloat, height: CGFloat, visibleFrame: CGRect, margin: CGFloat) -> CGRect {
         let safe = visibleFrame.insetBy(dx: margin, dy: margin)
         let size = CGSize(width: min(width, safe.width), height: min(height, safe.height))
-        let proposedX = anchorTrailing ? frame.maxX - size.width : frame.midX - size.width / 2
+        let proposedX = frame.midX - size.width / 2
         return CGRect(x: max(safe.minX, min(proposedX, safe.maxX - size.width)),
             y: max(safe.minY, min(frame.minY, safe.maxY - size.height)), width: size.width, height: size.height)
     }

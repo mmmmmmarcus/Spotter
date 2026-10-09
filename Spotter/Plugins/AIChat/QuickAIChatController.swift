@@ -8,9 +8,10 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     @Published private(set) var notice: String?
     @Published private(set) var focusToken = UUID()
     @Published private(set) var sendingMessageID: UUID?
-    @Published private(set) var showsSidebar = false
+    @Published private(set) var showsHistory = false
     private var drafts: [UUID: String] = [:]
     private var attachments: [UUID: [AIChatMessage.Attachment]] = [:]
+    private var openedFromHistory = false
     private var newDraft = ""
     private var newAttachments: [AIChatMessage.Attachment] = []
     private let chat: AIChatStore
@@ -34,7 +35,9 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         self.showSettings = showSettings
         super.init()
         sessionsObservation = chat.$sessions.sink { [weak self] sessions in
-            guard let self, let sessionID else { return }
+            guard let self else { return }
+            if showsHistory { DispatchQueue.main.async { [weak self] in self?.resize() } }
+            guard let sessionID else { return }
             guard let session = sessions.first(where: { $0.id == sessionID }) else {
                 drafts[sessionID] = nil
                 attachments[sessionID] = nil
@@ -60,19 +63,27 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
 
     var isVisible: Bool { panel?.isVisible == true }
     var isKeyWindow: Bool { !isClosing && panel?.isKeyWindow == true }
-    var isExpanded: Bool { sessionID != nil || showsSidebar }
+    var isExpanded: Bool { sessionID != nil && !showsHistory }
     func owns(_ id: UUID) -> Bool { sessionID == id }
 
-    private var bodyWidth: CGFloat {
-        Theme.Size.quickAIWidth * (isExpanded ? 2 : 1)
-            + (isExpanded ? 0 : Theme.QuickAI.compactAccessoryWidth)
-            + (showsSidebar ? Theme.QuickAI.sidebarWidth : 0)
+    var historySessions: [AIChatSession] {
+        Array(chat.orderedSessions.filter { !$0.messages.isEmpty || $0.titleOverride != nil || $0.id == sessionID }.prefix(10))
+    }
+
+    var bodyWidth: CGFloat {
+        isExpanded || showsHistory ? Theme.Size.quickAIWidth * 2
+            : Theme.Size.quickAIWidth + Theme.QuickAI.compactAccessoryWidth
     }
 
     var bodyHeight: CGFloat {
         let noticeHeight = notice == nil ? 0 : Theme.Size.headerHeight
+        if showsHistory {
+            let count = max(1, historySessions.count)
+            return CGFloat(count) * Theme.Size.quickAIComposerHeight + CGFloat(count) * Theme.Spacing.md
+                + Theme.Size.quickAIComposerHeight + noticeHeight
+        }
         guard isExpanded else { return Theme.Size.quickAIComposerHeight + noticeHeight }
-        if hasReceivedReply || showsSidebar { return Theme.Size.panelHeight }
+        if hasReceivedReply || openedFromHistory { return Theme.Size.panelHeight }
         let chrome = Theme.Size.quickAIHeaderHeight + Theme.Size.quickAIComposerHeight + Theme.Spacing.xl * 2
         return chrome + Theme.Size.quickAIInitialTranscriptHeight + noticeHeight
     }
@@ -91,6 +102,8 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
             draft = drafts[id] ?? ""
             restoreAttachments(attachments[id] ?? [])
         }
+        openedFromHistory = showsHistory
+        showsHistory = false
         sessionID = id
         chat.switchTo(id)
         notice = nil
@@ -99,10 +112,10 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         focusToken = UUID()
     }
 
-    func toggleSidebar() {
-        let wasExpanded = isExpanded
-        showsSidebar.toggle()
-        resize(anchorTrailing: wasExpanded && isExpanded)
+    func toggleHistory() {
+        sendingMessageID = nil
+        showsHistory.toggle()
+        resize()
     }
 
     private func saveDraft() {
@@ -195,6 +208,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         let isNew = sessionID == nil
         let id = sessionID ?? chat.createSession()
         guard chat.send(draft, sessionID: id) else { return }
+        showsHistory = false
         sendingMessageID = chat.messages(in: id).last(where: { $0.role == .user })?.id
         sessionID = id
         chat.switchTo(id)
@@ -211,6 +225,8 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
 
     func newConversation() {
         saveDraft()
+        showsHistory = false
+        openedFromHistory = false
         sendingMessageID = nil
         hasReceivedReply = false
         sessionID = nil
@@ -249,12 +265,12 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         DispatchQueue.main.async { [weak self] in self?.focusToken = UUID() }
     }
 
-    private func resize(anchorTrailing: Bool = false) {
+    private func resize() {
         guard let panel, let screen = panel.screen ?? targetScreen() else { return }
         panel.compactAccessoryWidth = isExpanded ? 0 : Theme.QuickAI.compactAccessoryWidth
         let frame = QuickAIChatLayout.resizedFrame(motionTarget ?? panel.frame, width: bodyWidth,
             height: bodyHeight,
-            visibleFrame: screen.visibleFrame, margin: Theme.Spacing.md, anchorTrailing: anchorTrailing)
+            visibleFrame: screen.visibleFrame, margin: Theme.Spacing.md)
         guard panel.frame != frame else { return }
         if panel.isVisible && !isClosing {
             animate(to: frame, opacity: 1, duration: Theme.QuickAI.expandDuration)
