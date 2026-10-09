@@ -36,7 +36,7 @@ sync.
 launch actions are methods on `AppCore` that the SwiftUI views call.
 
 `ScreenshotManager` is idle state until invoked. An invocation temporarily owns one non-activating
-AppKit selection panel per display and one display-filtered ScreenCaptureKit request, then releases
+AppKit selection panel and a frozen Retina ScreenCaptureKit snapshot per display, then releases
 both; it adds no startup monitor, timer, helper process or persistent capture engine.
 
 ## Built-in plugin registry

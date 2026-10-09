@@ -92,3 +92,32 @@ enum ScreenshotImageProcessor {
         return data as Data
     }
 }
+
+// Keep the display pixels from before the selection can dismiss transient system UI.
+struct ScreenshotSnapshot: Sendable {
+    let image: CGImage
+    let pointSize: CGSize
+
+    func cropped(to rect: CGRect, scale: ScreenshotCaptureScale) -> CGImage? {
+        guard pointSize.width > 0, pointSize.height > 0,
+            rect.width > 0, rect.height > 0,
+            CGRect(origin: .zero, size: pointSize).contains(rect)
+        else { return nil }
+        let scaleX = CGFloat(image.width) / pointSize.width
+        let scaleY = CGFloat(image.height) / pointSize.height
+        let pixelRect = CGRect(
+            x: rect.minX * scaleX, y: rect.minY * scaleY,
+            width: rect.width * scaleX, height: rect.height * scaleY)
+        guard let cropped = image.cropping(to: pixelRect) else { return nil }
+        let pixels = scale.pixelSize(forPointSize: rect.size, nativeScale: scaleX)
+        if cropped.width == pixels.width && cropped.height == pixels.height { return cropped }
+        guard let context = CGContext(
+            data: nil, width: pixels.width, height: pixels.height, bitsPerComponent: 8,
+            bytesPerRow: 0, space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.interpolationQuality = .high
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: pixels.width, height: pixels.height))
+        return context.makeImage()
+    }
+}

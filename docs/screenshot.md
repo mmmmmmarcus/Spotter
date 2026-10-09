@@ -21,7 +21,12 @@ same capture path as Option-Z instead of bypassing shortcut dispatch.
 
 ## Region selection
 
-Invoking capture creates one borderless panel per display at the screen-saver window level. Spotter
+Invoking capture first saves a Retina snapshot of every display, then creates one borderless panel
+per display at the screen-saver window level. The panels show those frozen pixels, so Notification
+Center or other transient UI remains selectable even if the system dismisses it on mouse-down.
+Region capture, OCR, whole-display capture and color sampling read the same snapshots; cancellation
+and completion release them. Preparation failures abort instead of falling back to a later screen.
+Right-click window capture retains its independent live-window/shadow path. Spotter
 does not activate: each overlay is a `.nonactivatingPanel`, explicitly receives mouse events and
 accepts the first click while the user's current app remains frontmost. Its content rect is the
 display's global frame, with no second screen-relative offset, so displays left of or below the
@@ -54,9 +59,9 @@ arrow in place until a drag grabbed the pointer — the manager enables Capso's
 panels come down. Its two CoreGraphics symbols are resolved with `dlsym`, so a system that no longer
 exports them simply logs and keeps the arrow instead of failing to launch. A
 left-button drag is clamped to its starting display. The overlay
-does not dim the screen: the panel's full-screen surface uses only one 8-bit black alpha step, which is
-visually transparent but preserves the mouse hit region that macOS 26 drops for a fully clear panel.
-During a drag, the selected rectangle is replaced with an exact 5% overlay so its extent is
+does not dim the screen: the panel draws the saved display pixels at their original brightness,
+which also supplies the mouse hit region.
+During a drag, the selected rectangle receives a 5% overlay so its extent is
 clear without obscuring the source. The fill remains white on dark and black on light. The selection
 border is opaque neutral gray in both appearances: 72% gray in dark mode and 42% gray in light mode,
 so a black capture background retains a visible boundary. With Rounded Corners on, both that fill and the selection border
@@ -187,11 +192,8 @@ clicks are inert; Escape still cancels. There is no loupe: click-to-copy ships f
 preview would need live screen streaming that the idle-between-invocations architecture deliberately
 avoids.
 
-The sample is one point captured through the ordinary display path at `1x` regardless of the
-Resolution setting — one point is the colour the user sees, and the single pixel ScreenCaptureKit
-distils from its Retina quad is the honest value for it. The overlay panels come down first and the
-capture waits the same one-frame beat as a region, since the hit surface's single alpha step would
-otherwise tint the reading. The pure `ScreenshotColorSampler` converts the pixel to sRGB before
+The sample is one point cropped from the frozen display and downsampled to `1x` regardless of the
+Resolution setting. It never includes the selection overlay and needs no delayed screen read. The pure `ScreenshotColorSampler` converts the pixel to sRGB before
 formatting — a raw byte read off a Display-P3 capture would name a colour every other app renders
 differently — and the pure `ScreenshotGeometry.colorSampleRect` keeps an edge click on the display;
 the harness pins both.
@@ -204,8 +206,8 @@ user's own value, not a picture with a thumbnail and an editor (owner decision, 
 Four preferences shape what a capture produces. All persist under bundle-scoped
 `screenshot.*` keys, ride the trusted v3 backup/sync snapshot and apply live.
 
-- **Resolution** — `Retina` (default) captures at the display's own backing scale; `1x` asks
-  ScreenCaptureKit for one pixel per point, which is what a screenshot bound for the web usually
+- **Resolution** — `Retina` (default) captures at the display's own backing scale; `1x` produces
+  one pixel per point, which is what a screenshot bound for the web usually
   wants. The pure `ScreenshotCaptureScale` resolves the pixel dimensions for both the region and
   window paths and never rounds a visible region down to nothing.
 - **Window Shadow** — off by default, preserving the tight crop. A window filter's `contentRect`

@@ -59,7 +59,11 @@ final class AppSettings: ObservableObject {
 
     @Published var quickClipboardVisibleCount: Int {
         didSet {
-            quickClipboardVisibleCount = min(12, max(5, quickClipboardVisibleCount))
+            let clamped = min(12, max(5, quickClipboardVisibleCount))
+            guard clamped == quickClipboardVisibleCount else {
+                quickClipboardVisibleCount = clamped
+                return
+            }
             defaults.set(quickClipboardVisibleCount, forKey: Key.quickClipboardVisibleCount)
         }
     }

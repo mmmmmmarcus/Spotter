@@ -64,6 +64,7 @@ final class ScreenshotManager: ObservableObject {
     private static let previewDurationKey = "screenshot.preview-duration"
 
     private var panels: [ScreenshotSelectionPanel] = []
+    private var frozenDisplays: [CGDirectDisplayID: ScreenshotSnapshot] = [:]
     private var completion: ((ScreenshotCaptureResult) -> Void)?
     private var captureTask: Task<Void, Never>?
     private var previousCursor: NSCursor?
@@ -202,6 +203,35 @@ final class ScreenshotManager: ObservableObject {
         let frontmost = NSWorkspace.shared.frontmostApplication
         captureSource = (frontmost?.localizedName, frontmost?.bundleIdentifier)
         mode = .screenshot
+        selectionStartedAt = Date()
+        captureTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                var snapshots: [CGDirectDisplayID: ScreenshotSnapshot] = [:]
+                for screen in screens {
+                    guard let displayID = screen.displayID else {
+                        throw ScreenshotCaptureFailure.displayUnavailable
+                    }
+                    let image = try await Self.captureImage(
+                        in: CGRect(origin: .zero, size: screen.frame.size),
+                        displayID: displayID, scale: .retina)
+                    try Task.checkCancellation()
+                    snapshots[displayID] = ScreenshotSnapshot(image: image, pointSize: screen.frame.size)
+                }
+                frozenDisplays = snapshots
+                captureTask = nil
+                presentSelection(on: screens)
+            } catch {
+                guard !Task.isCancelled else { return }
+                AppLog.error("screenshot", "Preparing screen snapshot failed: \(error.localizedDescription)")
+                captureTask = nil
+                dismissPanels()
+                finish(.failed)
+            }
+        }
+    }
+
+    private func presentSelection(on screens: [NSScreen]) {
         previousCursor = NSCursor.current
         BackgroundCursor.setAllowed(true)
         panels = screens.map(makePanel)
@@ -359,7 +389,8 @@ final class ScreenshotManager: ObservableObject {
         let view = ScreenshotSelectionView(
             screenFrame: screen.frame,
             visibleFrame: screen.visibleFrame,
-            roundedCorners: roundedCorners)
+            roundedCorners: roundedCorners,
+            snapshot: screen.displayID.flatMap { frozenDisplays[$0]?.image })
         let panel = ScreenshotSelectionPanel(screenFrame: screen.frame, contentView: view)
         view.onSelection = { [weak self, weak screen] localRect in
             guard let self, let screen else { return }
@@ -425,7 +456,9 @@ final class ScreenshotManager: ObservableObject {
     }
 
     private func finishSelection(_ localRect: CGRect, on screen: NSScreen) {
-        guard ScreenshotGeometry.isCapturable(localRect), let displayID = screen.displayID else {
+        guard ScreenshotGeometry.isCapturable(localRect), let displayID = screen.displayID,
+            let snapshot = frozenDisplays[displayID]
+        else {
             cancel()
             return
         }
@@ -433,7 +466,7 @@ final class ScreenshotManager: ObservableObject {
             fromScreenLocal: localRect, screenHeight: screen.frame.height)
         lastCaptureRect = localRect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
         if mode == .ocr {
-            recognizeText(in: captureRect, displayID: displayID)
+            recognizeText(in: captureRect, snapshot: snapshot)
             return
         }
         let roundedCorners = roundedCorners
@@ -442,13 +475,12 @@ final class ScreenshotManager: ObservableObject {
 
         captureTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.captureImage(
-                    in: captureRect, displayID: displayID, scale: captureScale)
+                let image = try await Self.snapshotImage(snapshot, in: captureRect, scale: captureScale)
                 await deliver(image, roundedCorners: roundedCorners)
             } catch {
+                guard !Task.isCancelled else { return }
                 AppLog.error("screenshot", "ScreenCaptureKit failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
@@ -460,15 +492,13 @@ final class ScreenshotManager: ObservableObject {
     /// text lands on the clipboard in their place. Always captured at Retina regardless of the
     /// Resolution setting — recognition accuracy tracks pixel density, and no image is kept, so
     /// honouring a 1x preference here would cost accuracy and save nothing.
-    private func recognizeText(in rect: CGRect, displayID: CGDirectDisplayID) {
+    private func recognizeText(in rect: CGRect, snapshot: ScreenshotSnapshot) {
         dismissPanels()
         captureTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.captureImage(
-                    in: rect, displayID: displayID, scale: .retina)
+                let image = try await Self.snapshotImage(snapshot, in: rect, scale: .retina)
                 let text = try await Task.detached(priority: .userInitiated) {
                     try ScreenshotTextRecognizer.text(in: image)
                 }.value
@@ -484,6 +514,7 @@ final class ScreenshotManager: ObservableObject {
                 AppLog.info("screenshot", "Copied \(trimmed.count) recognized character(s).")
                 finish(.textCopied)
             } catch {
+                guard !Task.isCancelled else { return }
                 AppLog.error("screenshot", "Text recognition failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
@@ -507,7 +538,7 @@ final class ScreenshotManager: ObservableObject {
     /// One whole display, captured through the same display path a region uses — the source
     /// rectangle is simply the display's full bounds.
     private func captureScreen(of screen: NSScreen) {
-        guard let displayID = screen.displayID else {
+        guard let displayID = screen.displayID, let snapshot = frozenDisplays[displayID] else {
             cancel()
             return
         }
@@ -518,14 +549,13 @@ final class ScreenshotManager: ObservableObject {
 
         captureTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.captureImage(
-                    in: captureRect, displayID: displayID, scale: captureScale)
+                let image = try await Self.snapshotImage(snapshot, in: captureRect, scale: captureScale)
                 // A whole display has no corners to round; the desktop fills every pixel.
                 await deliver(image, roundedCorners: false)
             } catch {
+                guard !Task.isCancelled else { return }
                 AppLog.error("screenshot", "Screen capture failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
@@ -565,6 +595,7 @@ final class ScreenshotManager: ObservableObject {
                     includingShadow: includesWindowShadow)
                 await deliver(image, roundedCorners: false)
             } catch {
+                guard !Task.isCancelled else { return }
                 AppLog.error("screenshot", "Window capture failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
@@ -576,7 +607,7 @@ final class ScreenshotManager: ObservableObject {
     /// value goes to the clipboard. Sampled at 1x regardless of the Resolution setting — one point
     /// is the colour the user sees, and averaging its Retina quad is the honest single value.
     private func pickColor(at localPoint: CGPoint, on screen: NSScreen) {
-        guard let displayID = screen.displayID else {
+        guard let displayID = screen.displayID, let snapshot = frozenDisplays[displayID] else {
             cancel()
             return
         }
@@ -588,13 +619,9 @@ final class ScreenshotManager: ObservableObject {
 
         captureTask = Task { [weak self] in
             guard let self else { return }
-            // The overlay's hit surface carries one alpha step of black, so the sample waits for
-            // WindowServer to remove the panels the same way a region capture does.
-            try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.captureImage(
-                    in: captureRect, displayID: displayID, scale: .oneX)
+                let image = try await Self.snapshotImage(snapshot, in: captureRect, scale: .oneX)
                 let hex = await Task.detached(priority: .userInitiated) {
                     ScreenshotColorSampler.hexColor(from: image)
                 }.value
@@ -608,6 +635,7 @@ final class ScreenshotManager: ObservableObject {
                 AppLog.info("screenshot", "Copied the sampled colour \(hex).")
                 finish(.colorCopied(hex))
             } catch {
+                guard !Task.isCancelled else { return }
                 AppLog.error("screenshot", "Colour sampling failed: \(error.localizedDescription)")
                 captureTask = nil
                 finish(.failed)
@@ -619,7 +647,8 @@ final class ScreenshotManager: ObservableObject {
         let tiff = await Task.detached(priority: .userInitiated) {
             ScreenshotImageProcessor.tiffData(from: image, roundedCorners: roundedCorners)
         }.value
-        guard !Task.isCancelled, let tiff, writeToPasteboard(tiff) else {
+        guard !Task.isCancelled else { return }
+        guard let tiff, writeToPasteboard(tiff) else {
             captureTask = nil
             finish(.failed)
             return
@@ -638,6 +667,16 @@ final class ScreenshotManager: ObservableObject {
         }.value
         guard let tiff else { return false }
         return writeToPasteboard(tiff)
+    }
+
+    private static func snapshotImage(
+        _ snapshot: ScreenshotSnapshot, in rect: CGRect, scale: ScreenshotCaptureScale
+    ) async throws -> CGImage {
+        guard let image = await Task.detached(priority: .userInitiated, operation: {
+            snapshot.cropped(to: rect, scale: scale)
+        }).value else { throw ScreenshotCaptureFailure.displayUnavailable }
+        try Task.checkCancellation()
+        return image
     }
 
     private static func captureImage(
@@ -718,6 +757,7 @@ final class ScreenshotManager: ObservableObject {
         for key in ScreenshotSelectionKey.allCases { hotKeys.releaseTransientKey(id: key.id) }
         for panel in panels { panel.deactivate() }
         panels = []
+        frozenDisplays = [:]
         previousCursor?.set()
         previousCursor = nil
         BackgroundCursor.setAllowed(false)

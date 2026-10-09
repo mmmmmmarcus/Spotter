@@ -92,6 +92,7 @@ final class ScreenshotSelectionView: NSView {
     var onScreenCapture: (() -> Void)?
     var onCancel: (() -> Void)?
 
+    private let snapshot: CGImage?
     private let roundedCorners: Bool
     private let screenFrame: CGRect
     private var mode: ScreenshotCaptureMode = .screenshot
@@ -100,7 +101,8 @@ final class ScreenshotSelectionView: NSView {
     private var selection: CGRect?
     private static let selectionStrokeWidthPixels: CGFloat = 1
 
-    init(screenFrame: CGRect, visibleFrame: CGRect, roundedCorners: Bool) {
+    init(screenFrame: CGRect, visibleFrame: CGRect, roundedCorners: Bool, snapshot: CGImage? = nil) {
+        self.snapshot = snapshot
         self.roundedCorners = roundedCorners
         self.screenFrame = screenFrame
         super.init(frame: NSRect(origin: .zero, size: screenFrame.size))
@@ -229,7 +231,11 @@ final class ScreenshotSelectionView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawHitSurface()
+        if let snapshot {
+            NSGraphicsContext.current?.cgContext.draw(snapshot, in: bounds)
+        } else {
+            drawHitSurface()
+        }
         if let selection, ScreenshotGeometry.isCapturable(selection) {
             drawSelection(selection)
         }
@@ -259,7 +265,7 @@ final class ScreenshotSelectionView: NSView {
             transform: nil)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
-        context.setBlendMode(.copy)
+        context.setBlendMode(snapshot == nil ? .copy : .normal)
         context.setFillColor(NSColor(Theme.Colors.screenshotSelectionOverlay).cgColor)
         context.addPath(fillPath)
         context.fillPath()

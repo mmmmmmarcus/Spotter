@@ -82,6 +82,26 @@ private func alpha(_ image: CGImage, x: Int, y: Int) -> UInt8 {
 private enum ScreenshotTest {
     @MainActor
     static func main() {
+        let frozen = ScreenshotSnapshot(image: solidImage(width: 200, height: 120), pointSize: CGSize(width: 100, height: 60))
+        let retinaCrop = frozen.cropped(to: CGRect(x: 10, y: 5, width: 30, height: 20), scale: .retina)
+        check(retinaCrop?.width == 60 && retinaCrop?.height == 40, "frozen Retina region preserves pixel density")
+        let oneXCrop = frozen.cropped(to: CGRect(x: 10, y: 5, width: 30, height: 20), scale: .oneX)
+        check(oneXCrop?.width == 30 && oneXCrop?.height == 20, "frozen region respects 1x output")
+        check(frozen.cropped(to: CGRect(x: -1, y: 0, width: 2, height: 2), scale: .retina) == nil, "frozen crop rejects outside-display regions")
+        let stripes = ScreenshotSnapshot(image: stripedImage(), pointSize: CGSize(width: 3, height: 1))
+        let green = stripes.cropped(to: CGRect(x: 1, y: 0, width: 1, height: 1), scale: .oneX)!
+        check(ScreenshotColorSampler.hexColor(from: green) == "#00FF00", "color mode samples the original frozen pixel")
+        let rows = CGContext(data: nil, width: 4, height: 4, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        rows.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        rows.fill(CGRect(x: 0, y: 2, width: 4, height: 2))
+        rows.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        rows.fill(CGRect(x: 0, y: 0, width: 4, height: 2))
+        let rowSnapshot = ScreenshotSnapshot(image: rows.makeImage()!, pointSize: CGSize(width: 2, height: 2))
+        let topRect = ScreenshotGeometry.captureRect(fromScreenLocal: CGRect(x: 0, y: 1, width: 2, height: 1), screenHeight: 2)
+        let top = rowSnapshot.cropped(to: topRect, scale: .oneX)!
+        check(ScreenshotColorSampler.hexColor(from: top) == "#FF0000", "AppKit top selection crops the top snapshot row without flipping")
+
         let bounds = CGRect(x: 0, y: 0, width: 1440, height: 900)
         check(
             ScreenshotGeometry.selectionRect(
