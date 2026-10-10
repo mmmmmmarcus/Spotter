@@ -9,6 +9,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     @Published private(set) var focusToken = UUID()
     @Published private(set) var sendingMessageID: UUID?
     @Published private(set) var showsHistory = false
+    @Published private(set) var selectedHistoryID: UUID?
     private var drafts: [UUID: String] = [:]
     private var attachments: [UUID: [AIChatMessage.Attachment]] = [:]
     private var openedFromHistory = false
@@ -18,6 +19,9 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     private let tools: AIToolStore
     private let router: OpenRouterStore
     private let showSettings: () -> Void
+    private let now: () -> TimeInterval
+    private var hiddenAt: TimeInterval?
+    private static let sessionResumeInterval: TimeInterval = 60
     private var panel: QuickAIChatPanel?
     private var motion: Task<Void, Never>?
     private var isClosing = false
@@ -28,11 +32,13 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     private var replyObservation: AnyCancellable?
     @Published private(set) var hasReceivedReply = false
 
-    init(chat: AIChatStore, tools: AIToolStore, router: OpenRouterStore, showSettings: @escaping () -> Void) {
+    init(chat: AIChatStore, tools: AIToolStore, router: OpenRouterStore, showSettings: @escaping () -> Void,
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.chat = chat
         self.tools = tools
         self.router = router
         self.showSettings = showSettings
+        self.now = now
         super.init()
         sessionsObservation = chat.$sessions.sink { [weak self] sessions in
             guard let self else { return }
@@ -67,18 +73,20 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     func owns(_ id: UUID) -> Bool { sessionID == id }
 
     var historySessions: [AIChatSession] {
-        Array(chat.orderedSessions.filter { !$0.messages.isEmpty || $0.titleOverride != nil || $0.id == sessionID }.prefix(10))
+        let sessions = Array(chat.orderedSessions.filter { !$0.messages.isEmpty || $0.titleOverride != nil || $0.id == sessionID }.reversed())
+        guard let sessionID, let current = sessions.first(where: { $0.id == sessionID }) else { return sessions }
+        return sessions.filter { $0.id != sessionID } + [current]
     }
 
     var bodyWidth: CGFloat {
         isExpanded || showsHistory ? Theme.Size.quickAIWidth * 2
-            : Theme.Size.quickAIWidth + Theme.QuickAI.compactAccessoryWidth
+            : Theme.Size.quickAIWidth
     }
 
     var bodyHeight: CGFloat {
         let noticeHeight = notice == nil ? 0 : Theme.Size.headerHeight
         if showsHistory {
-            let count = max(1, historySessions.count)
+            let count = max(1, min(10, historySessions.count))
             return CGFloat(count) * Theme.Size.quickAIComposerHeight + CGFloat(count) * Theme.Spacing.md
                 + Theme.Size.quickAIComposerHeight + noticeHeight
         }
@@ -97,6 +105,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     func openSession(_ id: UUID) {
         sendingMessageID = nil
         guard let session = chat.sessions.first(where: { $0.id == id }) else { return }
+        hiddenAt = nil
         if sessionID != id {
             saveDraft()
             draft = drafts[id] ?? ""
@@ -104,6 +113,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         }
         openedFromHistory = showsHistory
         showsHistory = false
+        selectedHistoryID = nil
         sessionID = id
         chat.switchTo(id)
         notice = nil
@@ -115,7 +125,32 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     func toggleHistory() {
         sendingMessageID = nil
         showsHistory.toggle()
+        selectedHistoryID = showsHistory ? (sessionID ?? historySessions.last?.id) : nil
         resize()
+    }
+
+    func handleHistoryKey(_ keyCode: UInt16) -> Bool {
+        if !showsHistory {
+            guard !isExpanded, keyCode == 126 else { return false }
+            toggleHistory()
+            return true
+        }
+        let sessions = historySessions
+        switch keyCode {
+        case 126, 125:
+            guard !sessions.isEmpty else { return true }
+            let index = sessions.firstIndex { $0.id == selectedHistoryID } ?? sessions.count - 1
+            let next = min(max(index + (keyCode == 126 ? -1 : 1), 0), sessions.count - 1)
+            selectedHistoryID = sessions[next].id
+        case 36, 76:
+            if let selectedHistoryID, sessions.contains(where: { $0.id == selectedHistoryID }) {
+                openSession(selectedHistoryID)
+            }
+        case 53:
+            toggleHistory()
+        default: return false
+        }
+        return true
     }
 
     private func saveDraft() {
@@ -133,9 +168,20 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         _ = chat.addPendingAttachments(values)
     }
 
+    func prepareForPresentation() {
+        defer { hiddenAt = nil }
+        guard let hiddenAt, now() - hiddenAt > Self.sessionResumeInterval, sessionID != nil else { return }
+        newConversation()
+        newDraft = ""
+        newAttachments = []
+        draft = ""
+        restoreAttachments([])
+    }
+
     func show(previousApplication: NSRunningApplication?) {
         let wasVisible = isVisible && !isClosing
         let wasClosing = isClosing
+        if !wasVisible { prepareForPresentation() }
         motion?.cancel()
         isClosing = false
         panel?.ignoresMouseEvents = false
@@ -169,6 +215,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func hide(restoreFocus: Bool = true, animated: Bool = true) {
+        if hiddenAt == nil { hiddenAt = now() }
         sendingMessageID = nil
         let shouldRestore = restoreFocus && isKeyWindow
         guard let panel else { return }
@@ -224,6 +271,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func newConversation() {
+        hiddenAt = nil
         saveDraft()
         showsHistory = false
         openedFromHistory = false
@@ -267,7 +315,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
 
     private func resize() {
         guard let panel, let screen = panel.screen ?? targetScreen() else { return }
-        panel.compactAccessoryWidth = isExpanded ? 0 : Theme.QuickAI.compactAccessoryWidth
+        panel.composerOnlyBackdrop = !isExpanded
         let frame = QuickAIChatLayout.resizedFrame(motionTarget ?? panel.frame, width: bodyWidth,
             height: bodyHeight,
             visibleFrame: screen.visibleFrame, margin: Theme.Spacing.md)
@@ -323,8 +371,9 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         let panel = QuickAIChatPanel(rootView: view,
             size: CGSize(width: bodyWidth, height: bodyHeight),
             cornerRadius: Theme.Radius.panel)
-        panel.compactAccessoryWidth = isExpanded ? 0 : Theme.QuickAI.compactAccessoryWidth
+        panel.composerOnlyBackdrop = !isExpanded
         panel.delegate = self
+        panel.onHistoryKey = { [weak self] key in self?.handleHistoryKey(key) ?? false }
         panel.onDismiss = { [weak self] in self?.hide() }
         self.panel = panel
         return panel

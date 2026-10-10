@@ -121,7 +121,7 @@ struct AIChatRow: View {
                     HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.md) {
                         if let command = message.commandInput {
                             Image(systemName: command.symbol ?? "command")
-                                .foregroundStyle(Theme.Colors.textSecondary)
+                                .foregroundStyle(Theme.Colors.quickAIUserSecondaryText)
                                 .help(command.name)
                                 .accessibilityLabel(command.name)
                         }
@@ -132,11 +132,12 @@ struct AIChatRow: View {
                             Label(attachment.name,
                                 systemImage: attachment.kind == .image ? "photo" : attachment.kind == .pdf ? "doc.richtext" : "doc.text")
                                 .font(.caption)
-                                .foregroundStyle(Theme.Colors.textSecondary)
+                                .foregroundStyle(Theme.Colors.quickAIUserSecondaryText)
                                 .lineLimit(1)
                         }
                     }
                 }
+                .foregroundStyle(Theme.Colors.quickAIUserText)
                 .font(Theme.Typography.rowTitle)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)

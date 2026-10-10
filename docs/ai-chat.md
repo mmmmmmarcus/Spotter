@@ -344,7 +344,7 @@ AI Chat and AI commands request OpenRouter SSE streaming. A stable assistant mes
 
 The bundled Markdown renderer follows actual WebKit document height at the current width; streaming reveals new vertical space without hiding existing text. Completion, Stop and failure render all received text. Reduce Motion disables the reveal.
 
-History rows show the session's source icon: translation, definition, grammar check, or chat.
+History pills show source icons for AI Commands only; ordinary conversations show just their titles.
 AI commands capture their own symbol when creating a session, including a failed start, and the
 optional `sourceSystemImage` travels with the session in backup/sync. Earlier sessions without this
 field recover the three shipped selection-action icons from their fixed `titleOverride` values;
@@ -497,4 +497,10 @@ clears the transient message identity. Reduce Motion uses a brief fade without d
 
 History capsules use the solid Quick AI backdrop token. Selecting a capsule shares its background geometry with the conversation during a short spring, fading in the transcript. Reduce Motion uses only a fade.
 
-Quick AI user bubbles use an opaque white fill in system Dark Mode (the panel’s inverse aqua appearance), with dark native text. History, New Chat and Close retain their active native glass appearance when the window loses focus; this appearance override does not claim keyboard focus.
+Keyboard-selected history capsules use a contrasting fill and a 2.5-point bright outline, with a 120 ms color transition and no change in size or position. The inverse light surface uses a darker fill and outline; Reduce Motion disables the selection transition.
+
+Quick AI user bubbles use opaque white with dark text in system Light Mode (the panel’s inverse darkAqua appearance), and opaque black with light text in system Dark Mode. Command symbols and attachment labels follow the same bubble contrast with secondary emphasis. History, New Chat and Close retain their active native glass appearance when the window loses focus; this appearance override does not claim keyboard focus.
+
+On a normal summon more than 60 seconds after closing, Quick AI starts a fresh compact conversation. Within 60 seconds it restores the current session and draft. Old conversations and their drafts remain accessible through history; explicit session or AI-command opens bypass this timeout. Elapsed time alone never resets a visible conversation or cancels a reply.
+
+The compact composer has no History button. Up opens all history sessions above it; Up/Down selects a pill and Enter opens it without submitting the draft. Escape closes the picker. The viewport shows at most ten pills and scrolls to the keyboard selection. In expanded chat, History collapses the current conversation into the bottom pill and displays the other conversations above it, sharing the same surface transition as opening a pill. IME composition and modified text-navigation keys retain their native handling.

@@ -49,7 +49,11 @@ struct ThemeTests {
         check("Quick AI maps system light to a dark surface",
               Theme.QuickAI.appearance(for: NSAppearance(named: .aqua)!)?.name == .darkAqua)
         check("quickAIUserBubble", Theme.Colors.quickAIUserBubble,
-              darkWhite: true, darkAlpha: 0.10, lightWhite: true, lightAlpha: 1)
+              darkWhite: true, darkAlpha: 1, lightWhite: false, lightAlpha: 1)
+        check("quickAIUserText", Theme.Colors.quickAIUserText,
+              darkWhite: false, darkAlpha: 1, lightWhite: true, lightAlpha: 1)
+        check("quickAIUserSecondaryText", Theme.Colors.quickAIUserSecondaryText,
+              darkWhite: false, darkAlpha: 0.62, lightWhite: true, lightAlpha: 0.60)
         check("worldClockOcean", Theme.Colors.worldClockOcean,
               darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.45)
         check("worldClockLand", Theme.Colors.worldClockLand,
@@ -98,6 +102,10 @@ struct ThemeTests {
               darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.18)
         check("quickAIControlTint", Theme.Colors.quickAIControlTint,
               darkWhite: true, darkAlpha: 0.16, lightWhite: false, lightAlpha: 0.08)
+        check("quickAIHistorySelectionFill", Theme.Colors.quickAIHistorySelectionFill,
+              darkWhite: true, darkAlpha: 0.22, lightWhite: false, lightAlpha: 0.12)
+        check("quickAIHistorySelectionBorder", Theme.Colors.quickAIHistorySelectionBorder,
+              darkWhite: true, darkAlpha: 0.70, lightWhite: false, lightAlpha: 0.50)
         // Frost brightens glass; a dark tint would shadow it.
         check(
             "glassFrost", Theme.Colors.glassFrost,

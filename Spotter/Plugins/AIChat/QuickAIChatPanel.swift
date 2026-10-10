@@ -5,9 +5,10 @@ final class QuickAIChatPanel: NSPanel {
     let glassView: QuickAIChatGlassView
     private var appearanceObservation: NSKeyValueObservation?
     var onDismiss: (() -> Void)?
-    var compactAccessoryWidth: CGFloat = 0 {
+    var onHistoryKey: ((UInt16) -> Bool)?
+    var composerOnlyBackdrop = false {
         didSet {
-            (contentView as? QuickAIChatContainerView)?.accessoryWidth = compactAccessoryWidth
+            (contentView as? QuickAIChatContainerView)?.composerOnlyBackdrop = composerOnlyBackdrop
         }
     }
 
@@ -51,6 +52,10 @@ final class QuickAIChatPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown,
+           event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+           (firstResponder as? NSTextView)?.hasMarkedText() != true,
+           onHistoryKey?(event.keyCode) == true { return }
         if event.type == .keyDown, event.keyCode == 13,
            event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command {
             onDismiss?()
@@ -68,15 +73,14 @@ final class QuickAIChatPanel: NSPanel {
 
 private final class QuickAIChatContainerView: NSView {
     weak var glass: QuickAIChatGlassView?
-    var accessoryWidth: CGFloat = 0 {
+    var composerOnlyBackdrop = false {
         didSet { needsLayout = true; layoutSubtreeIfNeeded() }
     }
 
     override func layout() {
         super.layout()
-        let inset = min(accessoryWidth, bounds.width)
-        glass?.frame = CGRect(x: 0, y: 0, width: bounds.width - inset,
-            height: inset > 0 ? min(bounds.height, Theme.Size.quickAIComposerHeight) : bounds.height)
+        glass?.frame = CGRect(x: 0, y: 0, width: bounds.width,
+            height: composerOnlyBackdrop ? min(bounds.height, Theme.Size.quickAIComposerHeight) : bounds.height)
         window?.invalidateShadow()
     }
 }

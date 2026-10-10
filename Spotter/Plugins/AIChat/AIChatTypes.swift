@@ -104,6 +104,17 @@ struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
 
     var title: String { titleOverride ?? AIChatEngine.sessionTitle(for: messages) }
 
+    var historyCommandSymbol: String? {
+        if let command = messages.first(where: { $0.commandInput != nil })?.commandInput {
+            return command.symbol ?? "command"
+        }
+        if let sourceSystemImage { return sourceSystemImage }
+        switch titleOverride {
+        case "Translation", "Definition", "Grammar Check": return systemImage
+        default: return nil
+        }
+    }
+
     var systemImage: String {
         if let sourceSystemImage { return sourceSystemImage }
         // Earlier selection actions persisted these exact titles instead of explicit source metadata.

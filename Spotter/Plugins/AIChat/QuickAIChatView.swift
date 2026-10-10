@@ -21,12 +21,9 @@ struct QuickAIChatView: View {
                         Text(notice).font(.caption).foregroundStyle(.secondary)
                             .frame(height: Theme.Size.headerHeight)
                     }
-                    HStack(spacing: Theme.Spacing.md) {
-                        composer
-                            .background { Theme.QuickAI.backdrop(isExpanded: false).allowsHitTesting(false) }
-                            .clipShape(Capsule())
-                        historyButton
-                    }
+                    composer
+                        .background { Theme.QuickAI.backdrop(isExpanded: false).allowsHitTesting(false) }
+                        .clipShape(Capsule())
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
@@ -99,45 +96,43 @@ struct QuickAIChatView: View {
     }
 
     private var historyButton: some View {
-        Group {
-            if controller.isExpanded {
-                toolbarButton(symbol: "clock", help: "Conversation History (⌘⇧S)", action: controller.toggleHistory)
-            } else {
-                Button(action: controller.toggleHistory) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: Theme.Size.quickAIComposerHeight, height: Theme.Size.quickAIComposerHeight)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .focusable(false)
-                .background { Theme.QuickAI.backdrop(isExpanded: false).allowsHitTesting(false) }
-                .clipShape(Circle())
-                .background { QuickAIChatCompactGlass().allowsHitTesting(false) }
-                .accessibilityLabel("Conversation History (⌘⇧S)")
-                .help("Conversation History (⌘⇧S)")
+        toolbarButton(symbol: "clock", help: "Conversation History (⌘⇧S)") {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(duration: 0.34, bounce: 0.08)) {
+                controller.toggleHistory()
             }
         }
         .keyboardShortcut("s", modifiers: [.command, .shift])
-        .accessibilityValue(controller.showsHistory ? "Expanded" : "Collapsed")
     }
 
     private var historyPills: some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.md) {
-                ForEach(controller.historySessions) { session in sessionRow(session) }
-                if controller.historySessions.isEmpty {
-                    Text("No conversations yet")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: Theme.Size.quickAIComposerHeight)
-                        .background(Theme.Colors.quickAIBackdrop)
-                        .clipShape(Capsule())
-                        .background { QuickAIChatCompactGlass() }
+        let current = controller.historySessions.first { $0.id == controller.sessionID }
+        let others = controller.historySessions.filter { $0.id != controller.sessionID }
+        return VStack(spacing: Theme.Spacing.md) {
+            if !others.isEmpty || current == nil {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: Theme.Spacing.md) {
+                            ForEach(others) { session in sessionRow(session) }
+                            if others.isEmpty {
+                                Text("No conversations yet")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: Theme.Size.quickAIComposerHeight)
+                                    .background(Theme.Colors.quickAIBackdrop)
+                                    .clipShape(Capsule())
+                                    .background { QuickAIChatCompactGlass() }
+                            }
+                        }
+                    }
+                    .scrollIndicators(.hidden)
+                    .defaultScrollAnchor(.bottom)
+                    .onChange(of: controller.selectedHistoryID) { _, id in
+                        if let id, id != current?.id { proxy.scrollTo(id) }
+                    }
                 }
             }
+            if let current { sessionRow(current) }
         }
-        .scrollIndicators(.hidden)
     }
 
     private func sessionRow(_ session: AIChatSession) -> some View {
@@ -147,7 +142,9 @@ struct QuickAIChatView: View {
             }
         } label: {
             HStack(spacing: Theme.Spacing.sm) {
-                Image(systemName: session.systemImage).foregroundStyle(.secondary)
+                if let symbol = session.historyCommandSymbol {
+                    Image(systemName: symbol).foregroundStyle(.secondary)
+                }
                 Text(session.title).lineLimit(1)
                 Spacer(minLength: 0)
                 if chat.waitingSessionID == session.id { ProgressView().controlSize(.mini) }
@@ -158,11 +155,26 @@ struct QuickAIChatView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .background { sessionSurface(id: session.id, expanded: false) }
+        .background {
+            ZStack {
+                sessionSurface(id: session.id, expanded: false)
+                Capsule()
+                    .fill(Theme.Colors.quickAIHistorySelectionFill)
+                    .opacity(controller.selectedHistoryID == session.id ? 1 : 0)
+            }
+        }
         .clipShape(Capsule())
         .background { QuickAIChatCompactGlass().allowsHitTesting(false) }
+        .overlay {
+            Capsule()
+                .strokeBorder(Theme.Colors.quickAIHistorySelectionBorder, lineWidth: 2.5)
+                .opacity(controller.selectedHistoryID == session.id ? 1 : 0)
+                .allowsHitTesting(false)
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: controller.selectedHistoryID)
+        .id(session.id)
         .help(session.title)
-        .accessibilityAddTraits(session.id == controller.sessionID ? [.isSelected] : [])
+        .accessibilityAddTraits(session.id == controller.selectedHistoryID ? [.isSelected] : [])
         .contextMenu {
             Button("Copy Conversation", systemImage: "doc.on.clipboard") {
                 Paster.copyPlainText(chat.transcript(in: session.id))

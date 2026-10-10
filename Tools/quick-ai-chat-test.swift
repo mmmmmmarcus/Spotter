@@ -101,12 +101,49 @@ struct QuickAIChatTests {
         layout()
         await nativePanel()
         headerDragging()
+        reopenTimeout()
         await conversations()
         await historyPills()
         await routing()
         await commandConversations()
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
+    }
+
+    private static func reopenTimeout() {
+        var time: TimeInterval = 100
+        let router = OpenRouterStore()
+        let tools = AIToolStore()
+        let chat = AIChatStore(openRouter: router, localAI: LocalAIStore(), tools: tools)
+        let session = AIChatSession(messages: [AIChatMessage(role: .user, text: "Original question")])
+        chat.replace(sessions: [session], currentID: session.id)
+        let quick = QuickAIChatController(chat: chat, tools: tools, router: router, showSettings: {}, now: { time })
+        quick.openSession(session.id)
+        quick.draft = "Unsent follow-up"
+        quick.hide(animated: false)
+        time += 60
+        quick.prepareForPresentation()
+        expect(quick.sessionID == session.id && quick.draft == "Unsent follow-up",
+            "reopening within one minute retains the conversation and draft")
+        quick.hide(animated: false)
+        time += 30
+        quick.hide(animated: false)
+        time += 31
+        quick.prepareForPresentation()
+        expect(quick.sessionID == nil && quick.draft.isEmpty && !quick.isExpanded,
+            "after one minute reopening starts an empty compact chat; repeated hiding does not extend the deadline")
+        expect(chat.messages(in: session.id) == session.messages,
+            "timed reopening preserves the previous conversation in history")
+        quick.openSession(session.id)
+        expect(quick.draft == "Unsent follow-up", "the old session retains its unsent draft after expiry")
+        quick.hide(animated: false)
+        time += 61
+        quick.openSession(session.id)
+        quick.prepareForPresentation()
+        expect(quick.sessionID == session.id, "explicit history or command selection overrides the reopen timeout")
+        time += 120
+        quick.prepareForPresentation()
+        expect(quick.sessionID == session.id, "an open conversation never expires on elapsed time alone")
     }
 
     private static func commandConversations() async {
@@ -227,16 +264,16 @@ struct QuickAIChatTests {
                 "compact and transitional heights use matching half-height circular ends")
         }
         panel.setFrame(CGRect(x: -10000, y: -10000,
-            width: Theme.Size.quickAIWidth + Theme.QuickAI.compactAccessoryWidth,
+            width: Theme.Size.quickAIWidth,
             height: Theme.Size.quickAIComposerHeight), display: false)
-        panel.compactAccessoryWidth = Theme.QuickAI.compactAccessoryWidth
+        panel.composerOnlyBackdrop = true
         panel.contentView?.layoutSubtreeIfNeeded()
         expect(panel.glassView.frame.minX == 0
             && panel.glassView.frame.width == Theme.Size.quickAIWidth,
-            "compact glass ends before the right-hand circular button and transparent gap")
+            "compact glass covers the input without a history accessory")
         expect(host?.frame.width == panel.contentView?.bounds.width,
-            "the content host keeps the external history button outside the composer's clip")
-        panel.compactAccessoryWidth = 0
+            "the content host matches the standalone composer")
+        panel.composerOnlyBackdrop = false
         expect(panel.glassView.frame.minX == 0, "expanded glass reclaims the full panel width")
         expect(panel.collectionBehavior.contains(.managed) && panel.collectionBehavior.contains(.participatesInCycle)
             && !panel.collectionBehavior.contains(.transient), "Quick AI Chat participates in Mission Control and window cycling")
@@ -369,6 +406,16 @@ struct QuickAIChatTests {
         chat.replace(sessions: [first, second], currentID: first.id)
         let quick = QuickAIChatController(chat: chat, tools: tools, router: router, showSettings: {})
         quick.draft = "Unsent new question"
+        expect(quick.bodyWidth == Theme.Size.quickAIWidth, "compact mode has no history accessory")
+        expect(first.historyCommandSymbol == nil, "ordinary history sessions have no icon")
+        expect(quick.handleHistoryKey(126), "Up opens compact history")
+        let bottom = quick.historySessions.last!.id
+        expect(bottom == chat.orderedSessions.first?.id, "the newest session sits nearest the composer")
+        expect(quick.selectedHistoryID == bottom, "history starts at the pill closest to the composer")
+        expect(quick.handleHistoryKey(126) && quick.selectedHistoryID == quick.historySessions.first?.id, "Up moves to the preceding pill")
+        expect(quick.handleHistoryKey(125) && quick.selectedHistoryID == bottom, "Down moves to the following pill")
+        expect(quick.handleHistoryKey(36) && quick.sessionID == bottom && quick.isExpanded, "Return opens selected history instead of sending draft")
+        quick.newConversation()
         quick.toggleHistory()
         expect(quick.showsHistory && !quick.isExpanded && quick.bodyWidth == Theme.Size.quickAIWidth * 2
             && quick.bodyHeight == Theme.Size.quickAIComposerHeight * 3 + Theme.Spacing.md * 2,
@@ -376,8 +423,8 @@ struct QuickAIChatTests {
         expect(chat.sessions.count == 2, "opening history creates no blank session")
         let extra = (0..<12).map { AIChatSession(messages: [AIChatMessage(role: .user, text: "History \($0)")]) }
         chat.replace(sessions: [first, second] + extra, currentID: first.id)
-        expect(quick.historySessions.count == 10 && quick.bodyHeight <= Theme.Size.panelHeight,
-            "history shows ten pills without growing beyond the full conversation height")
+        expect(quick.historySessions.count == 14 && quick.bodyHeight <= Theme.Size.panelHeight,
+            "history exposes all sessions with a ten-pill viewport")
         chat.replace(sessions: [first, second], currentID: first.id)
         quick.openSession(first.id)
         expect(!quick.showsHistory && quick.isExpanded && quick.bodyHeight == Theme.Size.panelHeight,
@@ -390,6 +437,10 @@ struct QuickAIChatTests {
         expect(chat.pendingAttachments.isEmpty, "attachments do not leak into another session")
         expect(quick.draft.isEmpty && quick.hasReceivedReply && chat.currentID == second.id,
             "switching sessions selects the matching transcript and attained size")
+        quick.toggleHistory()
+        expect(quick.historySessions.last?.id == second.id && !quick.isExpanded,
+            "expanded history collapses the current chat into the bottom pill")
+        _ = quick.handleHistoryKey(36)
         quick.draft = "Second draft"
         quick.openSession(first.id)
         expect(quick.draft == "First draft" && chat.pendingAttachments == [attachment],
