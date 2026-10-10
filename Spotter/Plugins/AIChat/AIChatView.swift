@@ -144,7 +144,7 @@ struct AIChatRow: View {
                 .padding(.vertical, Theme.Spacing.md)
                 .background(
                     RoundedRectangle(cornerRadius: Theme.Radius.chatBubble, style: .continuous)
-                        .fill(Theme.Colors.controlSurface)
+                        .fill(Theme.Colors.quickAIUserBubble)
                 )
             }
             .padding(.horizontal, Theme.Spacing.md)

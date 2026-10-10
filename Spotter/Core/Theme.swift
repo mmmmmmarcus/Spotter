@@ -281,6 +281,8 @@ enum Theme {
         /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
         /// and a dark tint over light glass would read as a shadow instead of frost.
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
+        // Quick AI reverses the system appearance, so aqua is the system-dark white surface.
+        static let quickAIUserBubble = adaptive(dark: .white.opacity(0.10), light: .white)
         static let quickAIControlTint = adaptive(dark: .white.opacity(0.16), light: .black.opacity(0.08))
         static let quickAIBackdrop = adaptive(dark: .black, light: .white)
         // Quick AI uses inverse appearance, so the white stops apply when the system is dark.

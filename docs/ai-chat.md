@@ -496,3 +496,5 @@ real row reserves its layout; history reopening does not replay it. Closing or s
 clears the transient message identity. Reduce Motion uses a brief fade without displacement or scale.
 
 History capsules use the solid Quick AI backdrop token. Selecting a capsule shares its background geometry with the conversation during a short spring, fading in the transcript. Reduce Motion uses only a fade.
+
+Quick AI user bubbles use an opaque white fill in system Dark Mode (the panel’s inverse aqua appearance), with dark native text. History, New Chat and Close retain their active native glass appearance when the window loses focus; this appearance override does not claim keyboard focus.

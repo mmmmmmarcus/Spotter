@@ -44,6 +44,12 @@ struct ThemeTests {
                 light.r == (lightWhite ? 1 : 0) && abs(light.a - lightAlpha) < 0.001)
         }
 
+        check("Quick AI maps system dark to a light surface",
+              Theme.QuickAI.appearance(for: NSAppearance(named: .darkAqua)!)?.name == .aqua)
+        check("Quick AI maps system light to a dark surface",
+              Theme.QuickAI.appearance(for: NSAppearance(named: .aqua)!)?.name == .darkAqua)
+        check("quickAIUserBubble", Theme.Colors.quickAIUserBubble,
+              darkWhite: true, darkAlpha: 0.10, lightWhite: true, lightAlpha: 1)
         check("worldClockOcean", Theme.Colors.worldClockOcean,
               darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.45)
         check("worldClockLand", Theme.Colors.worldClockLand,

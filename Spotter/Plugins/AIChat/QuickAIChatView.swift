@@ -204,6 +204,7 @@ struct QuickAIChatView: View {
         .focusable(false)
         .accessibilityLabel(help)
         .glassEffect(.regular.tint(Theme.Colors.quickAIControlTint).interactive(), in: Circle())
+        .environment(\.appearsActive, true)
         .help(help)
     }
 
