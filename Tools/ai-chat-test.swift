@@ -45,6 +45,22 @@ struct AIChatTests {
         check("SSE joins multiline event data", (try? stream("data: {\"choices\":\n" + "data: [{\"delta\":{\"content\":\"hello\"}}]}\n\ndata: [DONE]\n\n")) == "hello")
         check("SSE ignores role-only chunks", (try? stream("data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n" + last)) == "🙂")
         check("SSE rejects oversized frames", (try? stream("data: " + String(repeating: "a", count: 1_048_577))) == nil)
+        func rejectsOversizedEvent(_ input: String) -> Bool {
+            var parser = OpenRouterStream()
+            do {
+                for byte in input.utf8 { _ = try parser.feed(byte) }
+            } catch OpenRouterStream.Failure.oversized {
+                return true
+            } catch {}
+            return false
+        }
+        check("SSE event bound includes multiline separators before dispatch",
+            rejectsOversizedEvent(String(repeating: "data: " + String(repeating: " ", count: 2_048) + "\n", count: 512)))
+        let boundedPayload = "{\"choices\":[]}"
+        let exactSize = "data: " + boundedPayload + "\n" + "data: "
+            + String(repeating: " ", count: 1_048_576 - boundedPayload.utf8.count - 1) + "\n\n"
+        check("SSE accepts multiline payload exactly at the event limit",
+            (try? stream(exactSize + "data: [DONE]\n\n")) == "")
 
         func message(_ role: AIChatMessage.Role, _ text: String) -> AIChatMessage {
             AIChatMessage(role: role, text: text)

@@ -55,7 +55,8 @@ struct OpenRouterStream {
         if value.hasPrefix("data:") {
             var field = String(value.dropFirst(5))
             if field.first == " " { field.removeFirst() }
-            eventSize += field.utf8.count
+            // Joined data lines retain a separator even when the field itself is empty.
+            eventSize += field.utf8.count + (dataLines.isEmpty ? 0 : 1)
             guard eventSize <= 1_048_576 else { throw Failure.oversized }
             dataLines.append(field)
         }

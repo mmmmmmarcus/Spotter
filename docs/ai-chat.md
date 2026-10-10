@@ -340,7 +340,7 @@ Spotter; it opens the encoded prompt in the default
 browser, where the URL may be retained by normal browser history and ChatGPT processes it under the
 browser's signed-in account.
 
-AI Chat and AI commands request OpenRouter SSE streaming. A stable assistant message reveals complete visual lines; a transient draft is committed once on completion, Stop, or failure, preserving partial text. Session changes never redirect an active reply. SSE framing handles UTF-8, comments, multiline data, usage frames and provider errors; EOF without [DONE] is a failure. Transport is cancelled on Stop and late delivery checks the exact request key.
+AI Chat and AI commands request OpenRouter SSE streaming. A stable assistant message reveals complete visual lines; a transient draft is committed once on completion, Stop, or failure, preserving partial text. Session changes never redirect an active reply. SSE framing handles UTF-8, comments, multiline data, usage frames and provider errors; EOF without [DONE] is a failure. The 1 MiB event bound includes the newline separators between data lines, including empty fields. Transport is cancelled on Stop and late delivery checks the exact request key.
 
 The bundled Markdown renderer follows actual WebKit document height at the current width; streaming reveals new vertical space without hiding existing text. Completion, Stop and failure render all received text. Reduce Motion disables the reveal.
 
