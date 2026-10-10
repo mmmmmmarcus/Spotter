@@ -63,6 +63,13 @@ struct MarkdownTests {
         _ = try await web.callAsyncJavaScript("await window.spotterRender(text, style, false, true)", arguments: ["text": "Finished **reply**", "style": Theme.ChatMarkdown.styles(appearance: NSAppearance(named: .darkAqua)!)], in: nil, contentWorld: .page)
         let finished = try await web.evaluateJavaScript("document.querySelector('strong').textContent") as? String
         precondition(finished == "reply")
+        let grammar = "```json\n{\"corrected\":\"I am here.\",\"issues\":[{\"original\":\"I is\",\"suggestion\":\"I am\",\"message\":\"Agreement\"}]}\n```"
+        _ = try await web.callAsyncJavaScript("await window.spotterRender(text, style, false, true, true)", arguments: ["text": grammar, "style": style], in: nil, contentWorld: .page)
+        let grammarRendered = try await web.evaluateJavaScript("!!document.querySelector('.grammar-result') && !document.querySelector('.code-block')") as? Bool
+        precondition(grammarRendered == true)
+        _ = try await web.callAsyncJavaScript("await window.spotterRender(text, style, false, true, false)", arguments: ["text": grammar, "style": style], in: nil, contentWorld: .page)
+        let ordinaryJSON = try await web.evaluateJavaScript("!!document.querySelector('.code-block')") as? Bool
+        precondition(ordinaryJSON == true)
         let longText = String(repeating: "A paragraph that wraps when the conversation is narrow. ", count: 12)
         _ = try await web.callAsyncJavaScript("await window.spotterRender(text, style, false, true)", arguments: ["text": longText, "style": style], in: nil, contentWorld: .page)
         let wideHeight = try await web.evaluateJavaScript("document.getElementById('reply').getBoundingClientRect().height") as! Double

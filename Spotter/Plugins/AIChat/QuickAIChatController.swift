@@ -13,6 +13,8 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     private var drafts: [UUID: String] = [:]
     private var attachments: [UUID: [AIChatMessage.Attachment]] = [:]
     private var openedFromHistory = false
+    @Published private(set) var compactPresentation = false
+    private(set) var detachedSize: CGSize?
     private var newDraft = ""
     private var newAttachments: [AIChatMessage.Attachment] = []
     private let chat: AIChatStore
@@ -21,6 +23,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     private let showSettings: () -> Void
     private let now: () -> TimeInterval
     private var hiddenAt: TimeInterval?
+    private var presentsSelectedSession = false
     private static let sessionResumeInterval: TimeInterval = 60
     private var panel: QuickAIChatPanel?
     private var motion: Task<Void, Never>?
@@ -69,7 +72,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
 
     var isVisible: Bool { panel?.isVisible == true }
     var isKeyWindow: Bool { !isClosing && panel?.isKeyWindow == true }
-    var isExpanded: Bool { sessionID != nil && !showsHistory }
+    var isExpanded: Bool { sessionID != nil && !showsHistory && !compactPresentation }
     func owns(_ id: UUID) -> Bool { sessionID == id }
 
     var historySessions: [AIChatSession] {
@@ -79,7 +82,8 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     var bodyWidth: CGFloat {
-        isExpanded || showsHistory ? Theme.Size.quickAIWidth * 2
+        if isExpanded, let detachedSize { return detachedSize.width }
+        return isExpanded || showsHistory ? Theme.Size.quickAIWidth * 2
             : Theme.Size.quickAIWidth
     }
 
@@ -91,6 +95,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
                 + Theme.Size.quickAIComposerHeight + noticeHeight
         }
         guard isExpanded else { return Theme.Size.quickAIComposerHeight + noticeHeight }
+        if let detachedSize { return detachedSize.height }
         if hasReceivedReply || openedFromHistory { return Theme.Size.panelHeight }
         let chrome = Theme.Size.quickAIHeaderHeight + Theme.Size.quickAIComposerHeight + Theme.Spacing.xl * 2
         return chrome + Theme.Size.quickAIInitialTranscriptHeight + noticeHeight
@@ -105,7 +110,9 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     func openSession(_ id: UUID) {
         sendingMessageID = nil
         guard let session = chat.sessions.first(where: { $0.id == id }) else { return }
+        presentsSelectedSession = !isVisible
         hiddenAt = nil
+        compactPresentation = false
         if sessionID != id {
             saveDraft()
             draft = drafts[id] ?? ""
@@ -169,7 +176,14 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func prepareForPresentation() {
-        defer { hiddenAt = nil }
+        defer { hiddenAt = nil; presentsSelectedSession = false }
+        if presentsSelectedSession { return }
+        compactPresentation = true
+        showsHistory = false
+        selectedHistoryID = nil
+        detachedSize = nil
+        panel?.styleMask.remove(.resizable)
+        panel?.minSize = .zero
         guard let hiddenAt, now() - hiddenAt > Self.sessionResumeInterval, sessionID != nil else { return }
         newConversation()
         newDraft = ""
@@ -183,6 +197,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         let wasClosing = isClosing
         if !wasVisible { prepareForPresentation() }
         motion?.cancel()
+        if !wasVisible { motionTarget = nil }
         isClosing = false
         panel?.ignoresMouseEvents = false
         if !wasVisible {
@@ -190,7 +205,8 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
             previousWindow = NSApp.keyWindow
         }
         let panel = ensurePanel()
-        if !wasVisible, !wasClosing, let screen = targetScreen() {
+        panel.composerOnlyBackdrop = !isExpanded
+        if !wasVisible, let screen = targetScreen() {
             let frame = QuickAIChatLayout.initialFrame(
                 size: CGSize(width: bodyWidth, height: bodyHeight),
                 visibleFrame: screen.visibleFrame, bottomGap: Theme.Spacing.xxl, margin: Theme.Spacing.md)
@@ -215,6 +231,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func hide(restoreFocus: Bool = true, animated: Bool = true) {
+        presentsSelectedSession = false
         if hiddenAt == nil { hiddenAt = now() }
         sendingMessageID = nil
         let shouldRestore = restoreFocus && isKeyWindow
@@ -255,6 +272,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         let isNew = sessionID == nil
         let id = sessionID ?? chat.createSession()
         guard chat.send(draft, sessionID: id) else { return }
+        compactPresentation = false
         showsHistory = false
         sendingMessageID = chat.messages(in: id).last(where: { $0.role == .user })?.id
         sessionID = id
@@ -271,6 +289,7 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
     }
 
     func newConversation() {
+        detachedSize = nil
         hiddenAt = nil
         saveDraft()
         showsHistory = false
@@ -313,9 +332,37 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         DispatchQueue.main.async { [weak self] in self?.focusToken = UUID() }
     }
 
+    func beginUserDrag() {
+        motion?.cancel()
+        motion = nil
+        motionTarget = nil
+    }
+
+    func finishUserDrag(moved: Bool, size: CGSize) {
+        guard moved, isExpanded else { return }
+        detachedSize = size
+        if let panel { updateResizePermission(panel) }
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard isExpanded, detachedSize != nil, let panel else { return }
+        detachedSize = panel.frame.size
+    }
+
+    private func updateResizePermission(_ panel: QuickAIChatPanel) {
+        if isExpanded && detachedSize != nil {
+            panel.minSize = CGSize(width: Theme.Size.quickAIWidth * 2, height: 240)
+            panel.styleMask.insert(.resizable)
+        } else {
+            panel.styleMask.remove(.resizable)
+            panel.minSize = .zero
+        }
+    }
+
     private func resize() {
         guard let panel, let screen = panel.screen ?? targetScreen() else { return }
         panel.composerOnlyBackdrop = !isExpanded
+        updateResizePermission(panel)
         let frame = QuickAIChatLayout.resizedFrame(motionTarget ?? panel.frame, width: bodyWidth,
             height: bodyHeight,
             visibleFrame: screen.visibleFrame, margin: Theme.Spacing.md)
@@ -375,6 +422,11 @@ final class QuickAIChatController: NSObject, ObservableObject, NSWindowDelegate 
         panel.delegate = self
         panel.onHistoryKey = { [weak self] key in self?.handleHistoryKey(key) ?? false }
         panel.onDismiss = { [weak self] in self?.hide() }
+        panel.onDragBegan = { [weak self] in self?.beginUserDrag() }
+        panel.onDragEnded = { [weak self, weak panel] moved in
+            guard let panel else { return }
+            self?.finishUserDrag(moved: moved, size: panel.frame.size)
+        }
         self.panel = panel
         return panel
     }

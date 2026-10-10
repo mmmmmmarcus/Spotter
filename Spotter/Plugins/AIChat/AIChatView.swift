@@ -25,7 +25,8 @@ struct AIChatTranscriptView: View {
                     ForEach(messages) { message in
                         AIChatRow(message: message, isStreaming: message.id == chat.streamingReply?.id,
                             bubbleInset: isFloating ? Theme.Size.chatBubbleInset / 3 : Theme.Size.chatBubbleInset,
-                            showsRouting: !isFloating)
+                            showsRouting: !isFloating,
+                            isGrammar: chat.sessions.first(where: { $0.id == sessionID })?.titleOverride == AIBuiltInCommand.grammar.sessionTitle)
                             .anchorPreference(key: QuickAISendAnchors.self, value: .bounds) { anchor in
                                 QuickAISendAnchors.Value(destination: message.id == sendingMessageID ? anchor : nil)
                             }
@@ -110,6 +111,7 @@ struct AIChatRow: View {
     let isStreaming: Bool
     let bubbleInset: CGFloat
     let showsRouting: Bool
+    var isGrammar = false
 
     var body: some View {
         // Messenger grammar: the user's turns are right-aligned bubbles, the assistant's replies
@@ -161,7 +163,7 @@ struct AIChatRow: View {
                         .textSelection(.enabled)
                         .help("\(selection.label) · \(selection.model)")
                 }
-                AIChatMarkdownText(text: message.text, isStreaming: isStreaming)
+                AIChatMarkdownText(text: message.text, isStreaming: isStreaming, isGrammar: isGrammar)
             }
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.vertical, Theme.Spacing.sm)

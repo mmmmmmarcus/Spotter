@@ -1,11 +1,14 @@
 import AppKit
 import SwiftUI
+import WebKit
 
 final class QuickAIChatPanel: NSPanel {
     let glassView: QuickAIChatGlassView
     private var appearanceObservation: NSKeyValueObservation?
     var onDismiss: (() -> Void)?
     var onHistoryKey: ((UInt16) -> Bool)?
+    var onDragBegan: (() -> Void)?
+    var onDragEnded: ((Bool) -> Void)?
     var composerOnlyBackdrop = false {
         didSet {
             (contentView as? QuickAIChatContainerView)?.composerOnlyBackdrop = composerOnlyBackdrop
@@ -32,7 +35,7 @@ final class QuickAIChatPanel: NSPanel {
         glassView.frame = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         glassView.autoresizingMask = [.width, .height]
         let host = NSHostingView(rootView: rootView)
-        // Only the controller can resize the window during the two expansion stages.
+        // SwiftUI never drives the frame; the controller and detached native resizing own it.
         host.sizingOptions = []
         host.frame = container.bounds
         host.autoresizingMask = [.width, .height]
@@ -52,6 +55,13 @@ final class QuickAIChatPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
+        if event.type == .scrollWheel, abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX),
+           let contentView,
+           let hit = contentView.hitTest(contentView.convert(event.locationInWindow, from: nil)),
+           let scroll = Self.transcriptScrollView(from: hit) {
+            scroll.scrollWheel(with: event)
+            return
+        }
         if event.type == .keyDown,
            event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
            (firstResponder as? NSTextView)?.hasMarkedText() != true,
@@ -68,6 +78,22 @@ final class QuickAIChatPanel: NSPanel {
             return
         }
         super.sendEvent(event)
+    }
+
+    static func transcriptScrollView(from hit: NSView) -> NSScrollView? {
+        var view: NSView? = hit
+        var textSurface: NSView?
+        while let current = view {
+            if current is WKWebView { textSurface = current; break }
+            if let text = current as? NSTextView, !text.isEditable { textSurface = current }
+            view = current.superview
+        }
+        view = textSurface?.superview
+        while let current = view {
+            if let scroll = current as? NSScrollView { return scroll }
+            view = current.superview
+        }
+        return nil
     }
 }
 
@@ -136,7 +162,12 @@ final class QuickAIChatDragView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {
-        dragCursor.begin(in: self)
+        let panel = window as? QuickAIChatPanel
+        panel?.onDragBegan?()
+        let origin = window?.frame.origin
+        dragCursor.begin(in: self) { [weak panel] in
+            panel?.onDragEnded?(panel?.frame.origin != origin)
+        }
         window?.performDrag(with: event)
         NSCursor.closedHand.set()
     }

@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import WebKit
 
 @MainActor
 final class OpenRouterStore: ObservableObject {
@@ -102,6 +103,7 @@ struct QuickAIChatTests {
         await nativePanel()
         headerDragging()
         reopenTimeout()
+        detachedWindow()
         await conversations()
         await historyPills()
         await routing()
@@ -125,6 +127,7 @@ struct QuickAIChatTests {
         quick.prepareForPresentation()
         expect(quick.sessionID == session.id && quick.draft == "Unsent follow-up",
             "reopening within one minute retains the conversation and draft")
+        expect(!quick.isExpanded, "reopening restores a compact non-resizable composer")
         quick.hide(animated: false)
         time += 30
         quick.hide(animated: false)
@@ -144,6 +147,32 @@ struct QuickAIChatTests {
         time += 120
         quick.prepareForPresentation()
         expect(quick.sessionID == session.id, "an open conversation never expires on elapsed time alone")
+    }
+
+    private static func detachedWindow() {
+        let router = OpenRouterStore()
+        let tools = AIToolStore()
+        let chat = AIChatStore(openRouter: router, localAI: LocalAIStore(), tools: tools)
+        let session = AIChatSession(messages: [AIChatMessage(role: .user, text: "Question")])
+        chat.replace(sessions: [session], currentID: session.id)
+        let quick = QuickAIChatController(chat: chat, tools: tools, router: router, showSettings: {})
+        let size = CGSize(width: 680, height: 560)
+        quick.finishUserDrag(moved: true, size: size)
+        expect(quick.detachedSize == nil, "compact dragging cannot enable resizing")
+        quick.openSession(session.id)
+        quick.finishUserDrag(moved: false, size: size)
+        expect(quick.detachedSize == nil, "clicking the header does not detach the chat")
+        quick.finishUserDrag(moved: true, size: size)
+        expect(quick.bodyWidth == size.width && quick.bodyHeight == size.height, "detached chat preserves the user's size")
+        quick.toggleHistory()
+        expect(quick.bodyWidth == Theme.Size.quickAIWidth * 2, "history retains its fixed capsule width")
+        quick.toggleHistory()
+        expect(quick.bodyWidth == size.width, "returning to chat restores detached size during this opening")
+        quick.hide(animated: false)
+        quick.prepareForPresentation()
+        expect(quick.detachedSize == nil && !quick.isExpanded && quick.bodyWidth == Theme.Size.quickAIWidth,
+            "reopening discards detached size and starts compact without losing the session")
+        expect(quick.sessionID == session.id, "compact reopening retains recent session context")
     }
 
     private static func commandConversations() async {
@@ -221,6 +250,23 @@ struct QuickAIChatTests {
         defer { NSApp.appearance = savedAppearance }
         NSApp.appearance = NSAppearance(named: .aqua)
         let panel = QuickAIChatPanel(rootView: Text("Fixture"), size: CGSize(width: Theme.Size.quickAIWidth, height: Theme.Size.quickAIComposerHeight), cornerRadius: 26)
+        expect(!panel.styleMask.contains(.resizable), "a compact panel does not expose resize edges")
+        let transcript = NSScrollView(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+        let document = NSView(frame: CGRect(x: 0, y: 0, width: 400, height: 900))
+        transcript.documentView = document
+        let web = WKWebView(frame: document.bounds)
+        document.addSubview(web)
+        let webChild = NSView(frame: .zero)
+        web.addSubview(webChild)
+        expect(QuickAIChatPanel.transcriptScrollView(from: webChild) === transcript,
+            "wheel events over WebKit descendants reach the outer transcript scroll view")
+        let field = NSTextView(frame: .zero)
+        document.addSubview(field)
+        expect(QuickAIChatPanel.transcriptScrollView(from: field) == nil,
+            "editable text retains native scrolling")
+        field.isEditable = false
+        expect(QuickAIChatPanel.transcriptScrollView(from: field) === transcript,
+            "selectable message text forwards wheel events to the transcript")
         panel.setFrameOrigin(CGPoint(x: -10000, y: -10000))
         expect(panel.canBecomeKey && !panel.canBecomeMain && panel.styleMask.contains(.nonactivatingPanel),
             "the floating composer accepts typing without becoming a main application window")

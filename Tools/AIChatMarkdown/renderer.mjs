@@ -7,15 +7,16 @@ let previousStyle = '';
 const post = message => window.webkit?.messageHandlers?.markdown?.postMessage(message);
 const measure = () => post({ kind: 'height', value: Math.ceil(root.getBoundingClientRect().height) });
 new ResizeObserver(measure).observe(root);
-window.spotterRender = async (text, style, streaming, reducedMotion) => {
-  if (previousText === text && previousStyle === style && root.dataset.streaming === String(streaming)) return;
+window.spotterRender = async (text, style, streaming, reducedMotion, grammar = false) => {
+  if (previousText === text && previousStyle === style && root.dataset.streaming === String(streaming) && root.dataset.grammar === String(grammar)) return;
   const current = ++revision;
   const changedStyle = previousStyle !== style;
   previousText = text; previousStyle = style;
   document.getElementById('theme').textContent = style;
   root.dataset.streaming = String(streaming);
+  root.dataset.grammar = String(grammar);
   const oldHeight = root.getBoundingClientRect().height;
-  const html = renderMarkdown(text);
+  const html = renderMarkdown(text, grammar);
   if (root.dataset.html !== html) { root.innerHTML = html; root.dataset.html = html; }
   if (streaming && !reducedMotion && root.getBoundingClientRect().height > oldHeight + 5) {
     const added = root.getBoundingClientRect().height - oldHeight;

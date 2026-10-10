@@ -84,7 +84,7 @@ struct QuickAIChatView: View {
                         .glassEffect(.regular, in: Capsule())
                         .padding(Theme.Spacing.xl)
                 }
-                .frame(width: Theme.Size.quickAIWidth * 2)
+                .frame(maxWidth: .infinity)
                 .frame(maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

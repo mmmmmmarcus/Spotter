@@ -5,6 +5,7 @@ import WebKit
 struct AIChatMarkdownText: View {
     let text: String
     var isStreaming = false
+    var isGrammar = false
     @State private var height: CGFloat = 24
     @State private var failed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -14,7 +15,7 @@ struct AIChatMarkdownText: View {
             if failed {
                 Text(text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                AIChatMarkdownWebView(text: text, isStreaming: isStreaming, reduceMotion: reduceMotion,
+                AIChatMarkdownWebView(text: text, isStreaming: isStreaming, isGrammar: isGrammar, reduceMotion: reduceMotion,
                     height: $height, failed: $failed)
                     .frame(height: height)
                     .frame(maxWidth: .infinity)
@@ -26,6 +27,7 @@ struct AIChatMarkdownText: View {
 struct AIChatMarkdownWebView: NSViewRepresentable {
     let text: String
     let isStreaming: Bool
+    let isGrammar: Bool
     let reduceMotion: Bool
     @Binding var height: CGFloat
     @Binding var failed: Bool
@@ -73,7 +75,7 @@ struct AIChatMarkdownWebView: NSViewRepresentable {
         func render() {
             guard ready, let webView, renderTask == nil else { return }
             let style = Theme.ChatMarkdown.styles(appearance: webView.effectiveAppearance)
-            let signature = parent.text + style + "\(parent.isStreaming)-\(parent.reduceMotion)"
+            let signature = parent.text + style + "\(parent.isStreaming)-\(parent.reduceMotion)-\(parent.isGrammar)"
             guard signature != lastInput else { return }
             renderTask = Task { @MainActor [weak self, weak webView] in
                 guard let self else { return }
@@ -83,11 +85,12 @@ struct AIChatMarkdownWebView: NSViewRepresentable {
                 guard let webView, !Task.isCancelled else { return }
                 let style = Theme.ChatMarkdown.styles(appearance: webView.effectiveAppearance)
                 let text = parent.text, streaming = parent.isStreaming, reducedMotion = parent.reduceMotion
-                lastInput = text + style + "\(streaming)-\(reducedMotion)"
+                let grammar = parent.isGrammar
+                lastInput = text + style + "\(streaming)-\(reducedMotion)-\(grammar)"
                 do {
                     _ = try await webView.callAsyncJavaScript(
-                        "await window.spotterRender(text, style, streaming, reducedMotion)",
-                        arguments: ["text": text, "style": style, "streaming": streaming, "reducedMotion": reducedMotion],
+                        "await window.spotterRender(text, style, streaming, reducedMotion, grammar)",
+                        arguments: ["text": text, "style": style, "streaming": streaming, "reducedMotion": reducedMotion, "grammar": grammar],
                         in: nil, contentWorld: .page)
                 } catch {
                     guard !Task.isCancelled else { return }

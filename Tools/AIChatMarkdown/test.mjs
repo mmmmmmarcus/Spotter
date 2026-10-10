@@ -1,5 +1,17 @@
 import assert from 'node:assert/strict';
 import { renderMarkdown } from './parser.mjs';
+const grammar = JSON.stringify({ corrected: 'I am here.', issues: [{ original: 'I is', suggestion: 'I am', message: 'Subject agreement.' }] });
+assert.match(renderMarkdown(grammar, true), /grammar-result[\s\S]*I am here\.[\s\S]*I is → I am/);
+assert.doesNotMatch(renderMarkdown(grammar), /grammar-result/);
+assert.match(renderMarkdown('```json\n' + grammar + '\n```', true), /grammar-result/);
+assert.doesNotMatch(renderMarkdown('```json\n' + grammar + '\n```', true), /code-block/);
+assert.match(renderMarkdown('Correct text.\n\n```json\n{"issues":["Fixed spelling."]}\n```', true), /Correct text[\s\S]*<li>Fixed spelling/);
+assert.match(renderMarkdown('```json\n[]\n```', true), /No issues found/);
+assert.match(renderMarkdown('{"corrected":"<script>bad()</script>","issues":[]}', true), /&lt;script&gt;/);
+assert.doesNotMatch(renderMarkdown('{"corrected":"<script>bad()</script>","issues":[]}', true), /<script>/);
+assert.match(renderMarkdown('```json\n{"issues":[],"unknown":"preserve"}\n```', true), /code-block/);
+assert.match(renderMarkdown('```json\n{"issues":[{"original":"a","correction":"b","reason":"Typo"}]}\n```', true), /a → b[\s\S]*Typo/);
+assert.match(renderMarkdown('```json\n{"corrected":', true), /code-block/);
 const has = (markdown, pattern) => assert.match(renderMarkdown(markdown), pattern);
 has('[OpenAI](https://openai.com)', /href="https:\/\/openai.com"/);
 has('https://openai.com', /href="https:\/\/openai.com"/);
