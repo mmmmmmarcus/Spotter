@@ -107,12 +107,14 @@ final class LauncherRankingStore: ObservableObject {
     }
 
     private static func validated(_ newRecords: [LauncherRankingRecord]) -> [LauncherRankingRecord] {
-        Array(
+        var seen: [String: Set<String>] = [:]
+        return Array(
             newRecords
                 .filter { !$0.itemKey.isEmpty && !$0.query.isEmpty && $0.count > 0 }
                 .sorted {
                     $0.count != $1.count ? $0.count > $1.count : $0.lastUsed > $1.lastUsed
                 }
+                .filter { seen[$0.query, default: []].insert($0.itemKey).inserted }
                 .prefix(Self.cap))
     }
 

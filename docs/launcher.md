@@ -172,7 +172,7 @@ Plugin command activation routes through the registration's in-process closure; 
 
 The ranking harness covers prefix learning, frequency/recency scoring, persistence, and both reset
 paths; see the command in `development.md`. Loading and sync both retain at most 1,000 valid
-records, prioritizing frequency and then recency. Visit counters saturate at the integer limit while
+records, prioritizing frequency and then recency. Duplicate item/query keys retain their strongest record before the cap is applied. Visit counters saturate at the integer limit while
 still refreshing recency, so an extreme saved count cannot crash the next launch action.
 The bounded learned ranking records enter trusted v3 backups and automatic sync; a reset therefore
 propagates instead of being repopulated by stale records on another Mac.

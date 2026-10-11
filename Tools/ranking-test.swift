@@ -109,6 +109,28 @@ struct RankingTest {
         reloaded.replace(records: [synced])
         check("sync replaces learned ranking", reloaded.records == [synced])
 
+        let expectedSyncedBoost = boost(reloaded, wick, "wi")
+        let weakerDuplicate = LauncherRankingRecord(itemKey: wick, query: "wi", count: 1, lastUsed: clock)
+        reloaded.replace(records: [weakerDuplicate, synced])
+        check("restoring duplicate ranking keys retains the strongest record", reloaded.records == [synced])
+        let deduplicatedReload = LauncherRankingStore(fileURL: fileURL) { clock }
+        check("repaired duplicate records persist consistently", deduplicatedReload.records == [synced])
+        do {
+            try JSONEncoder().encode([weakerDuplicate, synced]).write(to: fileURL, options: .atomic)
+        } catch {
+            fatalError("Could not write duplicate ranking fixture: \(error)")
+        }
+        let duplicateReload = LauncherRankingStore(fileURL: fileURL) { clock }
+        check("loading duplicate ranking keys uses the same repair", duplicateReload.records == [synced])
+        check("duplicate loading keeps the stronger query boost",
+            boost(duplicateReload, wick, "wi") == expectedSyncedBoost)
+        reloaded.replace(records: Array(repeating: synced, count: 1_005) + [weakerDuplicate,
+            LauncherRankingRecord(itemKey: whatsApp, query: "wi", count: 1, lastUsed: clock),
+            LauncherRankingRecord(itemKey: wick, query: "w", count: 1, lastUsed: clock)])
+        check("duplicates cannot consume the cap or discard distinct item/query keys",
+            reloaded.records.count == 3 && reloaded.hasRanking(for: whatsApp)
+                && boost(reloaded, wick, "w") > 0)
+
         let oversized = (0..<1_005).map {
             LauncherRankingRecord(itemKey: "app.\($0)", query: "app", count: $0 + 1, lastUsed: clock)
         }
