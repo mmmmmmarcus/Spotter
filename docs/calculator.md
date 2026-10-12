@@ -30,7 +30,8 @@ the one input it can't compute, the FX rate table, is passed in (see Currency be
 
 Date/time depends on the clock, so it takes an injected `now` / `calendar` — the public `evaluate(_:)`
 uses the live clock, and `evaluate(_:now:calendar:)` lets `calc-test.swift` assert exact strings
-against a fixed clock.
+against a fixed clock. Yearless month/day queries choose the next or previous valid occurrence;
+February 29 skips non-leap years, while impossible dates remain rejected.
 
 `CalcQuantity` is a separate typed precedence parser rather than a mode added to the scalar
 `CalcParser`. Scalar `*` / `/` preserve the unit, compatible quantity division returns a scalar, and a

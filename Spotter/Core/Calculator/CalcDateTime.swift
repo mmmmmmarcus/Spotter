@@ -319,18 +319,16 @@ enum CalcDateTime {
         month: Int, day: Int, now: Date, calendar: Calendar, bias: MomentBias = .future
     ) -> Moment? {
         let year = calendar.component(.year, from: now)
-        guard let thisYear = makeDate(year, month, day, calendar) else { return nil }
         let sod = calendar.startOfDay(for: now)
-        switch bias {
-        case .future:
-            if thisYear >= sod { return Moment(date: thisYear, hasTime: false) }
-            guard let nextYear = makeDate(year + 1, month, day, calendar) else { return nil }
-            return Moment(date: nextYear, hasTime: false)
-        case .past:
-            if thisYear <= sod { return Moment(date: thisYear, hasTime: false) }
-            guard let lastYear = makeDate(year - 1, month, day, calendar) else { return nil }
-            return Moment(date: lastYear, hasTime: false)
+        // Gregorian leap days can be eight years apart across a non-leap century.
+        for offset in 0...8 {
+            let candidateYear = year + (bias == .future ? offset : -offset)
+            guard let date = makeDate(candidateYear, month, day, calendar) else { continue }
+            if bias == .future ? date >= sod : date <= sod {
+                return Moment(date: date, hasTime: false)
+            }
         }
+        return nil
     }
 
     private static func nextWeekday(

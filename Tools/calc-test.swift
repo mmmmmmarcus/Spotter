@@ -367,6 +367,17 @@ struct CalcTests {
         expectBadgesAt(
             "days till 9april", source: "Friday, 24 July", target: "Friday, 9 April, 2027")
         expectDisplayAt("days till july", "342 days")
+        expectDisplayAt("days till 29feb", "585 days")
+        expectDisplayAt("days since 29feb", "876 days")
+        let centuryFuture = clock.calendar.date(from: DateComponents(year: 2096, month: 3, day: 1))!
+        let centuryPast = clock.calendar.date(from: DateComponents(year: 2104, month: 2, day: 28))!
+        let leapDay = clock.calendar.date(from: DateComponents(year: 2028, month: 2, day: 29))!
+        expectDisplayAt("days till 29feb", "2,920 days", now: centuryFuture)
+        expectDisplayAt("days since 29feb", "2,920 days", now: centuryPast)
+        expectDisplayAt("days till 29feb", "0 days", now: leapDay)
+        expectDisplayAt("days since 29feb", "0 days", now: leapDay)
+        expectNilAt("days till 30feb")
+        expectNilAt("days since 31apr")
         expectBadgesAt(
             "days till july", source: "Friday, 24 July", target: "Thursday, 1 July, 2027")
         expectDisplayAt("days until tomorrow", "1 day")
@@ -625,10 +636,10 @@ struct CalcTests {
 
     // MARK: - Helpers
 
-    static func expectDisplayAt(_ query: String, _ expected: String) {
+    static func expectDisplayAt(_ query: String, _ expected: String, now: Date? = nil) {
         guard
             case .value(let display, _)? = CalcEngine.evaluate(
-                query, now: clock.now, calendar: clock.calendar)?.payload
+                query, now: now ?? clock.now, calendar: clock.calendar)?.payload
         else {
             fail(query, expected: expected, got: "nil / error")
             return
