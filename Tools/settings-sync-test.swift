@@ -107,7 +107,6 @@ struct SettingsSyncTests {
     /// `testFixtureCoversEveryField` fails the moment a new field is added without one.
     private static func populatedSettings() -> SettingsBackupData {
         SettingsBackupData(
-            quickClipboardVisibleCount: 12,
             clipboardRetentionDays: 30,
             clipboardDisabledApps: ["com.apple.Passwords"],
             launchAtLogin: true,
@@ -226,7 +225,7 @@ struct SettingsSyncTests {
     /// A v3 file written before a field existed must decode, and that field must read as "unset" —
     /// which is what makes the apply path leave this Mac's own value alone rather than resetting it.
     private static func testOlderFileLeavesNewFieldsUnset() {
-        let newFields = ["quickClipboardVisibleCount", "currencyRatesEnabled", "settingsSyncMigrations", "aiRouting"]
+        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations", "aiRouting"]
         var object = jsonObject(encode(populatedSettings()))
         for field in newFields {
             precondition(object[field] != nil, "\(field) is missing from the fixture")

@@ -251,7 +251,7 @@ final class AppCore: ObservableObject {
 
 
     private lazy var windowController = PaletteWindowController(core: self)
-    private lazy var quickClipboard = QuickClipboardController(store: clipboardStore, hotKeys: hotKeys) { [weak self] in self?.settings.quickClipboardVisibleCount ?? 5 }
+    private lazy var quickClipboard = QuickClipboardController(store: clipboardStore, hotKeys: hotKeys)
     lazy var quickAIChat = QuickAIChatController(chat: aiChat, tools: aiTools, router: openRouter) { [weak self] in
         self?.showSettings(plugin: .aiChat)
     }
@@ -663,7 +663,7 @@ final class AppCore: ObservableObject {
     }
 
     func performUpdatePrimaryAction() {
-        guard !updates.status.isBusy else { return }
+        guard updates.presentation.primaryTitle(at: palette.selection) != nil else { return }
         switch updates.presentation.action(at: palette.selection) {
         case .upgrade:
             guard let release = updates.availableRelease else { return }

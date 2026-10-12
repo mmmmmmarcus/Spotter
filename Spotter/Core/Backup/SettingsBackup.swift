@@ -106,7 +106,6 @@ extension SettingsBackup {
         let dashboard = core.dashboardWidgets.preferences
         var backup = SettingsBackup()
         backup.settings = SettingsBackupData(
-            quickClipboardVisibleCount: s.quickClipboardVisibleCount,
             clipboardRetentionDays: s.clipboardRetention.rawValue,
             clipboardDisabledApps: s.clipboardDisabledApps,
             launchAtLogin: s.launchAtLogin,
@@ -413,10 +412,6 @@ extension SettingsBackup {
     private func applySettings(_ s: SettingsBackupData, to core: AppCore, mode: ApplyMode) -> Int {
         let settings = core.settings
         var count = 0
-        if let countValue = s.quickClipboardVisibleCount {
-            settings.quickClipboardVisibleCount = min(12, max(5, countValue))
-            count += 1
-        }
         if let days = s.clipboardRetentionDays, let retention = ClipboardRetention(rawValue: days) {
             settings.clipboardRetention = retention
             core.clipboardStore.maxAge = retention.maxAge

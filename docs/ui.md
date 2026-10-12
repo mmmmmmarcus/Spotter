@@ -682,20 +682,16 @@ claimed through the shared transient shortcut mechanism only while the selection
 
 ## Quick Clipboard History
 
-An explicit exception to the shared palette surface: a continuously scrolling vertical history menu,
-276 points wide, with 32-point text rows, 64-point image rows and 6-point outer insets. An 8-point
-gap separates the fixed footer: All / Text / Images / Files icons centered with 12-point gaps, and an
-**Open Clipboard History** icon at the right. Each summon defaults to All. Text includes links, emails
-and numbers; Images includes screenshots. The list viewport fits up to five rows while older records
-load on demand. Images uses a three-column grid with up to three visible rows of 84-point square
-tiles, 6-point gaps and 4-point inner padding. Previews fill the square with centered cropping.
-Up/down arrows reveal successive entries in row-major order, Return activates, and Escape dismisses.
-Tab alone cycles categories forward; left/right remain with the focused app. Changing category resets selection and scroll.
-Category icons indicate selection through symbol color only, without a selected or pressed background.
-Empty results retain the footer and explain the selected type. Text-only mode omits leading symbols;
-All and Files keep type symbols; images use leading aspect-fit thumbnails up to 48 points high, with 8-point vertical
-padding and 4-point corners. Selected rows have a subtle rounded highlight. Selected labels/icons
-remain fully opaque; unselected text is 35%, icons and previews 50%, using semantic system colors.
+An explicit exception to the shared palette surface: a continuously scrolling three-column grid,
+276 points wide, with up to four rows of 86-point square tiles, 3-point gaps and 6-point outer insets.
+Text wraps inside each tile, files show a symbol above their name, and images fill the square with
+centered cropping and 4-point inner padding. A subtle semantic fill defines each tile.
+An 8-point gap separates the fixed footer: All / Text / Images / Files icons centered with 12-point
+gaps, and an **Open Clipboard History** icon at the right. Each summon defaults to All.
+All four arrows navigate the grid; Return activates and Escape dismisses. Tab cycles categories.
+Short histories shrink the panel; longer histories scroll and load on demand. Category icons indicate
+selection through symbol color only. Empty results retain the footer and explain the selected type.
+Selected labels/icons are fully opaque; unselected text is 35%, icons and previews 50%.
 
 One `NSGlassEffectView.style = .clear` with 16-point corners contains the entire list. Its content
 view holds borderless row buttons; there are no individual glass pills or separate bezels, tint,
@@ -807,7 +803,7 @@ World Clock uses the shared palette row's optional stacked detail presentation: 
 day/night above time. Shared selection, activation and scrolling remain unchanged. Time changes
 use SwiftUI numericText and a 250 ms snappy animation, disabled by Reduce Motion.
 
-Quick Clipboard History has a 5–12 item initial viewport preference. Panel and scroll viewport use the same geometry, including on history updates and pagination; a short screen reduces the viewport instead of placing content offscreen.
+Quick Clipboard History has a fixed four-row initial grid viewport. Panel and scroll viewport use the same geometry, including on history updates and pagination; a short screen reduces the viewport instead of placing content offscreen.
 
 Quick AI Chat owns the sole chat UI. The compact composer has a right-hand clock button opening
 up to ten vertically stacked session capsules above it. The capsules and selected conversation use

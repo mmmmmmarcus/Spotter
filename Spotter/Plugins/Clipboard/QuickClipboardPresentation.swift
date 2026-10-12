@@ -2,17 +2,15 @@ import Foundation
 import CoreGraphics
 
 enum QuickClipboardPresentation {
-    static let visibleRows = 5
+    static let visibleRows = 4
     static let gridColumns = 3
-    static let gridGap: CGFloat = 6
+    static let gridGap: CGFloat = 3
     static let filterGap: CGFloat = 12
-    static let navigationKeys: [UInt16] = [48, 53, 125, 126, 36, 76]
-    static let imageNavigationKeys: [UInt16] = [123, 124]
+    static let navigationKeys: [UInt16] = [48, 53, 123, 124, 125, 126, 36, 76]
     static var gridSide: CGFloat { (width - inset * 2 - gridGap * CGFloat(gridColumns - 1)) / CGFloat(gridColumns) }
     static let pageSize = 50
     static let width: CGFloat = 276
     static let rowHeight: CGFloat = 32
-    static let imageRowHeight: CGFloat = 64
     static let emptyHeight: CGFloat = 44
     static let filterSize: CGFloat = 24
     static let historySize: CGFloat = 28
@@ -43,34 +41,18 @@ enum QuickClipboardPresentation {
         return item.textForm?.systemImage ?? (item.isScreenshot ? "camera.viewfinder" : "photo")
     }
 
-    static func height(for item: ClipboardItem) -> CGFloat {
-        item.kind == .image ? imageRowHeight : rowHeight
-    }
-
-    static func size(items: [ClipboardItem], filter: QuickClipboardFilter = .all, visibleCount: Int = visibleRows, maximumHeight: CGFloat = .greatestFiniteMagnitude) -> CGSize {
-        let contentHeight: CGFloat
-        if items.isEmpty { contentHeight = emptyHeight }
-        else if filter == .image {
-            let rows = (min(items.count, min(12, max(5, visibleCount))) + gridColumns - 1) / gridColumns
-            contentHeight = CGFloat(rows) * gridSide + CGFloat(rows - 1) * gridGap
-        } else { contentHeight = items.prefix(min(12, max(5, visibleCount))).reduce(0) { $0 + height(for: $1) } }
+    static func size(items: [ClipboardItem], filter: QuickClipboardFilter = .all, maximumHeight: CGFloat = .greatestFiniteMagnitude) -> CGSize {
+        let rows = min(visibleRows, (items.count + gridColumns - 1) / gridColumns)
+        let contentHeight = items.isEmpty ? emptyHeight : CGFloat(rows) * gridSide + CGFloat(rows - 1) * gridGap
         return CGSize(width: width, height: min(maximumHeight, inset * 2 + contentHeight + footerGap + rowHeight))
     }
 
     static func rowFrames(items: [ClipboardItem], filter: QuickClipboardFilter = .all) -> [CGRect] {
-        if filter == .image {
-            let rows = (items.count + gridColumns - 1) / gridColumns
-            return items.indices.map { index in
-                CGRect(x: CGFloat(index % gridColumns) * (gridSide + gridGap),
-                    y: CGFloat(rows - 1 - index / gridColumns) * (gridSide + gridGap),
-                    width: gridSide, height: gridSide)
-            }
-        }
-        var top = items.reduce(CGFloat.zero) { $0 + height(for: $1) }
-        return items.map { item in
-            let height = height(for: item)
-            top -= height
-            return CGRect(x: 0, y: top, width: width - inset * 2, height: height)
+        let rows = (items.count + gridColumns - 1) / gridColumns
+        return items.indices.map { index in
+            CGRect(x: CGFloat(index % gridColumns) * (gridSide + gridGap),
+                y: CGFloat(rows - 1 - index / gridColumns) * (gridSide + gridGap),
+                width: gridSide, height: gridSide)
         }
     }
 
@@ -95,9 +77,9 @@ enum QuickClipboardPresentation {
         }
     }
 
-    static func listFrame(items: [ClipboardItem], filter: QuickClipboardFilter = .all, visibleCount: Int = visibleRows, maximumHeight: CGFloat = .greatestFiniteMagnitude) -> CGRect {
+    static func listFrame(items: [ClipboardItem], filter: QuickClipboardFilter = .all, maximumHeight: CGFloat = .greatestFiniteMagnitude) -> CGRect {
         CGRect(x: inset, y: footerFrame.maxY + footerGap, width: width - inset * 2,
-            height: size(items: items, filter: filter, visibleCount: visibleCount, maximumHeight: maximumHeight).height - inset * 2 - footerGap - rowHeight)
+            height: size(items: items, filter: filter, maximumHeight: maximumHeight).height - inset * 2 - footerGap - rowHeight)
     }
 
     static var footerFrame: CGRect { CGRect(x: inset, y: inset, width: width - inset * 2, height: rowHeight) }
@@ -114,9 +96,9 @@ enum QuickClipboardPresentation {
         }
     }
 
-    static func frame(anchor: CGRect, screen: CGRect, items: [ClipboardItem], filter: QuickClipboardFilter = .all, visibleCount: Int = visibleRows) -> CGRect {
+    static func frame(anchor: CGRect, screen: CGRect, items: [ClipboardItem], filter: QuickClipboardFilter = .all) -> CGRect {
         let safe = screen.insetBy(dx: safety, dy: safety)
-        let size = size(items: items, filter: filter, visibleCount: visibleCount, maximumHeight: safe.height)
+        let size = size(items: items, filter: filter, maximumHeight: safe.height)
         let preferredX = anchor.height > 0 ? anchor.minX : anchor.maxX + 12
         let x = preferredX + size.width <= safe.maxX ? preferredX : anchor.maxX - (anchor.height > 0 ? 0 : 12) - size.width
         let below = anchor.minY - 12 - size.height

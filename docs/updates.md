@@ -55,15 +55,10 @@ When an update has a zip asset, installation follows this sequence:
 
 ## Progress reporting and palette rows
 
-Software Update uses the shared palette row appearance, with no centered status screen. A known
-new version adds an Upgrade row first; Check for Updates is always present, followed by a
-non-selectable Current Version row. Up/down, Return and clicks act on the selected command. A check
-that discovers a new version preserves the selected Check row rather than turning the next Return
-into an installation. Busy operations cannot start a second check/install. Errors appear beneath
-Check for Updates, and a known release remains available for retry after failure.
+Software Update uses one persistent command row. It shows Checking during a request, Download and Install Update when an update is available, and You’re on the latest version when current. The available state shows the installed and target versions on the second line; Return immediately acts on that same selected row. Busy and up-to-date states cannot trigger an installation. Failures retain a retry action. Current Version remains a non-selectable row below it.
 
-A Release Notes area below Current Version renders the selected channel's latest GitHub Release
-body as Markdown, labelled with its version. It is also available in Settings after a check, including
+Release notes below Current Version render the selected channel's latest GitHub Release
+body directly as Markdown, without an extra version heading. It is also available in Settings after a check, including
 when already up to date. Missing or blank legacy notes show an explicit empty message and a release
 page link. Notes are read from the existing feed response, without a separate request, and survive
 ZIP asset recovery. Failed checks retain the last successful notes. This content adds no selectable
@@ -113,3 +108,5 @@ swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Spotter/Core/UpdatePresent
 
 For a published release, also confirm the GitHub API returns the expected channel flag and both
 assets. Signature, notarization and Gatekeeper checks are listed in [signing.md](signing.md).
+
+Release note content is displayed directly, without an additional Release Notes heading.

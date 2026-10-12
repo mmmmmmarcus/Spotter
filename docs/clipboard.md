@@ -165,8 +165,7 @@ mouse menus prefer below/right, keeping the first row nearest the anchor when th
 Both flip above/left as necessary and leave 12 points at the anchor
 and at least 8 points inside the screen's visible frame.
 
-The 276-point menu keeps a viewport of a configurable 5–12 list entries, or complete three-column tile rows in
-the Images category, with continuous native scrolling through retained history. `ClipboardStore.historyPage` reads 50 matching records at a time using a rowid
+The 276-point menu uses three columns of square tiles in every category, with up to four visible rows, with continuous native scrolling through retained history. `ClipboardStore.historyPage` reads 50 matching records at a time using a rowid
 cursor (with the kind index for filtered categories), reaching beyond the resident 1000-row window. Captures cannot shift a
 cursor page as an offset would. The menu creates buttons and loads thumbnails only for visible rows;
 the controller validates older entries against SQLite again before pasting. Store changes refresh
@@ -174,8 +173,8 @@ the loaded range while preserving the selected identity, dismissing if it disapp
 
 All rows share one native `NSGlassEffectView` using `.clear` with 16-point corners. A transparent
 `NSScrollView` sits above a fixed footer inside that surface. The menu retains 6-point insets,
-32-point text/file rows, 64-point mixed-list image rows and an 8-point footer gap. Four centered icons
-with 12-point gaps select **All, Text, Images, Files**, with All selected each summon. The Text category omits leading symbols and includes links, emails and numbers;
+86-point square tiles, 3-point grid gaps and an 8-point footer gap. Four centered icons
+with 12-point gaps select **All, Text, Images, Files**, with All selected each summon. Text tiles omit leading symbols and includes links, emails and numbers;
 Images includes screenshots. Category selection changes only the symbol emphasis, with no rounded
 background or outline, including while pressed. These broad quick-menu categories do not change the full palette's
 more detailed filters. The right-aligned **Open Clipboard History** icon opens the shared palette,
@@ -189,17 +188,16 @@ appearance, contrast and Reduce Transparency. Symbols use 14-point medium `label
 text has full opacity; unselected text has 35% opacity and symbols 50%. Text and symbols resolve
 semantic label colors in the effective drawing appearance. Symbols retain pixel-aligned origins;
 the opening animation invalidates glyph rendering once it reaches full size. Text previews collapse
-whitespace and truncate; pastes retain the full payload. Image entries show leading aspect-fit
-thumbnails without filenames, up to 48 points high, with 8-point vertical padding and 4-point image
-corners. Loading is asynchronous and reuses the bounded 512-pixel cache in `ImageThumbnail`, with a
-photo symbol for cold or unreadable previews. In the Images category, 84-point square tiles have
-6-point grid gaps and 4-point inner padding; thumbnails fill their square with centered cropping.
+whitespace and wrap inside their square; pastes retain the full payload. File tiles show a symbol above
+their wrapping name. Image tiles use 4-point inner padding and centered square cropping, without filenames.
+Loading is asynchronous and reuses the bounded 512-pixel cache in `ImageThumbnail`, with a photo symbol
+for cold or unreadable previews. All tiles have a subtle semantic fill to define their square area.
 The original clipboard image remains unchanged. Only visible tiles load thumbnails, and keyboard
 selection reveals each entry in row-major order. Images retain their original colors, with full opacity
 when selected and 50% when unselected. Outer containers leave native glass edges unclipped.
 
 The panel cannot become key or main, and buttons never request key status. Click or arrow navigation then Return
-pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Up/down navigation scrolls the selected row into view and loads older entries at the end. In Images, left/right move within a row and up/down move between rows, loading the next cursor page when necessary. Tab alone cycles All → Text → Images → Files, wrapping at the end. Left/right are claimed only while Images is selected and never change categories. Bare keys are claimed only while presented,
+pastes; after the last entry, keyboard selection reaches the full-history footer action. Filters use mouse/accessibility activation. Escape or repeating the shortcut cancels. Up/down navigation scrolls the selected row into view and loads older entries at the end. In every category, left/right move within a row and up/down move between rows, loading the next cursor page when necessary. Tab alone cycles All → Text → Images → Files, wrapping at the end. Left/right are claimed while the panel is visible and never change categories. Bare keys are claimed only while presented,
 through `HotKeyManager`'s existing transient Carbon registrations, so the input app keeps focus. Outside
 clicks and app switches dismiss without restoring focus. Paste still goes through `Paster` and the
 palette's captured target or a local Note insertion snapshot, with the internal marker and promotion.
@@ -235,4 +233,6 @@ introduced. `QuickClipboardPresentation` stays pure Foundation + CoreGraphics. T
 quick-clipboard harness validates native surface focus/material
 invariants, animation setup/reversal fallback and Reduce Motion without visual UI acceptance.
 
-Quick Clipboard History settings include Default Visible Items, an integer from 5 through 12 (default 5). All/Text/Files size to that many actual rows, including taller image entries in All; fewer records shrink the panel. Images round up to complete three-column rows. Screen height caps the viewport, never the scrollable history. The bundle-scoped preference participates in settings backup/sync; legacy snapshots preserve the local choice.
+Quick Clipboard History uses a fixed four-row viewport (up to twelve entries), shrinking for short histories.
+Screen height caps the viewport, never the scrollable history. The former visible-item preference is no
+longer read or exported; older backup fields are ignored and no clipboard records are changed.

@@ -24,7 +24,6 @@ struct SettingsBackupData: Codable, Sendable {
         /// files written then; new files carry it in `SettingsBackupPluginPrefs.Uptime` instead.
     }
 
-    var quickClipboardVisibleCount: Int?
     var clipboardRetentionDays: Int?
     var clipboardDisabledApps: [String]?
     var launchAtLogin: Bool?

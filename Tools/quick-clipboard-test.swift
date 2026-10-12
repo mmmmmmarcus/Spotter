@@ -29,10 +29,10 @@ struct QuickClipboardTests {
         let items = textItems(1000)
         let menu = QuickClipboardMenuView(items: items)
         let size = menu.frame.size
-        expect(menu.rowButtons.count <= 6 && menu.rowButtons.first?.content.title == items[0].text,
+        expect(menu.rowButtons.count <= 15 && menu.rowButtons.first?.content.title == items[0].text,
             "long history starts at the newest row with bounded native views")
         menu.select(600)
-        expect(menu.frame.size == size && menu.rowButtons.count <= 6
+        expect(menu.frame.size == size && menu.rowButtons.count <= 15
             && menu.rowButtons.contains { $0.isSelected && $0.content.title == items[600].text },
             "keyboard navigation reveals older rows without growing the window or creating all rows")
         let footer = menu.historyButton.frame
@@ -63,10 +63,10 @@ struct QuickClipboardTests {
         let menu = QuickClipboardMenuView(items: [])
         menu.update(items, selection: 0, filter: .image)
         let size = menu.frame.size
-        expect(menu.rowButtons.count == 6 && menu.rowButtons.first?.frame == frames[0],
-            "the default count rounds up to two complete image rows")
+        expect(menu.rowButtons.count == 12 && menu.rowButtons.first?.frame == frames[0],
+            "the default viewport contains four complete image rows")
         menu.select(601)
-        expect(menu.frame.size == size && menu.rowButtons.count <= 12
+        expect(menu.frame.size == size && menu.rowButtons.count <= 15
             && menu.rowButtons.contains { $0.isSelected && $0.frame == frames[601] },
             "older grid selection scrolls into view with bounded views and a fixed viewport")
         var selected: Int?
@@ -80,11 +80,11 @@ struct QuickClipboardTests {
         expect(menu.rowButtons.allSatisfy { $0.content.image == nil && !$0.content.title.isEmpty },
             "text-only entries drop their symbols after switching from the image grid")
         menu.update(textItems(5), selection: 0, filter: .all)
-        expect(menu.rowButtons.allSatisfy { $0.content.image != nil && !$0.content.squareImage },
-            "All restores type symbols and list geometry")
+        expect(menu.rowButtons.allSatisfy { $0.content.image == nil && $0.content.isTile },
+            "All preserves text tiles without leading symbols")
         expect(QuickClipboardPresentation.navigationKeys.contains(48)
-            && QuickClipboardPresentation.imageNavigationKeys == [123, 124],
-            "Tab stays global to the quick panel while left and right are reserved for the image grid")
+            && QuickClipboardPresentation.navigationKeys.contains(123) && QuickClipboardPresentation.navigationKeys.contains(124),
+            "Tab and all four arrows are claimed for every grid category")
         expect(QuickClipboardPresentation.gridSelection(from: 0, moving: .right, itemCount: 8) == 1
             && QuickClipboardPresentation.gridSelection(from: 1, moving: .right, itemCount: 8) == 2
             && QuickClipboardPresentation.gridSelection(from: 2, moving: .right, itemCount: 8) == 2
@@ -261,7 +261,7 @@ struct QuickClipboardTests {
         for count in 1...5 {
             let frame = QuickClipboardPresentation.frame(anchor: mouse, screen: screen, items: textItems(count))
             let rows = QuickClipboardPresentation.rowFrames(items: textItems(count)).map { $0.offsetBy(dx: frame.minX, dy: frame.minY + QuickClipboardPresentation.listFrame(items: textItems(count)).minY) }
-            expect(rows.first!.maxY == mouse.minY - 18 && rows.dropFirst().allSatisfy { $0.maxY <= rows.first!.minY },
+            expect(rows.first!.maxY == mouse.minY - 18 && rows.dropFirst().allSatisfy { $0.maxY <= rows.first!.maxY },
                 "the first row stays nearest the anchor for \(count) clipboard entries")
         }
         let compact = QuickClipboardPresentation.frame(anchor: CGRect(x: -5, y: 0, width: 0, height: 0),
@@ -277,40 +277,37 @@ struct QuickClipboardTests {
         expect(abs(transformed.y - (anchor.y + 0.5 * (corner.y - anchor.y))) < 0.001,
             "collapsed y really scales around the anchor instead of menu center")
         let rects = QuickClipboardPresentation.rowFrames(items: textItems(5))
-        expect(rects.count == 5 && rects.allSatisfy { $0.size == CGSize(width: 264, height: 32) },
-            "five text entries share one menu row width")
-        expect(QuickClipboardPresentation.size(items: textItems(5)) == CGSize(width: 276, height: 212),
-            "the menu contains five entries, history, outer insets and a history gap")
+        expect(rects.count == 5 && rects.allSatisfy { $0.size == CGSize(width: 86, height: 86) },
+            "text entries use square tiles with three-point gaps")
+        expect(QuickClipboardPresentation.size(items: textItems(5)) == CGSize(width: 276, height: 227),
+            "short histories shrink to two tile rows plus the footer")
         expect(QuickClipboardPresentation.rowFrames(items: []).isEmpty
             && QuickClipboardPresentation.size(items: []) == CGSize(width: 276, height: 96),
             "empty results keep an explanation above the footer")
-        expect(zip(rects, rects.dropFirst()).allSatisfy { $0.minY >= $1.maxY },
-            "store order runs top to bottom without overlapping hit targets")
-        expect(rects.first!.maxY == 160 && rects.last!.minY == 0,
-            "menu rows keep outer insets and separate the footer")
-        expect(QuickClipboardPresentation.rowFrames(items: textItems(50)).count == 50
-            && QuickClipboardPresentation.size(items: textItems(50)) == QuickClipboardPresentation.size(items: textItems(5)),
-            "the document keeps older rows while the viewport remains compact")
-        expect(QuickClipboardPresentation.size(items: textItems(50), visibleCount: 12).height == 436,
-            "twelve visible text rows determine the viewport height")
-        expect(QuickClipboardPresentation.size(items: textItems(50), visibleCount: 1).height == 212
-            && QuickClipboardPresentation.size(items: textItems(50), visibleCount: 99).height == 436,
-            "visible count is clamped to five through twelve")
-        let bounded = QuickClipboardPresentation.frame(anchor: low, screen: CGRect(x: 0, y: 0, width: 800, height: 300), items: textItems(50), visibleCount: 12)
+        expect(rects[0].maxX + 3 == rects[1].minX && rects[3].maxY + 3 == rects[0].minY,
+            "horizontal and vertical gaps match without overlapping hit targets")
+        for filter in QuickClipboardFilter.allCases {
+            expect(QuickClipboardPresentation.size(items: textItems(50), filter: filter).height == 405
+                && QuickClipboardPresentation.rowFrames(items: textItems(5), filter: filter) == rects,
+                "every filter uses the same four-row viewport and square geometry")
+        }
+        expect(QuickClipboardPresentation.rowFrames(items: textItems(50)).count == 50,
+            "older records stay in the scroll document beyond the four-row viewport")
+        let bounded = QuickClipboardPresentation.frame(anchor: low, screen: CGRect(x: 0, y: 0, width: 800, height: 300), items: textItems(50))
         expect(bounded.height == 284, "small screens cap the viewport while the document remains scrollable")
         let configuredMenu = QuickClipboardMenuView(items: [])
-        configuredMenu.update(textItems(50), selection: 0, visibleCount: 12)
+        configuredMenu.update(textItems(50), selection: 0)
         expect(configuredMenu.rowButtons.count == 12, "the native viewport initially exposes twelve text records")
         configuredMenu.select(40)
-        expect(configuredMenu.rowButtons.contains { $0.isSelected }, "configured viewport still scrolls to older records")
+        expect(configuredMenu.rowButtons.contains { $0.isSelected }, "grid viewport still scrolls to older records")
         let image = ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil)
         let mixed = QuickClipboardPresentation.rowFrames(items: [image] + textItems(1))
-        expect(mixed.map(\.height) == [64, 32] && mixed[0].minY == mixed[1].maxY,
-            "larger image rows and compact text rows have distinct nonoverlapping targets")
+        expect(mixed.allSatisfy { $0.size == CGSize(width: 86, height: 86) } && mixed[0].maxY == mixed[1].maxY,
+            "mixed image and text entries share square grid targets")
         let images = Array(repeating: image, count: 5)
-        expect(QuickClipboardPresentation.size(items: images).height == 372
+        expect(QuickClipboardPresentation.size(items: images).height == 227
             && screen.insetBy(dx: 8, dy: 8).contains(QuickClipboardPresentation.frame(anchor: low, screen: screen, items: images)),
-            "five enlarged images remain on screen")
+            "image tiles remain on screen")
         let filters = QuickClipboardPresentation.filterFrames
         expect(filters.count == QuickClipboardFilter.allCases.count
             && (filters.first!.minX + filters.last!.maxX) / 2 == 138
@@ -351,18 +348,18 @@ struct QuickClipboardTests {
         let glass = menu.rowButtons[0]
         let button = glass.content
         expect(button.title.isEmpty && button.imagePosition == .imageOnly, "image rows show no filename or text label")
-        expect(button.image?.size == CGSize(width: 96, height: 48) && button.image?.isTemplate == false,
+        expect(button.image?.size == CGSize(width: 320, height: 160) && button.image?.isTemplate == false,
             "image rows carry a real downsampled preview with its aspect ratio preserved")
         expect(glass.bezelColor == nil, "native buttons have no custom tint")
-        let rendered = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 96, pixelsHigh: 64,
+        let rendered = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 78, pixelsHigh: 78,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rendered)
         button.draw(button.bounds)
         NSGraphicsContext.restoreGraphicsState()
-        expect(rendered.colorAt(x: 16, y: 4)!.alphaComponent == 0 && rendered.colorAt(x: 16, y: 16)!.alphaComponent > 0.9,
-            "image drawing preserves eight points of vertical padding")
-        expect(rendered.colorAt(x: 0, y: 8)!.alphaComponent < 0.1 && rendered.colorAt(x: 16, y: 8)!.alphaComponent > 0.9,
+        expect(rendered.colorAt(x: 16, y: 1)!.alphaComponent > 0.9 && rendered.colorAt(x: 16, y: 16)!.alphaComponent > 0.9,
+            "mixed-view images fill square tiles without letterboxing")
+        expect(rendered.colorAt(x: 0, y: 0)!.alphaComponent < 0.1 && rendered.colorAt(x: 16, y: 0)!.alphaComponent > 0.9,
             "the image itself is clipped to rounded corners")
         for (selection, expected) in [(1, 0.5), (0, 1.0)] {
             menu.select(selection)

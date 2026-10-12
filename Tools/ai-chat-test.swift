@@ -491,6 +491,8 @@ struct AIChatTests {
         try! store.add(symbolCommand)
         check("command symbol persists", AICommandStore(defaults: commandDefaults).command(id: symbolCommand.id)?.systemImage == "star")
         _ = store.remove(id: symbolCommand.id)
+        check("grammar capsule uses its concise name", AIChatMessage.CommandInput(name: "Check Selected Text Grammar", text: "").displayName == "Grammar Check")
+        check("custom command capsule preserves its full name", AIChatMessage.CommandInput(name: "Rewrite as a customer email", text: "").displayName == "Rewrite as a customer email")
         let compactInput = AIChatMessage(role: .user, text: "Long preset instructions: selected text",
             commandInput: .init(name: "Define", text: "selected text"))
         let compactReloaded = try! JSONDecoder().decode(AIChatMessage.self, from: JSONEncoder().encode(compactInput))

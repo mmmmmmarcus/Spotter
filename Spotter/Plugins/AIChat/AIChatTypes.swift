@@ -11,6 +11,13 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
         let name: String
         let text: String
         var symbol: String? = nil
+        var displayName: String {
+            switch name {
+            case "Check Selected Text Grammar": "Grammar Check"
+            case "Define Selected Text": "Definition"
+            default: name
+            }
+        }
     }
 
     struct Attachment: Identifiable, Equatable, Codable, Sendable {

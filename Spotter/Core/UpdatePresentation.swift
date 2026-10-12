@@ -59,14 +59,14 @@ struct UpdatePresentation {
     let release: UpdateRelease?
     let progress: UpdateInstallProgress?
 
-    var actions: [UpdatePaletteAction] { release == nil ? [.check] : [.upgrade, .check] }
+    var actions: [UpdatePaletteAction] { status == .checking || status == .upToDate || release == nil ? [.check] : [.upgrade] }
 
     func action(at index: Int) -> UpdatePaletteAction {
         actions[min(max(index, 0), actions.count - 1)]
     }
 
     func primaryTitle(at index: Int) -> String? {
-        guard !status.isBusy else { return nil }
+        guard !status.isBusy, status != .upToDate else { return nil }
         return action(at: index) == .check ? "Check for Updates" : (release?.zipAssetURL == nil ? "View Release" : "Install Update")
     }
 
@@ -79,8 +79,25 @@ struct UpdatePresentation {
         }
     }
 
+    var title: String {
+        switch status {
+        case .checking: return "Checking…"
+        case .upToDate: return "You’re on the latest version"
+        case .installing: return progress?.title ?? "Installing…"
+        default: return action(at: 0) == .upgrade
+            ? (release?.zipAssetURL == nil ? "View Release" : "Download and Install Update") : "Check for Updates"
+        }
+    }
+
+    func detail(currentVersion: String) -> String? {
+        if case .failed(let message) = status { return message }
+        guard action(at: 0) == .upgrade, let release else { return nil }
+        let versions = "\(currentVersion) → \(release.version.description)"
+        if let fraction = progress?.fraction, status == .installing { return versions + " · \(Int(fraction * 100))%" }
+        return versions
+    }
+
     func selection(after previous: [UpdatePaletteAction], index: Int) -> Int {
-        guard previous.indices.contains(index) else { return 0 }
-        return actions.firstIndex(of: previous[index]) ?? 0
+        0
     }
 }

@@ -204,23 +204,40 @@ final class ScreenshotManager: ObservableObject {
         captureSource = (frontmost?.localizedName, frontmost?.bundleIdentifier)
         mode = .screenshot
         selectionStartedAt = Date()
+        let requestedAt = ProcessInfo.processInfo.systemUptime
+        let displays = screens.compactMap { screen -> (CGDirectDisplayID, CGRect, CGSize, (width: Int, height: Int))? in
+            guard let id = screen.displayID else { return nil }
+            return (id, CGDisplayBounds(id), screen.frame.size,
+                ScreenshotCaptureScale.retina.pixelSize(forPointSize: screen.frame.size, nativeScale: screen.backingScaleFactor))
+        }
         captureTask = Task { [weak self] in
             guard let self else { return }
             do {
-                var snapshots: [CGDirectDisplayID: ScreenshotSnapshot] = [:]
-                for screen in screens {
-                    guard let displayID = screen.displayID else {
-                        throw ScreenshotCaptureFailure.displayUnavailable
+                guard displays.count == screens.count else { throw ScreenshotCaptureFailure.displayUnavailable }
+                let snapshots = try await withThrowingTaskGroup(of: (CGDirectDisplayID, ScreenshotSnapshot).self) { group in
+                    for (id, rect, pointSize, pixels) in displays {
+                        group.addTask {
+                            let configuration = SCScreenshotConfiguration()
+                            configuration.width = Int(pixels.width)
+                            configuration.height = Int(pixels.height)
+                            configuration.showsCursor = false
+                            configuration.dynamicRange = .sdr
+                            let output = try await SCScreenshotManager.captureScreenshot(rect: rect, configuration: configuration)
+                            try Task.checkCancellation()
+                            guard let image = output.sdrImage else { throw ScreenshotCaptureFailure.displayUnavailable }
+                            return (id, ScreenshotSnapshot(image: image, pointSize: pointSize))
+                        }
                     }
-                    let image = try await Self.captureImage(
-                        in: CGRect(origin: .zero, size: screen.frame.size),
-                        displayID: displayID, scale: .retina)
-                    try Task.checkCancellation()
-                    snapshots[displayID] = ScreenshotSnapshot(image: image, pointSize: screen.frame.size)
+                    var snapshots: [CGDirectDisplayID: ScreenshotSnapshot] = [:]
+                    for try await (id, snapshot) in group { snapshots[id] = snapshot }
+                    return snapshots
                 }
+                try Task.checkCancellation()
                 frozenDisplays = snapshots
                 captureTask = nil
                 presentSelection(on: screens)
+                let elapsed = Int((ProcessInfo.processInfo.systemUptime - requestedAt) * 1000)
+                AppLog.info("screenshot", "Selection ready in \(elapsed) ms across \(screens.count) display(s).")
             } catch {
                 guard !Task.isCancelled else { return }
                 AppLog.error("screenshot", "Preparing screen snapshot failed: \(error.localizedDescription)")
@@ -677,28 +694,6 @@ final class ScreenshotManager: ObservableObject {
         }).value else { throw ScreenshotCaptureFailure.displayUnavailable }
         try Task.checkCancellation()
         return image
-    }
-
-    private static func captureImage(
-        in rect: CGRect, displayID: CGDirectDisplayID, scale: ScreenshotCaptureScale
-    ) async throws -> CGImage {
-        let content = try await SCShareableContent.excludingDesktopWindows(
-            false, onScreenWindowsOnly: false)
-        guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
-            throw ScreenshotCaptureFailure.displayUnavailable
-        }
-
-        let filter = SCContentFilter(display: display, excludingWindows: [])
-        let configuration = SCStreamConfiguration()
-        let pixels = scale.pixelSize(
-            forPointSize: rect.size, nativeScale: CGFloat(filter.pointPixelScale))
-        configuration.captureResolution = .best
-        configuration.showsCursor = false
-        configuration.sourceRect = rect
-        configuration.width = pixels.width
-        configuration.height = pixels.height
-        return try await SCScreenshotManager.captureImage(
-            contentFilter: filter, configuration: configuration)
     }
 
     private static func captureImage(

@@ -410,3 +410,5 @@ No capture panel, event monitor, ScreenCaptureKit object, timer or background ta
 plugin is idle. The interaction architecture is adapted from Capso revision
 `81c7ce50023b9b56d5b1ab569f0abd4551fcf2b1`; its Business Source License 1.1 is retained in
 `Spotter/Plugins/Screenshot/Capso-BSL-1.1.txt` and embedded in the app bundle.
+
+Selection startup captures each display directly with the macOS screenshot rectangle API, using Quartz display bounds and native pixel dimensions. Displays are captured concurrently without enumerating shareable windows. All fresh snapshots must finish before any overlay is shown; cancellation discards them. Window-only capture retains its separate shadow-aware path. Startup duration is logged in milliseconds for real-machine latency checks.

@@ -98,16 +98,13 @@ struct UpdatePaletteView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                ForEach(Array(store.presentation.actions.enumerated()), id: \.element) { index, action in
-                    let busy = action == .upgrade ? store.status == .installing : store.status == .checking
-                    PluginPaletteRow(item: item(for: action), selected: selection == index,
-                        isInteractive: !store.status.isBusy, isBusy: busy,
-                        progress: action == .upgrade ? store.installProgress?.fraction : nil)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onActivate(index) }
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { onActivate(index) }
-                }
+                PluginPaletteRow(item: primaryItem, selected: selection == 0,
+                    isInteractive: store.presentation.primaryTitle(at: 0) != nil, isBusy: store.status.isBusy,
+                    progress: store.installProgress?.fraction)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onActivate(0) }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { onActivate(0) }
                 PluginPaletteRow(item: PluginPaletteItem(id: "version",
                     title: "Current Version · " + (store.currentVersion?.description ?? "—"),
                     subtitle: nil, icon: .symbol("info.circle"), primaryActionTitle: ""),
@@ -128,21 +125,12 @@ struct UpdatePaletteView: View {
         .thinScrollbar()
     }
 
-    private func item(for action: UpdatePaletteAction) -> PluginPaletteItem {
-        if action == .check {
-            return PluginPaletteItem(id: action.rawValue, title: "Check for Updates",
-                subtitle: store.presentation.checkDetail, icon: .symbol("arrow.clockwise"),
-                subtitleLineLimit: 3, primaryActionTitle: "Check for Updates")
-        }
-        let version = store.availableRelease?.version.description ?? ""
-        let installing = store.status == .installing
-        let manual = store.availableRelease?.zipAssetURL == nil
-        let detail = installing ? store.installProgress?.title
-            : (manual ? "Open the release page to install this version." : "Download, install, and relaunch Spotter.")
-        let percentage = store.installProgress?.fraction.map { "\(Int($0 * 100))%" }
-        return PluginPaletteItem(id: action.rawValue, title: "Update to " + version,
-            subtitle: [detail, percentage].compactMap { $0 }.joined(separator: " · "),
-            icon: .symbol("arrow.down.circle"), primaryActionTitle: manual ? "View Release" : "Install Update")
+    private var primaryItem: PluginPaletteItem {
+        let presentation = store.presentation
+        let symbol = store.status == .upToDate ? "checkmark.circle" : presentation.action(at: 0) == .upgrade ? "arrow.down.circle" : "arrow.clockwise"
+        return PluginPaletteItem(id: "update-primary", title: presentation.title,
+            subtitle: presentation.detail(currentVersion: store.currentVersion?.description ?? "—"),
+            icon: .symbol(symbol), subtitleLineLimit: 3, primaryActionTitle: presentation.primaryTitle(at: 0) ?? "")
     }
 }
 
@@ -151,9 +139,6 @@ private struct UpdateReleaseNotesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            Text("Release Notes · \(release.version.description)")
-                .font(Theme.Typography.rowTitle)
-                .foregroundStyle(Theme.Colors.textSecondary)
             if release.releaseNotes.isEmpty {
                 Text("No release notes were provided for this version.")
                     .font(Theme.Typography.rowTitle)

@@ -120,15 +120,16 @@ struct AIChatRow: View {
             HStack {
                 Spacer(minLength: bubbleInset)
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.md) {
-                        if let command = message.commandInput {
-                            Image(systemName: command.symbol ?? "command")
-                                .foregroundStyle(Theme.Colors.quickAIUserSecondaryText)
-                                .help(command.name)
-                                .accessibilityLabel(command.name)
-                        }
-                        Text(message.displayedText)
+                    if let command = message.commandInput {
+                        Label(command.displayName, systemImage: command.symbol ?? "command")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Theme.Colors.quickAIUserSecondaryText)
+                            .padding(.horizontal, Theme.Spacing.md)
+                            .padding(.vertical, Theme.Spacing.xs)
+                            .background(Theme.Colors.quickAIUserText.opacity(0.08), in: Capsule())
+                            .help(command.name)
                     }
+                    Text(message.displayedText)
                     if !message.attachments.isEmpty {
                         ForEach(message.attachments) { attachment in
                             Label(attachment.name,
