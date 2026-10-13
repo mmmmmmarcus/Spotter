@@ -214,6 +214,7 @@ final class AppCore: ObservableObject {
     let calendarSchedule = CalendarScheduleStore()
     let appleShortcuts = AppleShortcutsStore()
     let navigation = NavigationStore()
+    let menuSearch = NavigationStore()
     let dashboardWeather = DashboardWeatherStore()
     let uptime = UptimeStore()
     let dashboardMusic = DashboardMusicStore()
@@ -311,6 +312,14 @@ final class AppCore: ObservableObject {
         clipboardStore.maxAge = settings.clipboardRetention.maxAge
         clipboardTextIndexer.start(enabled: settings.clipboardTextSearch)
         appIndex.start(settings: settings)
+        menuSearch.onResultsChanged = { [weak self] results in
+            self?.appIndex.setMenuItems(results.map { result in
+                AppEntry(id: result.id, name: result.title, url: URL(fileURLWithPath: "/"), bundleID: nil,
+                    kind: .command, symbolImage: "menubar.rectangle", iconFilePath: result.bundlePath,
+                    detailLabel: result.appName + " · " + result.subtitle,
+                    alternateNames: [result.subtitle])
+            })
+        }
         plugins.onCommandsChanged = { [weak self] commands in
             self?.appIndex.setPluginCommands(commands)
         }
@@ -734,6 +743,12 @@ final class AppCore: ObservableObject {
         if !visible, palette.confirmation?.requestID != nil { palette.resolveConfirmation(false) }
         guard isPaletteVisible != visible else { return }
         isPaletteVisible = visible
+        if visible {
+            menuSearch.prepare(.menus, target: previousApplication)
+            menuSearch.refresh()
+        } else {
+            menuSearch.prepare(.menus, target: nil)
+        }
         if !visible { backgroundTasks.dismissSeenCompletions() }
         if !visible, let id = palette.mode.pluginID { plugins.deactivatePaletteScreen(id) }
         // The section's CPU/memory readings poll `ps`; a hidden palette must not keep sampling.
@@ -766,6 +781,12 @@ final class AppCore: ObservableObject {
     // MARK: - Actions invoked from the palette UI
 
     func launch(_ app: AppEntry, searchQuery: String? = nil) {
+        if app.isMenuBarItem {
+            guard let result = menuSearch.results.first(where: { $0.id == app.id }) else { return }
+            hidePalette(restoreFocus: false)
+            NavigationReader.activateMenu(result)
+            return
+        }
         if let searchQuery {
             launcherRanking.record(itemKey: app.preferenceKey, query: searchQuery)
         }

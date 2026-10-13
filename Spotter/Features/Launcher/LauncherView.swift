@@ -416,6 +416,7 @@ enum AppActionsMenu {
                 title: openTitle(app), systemImage: "list.bullet.rectangle", shortcut: "↵"
             ) { core.launch(app, searchQuery: searchQuery) }
         ]
+        if app.isMenuBarItem { return PopoverMenuContent(header: app.name, items: items) }
         if favorites.isFavorite(app) {
             items.append(
                 PopoverMenuItem(title: "Remove from Favorites", systemImage: "star.slash") {
@@ -461,6 +462,7 @@ enum AppActionsMenu {
     }
 
     private static func openTitle(_ app: AppEntry) -> String {
+        if app.isMenuBarItem { return "Activate Menu Item" }
         switch app.kind {
         case .application: return "Open Application"
         case .systemSettings: return "Open System Setting"

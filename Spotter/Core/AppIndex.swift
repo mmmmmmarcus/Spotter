@@ -49,6 +49,7 @@ struct AppEntry: Identifiable, Hashable, Sendable {
 
     /// Stable identity for learned ranking, favorites, and other per-entry preferences.
     var preferenceKey: String { bundleID ?? id }
+    var isMenuBarItem: Bool { id.hasPrefix("menu-item:") }
 
     var searchFields: SearchFields {
         SearchFields(
@@ -220,10 +221,17 @@ enum IconCache {
 @MainActor
 final class AppIndex: ObservableObject {
     @Published private(set) var apps: [AppEntry] = []
+    @Published private(set) var menuItems: [AppEntry] = []
+
+    func setMenuItems(_ entries: [AppEntry]) {
+        guard menuItems != entries else { return }
+        matchCache = nil
+        menuItems = entries
+    }
 
     /// One-entry memo so repeated renders for the same query reuse the ranking instead of re-matching every frame. Both revisions are part of the key: a learned boost or an edited alias reorders the same query over the same apps.
     private var matchCache:
-        (query: String, rankingRevision: Int, aliasRevision: Int, result: [AppEntry])?
+        (query: String, includeMenus: Bool, rankingRevision: Int, aliasRevision: Int, result: [AppEntry])?
 
     private var discoveredEntries: [AppEntry] = []
     private var spotlightCache = SpotlightNames.Cache()
@@ -339,23 +347,23 @@ final class AppIndex: ObservableObject {
     }
 
     /// Ranked matches. Empty query returns the full alphabetical list.
-    func matches(_ query: String, limit: Int = 200) -> [AppEntry] {
+    func matches(_ query: String, limit: Int = 200, includeMenus: Bool = false) -> [AppEntry] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return apps }
-        if let matchCache, matchCache.query == q,
+        if let matchCache, matchCache.query == q, matchCache.includeMenus == includeMenus,
             matchCache.rankingRevision == ranking.revision,
             matchCache.aliasRevision == aliases.revision
         {
             return matchCache.result
         }
-        let result = rank(q, limit: limit)
-        matchCache = (q, ranking.revision, aliases.revision, result)
+        let result = rank(q, limit: limit, includeMenus: includeMenus)
+        matchCache = (q, includeMenus, ranking.revision, aliases.revision, result)
         return result
     }
 
-    private func rank(_ q: String, limit: Int) -> [AppEntry] {
+    private func rank(_ q: String, limit: Int, includeMenus: Bool) -> [AppEntry] {
         let learned = ranking.boosts(query: q)
-        let scored = apps.compactMap { app -> (AppEntry, Int)? in
+        let scored = (apps + (includeMenus ? menuItems : [])).compactMap { app -> (AppEntry, Int)? in
             // Folded in here rather than stored on the entry: an alias edit must not force a rescan.
             var fields = app.searchFields
             fields.userAlias = aliases.alias(for: app.preferenceKey)

@@ -181,3 +181,5 @@ footnote scroll. No feature manager or runtime plugin is added. Theme owns the d
 QuickAIChatPanel keeps its SwiftUI host beside the native glass backing, rather than clipped inside
 it, so the compact external sidebar circle can draw independently. The controller reserves its width
 and only the composer receives the compact native backdrop; expanded glass fills the panel again.
+
+Menu search is session-scoped: AppCore owns menuSearch, NavigationReader performs bounded Accessibility reads, and AppIndex exposes its temporary entries only to typed root Palette searches. See [navigation.md](navigation.md).

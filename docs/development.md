@@ -608,3 +608,5 @@ AI history grouping tests inject the calendar/clock and cover midnight, week bou
 saving time. Quick Chat native layout tests pin the separate compact button/gap and full-width host.
 
 Quick Clipboard regression coverage includes universal square tiles, a four-row viewport, arrow navigation, bounded view reuse, and screen-height clamping.
+
+Navigation regression checks include unnamed menu wrappers, duplicate titles, invalid indexes and refusal of changed menu paths (`Tools/navigation-test.swift`).

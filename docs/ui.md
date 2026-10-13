@@ -824,3 +824,5 @@ in window cycling, so their floating level does not default to hiding them in Mi
 They retain their existing all-Spaces and full-screen auxiliary behavior. History selection preserves the expanded width and bottom edge when screen space allows.
 
 History capsules have solid inverse-appearance backgrounds; the bottom input retains its gradient. History stays in the right control group after opening a session. A selected capsule shares its background geometry with the chat surface during the transition, with opacity-only motion reduction.
+
+Current-application menu commands appear directly in typed Palette results with application and menu path labels. Their Actions menu offers execution only; no extra Search Menu Bar Items screen is required.

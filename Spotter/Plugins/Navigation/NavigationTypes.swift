@@ -26,6 +26,11 @@ enum NavigationResults {
         }
     }
 
+    static func menuIndex(index: String, title: String, titles: [String]) -> Int? {
+        guard let index = Int(index), titles.indices.contains(index), titles[index] == title else { return nil }
+        return index
+    }
+
     static func windowIndex(locator: [String], titles: [String]) -> Int? {
         guard let title = locator.last else { return nil }
         if locator.count == 2, let index = Int(locator[0]), titles.indices.contains(index), titles[index] == title {

@@ -407,7 +407,9 @@ mode guards are tested against the actual AppKit overlay without capturing the u
   the selected UUID without shell interpolation.
 - **Navigation** (`Spotter/Plugins/Navigation/`) — Accessibility-backed search for open application
   windows and the frontmost application's menu commands. AX reads are bounded and canceled with the
-  palette session; activation refinds the element instead of retaining stale AX objects.
+  palette session; activation refinds the element instead of retaining stale AX objects. Menu commands
+  appear directly in typed root Palette searches, labeled with their app and menu path. The former
+  Search Menu Bar Items command and shortcut registration are retired; Switch Windows stays a command.
 
 ## Raycast extension compatibility
 

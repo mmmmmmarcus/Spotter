@@ -14,6 +14,11 @@ enum NavigationTests {
             titles: ["Document", "Document"]) == 1)
         precondition(NavigationResults.windowIndex(locator: ["9", "Document"],
             titles: ["Document", "Other"]) == 0)
+        precondition(NavigationResults.menuIndex(index: "0", title: "", titles: [""]) == 0)
+        precondition(NavigationResults.menuIndex(index: "1", title: "Open", titles: ["Open", "Open"]) == 1)
+        precondition(NavigationResults.menuIndex(index: "0", title: "Open", titles: ["Delete", "Open"]) == nil)
+        precondition(NavigationResults.menuIndex(index: "9", title: "Open", titles: ["Open"]) == nil)
+        precondition(NavigationResults.menuIndex(index: "bad", title: "Open", titles: ["Open"]) == nil)
         print("Navigation tests passed")
     }
 }

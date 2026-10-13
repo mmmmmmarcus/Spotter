@@ -8,13 +8,16 @@ final class NavigationStore: ObservableObject {
     @Published private(set) var results: [NavigationResult] = []
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
+    var onResultsChanged: (([NavigationResult]) -> Void)?
     private var task: Task<Void, Never>?
     private var targetPID: pid_t?
 
     func prepare(_ mode: NavigationMode, target: NSRunningApplication?) {
+        close()
         self.mode = mode
         targetPID = target?.processIdentifier
         results = []
+        onResultsChanged?([])
         errorMessage = nil
     }
 
@@ -29,6 +32,7 @@ final class NavigationStore: ObservableObject {
             guard !Task.isCancelled, let self, self.mode == mode else { return }
             isLoading = false
             results = snapshot.results
+            onResultsChanged?(snapshot.results)
             errorMessage = snapshot.error
         }
     }
@@ -52,7 +56,7 @@ enum NavigationReader {
     }
 
     static func snapshot(mode: NavigationMode, targetPID: pid_t?) async -> Snapshot {
-        await Task.detached(priority: .userInitiated) {
+        let work = Task.detached(priority: .userInitiated) {
             guard AXIsProcessTrusted() else {
                 return Snapshot(results: [], error: "Accessibility access is required.")
             }
@@ -62,7 +66,8 @@ enum NavigationReader {
                 guard let targetPID else { return Snapshot(results: [], error: "No application was selected.") }
                 return Snapshot(results: menuItems(pid: targetPID), error: nil)
             }
-        }.value
+        }
+        return await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
     }
 
     static func activate(_ result: NavigationResult, mode: NavigationMode) {
@@ -80,12 +85,26 @@ enum NavigationReader {
             AXUIElementSetAttributeValue(match, kAXMainAttribute as CFString, kCFBooleanTrue)
             AXUIElementPerformAction(match, kAXRaiseAction as CFString)
         case .menus:
-            guard let bar = element(root, kAXMenuBarAttribute as String),
-                let item = descend(bar, path: result.locator)
-            else { return }
-            app?.activate()
-            AXUIElementPerformAction(item, kAXPressAction as CFString)
+            pressMenu(result)
         }
+    }
+
+    @MainActor
+    static func activateMenu(_ result: NavigationResult) {
+        guard let app = NSRunningApplication(processIdentifier: result.processIdentifier), !app.isTerminated else { return }
+        app.activate()
+        Task.detached(priority: .userInitiated) { pressMenu(result) }
+    }
+
+    private static func pressMenu(_ result: NavigationResult) {
+        guard AXIsProcessTrusted() else { return }
+        let root = AXUIElementCreateApplication(result.processIdentifier)
+        AXUIElementSetMessagingTimeout(root, 0.15)
+        guard let bar = element(root, kAXMenuBarAttribute as String),
+            let item = descend(bar, path: result.locator),
+            string(item, kAXTitleAttribute as String).trimmingCharacters(in: .whitespacesAndNewlines) == result.title,
+            (attribute(item, kAXEnabledAttribute as String) as? Bool) != false else { return }
+        AXUIElementPerformAction(item, kAXPressAction as CFString)
     }
 
     private static func windows() -> [NavigationResult] {
@@ -117,34 +136,44 @@ enum NavigationReader {
         guard let bar = element(root, kAXMenuBarAttribute as String) else { return [] }
         let name = app.localizedName ?? "Application"
         var results: [NavigationResult] = []
-        walkMenus(bar, path: [], app: app, appName: name, results: &results, remaining: 4_000)
+        var remaining = 4_000
+        AXUIElementSetMessagingTimeout(root, 0.15)
+        walkMenus(bar, path: [], locator: [], app: app, appName: name, results: &results,
+            remaining: &remaining, deadline: ProcessInfo.processInfo.systemUptime + 2)
         return results
     }
 
-    private static func walkMenus(_ element: AXUIElement, path: [String], app: NSRunningApplication,
-        appName: String, results: inout [NavigationResult], remaining: Int) {
-        guard results.count < remaining else { return }
-        for child in children(element) {
-            guard results.count < remaining else { return }
+    private static func walkMenus(_ element: AXUIElement, path: [String], locator: [String], app: NSRunningApplication,
+        appName: String, results: inout [NavigationResult], remaining: inout Int, deadline: TimeInterval) {
+        guard remaining > 0, locator.count < 40, !Task.isCancelled,
+            ProcessInfo.processInfo.systemUptime < deadline else { return }
+        for (index, child) in children(element).enumerated() {
+            guard remaining > 0, !Task.isCancelled, ProcessInfo.processInfo.systemUptime < deadline else { return }
+            remaining -= 1
             let title = string(child, kAXTitleAttribute as String).trimmingCharacters(in: .whitespacesAndNewlines)
             let role = string(child, kAXRoleAttribute as String)
             let nextPath = title.isEmpty ? path : path + [title]
+            let nextLocator = locator + [String(index), title]
             let enabled = (attribute(child, kAXEnabledAttribute as String) as? Bool) ?? true
-            if role == kAXMenuItemRole as String, enabled, !title.isEmpty,
-                (attribute(child, kAXChildrenAttribute as String) as? [AXUIElement])?.isEmpty != false {
-                results.append(NavigationResult(id: "\(app.processIdentifier):" + nextPath.joined(separator: "/"),
+            guard enabled else { continue }
+            if role == kAXMenuItemRole as String, !title.isEmpty, children(child).isEmpty {
+                results.append(NavigationResult(id: "menu-item:\(app.processIdentifier):" + nextLocator.joined(separator: "/"),
                     title: title, subtitle: nextPath.dropLast().joined(separator: " → "), appName: appName,
-                    bundlePath: app.bundleURL?.path, processIdentifier: app.processIdentifier, locator: nextPath))
+                    bundlePath: app.bundleURL?.path, processIdentifier: app.processIdentifier, locator: nextLocator))
             }
-            walkMenus(child, path: nextPath, app: app, appName: appName, results: &results, remaining: remaining)
+            walkMenus(child, path: nextPath, locator: nextLocator, app: app, appName: appName,
+                results: &results, remaining: &remaining, deadline: deadline)
         }
     }
 
     private static func descend(_ root: AXUIElement, path: [String]) -> AXUIElement? {
+        guard !path.isEmpty, path.count.isMultiple(of: 2) else { return nil }
         var current = root
-        for title in path {
-            guard let next = children(current).first(where: { string($0, kAXTitleAttribute as String) == title }) else { return nil }
-            current = next
+        for offset in stride(from: 0, to: path.count, by: 2) {
+            let candidates = children(current)
+            guard let index = NavigationResults.menuIndex(index: path[offset], title: path[offset + 1],
+                titles: candidates.map { string($0, kAXTitleAttribute as String).trimmingCharacters(in: .whitespacesAndNewlines) }) else { return nil }
+            current = candidates[index]
         }
         return current
     }

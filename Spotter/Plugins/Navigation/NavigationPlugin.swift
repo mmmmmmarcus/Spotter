@@ -4,28 +4,24 @@ import SwiftUI
 
 extension PluginActionKey {
     static let switchWindows = standard(pluginID: .navigation, actionID: "windows", title: "Switch Windows")
-    static let searchMenus = standard(pluginID: .navigation, actionID: "menus", title: "Search Menu Bar Items")
 }
 
 @MainActor
 enum NavigationPlugin {
     static func registration(core: AppCore) -> PluginRegistration {
         let screen = PluginPaletteScreenRegistration(
-            placeholder: "Search windows and menus…",
-            livePlaceholder: { [weak core] in
-                core?.navigation.mode == .windows ? "Search open windows…" : "Search menu bar items…"
-            },
+            placeholder: "Search open windows…",
             snapshot: { [weak core] query in
                 guard let core else { return PluginPaletteSnapshot(sectionTitle: "Navigation", items: [], emptyMessage: "Unavailable") }
                 let rows = NavigationResults.matching(core.navigation.results, query: query)
-                return PluginPaletteSnapshot(sectionTitle: core.navigation.mode == .windows ? "Open Windows" : "Menu Bar Items",
+                return PluginPaletteSnapshot(sectionTitle: "Open Windows",
                     items: rows.map { result in
                         PluginPaletteItem(id: result.id, title: result.title,
                             subtitle: result.subtitle.isEmpty ? result.appName : result.subtitle,
                             icon: result.bundlePath.map(PluginPaletteIcon.file(path:)) ?? .symbol("macwindow"),
-                            primaryActionTitle: core.navigation.mode == .windows ? "Switch to Window" : "Activate Menu Item")
+                            primaryActionTitle: "Switch to Window")
                     }, isLoading: core.navigation.isLoading, errorMessage: core.navigation.errorMessage,
-                    emptyMessage: core.navigation.mode == .windows ? "No matching windows." : "No matching menu items.")
+                    emptyMessage: "No matching windows.")
             },
             performPrimaryAction: { [weak core] itemID in
                 core?.navigation.activate(id: itemID)
@@ -43,14 +39,11 @@ enum NavigationPlugin {
                 systemImage: "rectangle.3.group", tint: .cyan),
             permissions: [.accessibility],
             shortcutActions: [
-                PluginActionRegistration(key: .switchWindows) { core.openNavigation(.windows) },
-                PluginActionRegistration(key: .searchMenus) { core.openNavigation(.menus) },
+                PluginActionRegistration(key: .switchWindows) { core.openNavigation() },
             ],
             launcherCommands: [
                 PluginCommandRegistration(id: "command:navigation:windows", name: "Switch Windows",
-                    systemImage: "macwindow.on.rectangle", actionKey: .switchWindows) { core.openNavigation(.windows) },
-                PluginCommandRegistration(id: "command:navigation:menus", name: "Search Menu Bar Items",
-                    systemImage: "menubar.rectangle", actionKey: .searchMenus) { core.openNavigation(.menus) },
+                    systemImage: "macwindow.on.rectangle", actionKey: .switchWindows) { core.openNavigation() },
             ],
             paletteScreen: screen,
             settingsView: { AnyView(NavigationSettingsView()) })
@@ -58,8 +51,8 @@ enum NavigationPlugin {
 }
 
 extension AppCore {
-    func openNavigation(_ mode: NavigationMode) {
-        navigation.prepare(mode, target: previousApplication ?? NSWorkspace.shared.frontmostApplication)
+    func openNavigation() {
+        navigation.prepare(.windows, target: previousApplication ?? NSWorkspace.shared.frontmostApplication)
         palette.prepare(mode: .plugin(.navigation))
         showPalette(mode: .plugin(.navigation))
     }
@@ -70,7 +63,7 @@ private struct NavigationSettingsView: View {
         SettingsPane(title: "Navigation") {
             Section {
                 SettingsRow(title: "Switch Windows", subtitle: "Search every open application window.") { EmptyView() }
-                SettingsRow(title: "Search Menu Bar Items", subtitle: "Search commands exposed by the frontmost app.") { EmptyView() }
+                SettingsRow(title: "Menu Bar Items", subtitle: "Search the current app’s menu commands directly in the Palette.") { EmptyView() }
             } footer: {
                 Text("Navigation uses Accessibility to read and activate windows and menus. Assign shortcuts in System → Shortcuts.")
             }

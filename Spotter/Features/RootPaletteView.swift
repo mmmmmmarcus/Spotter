@@ -71,7 +71,7 @@ struct RootPaletteView: View {
 
     private var launcherBrowseLayout: LauncherBrowse {
         // Visibility filtering stays downstream of `matches` so its one-deep memo cache is never keyed on hidden state; hidden favorites drop out here too.
-        let base = appIndex.matches(vm.query)
+        let base = appIndex.matches(vm.query, includeMenus: true)
             .filter(visibility.isVisible)
         guard isQueryEmpty else {
             let parameterized = plugins.parameterizedCommands(matching: vm.query).filter(visibility.isVisible)
@@ -1232,6 +1232,7 @@ struct RootPaletteView: View {
             }
             if let inlineActionTitle { return inlineActionTitle }
             if let selectedFallback { return selectedFallback.title }
+            if selectedApp?.isMenuBarItem == true { return "Activate Menu Item" }
             switch selectedApp?.kind {
             case .systemSettings: return "Open System Setting"
             case .command: return "Run Command"
