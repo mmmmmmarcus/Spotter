@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import os
 
 /// One diagnostic event, as shown in Settings → Diagnostics.
@@ -86,7 +87,12 @@ final class AppLog: ObservableObject {
     }
 
     var transcript: String {
-        entries.map(\.line).joined(separator: "\n")
+        let current = entries.map(\.line).joined(separator: "\n")
+        let installerURL = fileURL.deletingLastPathComponent().appendingPathComponent("update-installer.log")
+        guard let reader = try? FileHandle(forReadingFrom: installerURL) else { return current }
+        defer { try? reader.close() }
+        guard let data = try? reader.read(upToCount: 32_768), let installer = String(data: data, encoding: .utf8) else { return current }
+        return current + "\nUpdate installer: " + installer
     }
 
     func clear() {

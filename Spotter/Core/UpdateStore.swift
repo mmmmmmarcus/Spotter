@@ -167,7 +167,7 @@ final class UpdateStore: ObservableObject {
         defer { installationID = nil }
         let installedURL = Bundle.main.bundleURL
         do {
-            try await Self.downloadAndInstall(zipURL: zipURL, over: installedURL) {
+            let staged = try await Self.prepareInstallation(zipURL: zipURL, over: installedURL) {
                 [weak self] progress in
                 Task { @MainActor in
                     guard let self, self.installationID == id, self.status == .installing,
@@ -175,13 +175,40 @@ final class UpdateStore: ObservableObject {
                     self.installProgress = progress
                 }
             }
+            guard let terminateForRelaunch else {
+                try? FileManager.default.removeItem(at: staged)
+                throw UpdateError.installFailed("The app cannot quit safely for installation.")
+            }
+            let log = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.spotter.app1")
+                .appendingPathComponent("Logs/update-installer.log")
+            try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let ready = FileManager.default.temporaryDirectory.appendingPathComponent("spotter-update-ready-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: ready) }
+            let installer = Process()
+            installer.executableURL = staged.appendingPathComponent("Contents/MacOS/Spotter")
+            installer.arguments = [UpdateInstaller.argument, String(ProcessInfo.processInfo.processIdentifier),
+                installedURL.path, staged.path, ready.path, log.path]
+            installer.standardOutput = FileHandle.nullDevice
+            installer.standardError = FileHandle.nullDevice
+            do {
+                try installer.run()
+                for _ in 0..<100 {
+                    if FileManager.default.fileExists(atPath: ready.path) { break }
+                    guard installer.isRunning else { throw UpdateError.installFailed("The update helper could not start. See Diagnostics.") }
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                guard FileManager.default.fileExists(atPath: ready.path) else {
+                    throw UpdateError.installFailed("The update helper did not become ready; the installed app was kept.")
+                }
+            } catch {
+                if installer.isRunning { installer.terminate() }
+                AppLog.error("updates", "Installer handoff failed. Check update-installer.log: \(error.localizedDescription)")
+                throw error
+            }
             installProgress = .relaunching
-            // Relaunch after this process exits; the opener outlives us.
-            let opener = Process()
-            opener.executableURL = URL(fileURLWithPath: "/bin/sh")
-            opener.arguments = ["-c", "sleep 1; /usr/bin/open \"$1\"", "spotter-relaunch", installedURL.path]
-            try opener.run()
-            terminateForRelaunch?()
+            AppLog.info("updates", "Installer is ready; quitting before replacing the application bundle.")
+            terminateForRelaunch()
         } catch let error as UpdateError {
             installProgress = nil
             status = .failed(error.localizedDescription)
@@ -226,9 +253,9 @@ final class UpdateStore: ObservableObject {
     }
 
     /// Off-main by way of `nonisolated async`; only plain values cross back.
-    private nonisolated static func downloadAndInstall(
+    private nonisolated static func prepareInstallation(
         zipURL: URL, over installedURL: URL, progress: @escaping @Sendable (UpdateInstallProgress) -> Void
-    ) async throws {
+    ) async throws -> URL {
         let tempZip = try await downloadZip(from: zipURL, progress: progress)
         defer { try? FileManager.default.removeItem(at: tempZip) }
         progress(.unpacking)
@@ -255,46 +282,18 @@ final class UpdateStore: ObservableObject {
             .appendingPathComponent(".update-\(UUID().uuidString)-" + installedURL.lastPathComponent)
         do {
             try fm.copyItem(at: newApp, to: sibling)
+            try verifySignature(of: sibling, matching: installedURL)
         } catch {
             try? fm.removeItem(at: sibling)
             throw UpdateError.installFailed(error.localizedDescription)
         }
-        let swapped = sibling.path.withCString { staged in
-            installedURL.path.withCString { installed in
-                renamex_np(staged, installed, UInt32(RENAME_SWAP)) == 0
-            }
-        }
-        if swapped {
-            // The retired bundle now sits under the staging name; clearing it is best-effort.
-            try? fm.removeItem(at: sibling)
-            return
-        }
-        let swapError = errno
-        try? fm.removeItem(at: sibling)
-        AppLog.error("updates", "Atomic swap failed (errno \(swapError)); installed bundle was kept.")
-        throw UpdateError.installFailed(
-            "The app could not be replaced safely (error \(swapError)). Your installed version was kept. Please retry.")
+        return sibling
     }
 
     /// The trust anchor: the new bundle must satisfy the running app's designated requirement or it is not installed.
     private nonisolated static func verifySignature(of newApp: URL, matching current: URL) throws {
-        var currentCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(current as CFURL, [], &currentCode) == errSecSuccess,
-            let currentCode
-        else { throw UpdateError.signatureMismatch }
-        var requirement: SecRequirement?
-        guard
-            SecCodeCopyDesignatedRequirement(currentCode, [], &requirement) == errSecSuccess,
-            let requirement
-        else { throw UpdateError.signatureMismatch }
-        var newCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(newApp as CFURL, [], &newCode) == errSecSuccess,
-            let newCode
-        else { throw UpdateError.signatureMismatch }
-        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSCheckNestedCode)
-        guard SecStaticCodeCheckValidity(newCode, flags, requirement) == errSecSuccess else {
-            throw UpdateError.signatureMismatch
-        }
+        do { try UpdateInstaller.verify(newApp, matches: current) }
+        catch { throw UpdateError.signatureMismatch }
     }
 
     private nonisolated static func runProcess(_ path: String, _ arguments: [String]) async throws {

@@ -610,3 +610,12 @@ saving time. Quick Chat native layout tests pin the separate compact button/gap 
 Quick Clipboard regression coverage includes universal square tiles, a four-row viewport, arrow navigation, bounded view reuse, and screen-height clamping.
 
 Navigation regression checks include unnamed menu wrappers, duplicate titles, invalid indexes and refusal of changed menu paths (`Tools/navigation-test.swift`).
+
+### Update exit barrier and image diagnostics
+
+`scripts/test-all.sh --run-case update-installer /tmp/spotter-tests` exercises the real process-exit
+watch, timeout preservation, atomic exchange, invalid paths and unsigned replacement rejection using
+only temporary fixtures. `quick-clipboard` also checks permission-denied versus missing-image
+classification. Image failure logs are bounded and omit file paths/content. Screenshot interaction
+tests cover the live overlay's pointer route; they do not establish real-machine Notification Center
+or cross-version TCC retention.

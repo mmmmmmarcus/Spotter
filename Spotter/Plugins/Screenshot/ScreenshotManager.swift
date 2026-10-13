@@ -10,6 +10,7 @@ enum ScreenshotCaptureResult {
     case noTextFound
     case cancelled
     case permissionRequired
+    case accessibilityRequired
     case failed
 }
 
@@ -64,7 +65,8 @@ final class ScreenshotManager: ObservableObject {
     private static let previewDurationKey = "screenshot.preview-duration"
 
     private var panels: [ScreenshotSelectionPanel] = []
-    private var frozenDisplays: [CGDirectDisplayID: ScreenshotSnapshot] = [:]
+    private let pointerCapture = ScreenshotPointerCapture()
+    private weak var dragPanel: ScreenshotSelectionPanel?
     private var completion: ((ScreenshotCaptureResult) -> Void)?
     private var captureTask: Task<Void, Never>?
     private var previousCursor: NSCursor?
@@ -204,48 +206,7 @@ final class ScreenshotManager: ObservableObject {
         captureSource = (frontmost?.localizedName, frontmost?.bundleIdentifier)
         mode = .screenshot
         selectionStartedAt = Date()
-        let requestedAt = ProcessInfo.processInfo.systemUptime
-        let displays = screens.compactMap { screen -> (CGDirectDisplayID, CGRect, CGSize, (width: Int, height: Int))? in
-            guard let id = screen.displayID else { return nil }
-            return (id, CGDisplayBounds(id), screen.frame.size,
-                ScreenshotCaptureScale.retina.pixelSize(forPointSize: screen.frame.size, nativeScale: screen.backingScaleFactor))
-        }
-        captureTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                guard displays.count == screens.count else { throw ScreenshotCaptureFailure.displayUnavailable }
-                let snapshots = try await withThrowingTaskGroup(of: (CGDirectDisplayID, ScreenshotSnapshot).self) { group in
-                    for (id, rect, pointSize, pixels) in displays {
-                        group.addTask {
-                            let configuration = SCScreenshotConfiguration()
-                            configuration.width = Int(pixels.width)
-                            configuration.height = Int(pixels.height)
-                            configuration.showsCursor = false
-                            configuration.dynamicRange = .sdr
-                            let output = try await SCScreenshotManager.captureScreenshot(rect: rect, configuration: configuration)
-                            try Task.checkCancellation()
-                            guard let image = output.sdrImage else { throw ScreenshotCaptureFailure.displayUnavailable }
-                            return (id, ScreenshotSnapshot(image: image, pointSize: pointSize))
-                        }
-                    }
-                    var snapshots: [CGDirectDisplayID: ScreenshotSnapshot] = [:]
-                    for try await (id, snapshot) in group { snapshots[id] = snapshot }
-                    return snapshots
-                }
-                try Task.checkCancellation()
-                frozenDisplays = snapshots
-                captureTask = nil
-                presentSelection(on: screens)
-                let elapsed = Int((ProcessInfo.processInfo.systemUptime - requestedAt) * 1000)
-                AppLog.info("screenshot", "Selection ready in \(elapsed) ms across \(screens.count) display(s).")
-            } catch {
-                guard !Task.isCancelled else { return }
-                AppLog.error("screenshot", "Preparing screen snapshot failed: \(error.localizedDescription)")
-                captureTask = nil
-                dismissPanels()
-                finish(.failed)
-            }
-        }
+        presentSelection(on: screens)
     }
 
     private func presentSelection(on screens: [NSScreen]) {
@@ -253,6 +214,24 @@ final class ScreenshotManager: ObservableObject {
         BackgroundCursor.setAllowed(true)
         panels = screens.map(makePanel)
 
+        pointerCapture.onPointer = { [weak self] type, point in
+            guard let self else { return }
+            let hovered = panels.first { NSMouseInRect(point, $0.frame, false) }
+            if type == .leftMouseDown { dragPanel = hovered }
+            (dragPanel ?? hovered)?.handlePointer(type, at: point)
+            if type == .leftMouseUp { dragPanel = nil }
+        }
+        pointerCapture.onUnavailable = { [weak self] in
+            AppLog.error("screenshot", "Pointer interception stopped; cancelled selection to protect the underlying UI.")
+            self?.cancel()
+        }
+        guard pointerCapture.start() else {
+            AppLog.error("screenshot", "Cannot intercept selection clicks. Enable Spotter in Privacy & Security > Accessibility.")
+            dismissPanels()
+            _ = Permissions.ensureAccessibility()
+            finish(.accessibilityRequired)
+            return
+        }
         selectionStartedAt = Date()
         for panel in panels { panel.activate() }
         for panel in panels { panel.prepareForPresentation() }
@@ -406,8 +385,7 @@ final class ScreenshotManager: ObservableObject {
         let view = ScreenshotSelectionView(
             screenFrame: screen.frame,
             visibleFrame: screen.visibleFrame,
-            roundedCorners: roundedCorners,
-            snapshot: screen.displayID.flatMap { frozenDisplays[$0]?.image })
+            roundedCorners: roundedCorners)
         let panel = ScreenshotSelectionPanel(screenFrame: screen.frame, contentView: view)
         view.onSelection = { [weak self, weak screen] localRect in
             guard let self, let screen else { return }
@@ -473,8 +451,7 @@ final class ScreenshotManager: ObservableObject {
     }
 
     private func finishSelection(_ localRect: CGRect, on screen: NSScreen) {
-        guard ScreenshotGeometry.isCapturable(localRect), let displayID = screen.displayID,
-            let snapshot = frozenDisplays[displayID]
+        guard ScreenshotGeometry.isCapturable(localRect), screen.displayID != nil
         else {
             cancel()
             return
@@ -483,7 +460,7 @@ final class ScreenshotManager: ObservableObject {
             fromScreenLocal: localRect, screenHeight: screen.frame.height)
         lastCaptureRect = localRect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
         if mode == .ocr {
-            recognizeText(in: captureRect, snapshot: snapshot)
+            recognizeText(in: captureRect, on: screen)
             return
         }
         let roundedCorners = roundedCorners
@@ -494,7 +471,7 @@ final class ScreenshotManager: ObservableObject {
             guard let self else { return }
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.snapshotImage(snapshot, in: captureRect, scale: captureScale)
+                let image = try await Self.captureImage(on: screen, in: captureRect, scale: captureScale)
                 await deliver(image, roundedCorners: roundedCorners)
             } catch {
                 guard !Task.isCancelled else { return }
@@ -509,13 +486,13 @@ final class ScreenshotManager: ObservableObject {
     /// text lands on the clipboard in their place. Always captured at Retina regardless of the
     /// Resolution setting — recognition accuracy tracks pixel density, and no image is kept, so
     /// honouring a 1x preference here would cost accuracy and save nothing.
-    private func recognizeText(in rect: CGRect, snapshot: ScreenshotSnapshot) {
+    private func recognizeText(in rect: CGRect, on screen: NSScreen) {
         dismissPanels()
         captureTask = Task { [weak self] in
             guard let self else { return }
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.snapshotImage(snapshot, in: rect, scale: .retina)
+                let image = try await Self.captureImage(on: screen, in: rect, scale: .retina)
                 let text = try await Task.detached(priority: .userInitiated) {
                     try ScreenshotTextRecognizer.text(in: image)
                 }.value
@@ -555,7 +532,7 @@ final class ScreenshotManager: ObservableObject {
     /// One whole display, captured through the same display path a region uses — the source
     /// rectangle is simply the display's full bounds.
     private func captureScreen(of screen: NSScreen) {
-        guard let displayID = screen.displayID, let snapshot = frozenDisplays[displayID] else {
+        guard screen.displayID != nil else {
             cancel()
             return
         }
@@ -568,7 +545,7 @@ final class ScreenshotManager: ObservableObject {
             guard let self else { return }
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.snapshotImage(snapshot, in: captureRect, scale: captureScale)
+                let image = try await Self.captureImage(on: screen, in: captureRect, scale: captureScale)
                 // A whole display has no corners to round; the desktop fills every pixel.
                 await deliver(image, roundedCorners: false)
             } catch {
@@ -624,7 +601,7 @@ final class ScreenshotManager: ObservableObject {
     /// value goes to the clipboard. Sampled at 1x regardless of the Resolution setting — one point
     /// is the colour the user sees, and averaging its Retina quad is the honest single value.
     private func pickColor(at localPoint: CGPoint, on screen: NSScreen) {
-        guard let displayID = screen.displayID, let snapshot = frozenDisplays[displayID] else {
+        guard screen.displayID != nil else {
             cancel()
             return
         }
@@ -638,7 +615,7 @@ final class ScreenshotManager: ObservableObject {
             guard let self else { return }
             guard !Task.isCancelled else { return }
             do {
-                let image = try await Self.snapshotImage(snapshot, in: captureRect, scale: .oneX)
+                let image = try await Self.captureImage(on: screen, in: captureRect, scale: .oneX)
                 let hex = await Task.detached(priority: .userInitiated) {
                     ScreenshotColorSampler.hexColor(from: image)
                 }.value
@@ -686,13 +663,23 @@ final class ScreenshotManager: ObservableObject {
         return writeToPasteboard(tiff)
     }
 
-    private static func snapshotImage(
-        _ snapshot: ScreenshotSnapshot, in rect: CGRect, scale: ScreenshotCaptureScale
+    private static func captureImage(
+        on screen: NSScreen, in rect: CGRect, scale: ScreenshotCaptureScale
     ) async throws -> CGImage {
-        guard let image = await Task.detached(priority: .userInitiated, operation: {
-            snapshot.cropped(to: rect, scale: scale)
-        }).value else { throw ScreenshotCaptureFailure.displayUnavailable }
+        guard let displayID = screen.displayID else { throw ScreenshotCaptureFailure.displayUnavailable }
+        // Let WindowServer remove the transparent selection chrome before taking the live pixels.
+        try await Task.sleep(for: .milliseconds(50))
+        let configuration = SCScreenshotConfiguration()
+        let pixels = scale.pixelSize(forPointSize: rect.size, nativeScale: screen.backingScaleFactor)
+        configuration.width = pixels.width
+        configuration.height = pixels.height
+        configuration.showsCursor = false
+        configuration.dynamicRange = .sdr
+        let display = CGDisplayBounds(displayID)
+        let output = try await SCScreenshotManager.captureScreenshot(
+            rect: rect.offsetBy(dx: display.minX, dy: display.minY), configuration: configuration)
         try Task.checkCancellation()
+        guard let image = output.sdrImage else { throw ScreenshotCaptureFailure.displayUnavailable }
         return image
     }
 
@@ -752,7 +739,8 @@ final class ScreenshotManager: ObservableObject {
         for key in ScreenshotSelectionKey.allCases { hotKeys.releaseTransientKey(id: key.id) }
         for panel in panels { panel.deactivate() }
         panels = []
-        frozenDisplays = [:]
+        pointerCapture.stop()
+        dragPanel = nil
         previousCursor?.set()
         previousCursor = nil
         BackgroundCursor.setAllowed(false)

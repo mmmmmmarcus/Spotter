@@ -44,14 +44,18 @@ When an update has a zip asset, installation follows this sequence:
 2. Read the running app's code-signing designated requirement.
 3. Require the downloaded bundle, including nested code and all architectures, to satisfy it.
 4. Copy the verified app beside the current installation.
-5. Exchange the staged and installed bundles in one atomic `renamex_np(RENAME_SWAP)` and relaunch
-   through the normal application shutdown path. The installed path is never empty. If the atomic
-   exchange fails, installation stops, removes only the staged replacement and keeps the current
-   bundle intact; there is no delete-and-reinstall fallback. The error includes the filesystem error
-   number in the UI and diagnostics log. After a successful exchange the retired bundle is deleted
-   under its staging name. A compatible signature and atomic exchange reduce permission-reset risks,
-   but neither proves that macOS preserved Full Disk Access; verify actual access before and after
-   an upgrade when diagnosing a reported permission loss.
+5. Launch the verified incoming executable in versioned installer-helper mode, before AppKit starts.
+   Wait for its readiness marker, then request normal application shutdown.
+6. The helper watches the old PID with `kqueue/NOTE_EXIT` (120-second limit). Only after exit does it
+   reverify signing identity and atomically exchange both paths with `renamex_np(RENAME_SWAP)`.
+   The installed path stays occupied. Verification, timeout or exchange failure preserves the old app.
+7. Relaunch through `/usr/bin/open -n`, then remove the retired bundle. Failure after the swap leaves
+   the new app installed and records recovery guidance. The helper does not depend on Python.
+
+The bounded `Logs/update-installer.log` under the bundle-keyed Application Support directory is
+included in exported Diagnostics. Matching signatures and this shutdown barrier reduce permission
+reset risks, but do not prove FDA retention on another Mac. The transition from an older version
+still executes that older updater; this sequence applies to subsequent updates from 1.7.14 onward.
 
 ## Progress reporting and palette rows
 

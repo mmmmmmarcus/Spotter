@@ -24,6 +24,7 @@ struct ScreenshotInteractionTests {
         check(!panel.canBecomeKey && !panel.canBecomeMain, "overlay cannot steal menu keyboard focus")
         check(panel.becomesKeyOnlyIfNeeded && !view.needsPanelToBecomeKey, "selection clicks never request key focus")
         check(!view.acceptsFirstResponder, "selection view does not claim keyboard input")
+        check(panel.ignoresMouseEvents, "overlay leaves system window focus untouched; the temporary pointer tap owns selection")
         panel.activate()
         check(!panel.isKeyWindow && NSApp.keyWindow === previousKey, "presenting overlay preserves the previous key window")
         check(NSWorkspace.shared.frontmostApplication?.processIdentifier == previousApp, "presentation preserves the frontmost app")
@@ -56,6 +57,18 @@ struct ScreenshotInteractionTests {
         check(selections == 1 && cancellations == 0, "region selection works without keyboard focus")
         panel.captureScreenIfIdle()
         check(screens == 2, "Tab becomes available after the drag ends")
+        var windows = 0
+        view.onWindowCapture = { windows += 1 }
+        view.handlePointer(.rightMouseDown, at: .zero)
+        check(windows == 0, "right down does not tear down interception before button release")
+        view.handlePointer(.rightMouseUp, at: .zero)
+        check(windows == 1, "right release captures the window")
+        var selectedRect = CGRect.zero
+        view.onSelection = { selectedRect = $0 }
+        panel.handlePointer(.leftMouseDown, at: CGPoint(x: frame.minX + 10, y: frame.minY + 10))
+        panel.handlePointer(.leftMouseDragged, at: CGPoint(x: frame.maxX + 20, y: frame.maxY + 20))
+        panel.handlePointer(.leftMouseUp, at: CGPoint(x: frame.maxX + 20, y: frame.maxY + 20))
+        check(selectedRect == CGRect(x: 10, y: 10, width: 90, height: 90), "intercepted global pointer drag clamps to the starting display")
         panel.deactivate()
         check(!panel.isVisible && NSApp.keyWindow === previousKey, "dismissal leaves keyboard focus unchanged")
         print(failures == 0 ? "All screenshot interaction checks passed" : "\(failures) failures")

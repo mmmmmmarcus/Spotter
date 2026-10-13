@@ -21,22 +21,24 @@ same capture path as Option-Z instead of bypassing shortcut dispatch.
 
 ## Region selection
 
-Invoking capture first saves a Retina snapshot of every display, then creates one borderless panel
-per display at the screen-saver window level. The panels show those frozen pixels, so Notification
-Center or other transient UI remains selectable even if the system dismisses it on mouse-down.
-Region capture, OCR, whole-display capture and color sampling read the same snapshots; cancellation
-and completion release them. Preparation failures abort instead of falling back to a later screen.
-Right-click window capture retains its independent live-window/shadow path. Spotter
-does not activate: each overlay is a `.nonactivatingPanel`, explicitly receives mouse events and
-accepts the first click while the user's current app remains frontmost. Its content rect is the
-display's global frame, with no second screen-relative offset, so displays left of or below the
-primary remain covered. The overlay and its view live in `ScreenshotSelectionView.swift` so their
-real AppKit focus and drag behavior is exercised by `Tools/screenshot-interaction-test.swift`.
-Panels cannot become key or main, and their views neither request key-panel status nor become first
-responder. Presentation and mouse-down never call `makeKey` or `makeFirstResponder`. A nonactivating
-panel can otherwise still steal keyboard focus, disrupting a menu when the next modifier transition
-arrives. Keeping the previous focus owner also preserves the original menu while Option is pressed
-or released. No app activation, synthetic input, accessibility requirement or event tap is added.
+Invoking capture immediately presents one transparent nonactivating panel per display. The desktop
+remains live throughout selection; pixels are acquired only after the overlays are dismissed.
+Region, OCR, display and color capture use the macOS screenshot rectangle API, with Quartz display
+origins and the selected output scale. Window capture keeps its shadow-aware path.
+
+`ScreenshotPointerCapture` owns a temporary active session event tap while selection is visible.
+It consumes mouse button/drag and scroll events before they reach the underlying application, so
+selecting a transient surface does not send an outside click to dismiss it. Overlay panels ignore
+mouse events and never become key or main. Pointer coordinates route into the selection view;
+a drag stays on its starting display and right-click capture waits for button release. Escape,
+completion, a disabled tap and every cancellation path remove the tap. Nothing is monitored at
+startup or between screenshots. Accessibility is required for this bounded interception; an
+unavailable tap aborts with an Accessibility hint instead of exposing clicks to the original UI.
+Screen Recording remains required for pixels. No frozen-screen fallback or synthetic clicks are used.
+
+The overlay and view live in `ScreenshotSelectionView.swift`; the offscreen interaction harness
+exercises focus preservation, intercepted coordinates, drag clamping and right-button release.
+Actual preservation of each third-party/system transient surface still requires real-machine testing.
 
 The selection view replaces the system pointer for the bounded session, then restores the exact
 previous cursor on every exit path. The pointers are built once from SF Symbols — `dot.crosshair`
@@ -192,7 +194,7 @@ clicks are inert; Escape still cancels. There is no loupe: click-to-copy ships f
 preview would need live screen streaming that the idle-between-invocations architecture deliberately
 avoids.
 
-The sample is one point cropped from the frozen display and downsampled to `1x` regardless of the
+The sample is one point captured from the live display at `1x` regardless of the
 Resolution setting. It never includes the selection overlay and needs no delayed screen read. The pure `ScreenshotColorSampler` converts the pixel to sRGB before
 formatting — a raw byte read off a Display-P3 capture would name a colour every other app renders
 differently — and the pure `ScreenshotGeometry.colorSampleRect` keeps an edge click on the display;
@@ -411,4 +413,6 @@ plugin is idle. The interaction architecture is adapted from Capso revision
 `81c7ce50023b9b56d5b1ab569f0abd4551fcf2b1`; its Business Source License 1.1 is retained in
 `Spotter/Plugins/Screenshot/Capso-BSL-1.1.txt` and embedded in the app bundle.
 
-Selection startup captures each display directly with the macOS screenshot rectangle API, using Quartz display bounds and native pixel dimensions. Displays are captured concurrently without enumerating shareable windows. All fresh snapshots must finish before any overlay is shown; cancellation discards them. Window-only capture retains its separate shadow-aware path. Startup duration is logged in milliseconds for real-machine latency checks.
+Selection startup performs no image capture or shareable-window enumeration. On completion, the
+overlay is removed and a 50 ms compositor interval precedes live rectangle capture. Cancellation
+before capture cancels that request; window-only capture keeps its separate shadow-aware path.

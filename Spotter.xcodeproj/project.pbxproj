@@ -310,6 +310,7 @@
 		C996616C520623984C9B7C74 /* LocalAIStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13D39F34BB601AC61A46E6D /* LocalAIStore.swift */; };
 		CA4761943167D017165DF6FD /* SettingsBackupData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA4845247A6E5ADB97F3BB /* SettingsBackupData.swift */; };
 		CAB28684B11E838CBAAE63D0 /* ThinScrollbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D58C310CD39C89001E71E53 /* ThinScrollbar.swift */; };
+		CCABD6167A76CCEF94E4933B /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = F364AEE12AC3DB425ADE19EA /* UpdateInstaller.swift */; };
 		CD19662436AFA250E2156D01 /* SFSymbolPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DF520440038E3771BAAF928 /* SFSymbolPlugin.swift */; };
 		CD573B8B058505054766182C /* ExtensionRefreshIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4538B78D945DC060B7CBA8CD /* ExtensionRefreshIndicator.swift */; };
 		CDC26DC7B53B3AC718F1002C /* ExtensionColorSpaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8409FF6FF3AA4CA38A7DDFC8 /* ExtensionColorSpaces.swift */; };
@@ -327,6 +328,7 @@
 		D6583ACE66F46BBFCC82876F /* RaycastRuntime-React-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = C8C94AD8D5FAB5223AB31879 /* RaycastRuntime-React-LICENSE.txt */; };
 		D67DC512CE32175B3C1D778B /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = C043E4441629EFE8CA184AAB /* AppVersion.swift */; };
 		D772C9006C6B07197B04ECCD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2B1D180CB11167DFD22ECF /* OnboardingState.swift */; };
+		D7A67475322F5FDE20978DE2 /* ScreenshotPointerCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D68CF305105FB0C8A19BB1 /* ScreenshotPointerCapture.swift */; };
 		D7A6D3EE0D68E59D585C12EE /* ClipboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFE9CB942C341FA21C55E4B /* ClipboardManager.swift */; };
 		DA1B830A62DF54A49DFB94F0 /* ExtensionMenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCE81AD6B420F77EC60DAAB /* ExtensionMenuBarManager.swift */; };
 		DAC839A82F6DCA87EA2E4439 /* PluginShortcutSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25840DB097D93CD67BAB8C5D /* PluginShortcutSync.swift */; };
@@ -760,6 +762,8 @@
 		F2CD1311E0B12491B271E354 /* ExtensionFormMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionFormMetrics.swift; sourceTree = "<group>"; };
 		F2DDCBC268510C03A9757B22 /* BackupActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActions.swift; sourceTree = "<group>"; };
 		F34DAE1945EA4030F84B8835 /* TextReplacementPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementPlugin.swift; sourceTree = "<group>"; };
+		F364AEE12AC3DB425ADE19EA /* UpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstaller.swift; sourceTree = "<group>"; };
+		F3D68CF305105FB0C8A19BB1 /* ScreenshotPointerCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPointerCapture.swift; sourceTree = "<group>"; };
 		F43C13E7DF5702CA324B8607 /* QuickAIChatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAIChatController.swift; sourceTree = "<group>"; };
 		F53DD1CD05BF4D4C4CFE7408 /* NoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteView.swift; sourceTree = "<group>"; };
 		F61C54B4EE72F105EA9ABD48 /* EmojiGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiGridView.swift; sourceTree = "<group>"; };
@@ -1006,6 +1010,7 @@
 				BAA6729A8C71A37B8800DB8A /* ScreenshotManager.swift */,
 				390FC9E8B9340545BF6A3405 /* ScreenshotPinWindow.swift */,
 				B4EC6D4EEA70F7417040D5AB /* ScreenshotPlugin.swift */,
+				F3D68CF305105FB0C8A19BB1 /* ScreenshotPointerCapture.swift */,
 				F12D82E314EC41F6F38616E5 /* ScreenshotPreviewHUD.swift */,
 				2FE864FC2F56041525307879 /* ScreenshotSelectionView.swift */,
 				E316818499A51F277F1FC8D4 /* ScreenshotSettingsView.swift */,
@@ -1339,6 +1344,7 @@
 				6172871C3BC7101BBCDB5A4D /* Theme+Raycast.swift */,
 				1D58C310CD39C89001E71E53 /* ThinScrollbar.swift */,
 				80B34460791F6B79BDE3717A /* UpdateFeed.swift */,
+				F364AEE12AC3DB425ADE19EA /* UpdateInstaller.swift */,
 				99A3631117D5E9DDEC5059BC /* UpdatePresentation.swift */,
 				F7829EA08561C01C47794D1C /* UpdateStore.swift */,
 				DBB3757FA662D508E113F837 /* VisibilityStore.swift */,
@@ -1883,6 +1889,7 @@
 				721987FA348B453F723FF2E7 /* ScreenshotManager.swift in Sources */,
 				2C355DDDAE2429689A9E3631 /* ScreenshotPinWindow.swift in Sources */,
 				83C37637DD67A17B4D94E7C2 /* ScreenshotPlugin.swift in Sources */,
+				D7A67475322F5FDE20978DE2 /* ScreenshotPointerCapture.swift in Sources */,
 				5AB7A011B760293695A0774E /* ScreenshotPreviewHUD.swift in Sources */,
 				3D94A9669E8968F3B84E7BE3 /* ScreenshotSelectionView.swift in Sources */,
 				003ED0A7EA94315E72C93EAA /* ScreenshotSettingsView.swift in Sources */,
@@ -1935,6 +1942,7 @@
 				4ABAC79A1042D1D15831AAEB /* TranslationAlignmentClient.swift in Sources */,
 				1D49CA04DE40D73721B41A56 /* TranslationWordAlignment.swift in Sources */,
 				F91F68FE32440D040FB0FCA6 /* UpdateFeed.swift in Sources */,
+				CCABD6167A76CCEF94E4933B /* UpdateInstaller.swift in Sources */,
 				250F260456858C710BE06016 /* UpdatePresentation.swift in Sources */,
 				5D40DCFE0F29E6D10B497D72 /* UpdateStore.swift in Sources */,
 				66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */,
@@ -2018,7 +2026,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.13;
+				MARKETING_VERSION = 1.7.14;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -2090,7 +2098,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.13;
+				MARKETING_VERSION = 1.7.14;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

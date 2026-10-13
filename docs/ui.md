@@ -826,3 +826,6 @@ They retain their existing all-Spaces and full-screen auxiliary behavior. Histor
 History capsules have solid inverse-appearance backgrounds; the bottom input retains its gradient. History stays in the right control group after opening a session. A selected capsule shares its background geometry with the chat surface during the transition, with opacity-only motion reduction.
 
 Current-application menu commands appear directly in typed Palette results with application and menu path labels. Their Actions menu offers execution only; no extra Search Menu Bar Items screen is required.
+
+Screenshot selection overlays are transparent and leave the desktop live. A temporary pointer tap
+routes the selection without activating a window; no pre-capture desktop bitmap is displayed.

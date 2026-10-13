@@ -22,6 +22,41 @@ enum ImageThumbnail {
 
     /// Longest-edge size at or below which a decode is a "row" thumbnail; larger is a "preview".
     private static let rowThreshold: CGFloat = 128
+    private final class FailureCache: NSCache<NSString, NSDate>, @unchecked Sendable {}
+    private static let failures: FailureCache = {
+        let cache = FailureCache()
+        cache.countLimit = 128
+        return cache
+    }()
+
+    static func failureCategory(_ error: NSError) -> String {
+        if error.domain == NSPOSIXErrorDomain {
+            if error.code == 1 || error.code == 13 { return "permission-denied" }
+            if error.code == 2 { return "file-missing" }
+        }
+        if error.domain == NSCocoaErrorDomain {
+            if error.code == NSFileReadNoPermissionError { return "permission-denied" }
+            if error.code == NSFileReadNoSuchFileError { return "file-missing" }
+        }
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return failureCategory(underlying)
+        }
+        return "read-error(domain=\(error.domain),code=\(error.code))"
+    }
+
+    private static func reportFailure(_ url: URL, stage: String) {
+        let key = url.path as NSString
+        if let last = failures.object(forKey: key), Date().timeIntervalSince(last as Date) < 60 { return }
+        failures.setObject(NSDate(), forKey: key)
+        var reason = "unsupported-or-corrupt-image"
+        do {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            _ = try handle.read(upToCount: 16)
+        } catch { reason = failureCategory(error as NSError) }
+        // Opaque per-process identity correlates retries without exposing clipboard filenames or contents.
+        AppLog.error("image-thumbnail", "Image \(url.path.hashValue): \(reason); stage=\(stage).")
+    }
 
     private static func pick(_ maxPixel: CGFloat) -> NSCache<NSString, NSImage> {
         maxPixel <= rowThreshold ? rowCache : previewCache
@@ -56,7 +91,10 @@ enum ImageThumbnail {
         let key = cacheKey(url, maxPixel)
         if let cached = cache.object(forKey: key) { return cached }
 
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            reportFailure(url, stage: "open")
+            return nil
+        }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -64,7 +102,11 @@ enum ImageThumbnail {
             kCGImageSourceThumbnailMaxPixelSize: maxPixel,
         ]
         guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
-        else { return nil }
+        else {
+            reportFailure(url, stage: "decode(status=\(CGImageSourceGetStatus(source).rawValue))")
+            return nil
+        }
+        failures.removeObject(forKey: url.path as NSString)
 
         let image = NSImage(
             cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))

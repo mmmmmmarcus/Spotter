@@ -1,6 +1,16 @@
 import SwiftUI
 
 @main
+enum SpotterBootstrap {
+    @MainActor
+    static func main() {
+        if CommandLine.arguments.dropFirst().first == UpdateInstaller.argument {
+            exit(UpdateInstaller.run(arguments: CommandLine.arguments))
+        }
+        SpotterApp.main()
+    }
+}
+
 struct SpotterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     // `@AppStorage` republishes only when the value changes, avoiding a scene ⇄ binding feedback loop.

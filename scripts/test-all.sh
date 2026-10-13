@@ -39,6 +39,7 @@ TESTS=(
     text-replacement
     settings-sync
     update
+    update-installer
     window-command
     background-task
     ai-chat
@@ -150,7 +151,7 @@ run_harness() {
                 Tools/clipboard-capture-test.swift -o "$output" && "$output"
             ;;
         quick-clipboard)
-            swiftc -swift-version 6 Spotter/Core/ImageThumbnail.swift \
+            swiftc -swift-version 6 Spotter/Core/AppLog.swift Spotter/Core/ImageThumbnail.swift \
                 Spotter/Plugins/Clipboard/ClipboardStore.swift \
                 Spotter/Plugins/Clipboard/ClipboardColor.swift \
                 Spotter/Plugins/Clipboard/ClipboardFilter.swift \
@@ -263,6 +264,9 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift \
                 Spotter/Core/UpdatePresentation.swift Tools/update-test.swift -o "$output" && "$output"
             ;;
+        update-installer)
+            swiftc -swift-version 6 Spotter/Core/UpdateInstaller.swift Tools/update-installer-test.swift -o "$output" && "$output"
+            ;;
         window-command)
             swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
                 Spotter/Plugins/WindowManagement/WindowLayout.swift \
@@ -369,7 +373,7 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
                 Spotter/Plugins/Screenshot/ScreenshotGeometry.swift \
                 Spotter/Plugins/Screenshot/ScreenshotCursor.swift \
-                Spotter/Plugins/Screenshot/ScreenshotSelectionView.swift \
+                Spotter/Plugins/Screenshot/ScreenshotSelectionView.swift Spotter/Plugins/Screenshot/ScreenshotPointerCapture.swift \
                 Tools/screenshot-interaction-test.swift -o "$output" && "$output"
             ;;
         screenshot)

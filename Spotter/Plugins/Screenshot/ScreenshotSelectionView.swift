@@ -51,7 +51,7 @@ final class ScreenshotSelectionPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         isMovable = false
         isReleasedWhenClosed = false
-        ignoresMouseEvents = false
+        ignoresMouseEvents = true
         acceptsMouseMovedEvents = true
         self.contentView = contentView
 
@@ -80,6 +80,10 @@ final class ScreenshotSelectionPanel: NSPanel {
         selectionView.captureScreenIfIdle()
     }
 
+    func handlePointer(_ type: CGEventType, at globalPoint: CGPoint) {
+        selectionView.handlePointer(type, at: CGPoint(x: globalPoint.x - frame.minX, y: globalPoint.y - frame.minY))
+    }
+
     func deactivate() {
         orderOut(nil)
     }
@@ -92,7 +96,6 @@ final class ScreenshotSelectionView: NSView {
     var onScreenCapture: (() -> Void)?
     var onCancel: (() -> Void)?
 
-    private let snapshot: CGImage?
     private let roundedCorners: Bool
     private let screenFrame: CGRect
     private var mode: ScreenshotCaptureMode = .screenshot
@@ -101,8 +104,7 @@ final class ScreenshotSelectionView: NSView {
     private var selection: CGRect?
     private static let selectionStrokeWidthPixels: CGFloat = 1
 
-    init(screenFrame: CGRect, visibleFrame: CGRect, roundedCorners: Bool, snapshot: CGImage? = nil) {
-        self.snapshot = snapshot
+    init(screenFrame: CGRect, visibleFrame: CGRect, roundedCorners: Bool) {
         self.roundedCorners = roundedCorners
         self.screenFrame = screenFrame
         super.init(frame: NSRect(origin: .zero, size: screenFrame.size))
@@ -181,47 +183,46 @@ final class ScreenshotSelectionView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard event.buttonNumber == 0 else { return }
-        cursor.set()
-        guard mode.isDragSelection else { return }
-        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
-        dragStart = point
-        selection = .zero
-        needsDisplay = true
+        handlePointer(.leftMouseDown, at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard mode.isDragSelection, let dragStart else { return }
-        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
-        selection = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
-        cursor.set()
-        needsDisplay = true
+        handlePointer(.leftMouseDragged, at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard event.buttonNumber == 0 else { return }
-        let point = ScreenshotGeometry.clampedPoint(convert(event.locationInWindow, from: nil), to: bounds)
-        if mode == .colorPicker {
-            onColorPick?(point)
-            return
-        }
-        guard let dragStart else { return }
-        let rect = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
-        self.dragStart = nil
-        selection = nil
-        if ScreenshotGeometry.isCapturable(rect) {
-            onSelection?(rect)
-        } else {
-            onCancel?()
-        }
+        handlePointer(.leftMouseUp, at: convert(event.locationInWindow, from: nil))
     }
 
-    /// A right click is the window capture, hit-tested where it lands. It no longer cancels in any
-    /// mode — Escape and a second shortcut press remain the ways out — and it is inert mid-drag and
-    /// outside screenshot mode, where a window picture would be a surprise.
-    override func rightMouseDown(with event: NSEvent) {
-        guard mode == .screenshot, dragStart == nil else { return }
-        onWindowCapture?()
+    override func rightMouseUp(with event: NSEvent) {
+        handlePointer(.rightMouseUp, at: convert(event.locationInWindow, from: nil))
+    }
+
+    func handlePointer(_ type: CGEventType, at location: CGPoint) {
+        let point = ScreenshotGeometry.clampedPoint(location, to: bounds)
+        cursor.set()
+        switch type {
+        case .leftMouseDown:
+            guard mode.isDragSelection else { return }
+            dragStart = point
+            selection = .zero
+            needsDisplay = true
+        case .leftMouseDragged:
+            guard mode.isDragSelection, let dragStart else { return }
+            selection = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
+            needsDisplay = true
+        case .leftMouseUp:
+            if mode == .colorPicker { onColorPick?(point); return }
+            guard let dragStart else { return }
+            let rect = ScreenshotGeometry.selectionRect(from: dragStart, to: point, within: bounds)
+            self.dragStart = nil
+            selection = nil
+            if ScreenshotGeometry.isCapturable(rect) { onSelection?(rect) } else { onCancel?() }
+        case .rightMouseUp:
+            guard mode == .screenshot, dragStart == nil else { return }
+            onWindowCapture?()
+        default: break
+        }
     }
 
     func captureScreenIfIdle() {
@@ -231,11 +232,7 @@ final class ScreenshotSelectionView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        if let snapshot {
-            NSGraphicsContext.current?.cgContext.draw(snapshot, in: bounds)
-        } else {
-            drawHitSurface()
-        }
+        drawHitSurface()
         if let selection, ScreenshotGeometry.isCapturable(selection) {
             drawSelection(selection)
         }
@@ -244,6 +241,7 @@ final class ScreenshotSelectionView: NSView {
     private func drawHitSurface() {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
+        context.setBlendMode(.copy)
         context.setFillColor(NSColor(Theme.Colors.screenshotHitSurface).cgColor)
         context.fill(bounds)
         context.restoreGState()
@@ -265,7 +263,7 @@ final class ScreenshotSelectionView: NSView {
             transform: nil)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
-        context.setBlendMode(snapshot == nil ? .copy : .normal)
+        context.setBlendMode(.copy)
         context.setFillColor(NSColor(Theme.Colors.screenshotSelectionOverlay).cgColor)
         context.addPath(fillPath)
         context.fillPath()

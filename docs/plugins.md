@@ -348,10 +348,11 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Screenshot** (`Spotter/Plugins/Screenshot/`) — Option-Z (seeded once and
   user-editable), the launcher command and the menu-bar menu open the same non-activating crosshair
   overlay without taking focus from the current app. A left drag captures a region through a
-  display-scoped ScreenCaptureKit filter, a right click captures the window under the pointer, and
-  a per-display Liquid Glass button beside the Dock captures that whole screen; Space cycles the
+  live ScreenCaptureKit rectangle request, a right click captures the window under the pointer, and
+  Tab captures that whole screen; Space cycles the
   session's output between screenshot, OCR text and a hex colour sample. Images land on the system
-  clipboard; capture is one-shot and protected by macOS Screen Recording permission. The mode
+  clipboard; capture is one-shot and protected by macOS Screen Recording permission. A temporary
+  Accessibility-backed pointer tap prevents selection clicks from dismissing the underlying UI. The mode
   pointers are rendered once from SF Symbols with a one-point white outline and subtle drop shadow.
   The display stays visually unchanged; a one-alpha-step hit surface keeps the panel interactive,
   while a dragged region receives an exact 5% overlay. A default-on synced preference gives the

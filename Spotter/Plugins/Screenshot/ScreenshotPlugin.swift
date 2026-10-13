@@ -25,7 +25,7 @@ enum ScreenshotPlugin {
                 summary: "Capture a region, window or screen, read text, or sample a color.",
                 systemImage: "camera.viewfinder",
                 tint: .blue),
-            permissions: [.screenRecording],
+            permissions: [.screenRecording, .accessibility],
             shortcutActions: [
                 PluginActionRegistration(
                     key: .captureScreenshot,
@@ -174,6 +174,8 @@ extension AppCore {
                 hud.show(title: "No Text Found", symbol: "text.viewfinder", isNoOp: true)
             case .permissionRequired:
                 hud.show(title: "Allow Screen Recording", symbol: "lock.shield", isNoOp: true)
+            case .accessibilityRequired:
+                hud.show(title: "Allow Accessibility", symbol: "lock.shield", isNoOp: true)
             case .failed:
                 hud.show(title: "Screenshot Failed", symbol: "exclamationmark.triangle", isNoOp: true)
             case .cancelled:

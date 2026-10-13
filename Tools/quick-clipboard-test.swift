@@ -12,6 +12,8 @@ struct QuickClipboardTests {
     }
 
     static func main() async {
+        expect(ImageThumbnail.failureCategory(NSError(domain: NSPOSIXErrorDomain, code: 13)) == "permission-denied", "image permission denial is diagnosed")
+        expect(ImageThumbnail.failureCategory(NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError)) == "file-missing", "missing image is distinct from permission denial")
         geometry()
         await caretAnchors()
         await caretDeadline()
