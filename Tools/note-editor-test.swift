@@ -41,8 +41,46 @@ struct NoteEditorTests {
         listSplitting()
         listGeometry()
         localEmojiPaste()
+        listCopyPaste()
         print("\(checks - failures)/\(checks) passed")
         if failures > 0 { exit(1) }
+    }
+
+    static func listCopyPaste() {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("spotter.note-paste-test.\(UUID())"))
+        defer { pasteboard.releaseGlobally() }
+        for (marker, copied) in [("- [ ] ", "- [x] **完成**\n  - [ ] 第二项"),
+                                  ("- ", "- bullet"), ("2. ", "1. numbered"),
+                                  ("  - [ ] ", "  - [ ] nested")] {
+            let document = Document("# QA\n" + copied + "\n" + marker)
+            let editor = document.editor
+            let coordinator = editor.makeCoordinator()
+            let scroll = editor.makeScrollView(coordinator: coordinator)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 360),
+                                  styleMask: [.titled], backing: .buffered, defer: true)
+            window.contentView = scroll
+            defer { withExtendedLifetime(window) {} }
+            let view = scroll.documentView as! NSTextView
+            view.setSelectedRange((view.string as NSString).range(of: copied))
+            let type = view.writablePasteboardTypes.first!
+            pasteboard.declareTypes([type], owner: nil)
+            expect(view.writeSelection(to: pasteboard, types: [type]), "copy exports the original Markdown")
+            let before = view.string
+            view.setSelectedRange(NSRange(location: before.utf16.count, length: 0))
+            expect(view.readSelection(from: pasteboard, type: type), "native paste accepts the copied block")
+            expect(view.string == "# QA\n" + copied + "\n" + copied, "paste preserves list state and nesting without a duplicate marker")
+            expect(document.text == view.string, "pasted block reaches the persisted document binding")
+            view.undoManager?.undo()
+            expect(view.string == before, "list paste undoes in one step")
+        }
+        for (source, pasted) in [("# QA\n- [ ] ", "ordinary text"),
+                                  ("# QA\n- [ ] existing", "- [ ] copied"),
+                                  ("# QA\n```\n- [ ] ", "- [ ] literal")] {
+            let caret = source.hasSuffix("existing") ? source.utf16.count - 8 : source.utf16.count
+            expect(NoteEngine.listPasteReplacementRange(in: source,
+                selection: NSRange(location: caret, length: 0), inserting: pasted) == nil,
+                "plain text, occupied items and code fences retain normal paste semantics")
+        }
     }
 
     static func emptyTitleCaret() {

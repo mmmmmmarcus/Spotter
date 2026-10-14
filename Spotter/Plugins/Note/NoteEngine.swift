@@ -642,6 +642,24 @@ enum NoteEngine {
         return NSRange(location: line.location, length: length)
     }
 
+    // A copied list block replaces an empty destination marker instead of nesting raw Markdown inside it.
+    static func listPasteReplacementRange(in text: String, selection: NSRange, inserting pasted: String) -> NSRange? {
+        let source = text as NSString
+        guard selection.location != NSNotFound, selection.location >= 0, selection.length >= 0,
+            selection.location <= source.length, selection.length <= source.length - selection.location,
+            let firstLine = pasted.components(separatedBy: .newlines).first,
+            firstLine.range(of: listPrefixPattern, options: .regularExpression) != nil,
+            let marker = listMarkerDeletion(in: text, selection: NSRange(location: selection.location, length: 0))
+        else { return nil }
+        let line = source.lineRange(for: NSRange(location: selection.location, length: 0))
+        let end = NSMaxRange(selection)
+        guard end <= NSMaxRange(line),
+            source.substring(with: NSRange(location: end, length: NSMaxRange(line) - end))
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return NSRange(location: marker.location, length: end - marker.location)
+    }
+
     private static let listPrefixPattern = #"^[ \t]*([-*+] \[[ xX]\] |[-*+] |\d+\. )"#
 
     static func applyingBlockFormat(

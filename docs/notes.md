@@ -583,3 +583,9 @@ keeps its existing activation and Accessibility-gated path.
 The empty H1 keeps its full font metrics while its syntax has zero advance, so its caret remains
 visible before typing. Note switching uses the shared 160 ms fade and one-way translation described
 above, with no delayed handoff between two heading renderers.
+
+Notes native copy/paste preserves list Markdown. Pasting a list block into an empty continued item
+(or replacing its entire body) replaces that destination marker, preventing literal duplicate task,
+bullet or number prefixes. Plain text, partial selections, occupied items and fenced code retain
+normal paste behavior. The note-editor harness exercises native copy/readSelection with an isolated
+pasteboard, binding updates and single-step undo.

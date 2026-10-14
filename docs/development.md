@@ -619,3 +619,9 @@ only temporary fixtures. `quick-clipboard` also checks permission-denied versus 
 classification. Image failure logs are bounded and omit file paths/content. Screenshot interaction
 tests cover the live overlay's pointer route; they do not establish real-machine Notification Center
 or cross-version TCC retention.
+
+Notes native copy/paste preserves list Markdown. Pasting a list block into an empty continued item
+(or replacing its entire body) replaces that destination marker, preventing literal duplicate task,
+bullet or number prefixes. Plain text, partial selections, occupied items and fenced code retain
+normal paste behavior. The note-editor harness exercises native copy/readSelection with an isolated
+pasteboard, binding updates and single-step undo.

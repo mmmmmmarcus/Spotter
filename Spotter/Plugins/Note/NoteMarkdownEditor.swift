@@ -1174,6 +1174,15 @@ private final class NoteTextView: NSTextView, LocalPasteEditor {
         }
     }
 
+    override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+        guard !hasMarkedText(), type == .string || type.rawValue == "NSStringPboardType",
+            let pasted = pboard.string(forType: type),
+            let range = NoteEngine.listPasteReplacementRange(in: string, selection: selectedRange(), inserting: pasted)
+        else { return super.readSelection(from: pboard, type: type) }
+        insertText(pasted, replacementRange: range)
+        return true
+    }
+
     override func deleteBackward(_ sender: Any?) {
         if deleteHandler?() == true { return }
         super.deleteBackward(sender)

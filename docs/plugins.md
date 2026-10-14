@@ -439,3 +439,6 @@ remain registered so existing bindings open the floating surface.
 AI replies and release notes share the bundled CommonMark/GFM renderer. The WebKit surface is local,
 transparent and self-sizing, with explicit native link/copy dispatch; Mermaid and KaTeX stay offline.
 See `docs/ai-chat.md` for supported formats and the renderer regeneration/tests.
+
+Notes native list paste replaces an empty continued list marker with the copied block, preserving
+Todo state and indentation without displaying duplicate Markdown prefixes.
