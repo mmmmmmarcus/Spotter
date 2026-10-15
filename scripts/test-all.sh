@@ -72,10 +72,10 @@ validate_manifest() {
     local listed
     local actual
     listed="$(printf '%s\n' "${TESTS[@]}" | sort)"
-    actual="$(find Tools -maxdepth 1 -type f -name '*-test.swift' \
-        | sed -E 's#^Tools/##; s/-test\.swift$//' | sort)"
+    actual="$(find Tools -maxdepth 1 -type f \( -name '*-test.swift' -o -name '*-test.py' \) \
+        | sed -E 's#^Tools/##; s/-test\.(swift|py)$//' | sort)"
     if [ "$listed" != "$actual" ]; then
-        echo "✗ scripts/test-all.sh and Tools/*-test.swift are out of sync." >&2
+        echo "✗ scripts/test-all.sh and Tools/*-test.{swift,py} are out of sync." >&2
         diff -u <(printf '%s\n' "$listed") <(printf '%s\n' "$actual") || true
         exit 1
     fi
