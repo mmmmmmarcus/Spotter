@@ -107,7 +107,8 @@ action availability and selection preservation pure and Foundation-only.
 
 The signature check ties an update to both Spotter's bundle identifier and Developer ID. A stable
 bundle cannot replace beta, beta cannot replace stable, and an unrelated or differently signed app
-is rejected. Releases without a zip asset show **View release** and leave installation to the DMG.
+is rejected. Incomplete releases are rejected by the feed generator before deployment; failure
+screens retain the manual GitHub Releases link.
 
 Spotter 1.4.0 is the first Developer ID release. Users migrating from an older self-signed build must
 install a current DMG once; later releases with the same designated requirement can update in place.
@@ -120,8 +121,8 @@ the new identifier and designated requirement and install in place normally.
 
 ## Verification
 
-The standalone harness compiles the real parser and covers semantic-version ordering, malformed or
-draft releases, zip discovery, channel isolation, palette action selection, retry availability,
+The standalone harness compiles the real parser and covers semantic-version ordering, malformed
+static manifests, trusted asset URLs, channel isolation, palette action selection, retry availability,
 measured progress, unknown lengths and delayed/out-of-order installation callbacks:
 
 ```sh
@@ -141,3 +142,7 @@ static-host isolation, API-deadline migration and consent withdrawal. No live Gi
 
 `Tools/update-feed-generator-test.py` verifies draft/channel filtering, numeric ordering, required
 artifacts, trusted URLs, expected-version checks and exclusion of private metadata.
+
+For an anonymous live check through the real UpdateStore, run the compiled `update-network` harness
+with `--live <expected-version>`. This uses an isolated defaults suite and the production cacheless
+session, checks version/notes/download URL, and never downloads or installs the application.

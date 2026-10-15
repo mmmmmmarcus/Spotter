@@ -185,6 +185,7 @@ wait_for_jobs() {
             gh run view "$run_id" --log-failed || true
             return 1
         fi
+        # Reusable Pages jobs may appear after the app build completes; wait for all three jobs.
         if [ "$total" -ge 3 ] && [ "$incomplete" -eq 0 ]; then
             echo "✓ Every Release job completed successfully."
             return 0
