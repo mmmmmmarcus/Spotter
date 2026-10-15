@@ -695,7 +695,7 @@ final class AppCore: ObservableObject {
     /// Launcher-first update flow: stay in the shared palette while the same store and installer used by Settings drive every state.
     func showUpdates() {
         palette.prepare(mode: .updates)
-        Task { await updates.checkNow() }
+        Task { await updates.checkNow(source: .paletteOpen) }
     }
 
     func performUpdatePrimaryAction() {
@@ -706,7 +706,7 @@ final class AppCore: ObservableObject {
             if release.zipAssetURL != nil { Task { await updates.installAvailableUpdate() } }
             else { NSWorkspace.shared.open(release.pageURL) }
         case .check:
-            Task { await updates.checkNow() }
+            Task { await updates.checkNow(source: .paletteAction) }
         }
     }
 

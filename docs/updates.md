@@ -1,40 +1,60 @@
 # In-app updates
 
-Spotter checks and installs releases from the public GitHub Releases feed. The updater is deliberately
-small: feed parsing is pure Foundation code, network state belongs to `UpdateStore`, and the user must
-click before any installation starts.
+Spotter reads static JSON metadata from GitHub Pages. Installation packages remain in GitHub
+Releases. The app and website never query the GitHub REST API to check versions; the publishing
+workflow alone uses an authenticated API request to generate the public metadata.
 
 ## Channels and versions
 
-- Stable (`com.spotter.app1`) considers only non-prerelease GitHub Releases.
-- Beta (`com.spotter.app1.beta`) considers only prereleases, so it never offers a stable bundle with a
-  different identifier and designated requirement.
-- Tags use semantic versions: stable `v1.4.0`, beta `v1.4.0-beta.<Actions run number>`.
-- A release must be strictly newer than the running `CFBundleShortVersionString`.
+- Stable (`com.spotter.app1`) reads `https://mmmmmmarcus.github.io/Spotter/updates/stable.json`.
+- Beta (`com.spotter.app1.beta`) reads the separate `updates/beta.json` file.
+- Schema 1 contains `schemaVersion`, `channel`, and `releases`; each entry has `version`,
+  `releaseURL`, `zipURL`, `dmgURL`, and Markdown `releaseNotes`.
+- The app validates the schema, channel, version and exact HTTPS release/asset paths in the Spotter
+  repository, then chooses the newest version strictly newer than the running app.
+- Incompatible or malformed metadata is an error, never a successful up-to-date response or a
+  reason to fall back to the REST API. No client-side assets lookup remains.
 
-`project.yml` is the release version's single source of truth. CI publishes both
-`Spotter-<version>.dmg` for manual installation and `Spotter-<version>.zip` for the in-app updater.
-The zip contains the same Developer ID-signed, notarized and stapled app as the DMG.
-Both feed parsing and asset recovery require the exact `Spotter-<version>.zip` filename; unrelated
-archives and ZIPs for another version are ignored so they cannot suppress updater asset recovery.
-CI creates a draft, uploads and checks both assets, then publishes it. If GitHub's releases list
-still omits the ZIP, the updater queries that release's dedicated assets endpoint before offering
-manual installation. A failed asset lookup reports a retryable check failure instead of pretending
-the release has no updater. Automatic consent and cancellation are checked around both requests.
+`project.yml` remains the source version. Published metadata comes only from completed, non-draft
+GitHub Releases, never from a version bump that has not shipped. The generator keeps up to ten
+releases per channel and refuses to advertise a newest release without both uploaded ZIP and DMG.
+The website reads this same stable JSON and keeps its existing offline version fallback.
+
+## Publication and migration
+
+`scripts/generate-update-feed.py` runs in the Pages workflow with `GITHUB_TOKEN`. It reads releases
+and their dedicated asset endpoints, validates exact names/URLs and writes both manifests into
+`website/public/updates/` before the Vite build. Generated files are not committed. This is one
+publishing-side authenticated operation, not a request from each visitor or app installation.
+
+The release workflow publishes and verifies the GitHub artifacts first, then calls the reusable
+website workflow with the expected release tag. Publication fails if that tag is absent from the
+manifest. Pages deployments serialize across ordinary website pushes and releases, and public
+manifests are fetched anonymously and compared byte-for-byte with the deployment artifact. The
+release script waits for the app build, website build and verified Pages deployment before reporting
+success. If feed deployment fails after the GitHub release is public, rerun the failed Pages job;
+do not recreate the release or replace already-published packages.
+
+Existing clients still contain their GitHub REST URL. Keep publishing GitHub release metadata and
+ZIP/DMG files so they can install the transition version once, or use the manual Releases download.
+Only after installing that version will they use Pages. This removes anonymous API quota dependence
+from update checks, not the dependency on GitHub for package downloads or all network failures.
 
 ## Consent and network behavior
 
-**Check for Updates** in the launcher and **Settings → General → Check for Updates** are consent for
-one update check, including an asset lookup when the release list omits the updater ZIP. The launcher command opens the complete Software Update flow inside the palette: it checks immediately,
-reports the active channel and current result, offers the verified in-app install when a zip exists,
-and falls back to the release page for a DMG-only release. Escape and the header back button both
-return to a fresh launcher root. The automatic daily check ships disabled;
-enabling it presents a dialog naming GitHub, its cadence and the data sent. Its saved choice enters
-trusted v3 backups and automatic sync; trusting that file is the consent act on another Mac.
+Manual Check for Updates is consent for one static-feed request. Daily automatic checks remain
+opt-in; the dialog identifies GitHub Pages and explains what is sent. No account, identifier or
+clipboard content is sent. Existing GitHub-provider consent remains applicable; the hosting provider
+has not changed. The owning store checks consent before and after awaits, and uses a cacheless,
+ephemeral URLSession. Packages install only after an explicit action.
 
-Automatic checks verify consent immediately before the request and again after its `await`. Turning
-the toggle off cancels the loop and prevents an in-flight response from changing updater state. All
-requests use a private ephemeral `URLSession` with no URL cache.
+All entry points share an in-flight guard and a 30-second cooldown after completed checks,
+including failures. HTTP 429 and quota-related 403 responses respect Retry-After and rate-limit
+reset headers with a minimum 60-second backoff. The retry deadline is bundle-keyed, device-local,
+excluded from backup/sync and retained across relaunch. The old REST API deadline is ignored so
+an exhausted API quota cannot block the new static host. HTTP, transport and parsing failures have
+distinct messages. Both update surfaces offer a manual Releases link on failure. Diagnostics log
+trigger source and response status/limit headers without response bodies.
 
 ## Installation and trust
 
@@ -61,11 +81,10 @@ still executes that older updater; this sequence applies to subsequent updates f
 
 Software Update uses one persistent command row. It shows Checking during a request, Download and Install Update when an update is available, and You’re on the latest version when current. The available state shows the installed and target versions on the second line; Return immediately acts on that same selected row. Busy and up-to-date states cannot trigger an installation. Failures retain a retry action. Current Version remains a non-selectable row below it.
 
-Release notes below Current Version render the selected channel's latest GitHub Release
-body directly as Markdown, without an extra version heading. It is also available in Settings after a check, including
+Release notes below Current Version render the selected channel's latest static-feed
+releaseNotes directly as Markdown, without an extra version heading. It is also available in Settings after a check, including
 when already up to date. Missing or blank legacy notes show an explicit empty message and a release
-page link. Notes are read from the existing feed response, without a separate request, and survive
-ZIP asset recovery. Failed checks retain the last successful notes. This content adds no selectable
+page link. Notes are read from the existing feed response, without a separate request. Failed checks retain the last successful notes. This content adds no selectable
 command row, so keyboard selection and installation behavior remain unchanged.
 
 Every new release includes `docs/releases/<version>.md`; preflight and CI require it, and CI publishes
@@ -114,3 +133,11 @@ For a published release, also confirm the GitHub API returns the expected channe
 assets. Signature, notarization and Gatekeeper checks are listed in [signing.md](signing.md).
 
 Release note content is displayed directly, without an additional Release Notes heading.
+
+The `update-network` case in `scripts/test-all.sh` compiles the real UpdateStore with an isolated
+URLProtocol fixture and injected clock/defaults. It covers sequential and concurrent request
+suppression, primary/secondary limits, retry deadlines across relaunch, malformed/HTTP failures,
+static-host isolation, API-deadline migration and consent withdrawal. No live GitHub requests or real preferences are used.
+
+`Tools/update-feed-generator-test.py` verifies draft/channel filtering, numeric ordering, required
+artifacts, trusted URLs, expected-version checks and exclusion of private metadata.

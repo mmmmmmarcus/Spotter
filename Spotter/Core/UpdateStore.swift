@@ -3,7 +3,6 @@ import Foundation
 import Security
 
 enum UpdateError: LocalizedError {
-    case badFeed
     case badDownload
     case noAppInArchive
     case signatureMismatch
@@ -11,7 +10,6 @@ enum UpdateError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .badFeed: "Couldn't reach GitHub — check your connection."
         case .badDownload: "The update download failed."
         case .noAppInArchive: "The downloaded update did not contain Spotter.app."
         case .signatureMismatch:
@@ -21,18 +19,11 @@ enum UpdateError: LocalizedError {
     }
 }
 
-/// Checks GitHub Releases for a newer build and installs it in place. Networked, so it follows
-/// `CurrencyRateStore`'s shape: the daily automatic check ships off behind explicit consent
-/// mirrored by settings sync, while Check for Updates is itself the user action. The installer refuses any
-/// bundle whose code signature does not satisfy the running app's designated requirement, then
-/// swaps `/Applications/Spotter.app` and relaunches — the same replace-and-relaunch contract local
-/// builds follow, so the Accessibility grant survives.
+// Static metadata uses GitHub Pages; installation retains the existing code-signing trust checks.
 @MainActor
 final class UpdateStore: ObservableObject {
-    static let provider = "GitHub"
+    static let provider = "Spotter’s update feed on GitHub Pages"
     static let providerURL = URL(string: "https://github.com/mmmmmmarcus/Spotter/releases")!
-    private nonisolated static let feedURL = URL(
-        string: "https://api.github.com/repos/mmmmmmarcus/Spotter/releases?per_page=10")!
     /// Daily, like the currency table: releases are far rarer than that.
     static let checkInterval: TimeInterval = 24 * 3600
     private static let retryInterval: TimeInterval = 6 * 3600
@@ -56,16 +47,33 @@ final class UpdateStore: ObservableObject {
 
     private static let consentKey = "update.auto-check"
     private static let lastCheckKey = "update.last-check"
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
+    private let feedSession: URLSession
+    private let now: () -> Date
+    private let version: SemanticVersion?
+    private let retryKey: String
+    @Published private(set) var nextCheckDate: Date?
     private var pump: Task<Void, Never>?
 
-    init() {
+    init(defaults: UserDefaults = .standard, session: URLSession? = nil,
+         now: @escaping () -> Date = Date.init,
+         version: String? = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) {
+        self.defaults = defaults
+        feedSession = session ?? Self.session
+        self.now = now
+        self.version = version.flatMap(SemanticVersion.init)
+        retryKey = (Bundle.main.bundleIdentifier ?? "com.spotter.app1") + ".update.static-feed-retry-until"
         autoCheckEnabled = defaults.bool(forKey: Self.consentKey)
+        if let date = defaults.object(forKey: retryKey) as? Date, date > now() {
+            nextCheckDate = date
+            status = .failed(UpdateFeedError.rateLimited(until: date).localizedDescription)
+        }
     }
 
-    var currentVersion: SemanticVersion? {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
-            .flatMap(SemanticVersion.init)
+    var currentVersion: SemanticVersion? { version }
+
+    func canCheck(at date: Date) -> Bool {
+        !status.isBusy && nextCheckDate.map { date >= $0 } != false
     }
 
     var channel: UpdateChannel {
@@ -92,67 +100,69 @@ final class UpdateStore: ObservableObject {
         pump = Task { [weak self] in
             while !Task.isCancelled, let self, self.autoCheckEnabled {
                 let last = self.defaults.object(forKey: Self.lastCheckKey) as? Date
-                let age = max(0, last.map { Date().timeIntervalSince($0) } ?? .infinity)
+                let age = max(0, last.map { self.now().timeIntervalSince($0) } ?? .infinity)
                 guard age >= Self.checkInterval else {
                     try? await Task.sleep(for: .seconds(Self.checkInterval - age))
                     continue
                 }
-                let ok = await self.check(requiresAutoConsent: true)
+                let ok = await self.check(requiresAutoConsent: true, source: .automatic)
                 try? await Task.sleep(for: .seconds(ok ? Self.checkInterval : Self.retryInterval))
             }
         }
     }
 
     /// Manual Check for Updates — the click is the consent for this one request.
-    func checkNow() async {
-        _ = await check(requiresAutoConsent: false)
+    func checkNow(source: UpdateCheckSource = .settings) async {
+        _ = await check(requiresAutoConsent: false, source: source)
     }
 
     @discardableResult
-    private func check(requiresAutoConsent: Bool) async -> Bool {
+    private func check(requiresAutoConsent: Bool, source: UpdateCheckSource) async -> Bool {
         guard !requiresAutoConsent || autoCheckEnabled else { return false }
         // A check or install in flight must not have its state stomped by another entry point.
         if case .checking = status { return true }
         if case .installing = status { return true }
-        guard let current = currentVersion else { return false }
+        guard canCheck(at: now()), let current = currentVersion else { return false }
+        nextCheckDate = now().addingTimeInterval(UpdateCheckPolicy.cooldown)
         status = .checking
+        AppLog.info("updates", "Feed check started: source=\(source.rawValue)")
         do {
-            let data = try await Self.fetchJSON(from: Self.feedURL)
+            let data = try await fetchJSON(from: UpdateFeed.url(for: channel))
             try Task.checkCancellation()
             guard !requiresAutoConsent || autoCheckEnabled else {
                 status = .idle
                 return false
             }
-            let releases = try JSONDecoder().decode([UpdateFeed.GitHubRelease].self, from: data)
-            if var release = UpdateFeed.select(from: releases, channel: channel, current: current) {
-                if release.zipAssetURL == nil {
-                    // GitHub's releases list can lag behind its dedicated asset endpoint after publication.
-                    let url = URL(string: "https://api.github.com/repos/mmmmmmarcus/Spotter/releases/\(release.id)/assets?per_page=100")!
-                    let assets = try await Self.fetchJSON(from: url)
-                    try Task.checkCancellation()
-                    guard !requiresAutoConsent || autoCheckEnabled else {
-                        status = .idle
-                        return false
-                    }
-                    release = try UpdateFeed.resolvingAssets(assets, for: release)
-                }
+            let release = try UpdateFeed.latest(in: data, channel: channel)
+            latestRelease = release
+            if let release, release.version > current {
                 availableRelease = release
-                latestRelease = release
                 status = .available(release)
             } else {
                 availableRelease = nil
-                latestRelease = UpdateFeed.latest(from: releases, channel: channel)
                 status = .upToDate
             }
-            defaults.set(Date(), forKey: Self.lastCheckKey)
+            defaults.set(now(), forKey: Self.lastCheckKey)
+            defaults.removeObject(forKey: retryKey)
+            nextCheckDate = now().addingTimeInterval(UpdateCheckPolicy.cooldown)
             return true
         } catch {
             if Task.isCancelled || (requiresAutoConsent && !autoCheckEnabled) {
                 status = .idle
                 return false
             }
-            status = .failed(UpdateError.badFeed.localizedDescription)
-            AppLog.error("updates", "Feed check failed: \(error.localizedDescription)")
+            let failure = UpdateCheckPolicy.failure(error)
+            let retry: Date
+            if case .rateLimited(let until) = failure {
+                retry = until
+                defaults.set(until, forKey: retryKey)
+            } else {
+                retry = now().addingTimeInterval(UpdateCheckPolicy.cooldown)
+            }
+            nextCheckDate = retry
+            availableRelease = nil
+            status = .failed(failure.localizedDescription)
+            AppLog.error("updates", "Feed check failed: source=\(source.rawValue), retry=\(retry), \(failure.localizedDescription)")
             return false
         }
     }
@@ -227,14 +237,15 @@ final class UpdateStore: ObservableObject {
         return URLSession(configuration: config)
     }()
 
-    private nonisolated static func fetchJSON(from url: URL) async throws -> Data {
+    private func fetchJSON(from url: URL) async throws -> Data {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 20)
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw UpdateError.badFeed
-        }
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await feedSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw UpdateFeedError.invalidResponse }
+        guard data.count <= 2_000_000 else { throw UpdateFeedError.invalidFeed }
+        AppLog.info("updates", "Feed HTTP \(http.statusCode), remaining=\(http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "unknown"), reset=\(http.value(forHTTPHeaderField: "X-RateLimit-Reset") ?? "unknown")")
+        if let error = UpdateCheckPolicy.responseError(http, now: now()) { throw error }
         return data
     }
 

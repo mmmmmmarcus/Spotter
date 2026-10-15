@@ -1,8 +1,6 @@
 import Foundation
 
-/// Pure update-feed logic: semver parsing/ordering, GitHub release decoding and channel-aware
-/// selection. Foundation-only so `Tools/update-test.swift` compiles the real sources; the network,
-/// filesystem and installer live in `UpdateStore`.
+// Pure version ordering and static-feed decoding; networking and installation belong to UpdateStore.
 struct SemanticVersion: Equatable, Comparable, Sendable, CustomStringConvertible {
     let major: Int
     let minor: Int
@@ -52,16 +50,14 @@ struct SemanticVersion: Equatable, Comparable, Sendable, CustomStringConvertible
     }
 }
 
-enum UpdateChannel: Sendable {
+enum UpdateChannel: String, Sendable {
     case stable
     case beta
 }
 
-/// One GitHub release reduced to what the updater needs.
+// One published release reduced to what the updater needs.
 struct UpdateRelease: Equatable, Sendable {
-    let id: Int
     let version: SemanticVersion
-    let tag: String
     let pageURL: URL
     /// The in-app-installable asset; nil means the release only carries a DMG and the UI falls back to opening `pageURL`.
     let zipAssetURL: URL?
@@ -69,79 +65,41 @@ struct UpdateRelease: Equatable, Sendable {
 }
 
 enum UpdateFeed {
-    struct GitHubRelease: Decodable {
-        struct Asset: Decodable {
-            let name: String
-            let browserDownloadURL: URL
+    enum InvalidFeed: Error { case schema, channel, release }
 
-            enum CodingKeys: String, CodingKey {
-                case name
-                case browserDownloadURL = "browser_download_url"
-            }
-        }
-
-        let id: Int
-        let tagName: String
-        let prerelease: Bool
-        let draft: Bool
-        let htmlURL: URL
-        let assets: [Asset]
-        let body: String?
-
-        enum CodingKeys: String, CodingKey {
-            case id
-            case tagName = "tag_name"
-            case prerelease
-            case draft
-            case htmlURL = "html_url"
-            case assets
-            case body
-        }
+    private struct Manifest: Decodable {
+        let schemaVersion: Int
+        let channel: String
+        let releases: [Release]
     }
 
-    /// Decodes a GitHub releases-list response and returns the newest release that is strictly newer than `current` for the same channel, or nil when up to date.
-    static func latestUpdate(
-        in data: Data, channel: UpdateChannel, current: SemanticVersion
-    ) -> UpdateRelease? {
-        guard let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data) else {
-            return nil
+    private struct Release: Decodable {
+        let version: String
+        let releaseURL: URL
+        let zipURL: URL
+        let dmgURL: URL
+        let releaseNotes: String
+    }
+
+    static func url(for channel: UpdateChannel) -> URL {
+        URL(string: "https://mmmmmmarcus.github.io/Spotter/updates/\(channel.rawValue).json")!
+    }
+
+    static func latest(in data: Data, channel: UpdateChannel) throws -> UpdateRelease? {
+        let feed = try JSONDecoder().decode(Manifest.self, from: data)
+        guard feed.schemaVersion == 1 else { throw InvalidFeed.schema }
+        guard feed.channel == channel.rawValue else { throw InvalidFeed.channel }
+        let releases = try feed.releases.map { entry -> UpdateRelease in
+            guard let version = SemanticVersion(entry.version), version.description == entry.version,
+                  (channel == .stable) == version.prerelease.isEmpty else { throw InvalidFeed.release }
+            let base = "https://github.com/mmmmmmarcus/Spotter/releases"
+            guard entry.releaseURL.absoluteString == "\(base)/tag/v\(version)",
+                  entry.zipURL.absoluteString == "\(base)/download/v\(version)/Spotter-\(version).zip",
+                  entry.dmgURL.absoluteString == "\(base)/download/v\(version)/Spotter-\(version).dmg"
+            else { throw InvalidFeed.release }
+            return UpdateRelease(version: version, pageURL: entry.releaseURL,
+                zipAssetURL: entry.zipURL, releaseNotes: entry.releaseNotes.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        return select(from: releases, channel: channel, current: current)
-    }
-
-    static func select(
-        from releases: [GitHubRelease], channel: UpdateChannel, current: SemanticVersion
-    ) -> UpdateRelease? {
-        guard let release = latest(from: releases, channel: channel), release.version > current else { return nil }
-        return release
-    }
-
-    static func latest(from releases: [GitHubRelease], channel: UpdateChannel) -> UpdateRelease? {
-        let candidates: [(GitHubRelease, SemanticVersion)] = releases.compactMap { release in
-            guard !release.draft else { return nil }
-            switch channel {
-            case .stable where release.prerelease: return nil
-            case .beta where !release.prerelease: return nil
-            default: break
-            }
-            guard let version = SemanticVersion(release.tagName) else { return nil }
-            return (release, version)
-        }
-        guard let best = candidates.max(by: { $0.1 < $1.1 }) else { return nil }
-        return UpdateRelease(
-            id: best.0.id,
-            version: best.1,
-            tag: best.0.tagName,
-            pageURL: best.0.htmlURL,
-            zipAssetURL: best.0.assets.first { $0.name == "Spotter-\(best.1).zip" }?.browserDownloadURL,
-            releaseNotes: best.0.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
-    }
-
-    static func resolvingAssets(_ data: Data, for release: UpdateRelease) throws -> UpdateRelease {
-        let assets = try JSONDecoder().decode([GitHubRelease.Asset].self, from: data)
-        return UpdateRelease(id: release.id, version: release.version, tag: release.tag,
-            pageURL: release.pageURL,
-            zipAssetURL: assets.first { $0.name == "Spotter-\(release.version).zip" }?.browserDownloadURL,
-            releaseNotes: release.releaseNotes)
+        return releases.max { $0.version < $1.version }
     }
 }

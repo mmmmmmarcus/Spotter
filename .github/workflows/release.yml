@@ -16,9 +16,13 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
+    outputs:
+      release_tag: v${{ steps.meta.outputs.full_version }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
@@ -262,3 +266,9 @@ jobs:
             exit 1
           fi
           gh release edit "$TAG" --draft=false
+
+  publish-update-feed:
+    needs: build
+    uses: ./.github/workflows/website.yml
+    with:
+      expected-tag: ${{ needs.build.outputs.release_tag }}

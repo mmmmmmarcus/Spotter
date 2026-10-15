@@ -72,7 +72,7 @@ struct UpdatePresentation {
 
     var checkDetail: String? {
         switch status {
-        case .checking: "Checking GitHub…"
+        case .checking: "Checking for updates…"
         case .upToDate: "You're on the latest version."
         case .failed(let message): message
         default: nil

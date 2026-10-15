@@ -9,13 +9,18 @@ struct UpdatesSettingsSection: View {
     var body: some View {
         Section("Updates") {
             SettingsRow(title: "Spotter \(currentVersion)", subtitle: statusText) {
-                trailingControl
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    trailingControl(at: context.date)
+                }
             }
             SettingsRow(title: "Check Automatically") {
                 Toggle("", isOn: autoCheckBinding)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.small)
+            }
+            if case .failed = store.status {
+                Link("Download from GitHub Releases", destination: UpdateStore.providerURL)
             }
             if let release = store.latestRelease {
                 ScrollView {
@@ -35,7 +40,7 @@ struct UpdatesSettingsSection: View {
     }
 
     @ViewBuilder
-    private var trailingControl: some View {
+    private func trailingControl(at date: Date) -> some View {
         switch store.status {
         case .checking:
             RingLoader(progress: nil, size: Theme.Size.ringLoaderSmall)
@@ -55,9 +60,10 @@ struct UpdatesSettingsSection: View {
             }
         case .idle, .upToDate, .failed:
             Button("Check for Updates") {
-                Task { await store.checkNow() }
+                Task { await store.checkNow(source: .settings) }
             }
             .controlSize(.small)
+            .disabled(!store.canCheck(at: date))
         }
     }
 
@@ -69,7 +75,7 @@ struct UpdatesSettingsSection: View {
     private var statusText: String? {
         switch store.status {
         case .idle: nil
-        case .checking: "Checking \(UpdateStore.provider)…"
+        case .checking: "Checking for updates…"
         case .upToDate: "You're on the latest version."
         case .available(let release): "Version \(release.version.description) is available."
         case .installing: store.installProgress?.title
@@ -98,13 +104,21 @@ struct UpdatePaletteView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                PluginPaletteRow(item: primaryItem, selected: selection == 0,
-                    isInteractive: store.presentation.primaryTitle(at: 0) != nil, isBusy: store.status.isBusy,
-                    progress: store.installProgress?.fraction)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onActivate(0) }
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityAction { onActivate(0) }
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let interactive = store.presentation.primaryTitle(at: 0) != nil
+                        && (store.presentation.action(at: 0) == .upgrade || store.canCheck(at: context.date))
+                    PluginPaletteRow(item: primaryItem, selected: selection == 0,
+                        isInteractive: interactive, isBusy: store.status.isBusy,
+                        progress: store.installProgress?.fraction)
+                        .contentShape(Rectangle())
+                        .onTapGesture { if interactive { onActivate(0) } }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { if interactive { onActivate(0) } }
+                }
+                if case .failed = store.status {
+                    Link("Download from GitHub Releases", destination: UpdateStore.providerURL)
+                        .padding(.vertical, Theme.Spacing.sm)
+                }
                 PluginPaletteRow(item: PluginPaletteItem(id: "version",
                     title: "Current Version · " + (store.currentVersion?.description ?? "—"),
                     subtitle: nil, icon: .symbol("info.circle"), primaryActionTitle: ""),

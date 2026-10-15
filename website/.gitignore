@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated from published releases during deployment, never from an unreleased source version.
+public/updates/

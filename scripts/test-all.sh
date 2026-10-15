@@ -41,6 +41,8 @@ TESTS=(
     settings-sync
     update
     update-installer
+    update-network
+    update-feed-generator
     window-command
     background-task
     ai-chat
@@ -276,6 +278,14 @@ run_harness() {
         update)
             swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift \
                 Spotter/Core/UpdatePresentation.swift Tools/update-test.swift -o "$output" && "$output"
+            ;;
+        update-feed-generator)
+            python3 Tools/update-feed-generator-test.py
+            ;;
+        update-network)
+            swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Spotter/Core/UpdatePresentation.swift \
+                Spotter/Core/UpdateCheckPolicy.swift Spotter/Core/UpdateInstaller.swift \
+                Spotter/Core/UpdateStore.swift Tools/update-network-test.swift -o "$output" && "$output"
             ;;
         update-installer)
             swiftc -swift-version 6 Spotter/Core/UpdateInstaller.swift Tools/update-installer-test.swift -o "$output" && "$output"

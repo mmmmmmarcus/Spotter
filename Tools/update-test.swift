@@ -40,118 +40,33 @@ struct UpdateTests {
         check("numeric ids order below alphanumeric", v("1.0.0-1") < v("1.0.0-alpha"))
         check("shorter prerelease precedes longer", v("1.0.0-beta") < v("1.0.0-beta.1"))
 
-        // Selection
-        let feed = """
-        [
-          {"id": 123, "tag_name": "v0.7.0-beta.2", "prerelease": true, "draft": false,
-           "html_url": "https://github.com/x/y/releases/tag/v0.7.0-beta.2",
-           "assets": [{"name": "Spotter-0.7.0-beta.2.zip",
-                       "browser_download_url": "https://example.com/beta.zip"}]},
-          {"id": 123, "tag_name": "v0.6.0", "prerelease": false, "draft": false,
-           "html_url": "https://github.com/x/y/releases/tag/v0.6.0",
-           "body": "  ## Improvements\\n\\n- **Faster** clipboard search.  ",
-           "assets": [{"name": "Spotter-0.6.0.dmg",
-                       "browser_download_url": "https://example.com/stable.dmg"},
-                      {"name": "Spotter-0.6.0.zip",
-                       "browser_download_url": "https://example.com/stable.zip"}]},
-          {"id": 123, "tag_name": "v0.8.0", "prerelease": false, "draft": true,
-           "html_url": "https://github.com/x/y/releases/tag/v0.8.0",
-           "assets": []},
-          {"id": 123, "tag_name": "v0.5.0", "prerelease": false, "draft": false,
-           "html_url": "https://github.com/x/y/releases/tag/v0.5.0",
-           "assets": []}
-        ]
-        """.data(using: .utf8)!
-
-        let stable = UpdateFeed.latestUpdate(in: feed, channel: .stable, current: v("0.5.0"))
-        check("stable picks the newest full release", stable?.version == v("0.6.0"))
-        check("stable skips prereleases and drafts", stable?.tag == "v0.6.0")
-        check("stable finds the zip asset", stable?.zipAssetURL?.absoluteString == "https://example.com/stable.zip")
-        let extraAssets = String(decoding: feed, as: UTF8.self).replacingOccurrences(
-            of: "\"name\": \"Spotter-0.6.0.dmg\"",
-            with: "\"name\": \"debug-symbols.zip\"")
-        check("initial feed skips unrelated ZIPs before the update asset",
-            UpdateFeed.latestUpdate(in: Data(extraAssets.utf8), channel: .stable, current: v("0.5.0"))?.zipAssetURL
-                == stable?.zipAssetURL)
-        let wrongVersion = extraAssets.replacingOccurrences(
-            of: "\"name\": \"Spotter-0.6.0.zip\"", with: "\"name\": \"Spotter-0.5.9.zip\"")
-        let rejectedAssets = UpdateFeed.latestUpdate(
-            in: Data(wrongVersion.utf8), channel: .stable, current: v("0.5.0"))
-        check("initial feed refuses unrelated and wrong-version ZIPs without hiding the release",
-            rejectedAssets?.version == v("0.6.0") && rejectedAssets?.zipAssetURL == nil)
-        check("release notes preserve Markdown and trim surrounding whitespace",
-            stable?.releaseNotes == "## Improvements\n\n- **Faster** clipboard search.")
-        let decoded = try! JSONDecoder().decode([UpdateFeed.GitHubRelease].self, from: feed)
-        check("latest release notes remain available when already up to date",
-            UpdateFeed.latest(from: decoded, channel: .stable) == stable)
-
-        let beta = UpdateFeed.latestUpdate(in: feed, channel: .beta, current: v("0.6.0"))
-        check("beta accepts prereleases", beta?.version == v("0.7.0-beta.2"))
-        check("legacy releases without a body remain usable", beta?.releaseNotes == "")
-        check("latest notes remain channel-isolated", UpdateFeed.latest(from: decoded, channel: .beta) == beta)
-        check("empty feeds have no notes to display", UpdateFeed.latest(from: [], channel: .stable) == nil)
-
-        check(
-            "up to date returns nil",
-            UpdateFeed.latestUpdate(in: feed, channel: .stable, current: v("0.6.0")) == nil)
-        check(
-            "current prerelease updates to its release",
-            UpdateFeed.latestUpdate(in: feed, channel: .beta, current: v("0.6.0-beta.9"))?.version
-                == v("0.7.0-beta.2"))
-
-        let mixedChannels = """
-        [
-          {"id": 123, "tag_name": "v1.1.0", "prerelease": false, "draft": false,
-           "html_url": "https://github.com/x/y/releases/tag/v1.1.0",
-           "assets": [{"name": "Spotter-1.1.0.zip",
-                       "browser_download_url": "https://example.com/stable-1.1.zip"}]},
-          {"id": 123, "tag_name": "v1.0.0-beta.8", "prerelease": true, "draft": false,
-           "html_url": "https://github.com/x/y/releases/tag/v1.0.0-beta.8",
-           "assets": [{"name": "Spotter-1.0.0-beta.8.zip",
-                       "browser_download_url": "https://example.com/beta-1.0.zip"}]}
-        ]
-        """.data(using: .utf8)!
-        check(
-            "beta ignores newer stable releases with a different bundle identity",
-            UpdateFeed.latestUpdate(
-                in: mixedChannels, channel: .beta, current: v("0.9.0-beta.1"))?.version
-                == v("1.0.0-beta.8"))
-        check(
-            "stable ignores beta releases",
-            UpdateFeed.latestUpdate(in: mixedChannels, channel: .stable, current: v("1.0.0"))?.version
-                == v("1.1.0"))
-
-        let dmgOnly = """
-        [{"id": 123, "tag_name": "v0.9.0", "prerelease": false, "draft": false,
-          "html_url": "https://github.com/x/y/releases/tag/v0.9.0",
-          "body": "- Fixes clipboard navigation.",
-          "assets": [{"name": "Spotter-0.9.0.dmg",
-                      "browser_download_url": "https://example.com/only.dmg"}]}]
-        """.data(using: .utf8)!
-        let pageFallback = UpdateFeed.latestUpdate(in: dmgOnly, channel: .stable, current: v("0.5.0"))
-        check("dmg-only release still reports, without a zip asset", pageFallback != nil && pageFallback?.zipAssetURL == nil)
-        for body in ["null", "\"\"", "\"   \""] {
-            let emptyNotes = String(decoding: dmgOnly, as: UTF8.self)
-                .replacingOccurrences(of: "\"- Fixes clipboard navigation.\"", with: body)
-            check("null or blank notes keep the release available",
-                UpdateFeed.latestUpdate(in: Data(emptyNotes.utf8), channel: .stable, current: v("0.5.0"))?.releaseNotes == "")
+        func manifest(_ version: String, channel: String = "stable", zip: String? = nil) -> Data {
+            let base = "https://github.com/mmmmmmarcus/Spotter/releases"
+            return try! JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "channel": channel,
+                "releases": [["version": version, "releaseURL": "\(base)/tag/v\(version)",
+                    "zipURL": zip ?? "\(base)/download/v\(version)/Spotter-\(version).zip",
+                    "dmgURL": "\(base)/download/v\(version)/Spotter-\(version).dmg",
+                    "releaseNotes": "  - A fix.  "]]])
         }
-
-        check("malformed feed returns nil", UpdateFeed.latestUpdate(in: Data("junk".utf8), channel: .stable, current: v("0.1.0")) == nil)
-
-        let recoveredAssets = """
-        [{"name":"Spotter-0.9.0.zip", "browser_download_url":"https://example.com/recovered.zip"}]
-        """.data(using: .utf8)!
-        let recovered = try? UpdateFeed.resolvingAssets(recoveredAssets, for: pageFallback!)
-        check("missing list ZIP is recovered from dedicated assets response", recovered?.zipAssetURL?.lastPathComponent == "recovered.zip")
-        check("recovery preserves release identity", recovered?.id == pageFallback?.id && recovered?.version == pageFallback?.version && recovered?.pageURL == pageFallback?.pageURL)
-        check("dedicated asset recovery preserves release notes", recovered?.releaseNotes == "- Fixes clipboard navigation.")
-        let unrelatedAssets = """
-        [{"name":"Spotter-1.0.0.zip", "browser_download_url":"https://example.com/wrong.zip"}]
-        """.data(using: .utf8)!
-        check("recovery refuses another version's ZIP", (try? UpdateFeed.resolvingAssets(unrelatedAssets, for: pageFallback!))?.zipAssetURL == nil)
-        check("confirmed empty asset list retains manual fallback", (try? UpdateFeed.resolvingAssets(Data("[]".utf8), for: pageFallback!)) == pageFallback)
-        check("malformed assets fail rather than becoming a manual-only release", (try? UpdateFeed.resolvingAssets(Data("junk".utf8), for: pageFallback!)) == nil)
+        let feed = manifest("0.6.0")
+        let stable = try? UpdateFeed.latest(in: feed, channel: .stable)
+        check("static feed decodes version", stable?.version == v("0.6.0"))
+        check("static feed preserves release notes", stable?.releaseNotes == "- A fix.")
+        check("static feed carries complete ZIP URL", stable?.zipAssetURL?.lastPathComponent == "Spotter-0.6.0.zip")
+        check("wrong channel is rejected", (try? UpdateFeed.latest(in: feed, channel: .beta)) == nil)
+        check("stable rejects prerelease", (try? UpdateFeed.latest(in: manifest("0.7.0-beta.1"), channel: .stable)) == nil)
+        check("beta decodes beta", (try? UpdateFeed.latest(in: manifest("0.7.0-beta.1", channel: "beta"), channel: .beta))?.version == v("0.7.0-beta.1"))
+        for url in ["http://github.com/mmmmmmarcus/Spotter/releases/download/v0.6.0/Spotter-0.6.0.zip",
+                    "https://example.com/malware.zip",
+                    "https://github.com/mmmmmmarcus/Spotter/releases/download/v0.5.0/Spotter-0.5.0.zip"] {
+            check("rejects insecure, foreign or wrong-version assets", (try? UpdateFeed.latest(in: manifest("0.6.0", zip: url), channel: .stable)) == nil)
+        }
+        check("schema change fails explicitly", (try? UpdateFeed.latest(in: Data("{\"schemaVersion\":2,\"channel\":\"stable\",\"releases\":[]}".utf8), channel: .stable)) == nil)
+        check("empty beta feed is valid", (try? UpdateFeed.latest(in: Data("{\"schemaVersion\":1,\"channel\":\"beta\",\"releases\":[]}".utf8), channel: .beta)) == nil)
+        check("malformed JSON is rejected", (try? UpdateFeed.latest(in: Data("junk".utf8), channel: .stable)) == nil)
+        check("feed host is static Pages", UpdateFeed.url(for: .stable).host == "mmmmmmarcus.github.io")
+        check("feed endpoints are channel-isolated", UpdateFeed.url(for: .stable) != UpdateFeed.url(for: .beta))
+        let pageFallback = UpdateRelease(version: v("0.9.0"), pageURL: stable!.pageURL, zipAssetURL: nil, releaseNotes: "")
 
         let release = stable!
         let idle = UpdatePresentation(status: .idle, release: nil, progress: nil)
@@ -162,7 +77,7 @@ struct UpdateTests {
         check("selected upgrade offers installation", available.primaryTitle(at: 0) == "Install Update")
         check("new update retains selection zero", available.selection(after: idle.actions, index: 0) == 0)
         check("removed upgrade clamps selection to check", idle.selection(after: available.actions, index: 1) == 0)
-        let manual = UpdatePresentation(status: .available(pageFallback!), release: pageFallback, progress: nil)
+        let manual = UpdatePresentation(status: .available(pageFallback), release: pageFallback, progress: nil)
         check("DMG-only action opens release", manual.primaryTitle(at: 0) == "View Release")
         for status: UpdateStatus in [.checking, .installing] {
             let busy = UpdatePresentation(status: status, release: release, progress: .downloading(nil))

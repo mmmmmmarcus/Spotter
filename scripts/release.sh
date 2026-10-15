@@ -185,7 +185,7 @@ wait_for_jobs() {
             gh run view "$run_id" --log-failed || true
             return 1
         fi
-        if [ "$total" -gt 0 ] && [ "$incomplete" -eq 0 ]; then
+        if [ "$total" -ge 3 ] && [ "$incomplete" -eq 0 ]; then
             echo "✓ Every Release job completed successfully."
             return 0
         fi
