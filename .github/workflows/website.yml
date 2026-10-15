@@ -52,7 +52,7 @@ jobs:
       - name: Install & build
         working-directory: website
         run: |
-          npm ci
+          npm install
           npm run build
       - uses: actions/upload-pages-artifact@v5
         with:
