@@ -295,6 +295,8 @@ shell-command feature; do not use shell commands as an internal plugin API.
   Settings switch is that consent act rather than a plugin switch. Without it nothing is contacted
   and no conversion resolves.
 - **Clipboard** (`Spotter/Plugins/Clipboard/`) — image-first pasteboard capture (including copied local image files) and generic file/folder references with a persisted history;
+  optional local semantic search combines exact matches with related text/image entries, with explicit
+  model-download consent and a bundled signed inference helper; see [clipboard.md](clipboard.md).
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
   The palette's type filters use a Liquid Glass dropdown with a checked native menu and preserve search-field focus.
   Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for continuously scrolling history sharing one native Clear glass menu, with a three-column square grid for every type and up to four visible rows, visible-only previews, a fixed footer of spaced All / Text / Images / Files filters (default All, symbol-only selection), Tab-only category navigation, a right-aligned full-history icon, and one menu shadow,

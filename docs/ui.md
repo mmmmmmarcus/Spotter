@@ -682,6 +682,12 @@ claimed through the shared transient shortcut mechanism only while the selection
 
 ## Quick Clipboard History
 
+Full Clipboard History can append **Related Results** from optional local semantic search, while exact
+matches appear immediately and pinned results keep their existing section. Async results preserve the
+selected row by identity. Settings → Clipboard contains the consent-gated toggle, real download progress,
+indexed-entry count and Retry / Import Model controls on failure. It uses the existing native Form.
+Quick Clipboard retains its existing grid, keyboard navigation and fixed footer.
+
 An explicit exception to the shared palette surface: a continuously scrolling three-column grid,
 276 points wide, with up to four rows of 86-point square tiles, 3-point gaps and 6-point outer insets.
 Text wraps inside each tile, files show a symbol above their name, and images fill the square with

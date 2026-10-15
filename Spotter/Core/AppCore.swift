@@ -192,6 +192,7 @@ final class AppCore: ObservableObject {
     let clipboardStore = ClipboardStore()
     let clipboardManager: ClipboardManager
     let clipboardTextIndexer: ClipboardTextIndexer
+    let clipboardSemanticSearch: ClipboardSemanticSearch
     let textReplacements: TextReplacementStore
     let textReplacementManager: TextReplacementManager
     let hotKeys = HotKeyManager()
@@ -266,6 +267,7 @@ final class AppCore: ObservableObject {
         appIndex = AppIndex(ranking: launcherRanking, aliases: aliases)
         clipboardManager = ClipboardManager(store: clipboardStore, settings: settings)
         clipboardTextIndexer = ClipboardTextIndexer(store: clipboardStore)
+        clipboardSemanticSearch = ClipboardSemanticSearch(store: clipboardStore)
         let textReplacements = TextReplacementStore()
         self.textReplacements = textReplacements
         textReplacementManager = TextReplacementManager(store: textReplacements)
@@ -311,6 +313,31 @@ final class AppCore: ObservableObject {
 
         clipboardStore.maxAge = settings.clipboardRetention.maxAge
         clipboardTextIndexer.start(enabled: settings.clipboardTextSearch)
+        let textRemoval = clipboardStore.onItemRemoved
+        let textClear = clipboardStore.onHistoryCleared
+        clipboardStore.onItemRemoved = { [weak self] id in
+            textRemoval?(id)
+            self?.clipboardSemanticSearch.remove(id)
+        }
+        clipboardStore.onHistoryCleared = { [weak self] in
+            textClear?()
+            self?.clipboardSemanticSearch.clear()
+        }
+        clipboardStore.onHistoryChanged = { [weak self] in self?.clipboardSemanticSearch.historyDidChange() }
+        clipboardSemanticSearch.onApplyMatches = { [weak self] query, ids in
+            guard let self else { return }
+            let previous = clipboardStore.search(palette.query, filter: palette.clipboardFilter)
+            let selected = previous.indices.contains(palette.selection) ? previous[palette.selection].id : nil
+            clipboardStore.setSemanticMatches(query: query, ids: ids)
+            guard palette.mode == .clipboard else { return }
+            let updated = clipboardStore.search(palette.query, filter: palette.clipboardFilter)
+            if let selected, let position = updated.firstIndex(where: { $0.id == selected }) {
+                palette.selection = position
+            } else {
+                palette.selection = min(palette.selection, max(0, updated.count - 1))
+            }
+        }
+        clipboardSemanticSearch.start()
         appIndex.start(settings: settings)
         menuSearch.onResultsChanged = { [weak self] results in
             self?.appIndex.setMenuItems(results.map { result in
@@ -743,6 +770,7 @@ final class AppCore: ObservableObject {
         if !visible, palette.confirmation?.requestID != nil { palette.resolveConfirmation(false) }
         guard isPaletteVisible != visible else { return }
         isPaletteVisible = visible
+        clipboardSemanticSearch.search(visible && palette.mode == .clipboard ? palette.query : "")
         if visible {
             menuSearch.prepare(.menus, target: previousApplication)
             menuSearch.refresh()

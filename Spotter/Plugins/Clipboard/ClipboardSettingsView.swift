@@ -5,6 +5,9 @@ struct ClipboardSettingsView: View {
     @ObservedObject private var settings = AppCore.shared.settings
     @State private var confirmingClear = false
     @State private var showingAppPicker = false
+    @ObservedObject private var semanticSearch = AppCore.shared.clipboardSemanticSearch
+    @State private var confirmingSemanticSearch = false
+    @State private var importingSemanticModels = false
 
     var body: some View {
         SettingsPane(title: "Clipboard") {
@@ -32,6 +35,33 @@ struct ClipboardSettingsView: View {
                         .onChange(of: settings.clipboardTextSearch) {
                             AppCore.shared.clipboardTextIndexer.setEnabled(settings.clipboardTextSearch)
                         }
+                }
+            }
+
+            Section("Semantic Search") {
+                SettingsRow(title: "Search Clipboard by Meaning") {
+                    Toggle("", isOn: Binding(get: { semanticSearch.isEnabled }, set: { enabled in
+                        if enabled { confirmingSemanticSearch = true }
+                        else { semanticSearch.setEnabled(false) }
+                    }))
+                    .labelsHidden()
+                    #if !arch(arm64)
+                    .disabled(true)
+                    #endif
+                }
+                if semanticSearch.isEnabled {
+                    SettingsRow(title: semanticSearch.status, subtitle: semanticSearch.error) {
+                        if semanticSearch.isPreparing {
+                            RingLoader(progress: semanticSearch.downloadProgress, size: Theme.Size.ringLoaderSmall)
+                        } else if semanticSearch.error != nil {
+                            Button("Retry") { semanticSearch.retry() }
+                        }
+                    }
+                    if semanticSearch.canImportModels {
+                        SettingsRow(title: "Local Model Files") {
+                            Button("Import Model…") { importingSemanticModels = true }
+                        }
+                    }
                 }
             }
 
@@ -72,6 +102,19 @@ struct ClipboardSettingsView: View {
                         .controlSize(.regular)
                 }
             }
+        }
+        .fileImporter(isPresented: $importingSemanticModels, allowedContentTypes: [.folder]) { result in
+            if case .success(let folder) = result { semanticSearch.importModels(from: folder) }
+        }
+        .confirmationDialog(
+            "Enable local semantic search?",
+            isPresented: $confirmingSemanticSearch,
+            titleVisibility: .visible
+        ) {
+            Button("Download & Enable") { semanticSearch.setEnabled(true) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Spotter downloads an 865 MB EmbeddingGemma 2 model from Hugging Face once, then indexes up to 10,000 recent text and image clipboard entries on this Mac. Only model download requests leave your Mac; clipboard content and searches stay local. New copies are indexed automatically. Turning this off removes the model and index. Requires Apple silicon.")
         }
         .confirmationDialog(
             "Clear clipboard history?",

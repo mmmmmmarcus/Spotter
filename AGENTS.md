@@ -376,6 +376,12 @@ Never break these without an explicit task to do so.
   via `Task.detached` / `nonisolated`. Keep that boundary. House idioms: `NotificationToken` (RAII) for
   block observers, `isolated deinit` for `ClipboardStore`'s SQLite teardown, decode raw Carbon / C
   pointers to plain values before crossing into actor code.
+- **Semantic clipboard search is opt-in and local.** `AppCore` owns `ClipboardSemanticSearch`; its
+  model-download consent and vector cache never sync. Pinned, checksum-verified EmbeddingGemma 2 weights
+  run only in bounded signed DigUp helper processes. Index only saved text/images, never traverse file
+  references or folders. Exact matches stay immediate, related matches retain SQLite deletion checks,
+  and late results preserve selection identity. Clear History cancels work and deletes vectors;
+  disabling also deletes models. `ClipboardSemanticEngine.swift` stays Foundation-only and pure.
 - **Clipboard writes stamp a private `internalType` marker** so the poller skips Spotter's own writes.
   Screenshot has the two deliberate exceptions. Its text recognition writes *unmarked* (owner
   decision, Aug 2026): the output is the user's own text and belongs in history. An image capture

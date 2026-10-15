@@ -11,6 +11,11 @@ commands (including built-in system commands), screenshot).
 
 ## Single-owner core
 
+`AppCore.clipboardSemanticSearch` owns optional local clipboard embeddings, download consent and
+cancelable indexing/query work. Its private actor owns the vector cache. Inference runs in bounded
+instances of the signed bundled DigUp helper; there is no second UI, service singleton or persistent
+worker. `ClipboardStore` remains the authoritative row order and deletion gate. See [clipboard.md](clipboard.md).
+
 `AppCore.shared` (`Core/AppCore.swift`) is a `@MainActor` singleton that owns every long-lived
 manager — `AppIndex`, `ClipboardStore`, `ClipboardManager`, `QuickClipboardController`, `HotKeyManager`, `HyperKeyTap`,
 `AppSettings`, `FavoritesStore`, `VisibilityStore`, `LauncherRankingStore`, `CustomCommandStore`,

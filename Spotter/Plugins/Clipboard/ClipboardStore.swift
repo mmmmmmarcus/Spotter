@@ -126,6 +126,7 @@ final class ClipboardStore: ObservableObject {
             searchCache = nil
             orderedCache = nil
             memoryRevision &+= 1
+            onHistoryChanged?()
         }
     }
     private var memoryRevision: Int64 = 0
@@ -135,6 +136,9 @@ final class ClipboardStore: ObservableObject {
     var onItemInserted: ((ClipboardItem) -> Void)?
     var onItemRemoved: ((UUID) -> Void)?
     var onHistoryCleared: (() -> Void)?
+    var onHistoryChanged: (() -> Void)?
+    private var semanticMatches: (query: String, ids: [UUID]) = ("", [])
+    private(set) var semanticOnlyIDs: Set<UUID> = []
 
     var syncRevision: Int64 {
         db.map { Int64(sqlite3_total_changes64($0)) } ?? memoryRevision
@@ -400,7 +404,7 @@ final class ClipboardStore: ObservableObject {
     /// Display order for `query`: pinned entries first, each block newest-first, then the type filter. Filtering last is what keeps a matching pin at the head of its block.
     func search(_ query: String, filter: ClipboardFilter = .all) -> [ClipboardItem] {
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return orderedItems(filter) }
+        guard !q.isEmpty else { semanticOnlyIDs = []; return orderedItems(filter) }
         if let searchCache, searchCache.query == q, searchCache.filter == filter {
             return searchCache.result
         }
@@ -412,9 +416,24 @@ final class ClipboardStore: ObservableObject {
         let matched = pinnedItems.filter { $0.matches(q) || annotatedIDs.contains($0.id) }
             + annotated.filter { !$0.isPinned }
             + runSearch(q).filter { !$0.isPinned && !annotatedIDs.contains($0.id) }
-        let result = filter.apply(to: matched)
+        let matchedIDs = Set(matched.map(\.id))
+        let related = semanticMatches.query == q ? semanticMatches.ids.compactMap { id in
+            matchedIDs.contains(id) ? nil : historyItem(id: id)
+        } : []
+        semanticOnlyIDs = Set(related.map(\.id))
+        let pins = (matched.filter(\.isPinned) + related.filter(\.isPinned))
+            .sorted { ($0.pinnedAt ?? .distantFuture) < ($1.pinnedAt ?? .distantFuture) }
+        let result = filter.apply(to: pins + matched.filter { !$0.isPinned } + related.filter { !$0.isPinned })
         searchCache = (q, filter, result)
         return result
+    }
+
+    func setSemanticMatches(query: String, ids: [UUID]) {
+        guard semanticMatches.query != query || semanticMatches.ids != ids else { return }
+        semanticMatches = (query, ids)
+        semanticOnlyIDs = []
+        searchCache = nil
+        objectWillChange.send()
     }
 
     // Keyset paging reaches retained history beyond the resident window without offset drift on capture.

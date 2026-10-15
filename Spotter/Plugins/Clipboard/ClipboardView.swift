@@ -32,7 +32,8 @@ struct ClipboardList: View {
         var rows: [Row] = []
         var currentTitle: String?
         for item in results {
-            let title = item.isPinned ? "Pinned" : DateBucket(for: item.createdAt).title
+            let title = item.isPinned ? "Pinned" : store.semanticOnlyIDs.contains(item.id)
+                ? "Related Results" : DateBucket(for: item.createdAt).title
             if title != currentTitle {
                 rows.append(.header(title))
                 currentTitle = title

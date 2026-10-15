@@ -15,6 +15,7 @@ TESTS=(
     launcher-sections
     calc
     clipboard
+    clipboard-semantic
     clipboard-capture
     apple-shortcuts
     navigation
@@ -83,6 +84,18 @@ run_harness() {
     local output="$2"
 
     case "$name" in
+        clipboard-semantic)
+            swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardSemanticEngine.swift \
+                Spotter/Plugins/Clipboard/ClipboardSemanticIndex.swift \
+                Spotter/Plugins/Clipboard/ClipboardSemanticModels.swift \
+                Spotter/Plugins/Clipboard/ClipboardSemanticSearch.swift \
+                Spotter/Plugins/Clipboard/ClipboardEmbeddingClient.swift \
+                Spotter/Plugins/Clipboard/ClipboardStore.swift \
+                Spotter/Plugins/Clipboard/ClipboardColor.swift \
+                Spotter/Plugins/Clipboard/ClipboardFilter.swift \
+                Spotter/Plugins/Screenshot/ScreenshotFileName.swift \
+                Tools/clipboard-semantic-test.swift -o "$output" && "$output"
+            ;;
         local-ai)
             swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o "$output" && "$output"
             ;;

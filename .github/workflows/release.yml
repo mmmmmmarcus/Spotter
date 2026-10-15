@@ -149,6 +149,7 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
           PROFILE_UUID: ${{ steps.profile.outputs.uuid }}
         run: |
+          command -v cmake >/dev/null || brew install cmake
           xcodebuild -project Spotter.xcodeproj -scheme Spotter -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" \

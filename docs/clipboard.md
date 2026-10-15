@@ -1,5 +1,42 @@
 # Clipboard history
 
+## Local semantic search
+
+Settings → Clipboard → Semantic Search adds **Search Clipboard by Meaning**, off by default.
+Enabling it asks permission for a one-time 865 MB EmbeddingGemma 2 download from Hugging Face.
+The request contains model identifiers only; clipboard content, vectors and queries never leave the Mac.
+Download progress reflects received bytes, and both pinned GGUF files must pass size and SHA-256 checks.
+If downloading fails, Retry or **Import Model…** can install the same verified files from a chosen folder.
+The folder must contain `embeddinggemma-2-Q8_0.gguf` and `mmproj-embeddinggemma-2-Q8_0.gguf`.
+
+Search normally in the full Clipboard History Palette. Existing literal/OCR matches appear immediately;
+after 350 ms of silence, semantic matches are appended under **Related Results**, with existing pin and
+type-filter behavior preserved. Late results preserve the selected entry by identity. Quick Clipboard
+History remains the fast grid without an additional search field. This first version indexes text and
+images among the newest 10,000 retained entries; it does not open file-reference contents or scan folders.
+Text is split into overlapping 1,200-character passages across the capture limit of 32,000 characters.
+Matching uses the best passage per entry, a cosine floor and a bounded distance from the best result.
+
+`AppCore` owns `ClipboardSemanticSearch`. Its actor-owned `ClipboardSemanticIndex` persists vectors and
+content fingerprints under `Application Support/<bundle-id>/ClipboardSemanticSearch/Index`, without a
+second plaintext copy. Embeddings carry a model/runtime/schema identity; incompatible or changed entries
+are reindexed. New captures, imports, sync replacements, retention pruning, individual deletion and
+Clear History reconcile the index. Deleted rows are also checked against SQLite before results appear.
+Clear History cancels active indexing and deletes vectors while retaining the reusable model weights.
+Turning semantic search off cancels downloads/workers/searches and removes both weights and vectors.
+Consent and derived files are device-local and excluded from backup/sync.
+
+The bundled, signed `Contents/Helpers/spotter-embed` is built from pinned MIT-licensed DigUp and llama.cpp
+sources. Each bounded batch is a separate process, with no daemon, shell interpolation or runtime code
+download. Queries use the text encoder; indexing uses the full local model for text/image consistency.
+Cancellation kills the current helper; each batch has a 120-second deadline and a 2 MB output bound.
+Apple silicon is required for this initial implementation. Existing clipboard search is unaffected by
+a missing model, denied consent or a failed semantic request. Diagnostics contain errors, never content.
+
+The standalone semantic harness covers ranking, Unicode passages, cache invalidation, exact-match
+merging, filters, pins, checksums, worker validation and cancellation. Optional real-model coverage tests
+English/Chinese text and image retrieval plus manager consent, clear/repopulate and disable cleanup.
+
 Clipboard is a self-contained native plugin under `Spotter/Plugins/Clipboard/`. The directory owns
 `ClipboardPlugin`, `ClipboardManager`, `ClipboardStore`, the palette view, Quick Clipboard History and its Settings view;
 `AppCore` remains the sole owner of the long-lived manager and store instances.

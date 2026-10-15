@@ -535,6 +535,10 @@ struct RootPaletteView: View {
         _ content: Content, clips: [ClipboardItem], clipFollow: ClipFollowKey
     ) -> some View {
         let observed = content
+        .task(id: vm.mode == .clipboard ? vm.query : "") {
+            core.clipboardSemanticSearch.search(vm.mode == .clipboard ? vm.query : "")
+        }
+        .onDisappear { core.clipboardSemanticSearch.search("") }
         .onChange(of: visibleCompletedTaskIDs, initial: true) {
             backgroundTasks.markCompletionsSeen(ids: visibleCompletedTaskIDs)
         }

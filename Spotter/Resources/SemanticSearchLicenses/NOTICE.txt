@@ -1,0 +1,20 @@
+Spotter local semantic clipboard search
+
+DigUp — Copyright (c) 2026 Abdur Rahim — MIT
+https://github.com/ARahim3/DigUp
+Source revision: f9b8106ffb8308b4f48b76149d270f7c2e6b4918
+Spotter builds the native CLI without the DigUp application or Sparkle updater.
+The worker protocol, embedding prompts and pinned model manifest derive from DigUp.
+
+llama.cpp — Copyright (c) 2023-2026 The ggml authors — MIT
+https://github.com/ggml-org/llama.cpp
+Source revision: 4d756bc72bf00a4aacf410ae15a2d315f3db400d (b11461)
+Includes DigUp's no-logits allocation patch. Metal shaders are embedded.
+
+EmbeddingGemma 2 — Google — Apache License 2.0
+https://huggingface.co/google/embeddinggemma-2
+Q8 GGUF conversion: https://huggingface.co/ggml-org/embeddinggemma-2-GGUF
+Weights revision: bfcd298762cc34d0357ece5ebdd31791a3a374d8
+Weights are optional downloads and are not distributed inside Spotter.app.
+
+Additional dependency license notices are included in this directory.

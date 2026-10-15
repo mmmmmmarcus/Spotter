@@ -6,6 +6,10 @@ How to build, test, package, and release Spotter.
 
 - macOS 26 or later (Liquid Glass).
 - Xcode 26 installed — it provides the SwiftUI macro plugin and SDK used to build.
+- CMake (`brew install cmake`) for the bundled local embedding helper. The first build fetches pinned
+  DigUp/llama.cpp sources into ignored `build/SemanticHelper/` and compiles a native CLI; subsequent
+  builds reuse it. The helper-only SwiftPM manifest is isolated from Spotter's XcodeGen application.
+  Model weights are never fetched by the build. Notices ship in `Resources/SemanticSearchLicenses`.
 
 
 ## This project's own GitHub login
@@ -41,6 +45,22 @@ before/after access verification. Without that certificate, create the `Spotter 
 — **[signing.md](signing.md) §1** — and override `CODE_SIGN_IDENTITY`.
 
 ## Build & run
+
+Semantic clipboard tests (no model download needed):
+
+```sh
+swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardSemantic*.swift \
+  Spotter/Plugins/Clipboard/ClipboardEmbeddingClient.swift \
+  Spotter/Plugins/Clipboard/ClipboardStore.swift Spotter/Plugins/Clipboard/ClipboardColor.swift \
+  Spotter/Plugins/Clipboard/ClipboardFilter.swift Spotter/Plugins/Screenshot/ScreenshotFileName.swift \
+  Tools/clipboard-semantic-test.swift -o /tmp/clipboard-semantic-test
+/tmp/clipboard-semantic-test
+```
+
+For real-model validation, pass three paths to the harness: the bundled `spotter-embed` executable,
+the folder containing both pinned GGUF files, and DigUp's `Tests/LlamaRuntimeTests/Reference` folder.
+This adds retrieval and consent-lifecycle tests using synthetic clipboard content in temporary folders.
+It never enables indexing or reads clipboard history in the installed app.
 
 Open the project in Xcode and run it:
 
