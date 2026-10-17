@@ -645,3 +645,6 @@ Notes native copy/paste preserves list Markdown. Pasting a list block into an em
 bullet or number prefixes. Plain text, partial selections, occupied items and fenced code retain
 normal paste behavior. The note-editor harness exercises native copy/readSelection with an isolated
 pasteboard, binding updates and single-step undo.
+
+Clipboard search caches related-result identities with its rows, restoring the Related Results grouping
+after empty browsing and a repeated query. The semantic harness covers this cache round trip.

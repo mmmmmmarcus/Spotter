@@ -273,3 +273,6 @@ invariants, animation setup/reversal fallback and Reduce Motion without visual U
 Quick Clipboard History uses a fixed four-row viewport (up to twelve entries), shrinking for short histories.
 Screen height caps the viewport, never the scrollable history. The former visible-item preference is no
 longer read or exported; older backup fields are ignored and no clipboard records are changed.
+
+Clipboard search caches related-result identities with its rows, restoring the Related Results grouping
+after empty browsing and a repeated query. The semantic harness covers this cache round trip.

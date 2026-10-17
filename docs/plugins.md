@@ -444,3 +444,6 @@ See `docs/ai-chat.md` for supported formats and the renderer regeneration/tests.
 
 Notes native list paste replaces an empty continued list marker with the copied block, preserving
 Todo state and indentation without displaying duplicate Markdown prefixes.
+
+Clipboard search caches related-result identities with its rows, restoring the Related Results grouping
+after empty browsing and a repeated query. The semantic harness covers this cache round trip.

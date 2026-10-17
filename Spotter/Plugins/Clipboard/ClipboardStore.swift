@@ -147,7 +147,7 @@ final class ClipboardStore: ObservableObject {
     var maxAge: TimeInterval = ClipboardRetention.threeMonths.maxAge
 
     /// One-entry memo so repeated renders (e.g. arrow-key nav) for the same query reuse the FTS result instead of re-querying SQLite every frame; invalidated whenever `items` changes. The filter is part of the key because it moves without the query — keying on the query alone would serve the previous filter's rows.
-    private var searchCache: (query: String, filter: ClipboardFilter, result: [ClipboardItem])?
+    private var searchCache: (query: String, filter: ClipboardFilter, result: [ClipboardItem], semanticOnlyIDs: Set<UUID>)?
     /// Same memo for the empty query — every render reads the full display order, so the pinned/unpinned split runs once per mutation.
     private var orderedCache: (filter: ClipboardFilter, result: [ClipboardItem])?
 
@@ -406,6 +406,7 @@ final class ClipboardStore: ObservableObject {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { semanticOnlyIDs = []; return orderedItems(filter) }
         if let searchCache, searchCache.query == q, searchCache.filter == filter {
+            semanticOnlyIDs = searchCache.semanticOnlyIDs
             return searchCache.result
         }
         // Pins are matched in memory rather than taken from the FTS result: they are all resident (see `items`), and the statement's LIMIT would otherwise drop one out of a busy query's matches.
@@ -424,7 +425,7 @@ final class ClipboardStore: ObservableObject {
         let pins = (matched.filter(\.isPinned) + related.filter(\.isPinned))
             .sorted { ($0.pinnedAt ?? .distantFuture) < ($1.pinnedAt ?? .distantFuture) }
         let result = filter.apply(to: pins + matched.filter { !$0.isPinned } + related.filter { !$0.isPinned })
-        searchCache = (q, filter, result)
+        searchCache = (q, filter, result, semanticOnlyIDs)
         return result
     }
 
