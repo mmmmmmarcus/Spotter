@@ -188,15 +188,16 @@ swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardStore.swift \
     -o /tmp/clipboard-test && /tmp/clipboard-test                 # clipboard store
 swiftc -swift-version 6 Spotter/Plugins/Clipboard/ClipboardCapture.swift \
     Tools/clipboard-capture-test.swift -o /tmp/clipboard-capture-test && /tmp/clipboard-capture-test
-swiftc -swift-version 6 Spotter/Core/ImageThumbnail.swift \
+swiftc -swift-version 6 Spotter/Core/AppLog.swift Spotter/Core/ImageThumbnail.swift \
     Spotter/Plugins/Clipboard/ClipboardStore.swift \
+    Spotter/Plugins/Clipboard/ClipboardColor.swift \
     Spotter/Plugins/Clipboard/ClipboardFilter.swift \
     Spotter/Plugins/Clipboard/QuickClipboardPresentation.swift \
     Spotter/Plugins/Clipboard/QuickClipboardAnchor.swift \
     Spotter/Plugins/Clipboard/QuickClipboardMenuView.swift \
     Spotter/Plugins/Clipboard/QuickClipboardMotion.swift \
     Spotter/Plugins/Screenshot/ScreenshotFileName.swift Tools/quick-clipboard-test.swift \
-    -o /tmp/quick-clipboard-test && /tmp/quick-clipboard-test     # vertical menu, glass, motion and focus invariants
+    -o /tmp/quick-clipboard-test && /tmp/quick-clipboard-test     # four-column grid, vertical scroll constraints, glass, motion and focus
 swiftc -swift-version 6 Spotter/Core/SearchScopes.swift Tools/scopes-test.swift \
     -o /tmp/scopes-test && /tmp/scopes-test                       # launcher search scopes
 swiftc -swift-version 6 Spotter/Core/LauncherSections.swift Tools/launcher-sections-test.swift \
@@ -227,7 +228,7 @@ swiftc -swift-version 6 Spotter/Plugins/Infrastructure/PluginTypes.swift \
     Spotter/Plugins/WorldClock/WorldClockStore.swift Tools/world-clock-test.swift \
     -o /tmp/world-clock-test && /tmp/world-clock-test              # world-clock engine + store
 swiftc -swift-version 6 Spotter/Plugins/KillProcess/KillProcessEngine.swift \
-    Tools/kill-process-test.swift -o /tmp/kill-process-test && /tmp/kill-process-test
+    Tools/kill-process-test.swift -o /tmp/kill-process-test && /tmp/kill-process-test # process parsing + kill prefix/name matching
 swiftc -swift-version 6 \
     Spotter/Plugins/Infrastructure/PluginTypes.swift \
     Spotter/Plugins/SelectionTools/SelectionToolsTypes.swift \

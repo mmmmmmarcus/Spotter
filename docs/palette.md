@@ -39,8 +39,7 @@ query and selection — every surface has its own row order, and a selection car
 point at the wrong row.
 
 With a typed launcher query, ⌘↵ opens Quick AI Chat and sends the draft. Tab and Shift-Tab only
-cycle Palette surfaces; AI Chat has no Palette mode. The ChatGPT web handoff remains available
-through the launcher's `Send to ChatGPT` row. Reveal in Finder keeps ⌘↵ on an empty query.
+cycle Palette surfaces; AI Chat has no Palette mode. Reveal in Finder keeps ⌘↵ on an empty query.
 
 Every mode outside the cycle (Calculator History, Software Update, plugin screens) is a sub-screen
 reached from the launcher by a command or a hotkey; Tab from one exits back to the launcher rather
@@ -83,8 +82,9 @@ work, so closing the palette leaves no minute timer or EventKit fetch running.
 The flat `selection` index is the single source of truth for highlight / activation and **must always
 match the visible selectable-row order**. The empty-query dashboard is non-selectable and renders
 above background tasks; tasks still occupy the first indices, followed by the optional inline
-calculator/plugin card, then app and command results. Every non-empty launcher query appends four
-destination rows as the final result slice: AI Chat, ChatGPT web, Terminal and Finder file search.
+calculator/plugin card, then app and command results. Every non-empty launcher query appends six
+destination rows as the final result slice: AI Chat, Translate, Search Clipboard, Search SF Symbols,
+Terminal and Search Files.
 See
 [background-tasks.md](background-tasks.md) and [calculator.md](calculator.md).
 

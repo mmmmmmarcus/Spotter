@@ -3,7 +3,7 @@ import SwiftUI
 struct LauncherList: View {
     let results: [AppEntry]
     let selectedID: AppEntry.ID?
-    /// Section headers over the flat results for empty-query browsing; nil renders the plain query list.
+    /// Section headers partition the flat results; nil renders one Results group.
     let sections: [LauncherSectionSlice]?
     /// CPU/memory accessory per entry ID, present only for Active Apps rows.
     var usage: [String: String] = [:]
@@ -92,6 +92,10 @@ struct LauncherList: View {
             rows.append(.header(slice.title))
             rows.append(contentsOf: results[start..<start + slice.count].map(Row.app))
             start += slice.count
+        }
+        if !fallbacks.isEmpty {
+            rows.append(.header("Try With"))
+            rows.append(contentsOf: fallbacks.map(Row.fallback))
         }
         return rows
     }

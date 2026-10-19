@@ -30,6 +30,22 @@ struct LauncherSectionSlice: Equatable, Sendable {
 /// Pure order/visibility resolution for the browse sections, mirroring the widget-order shape:
 /// whatever was saved is repaired, so a new section needs no migration and a removed one drops out.
 enum LauncherSectionsEngine {
+    static func queryGroups<Entry>(
+        _ entries: [Entry], isMenuBarItem: (Entry) -> Bool
+    ) -> (entries: [Entry], sections: [LauncherSectionSlice]) {
+        var results: [Entry] = []
+        var menus: [Entry] = []
+        for entry in entries {
+            if isMenuBarItem(entry) { menus.append(entry) }
+            else { results.append(entry) }
+        }
+        let sections = [
+            LauncherSectionSlice(title: "Results", count: results.count),
+            LauncherSectionSlice(title: "Menu Bar", count: menus.count),
+        ].filter { $0.count > 0 }
+        return (results + menus, sections)
+    }
+
     static let defaultOrder: [LauncherSection] = [
         .favorites, .activeApps, .applications, .systemSettings, .commands,
     ]

@@ -3,13 +3,13 @@ import CoreGraphics
 
 enum QuickClipboardPresentation {
     static let visibleRows = 4
-    static let gridColumns = 3
+    static let gridColumns = 4
     static let gridGap: CGFloat = 3
     static let filterGap: CGFloat = 12
     static let navigationKeys: [UInt16] = [48, 53, 123, 124, 125, 126, 36, 76]
-    static var gridSide: CGFloat { (width - inset * 2 - gridGap * CGFloat(gridColumns - 1)) / CGFloat(gridColumns) }
+    static let gridSide: CGFloat = 86
     static let pageSize = 50
-    static let width: CGFloat = 276
+    static var width: CGFloat { inset * 2 + gridSide * CGFloat(gridColumns) + gridGap * CGFloat(gridColumns - 1) }
     static let rowHeight: CGFloat = 32
     static let emptyHeight: CGFloat = 44
     static let filterSize: CGFloat = 24

@@ -3,7 +3,9 @@ import Foundation
 /// Explicit destinations appended to every non-empty launcher query.
 enum LauncherFallbackAction: String, CaseIterable, Identifiable, Sendable {
     case aiChat
-    case chatGPT
+    case translate
+    case clipboardSearch
+    case sfSymbols
     case terminal
     case fileSearch
 
@@ -12,7 +14,9 @@ enum LauncherFallbackAction: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .aiChat: return "Send to AI Chat"
-        case .chatGPT: return "Send to ChatGPT"
+        case .translate: return "Translate"
+        case .clipboardSearch: return "Search Clipboard"
+        case .sfSymbols: return "Search SF Symbols"
         case .terminal: return "Run in Terminal"
         case .fileSearch: return "Search Files"
         }
@@ -31,7 +35,9 @@ enum LauncherFallbackAction: String, CaseIterable, Identifiable, Sendable {
     var systemImage: String {
         switch self {
         case .aiChat: return "sparkles"
-        case .chatGPT: return "globe"
+        case .translate: return "character.bubble"
+        case .clipboardSearch: return "doc.on.clipboard"
+        case .sfSymbols: return "square.on.circle"
         case .terminal: return "terminal"
         case .fileSearch: return "doc.text.magnifyingglass"
         }
@@ -41,7 +47,9 @@ enum LauncherFallbackAction: String, CaseIterable, Identifiable, Sendable {
         switch self {
         // Named for what the row does, not for the app it happens inside — every row is Spotter.
         case .aiChat: return "Ask AI"
-        case .chatGPT: return "Web"
+        case .translate: return "Translation"
+        case .clipboardSearch: return "Clipboard"
+        case .sfSymbols: return "SF Symbols"
         case .terminal: return "Terminal"
         // Named for where the row lands: the File Search screen when its plugin is on, Finder when it isn't.
         case .fileSearch: return "Files"

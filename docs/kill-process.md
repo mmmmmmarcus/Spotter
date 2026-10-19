@@ -12,8 +12,10 @@ rows, bottom action group and ⌘K menu. `/bin/ps` runs off the main actor, is p
   It shows one best matching **Kill <Application>** command with the app icon; exact names rank ahead
   of prefixes and substrings. This uses the shared parameterized-command route.
   Bare `kill` still finds the normal process-list command. The direct query uses macOS's running-app
-  metadata, starts no process polling and launches no `ps` subprocess while typing. Only regular
-  running applications are candidates, with Spotter and PID 0/1 excluded.
+  metadata, starts no process polling and launches no `ps` subprocess while typing. Regular and
+  accessory (menu-bar) applications are candidates, with background-only services, Spotter and
+  PID 0/1 excluded. Matching ignores case and whitespace, so `kill Vibe Remote` finds `VibeRemote`;
+  spelling errors are not guessed. This is Palette syntax, not a Terminal shell command.
 - Activating that row sends the existing ordinary Kill (`SIGTERM`) to the selected application's
   main process; it does not invoke Force Kill or Kill All. The row carries a transient PID, launch
   date and executable identity, held stable until the query changes or the palette reopens.

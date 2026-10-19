@@ -15,6 +15,7 @@ struct QuickClipboardTests {
         expect(ImageThumbnail.failureCategory(NSError(domain: NSPOSIXErrorDomain, code: 13)) == "permission-denied", "image permission denial is diagnosed")
         expect(ImageThumbnail.failureCategory(NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError)) == "file-missing", "missing image is distinct from permission denial")
         geometry()
+        verticalScrolling()
         await caretAnchors()
         await caretDeadline()
         webCaretBounds()
@@ -31,10 +32,10 @@ struct QuickClipboardTests {
         let items = textItems(1000)
         let menu = QuickClipboardMenuView(items: items)
         let size = menu.frame.size
-        expect(menu.rowButtons.count <= 15 && menu.rowButtons.first?.content.title == items[0].text,
+        expect(menu.rowButtons.count <= 20 && menu.rowButtons.first?.content.title == items[0].text,
             "long history starts at the newest row with bounded native views")
         menu.select(600)
-        expect(menu.frame.size == size && menu.rowButtons.count <= 15
+        expect(menu.frame.size == size && menu.rowButtons.count <= 20
             && menu.rowButtons.contains { $0.isSelected && $0.content.title == items[600].text },
             "keyboard navigation reveals older rows without growing the window or creating all rows")
         let footer = menu.historyButton.frame
@@ -55,28 +56,53 @@ struct QuickClipboardTests {
             "Tab cycles through All and the three broad categories")
     }
 
+    static func verticalScrolling() {
+        let menu = QuickClipboardMenuView(items: textItems(1000))
+        let scroll = menu.scrollView
+        let clip = scroll.contentView
+        expect(!scroll.hasHorizontalScroller && scroll.horizontalScrollElasticity == .none
+            && !scroll.usesPredominantAxisScrolling, "grid disables horizontal scroll and keeps diagonal vertical movement")
+        expect(scroll.documentView?.frame.width == scroll.contentSize.width,
+            "document width matches the actual viewport")
+        let middle = (scroll.documentView!.frame.height - clip.bounds.height) / 2
+        scroll.documentView!.setFrameSize(CGSize(width: scroll.contentSize.width + 120, height: scroll.documentView!.frame.height))
+        for x: CGFloat in [-80, 80] {
+            let proposed = CGRect(x: x, y: middle, width: clip.bounds.width, height: clip.bounds.height)
+            let constrained = clip.constrainBoundsRect(proposed)
+            expect(constrained.minX == 0 && constrained.minY == middle,
+                "clip rejects horizontal offsets while preserving valid vertical offsets")
+        }
+        for y in [middle, middle - 80, middle + 80] {
+            let target = clip.constrainBoundsRect(CGRect(x: 80, y: y, width: clip.bounds.width, height: clip.bounds.height))
+            clip.scroll(to: target.origin)
+            scroll.reflectScrolledClipView(clip)
+            expect(clip.bounds.minX == 0 && clip.bounds.minY == y,
+                "constrained scrolling moves vertically even during a transient document width mismatch")
+        }
+    }
+
     static func imageGrid() {
         let image = ClipboardItem(imagePath: "/tmp/grid-preview.png", sourceBundleID: nil)
         let items = Array(repeating: image, count: 1000)
         let frames = QuickClipboardPresentation.rowFrames(items: items, filter: .image)
-        expect(frames.allSatisfy { $0.width == $0.height } && frames.prefix(3).allSatisfy { $0.maxY == frames[0].maxY }
-            && frames[3].maxY < frames[0].minY && frames[1].minX > frames[0].maxX,
-            "image tiles are square in three nonoverlapping columns, ordered left to right then downward")
+        expect(frames.allSatisfy { $0.width == $0.height } && frames.prefix(4).allSatisfy { $0.maxY == frames[0].maxY }
+            && frames[4].maxY < frames[0].minY && frames[1].minX > frames[0].maxX,
+            "image tiles are square in four nonoverlapping columns, ordered left to right then downward")
         let menu = QuickClipboardMenuView(items: [])
         menu.update(items, selection: 0, filter: .image)
         let size = menu.frame.size
-        expect(menu.rowButtons.count == 12 && menu.rowButtons.first?.frame == frames[0],
+        expect(menu.rowButtons.count == 16 && menu.rowButtons.first?.frame == frames[0],
             "the default viewport contains four complete image rows")
         menu.select(601)
-        expect(menu.frame.size == size && menu.rowButtons.count <= 15
+        expect(menu.frame.size == size && menu.rowButtons.count <= 20
             && menu.rowButtons.contains { $0.isSelected && $0.frame == frames[601] },
             "older grid selection scrolls into view with bounded views and a fixed viewport")
         var selected: Int?
         menu.onSelect = { selected = $0 }
         menu.rowButtons.first { $0.isSelected }?.performClick(nil)
         expect(selected == 601, "a reused grid tile activates the correct history entry")
-        menu.update(Array(items.prefix(4)), selection: 0, filter: .image)
-        expect(menu.rowButtons.count == 4 && menu.rowButtons.last?.frame.minX == 0,
+        menu.update(Array(items.prefix(5)), selection: 0, filter: .image)
+        expect(menu.rowButtons.count == 5 && menu.rowButtons.last?.frame.minX == 0,
             "a partial image row starts at the left without stretching tiles")
         menu.update(textItems(5), selection: 0, filter: .text)
         expect(menu.rowButtons.allSatisfy { $0.content.image == nil && !$0.content.title.isEmpty },
@@ -89,13 +115,14 @@ struct QuickClipboardTests {
             "Tab and all four arrows are claimed for every grid category")
         expect(QuickClipboardPresentation.gridSelection(from: 0, moving: .right, itemCount: 8) == 1
             && QuickClipboardPresentation.gridSelection(from: 1, moving: .right, itemCount: 8) == 2
-            && QuickClipboardPresentation.gridSelection(from: 2, moving: .right, itemCount: 8) == 2
+            && QuickClipboardPresentation.gridSelection(from: 2, moving: .right, itemCount: 8) == 3
+            && QuickClipboardPresentation.gridSelection(from: 3, moving: .right, itemCount: 8) == 3
             && QuickClipboardPresentation.gridSelection(from: 1, moving: .left, itemCount: 8) == 0
             && QuickClipboardPresentation.gridSelection(from: 0, moving: .left, itemCount: 8) == 0,
             "left and right move within an image-grid row without wrapping")
-        expect(QuickClipboardPresentation.gridSelection(from: 1, moving: .down, itemCount: 8) == 4
-            && QuickClipboardPresentation.gridSelection(from: 4, moving: .up, itemCount: 8) == 1
-            && QuickClipboardPresentation.gridSelection(from: 5, moving: .down, itemCount: 8) == 7,
+        expect(QuickClipboardPresentation.gridSelection(from: 1, moving: .down, itemCount: 8) == 5
+            && QuickClipboardPresentation.gridSelection(from: 5, moving: .up, itemCount: 8) == 1
+            && QuickClipboardPresentation.gridSelection(from: 3, moving: .down, itemCount: 6) == 5,
             "up and down preserve the grid column and choose the nearest tile in a partial row")
         expect(QuickClipboardPresentation.gridSelection(from: 7, moving: .down, itemCount: 8) == 8
             && QuickClipboardPresentation.gridSelection(from: 8, moving: .up, itemCount: 8) == 7
@@ -268,7 +295,7 @@ struct QuickClipboardTests {
         }
         let compact = QuickClipboardPresentation.frame(anchor: CGRect(x: -5, y: 0, width: 0, height: 0),
             screen: screen, items: textItems(5))
-        expect(compact.width == 276 && compact.maxX == -17, "the complete menu flips left at the screen edge")
+        expect(compact.width == 365 && compact.maxX == -17, "the complete menu flips left at the screen edge")
         let anchor = CGPoint(x: 120, y: 420)
         let center = CGPoint(x: 380, y: 720)
         let collapsed = QuickClipboardPresentation.collapsedCenter(center: center, anchor: anchor)
@@ -281,12 +308,12 @@ struct QuickClipboardTests {
         let rects = QuickClipboardPresentation.rowFrames(items: textItems(5))
         expect(rects.count == 5 && rects.allSatisfy { $0.size == CGSize(width: 86, height: 86) },
             "text entries use square tiles with three-point gaps")
-        expect(QuickClipboardPresentation.size(items: textItems(5)) == CGSize(width: 276, height: 227),
+        expect(QuickClipboardPresentation.size(items: textItems(5)) == CGSize(width: 365, height: 227),
             "short histories shrink to two tile rows plus the footer")
         expect(QuickClipboardPresentation.rowFrames(items: []).isEmpty
-            && QuickClipboardPresentation.size(items: []) == CGSize(width: 276, height: 96),
+            && QuickClipboardPresentation.size(items: []) == CGSize(width: 365, height: 96),
             "empty results keep an explanation above the footer")
-        expect(rects[0].maxX + 3 == rects[1].minX && rects[3].maxY + 3 == rects[0].minY,
+        expect(rects[0].maxX + 3 == rects[1].minX && rects[4].maxY + 3 == rects[0].minY,
             "horizontal and vertical gaps match without overlapping hit targets")
         for filter in QuickClipboardFilter.allCases {
             expect(QuickClipboardPresentation.size(items: textItems(50), filter: filter).height == 405
@@ -299,7 +326,7 @@ struct QuickClipboardTests {
         expect(bounded.height == 284, "small screens cap the viewport while the document remains scrollable")
         let configuredMenu = QuickClipboardMenuView(items: [])
         configuredMenu.update(textItems(50), selection: 0)
-        expect(configuredMenu.rowButtons.count == 12, "the native viewport initially exposes twelve text records")
+        expect(configuredMenu.rowButtons.count == 16, "the native viewport initially exposes sixteen text records")
         configuredMenu.select(40)
         expect(configuredMenu.rowButtons.contains { $0.isSelected }, "grid viewport still scrolls to older records")
         let image = ClipboardItem(imagePath: "/tmp/image.png", sourceBundleID: nil)
@@ -312,13 +339,13 @@ struct QuickClipboardTests {
             "image tiles remain on screen")
         let filters = QuickClipboardPresentation.filterFrames
         expect(filters.count == QuickClipboardFilter.allCases.count
-            && (filters.first!.minX + filters.last!.maxX) / 2 == 138
+            && (filters.first!.minX + filters.last!.maxX) / 2 == 182.5
             && filters.allSatisfy { QuickClipboardPresentation.footerFrame.contains($0) },
             "all shared filters are centered inside the footer")
         expect(zip(filters, filters.dropFirst()).allSatisfy { $1.minX - $0.maxX >= 12 },
             "category buttons have visible spacing without shrinking their hit targets")
         expect(filters.last!.maxX < QuickClipboardPresentation.historyFrame.minX
-            && QuickClipboardPresentation.historyFrame.maxX == 270,
+            && QuickClipboardPresentation.historyFrame.maxX == 359,
             "full history stays on the right without overlapping filters")
         let peak = (0...150).map { QuickClipboardPresentation.springProgress(elapsed: Double($0) / 1000) }.max()!
         expect(peak > 1 && peak < 1.016, "spring overshoot keeps final scale within about 1.2 percent")

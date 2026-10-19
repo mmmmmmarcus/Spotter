@@ -46,16 +46,19 @@ enum KillProcessEngine {
     static func applicationTarget(
         in processes: [RunningProcessInfo], argument: String, excludingPID: Int32
     ) -> RunningProcessInfo? {
-        let needle = argument.lowercased()
+        func matchKey(_ value: String) -> String {
+            value.lowercased().filter { !$0.isWhitespace }
+        }
+        let needle = matchKey(argument)
         guard !needle.isEmpty else { return nil }
         func name(_ process: RunningProcessInfo) -> String { process.appName ?? process.processName }
         func rank(_ process: RunningProcessInfo) -> Int {
-            let value = name(process).lowercased()
+            let value = matchKey(name(process))
             return value == needle ? 0 : value.hasPrefix(needle) ? 1 : 2
         }
         return processes.filter {
             $0.id > 1 && $0.id != excludingPID && $0.kind == .app
-                && name($0).localizedCaseInsensitiveContains(argument)
+                && matchKey(name($0)).contains(needle)
         }.sorted {
             if rank($0) != rank($1) { return rank($0) < rank($1) }
             let order = name($0).localizedStandardCompare(name($1))

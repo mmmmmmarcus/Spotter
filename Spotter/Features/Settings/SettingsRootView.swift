@@ -37,17 +37,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .about: return "info.circle"
         }
     }
-
-    var tint: Color {
-        switch self {
-        case .general: return .gray
-        case .permissions: return .blue
-        case .shortcuts: return .indigo
-        case .backup: return .teal
-        case .diagnostics: return .orange
-        case .about: return .pink
-        }
-    }
 }
 
 enum SettingsDestination: Hashable {
@@ -109,13 +98,13 @@ struct SettingsRootView: View {
                 sidebarHeader("System")
                 ForEach(SettingsTab.systemTabs) { item in
                     sidebarRow(
-                        title: item.title, systemImage: item.systemImage, tint: item.tint,
+                        title: item.title, systemImage: item.systemImage,
                         destination: .system(item))
                 }
                 ForEach(plugins.systemFeatures) { feature in
                     sidebarRow(
                         title: feature.name, systemImage: feature.systemImage,
-                        tint: feature.tint.color, destination: .plugin(feature.id))
+                        destination: .plugin(feature.id))
                 }
                 if !sortedPlugins.isEmpty {
                     sidebarHeader("Plugins")
@@ -123,13 +112,13 @@ struct SettingsRootView: View {
                     ForEach(sortedPlugins) { plugin in
                         sidebarRow(
                             title: plugin.name, systemImage: plugin.systemImage,
-                            tint: plugin.tint.color, destination: .plugin(plugin.id))
+                            destination: .plugin(plugin.id))
                     }
                 }
                 if !core.extensions.installed.isEmpty {
                     sidebarHeader("Raycast Extension").padding(.top, Theme.Spacing.md)
                     ForEach(core.extensions.installed.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }) { owner in
-                        sidebarRow(title: owner.title, systemImage: "puzzlepiece.extension", tint: .purple,
+                        sidebarRow(title: owner.title, systemImage: "puzzlepiece.extension", iconPath: owner.iconPath,
                             destination: .raycastExtension(owner.id))
                     }
                 }
@@ -137,7 +126,7 @@ struct SettingsRootView: View {
                     .padding(.top, Theme.Spacing.md)
                 ForEach(SettingsTab.spotterTabs) { item in
                     sidebarRow(
-                        title: item.title, systemImage: item.systemImage, tint: item.tint,
+                        title: item.title, systemImage: item.systemImage,
                         destination: .system(item))
                 }
             }
@@ -176,12 +165,12 @@ struct SettingsRootView: View {
     }
 
     private func sidebarRow(
-        title: String, systemImage: String, tint: Color, destination target: SettingsDestination
+        title: String, systemImage: String, iconPath: String? = nil, destination target: SettingsDestination
     ) -> some View {
         SidebarRow(
             title: title,
             systemImage: systemImage,
-            tint: tint,
+            iconPath: iconPath,
             isSelected: destination == target
         ) {
             destination = target
@@ -189,42 +178,37 @@ struct SettingsRootView: View {
     }
 }
 
-private extension PluginTint {
-    var color: Color {
-        switch self {
-        case .blue: return .blue
-        case .cyan: return .cyan
-        case .green: return .green
-        case .orange: return .orange
-        case .purple: return .purple
-        case .red: return .red
-        case .teal: return .teal
-        case .yellow: return .yellow
-        }
-    }
-}
-
 private struct SidebarRow: View {
     let title: String
     let systemImage: String
-    let tint: Color
+    let iconPath: String?
     let isSelected: Bool
     let action: () -> Void
 
     @State private var hovering = false
+    @State private var artwork: NSImage?
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.lg) {
-                RoundedRectangle(cornerRadius: Theme.Radius.menu, style: .continuous)
-                    .fill(tint.gradient)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Image(systemName: systemImage)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                    )
-                    .shadow(color: .black.opacity(0.2), radius: 0.5, y: 0.5)
+                Group {
+                    if let artwork {
+                        Image(nsImage: artwork)
+                            .resizable()
+                            .renderingMode(.original)
+                            .scaledToFit()
+                    } else {
+                        RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)
+                            .fill(Theme.Colors.controlSurface)
+                            .overlay {
+                                Image(systemName: systemImage)
+                                    .font(.system(size: 12))
+                                    .symbolRenderingMode(.monochrome)
+                                    .foregroundStyle(.secondary)
+                            }
+                    }
+                }
+                .frame(width: Theme.Size.settingsRowIcon, height: Theme.Size.settingsRowIcon)
                 Text(title)
                     .font(Theme.Typography.rowTitle)
                     .lineLimit(1)
@@ -241,6 +225,13 @@ private struct SidebarRow: View {
         .buttonStyle(.plain)
         .focusEffectDisabled()
         .onHover { hovering = $0 }
+        .task(id: iconPath) {
+            artwork = iconPath.flatMap { ExtensionIconCache.cached(atPath: $0) }
+            guard let iconPath else { return }
+            let loaded = await ExtensionIconCache.loadAsync(atPath: iconPath)
+            guard !Task.isCancelled else { return }
+            artwork = loaded
+        }
     }
 
     private var background: Color {

@@ -299,7 +299,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   model-download consent and a bundled signed inference helper; see [clipboard.md](clipboard.md).
   synchronization reuses bounded image data and applies changed rows without rewriting unchanged blobs.
   The palette's type filters use a Liquid Glass dropdown with a checked native menu and preserve search-field focus.
-  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for continuously scrolling history sharing one native Clear glass menu, with a three-column square grid for every type and up to four visible rows, visible-only previews, a fixed footer of spaced All / Text / Images / Files filters (default All, symbol-only selection), Tab-only category navigation, a right-aligned full-history icon, and one menu shadow,
+  Quick Clipboard History defaults to ⌃⌘Z and adds a configurable shortcut and launcher command for continuously scrolling history sharing one native Clear glass menu, with a four-column square grid for every type and up to four visible rows, visible-only previews, a fixed footer of spaced All / Text / Images / Files filters (default All, symbol-only selection), Tab-only category navigation, a right-aligned full-history icon, and one menu shadow,
   below the active text caret when space permits (falling back to the captured mouse position and flipping above near the bottom edge), an explicit user-requested exception to palette-first interaction.
 - **Text Replacement** (`Spotter/Plugins/TextReplacement/`) — expands
   user-defined prefix/keyword triggers into text in the active app through an Accessibility-gated
@@ -332,6 +332,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
 - **Kill Process** (`Spotter/Plugins/KillProcess/`) — launcher-native palette screen backed by an
   on-demand `ps` snapshot, with CPU/memory sorting, grouping, filtering and safe process actions.
   `kill Chrome` and other application-name arguments also resolve directly to a running-app action.
+  This includes menu-bar applications; case and spaces do not affect name matching.
 
 - **Search** (`Spotter/Plugins/SelectionTools/`, display-renamed from Selection Tools; the id stays
   `selection-tools` so persisted state survives) — captures selected text and

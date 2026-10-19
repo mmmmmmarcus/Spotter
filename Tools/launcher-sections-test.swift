@@ -16,6 +16,24 @@ enum LauncherSectionsTest {
     }
 
     static func main() {
+        let grouped = LauncherSectionsEngine.queryGroups(
+            ["menu:Copy", "kill Safari", "Safari", "menu:Paste"],
+            isMenuBarItem: { $0.hasPrefix("menu:") })
+        check("menu results form a separate trailing group without changing within-group ranking",
+            grouped.entries == ["kill Safari", "Safari", "menu:Copy", "menu:Paste"])
+        check("section counts partition the keyboard selection array",
+            grouped.sections == [LauncherSectionSlice(title: "Results", count: 2),
+                LauncherSectionSlice(title: "Menu Bar", count: 2)]
+                && grouped.sections.reduce(0) { $0 + $1.count } == grouped.entries.count)
+        check("menu-only searches have no empty Results header",
+            LauncherSectionsEngine.queryGroups(["Copy"], isMenuBarItem: { _ in true }).sections
+                == [LauncherSectionSlice(title: "Menu Bar", count: 1)])
+        check("normal-only searches have no empty Menu Bar header",
+            LauncherSectionsEngine.queryGroups(["Safari"], isMenuBarItem: { _ in false }).sections
+                == [LauncherSectionSlice(title: "Results", count: 1)])
+        check("empty search results have no section headers",
+            LauncherSectionsEngine.queryGroups([String](), isMenuBarItem: { _ in true }).sections.isEmpty)
+
         check(
             "a never-saved order is the default order",
             LauncherSectionsEngine.order(fromRaw: nil) == LauncherSectionsEngine.defaultOrder)

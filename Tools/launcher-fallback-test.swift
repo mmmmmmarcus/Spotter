@@ -17,10 +17,10 @@ struct LauncherFallbackTests {
         check("empty input has no fallbacks", LauncherFallback.suggestions(for: " \n ").isEmpty)
 
         let suggestions = LauncherFallback.suggestions(for: "  echo \"你好\" && pwd  \n")
-        check("all four fallbacks are present", suggestions.count == 4)
+        check("all six fallbacks are present", suggestions.count == 6)
         check(
             "fallback order is stable",
-            suggestions.map(\.action) == [.aiChat, .chatGPT, .terminal, .fileSearch])
+            suggestions.map(\.action) == [.aiChat, .translate, .clipboardSearch, .sfSymbols, .terminal, .fileSearch])
         check(
             "outer whitespace is trimmed without changing the command",
             suggestions.allSatisfy { $0.query == "echo \"你好\" && pwd" })
@@ -38,14 +38,14 @@ struct LauncherFallbackTests {
                 == "Send to AI Chat")
         check(
             "the other rows ignore the model name",
-            named.dropFirst().map(\.title) == ["Send to ChatGPT", "Run in Terminal", "Search Files"])
+            named.dropFirst().map(\.title) == ["Translate", "Search Clipboard", "Search SF Symbols", "Run in Terminal", "Search Files"])
 
         // Each row's trailing label names where it lands; the AI row names the act, since every
         // row lands inside Spotter.
         check(
             "each fallback names its destination",
             suggestions.map(\.action).map(\.contextLabel)
-                == ["Ask AI", "Web", "Terminal", "Files"])
+                == ["Ask AI", "Translation", "Clipboard", "SF Symbols", "Terminal", "Files"])
 
         let hostile = "printf '%s\\n' \"$HOME\"; echo \\ done"
         let terminal = TerminalCommandRunner.invocation(for: hostile, terminal: .terminal)

@@ -199,7 +199,8 @@ remain selectable for dismissal.
 
 All five palette lists (App Launcher, Clipboard, Emoji, Calculator History, and every plugin screen via `PluginPaletteList`) render category labels
 through one shared **`SectionHeader`** (`.subheadline.medium`, secondary — `Features/Launcher/LauncherView.swift`).
-The launcher shows a single "Results" header over search matches, and per-kind sections
+The launcher separates typed search matches into "Results" and "Menu Bar", omitting empty groups,
+with "Try With" after both. Empty queries use per-kind sections
 (Favorites / Applications / System Settings / Commands) for the empty query; clipboard/history use
 date buckets (Today / Yesterday / …), and the clipboard adds a "Pinned" section above them holding
 every pinned entry (filtered searches included).
@@ -279,7 +280,7 @@ replace only the bottom row, never the whole card. Since the date is already on 
 event shows only its time; a later one keeps its weekday prefix.
 
 Every typed launcher query ends with a `Try With` section after its normal results; when none exist,
-the section replaces the centered empty state. Its four selectable destination rows use the same row
+the section replaces the centered empty state. Its six selectable destination rows use the same row
 insets, selection-over-hover fill and leading 24pt symbol slot as normal results; their trailing
 labels name the destination.
 
@@ -417,6 +418,10 @@ reintroduce native scrollers on the palette lists.
 
 ## Settings — `Features/Settings/SettingsComponents.swift`
 
+Sidebar symbols use the clipboard list's monochrome `controlSurface` tile and secondary symbol color.
+Raycast extensions instead load their installed artwork asynchronously and retain its original colors;
+missing artwork falls back to the extension symbol tile.
+
 Settings runs in its own `NSWindow` (the SwiftUI `Settings` scene is unreliable for accessory apps) but
 shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not the palette:
 
@@ -503,7 +508,7 @@ most visibly in the palette's leading slot, hard against the caret. Colour comes
 `foregroundStyle` and a Theme token, never from the symbol's own layers.
 
 **No leading glyph outside the sidebar** (owner decision, Sep 2026). Section headers, rows and
-callouts across every Settings pane are text-only; the sidebar keeps its tinted tiles, because those
+callouts across every Settings pane are text-only; the sidebar keeps its monochrome tiles, because those
 name a destination rather than decorate a title. Per-item *artwork* is not a glyph and stays — an app
 icon in the Shortcuts list or the Clipboard exclusions, a quicklink's opener icon — since it says
 *which* item the row is. Where a glyph had been carrying meaning on its own it moves into the text:
@@ -688,8 +693,8 @@ selected row by identity. Settings → Clipboard contains the consent-gated togg
 indexed-entry count and Retry / Import Model controls on failure. It uses the existing native Form.
 Quick Clipboard retains its existing grid, keyboard navigation and fixed footer.
 
-An explicit exception to the shared palette surface: a continuously scrolling three-column grid,
-276 points wide, with up to four rows of 86-point square tiles, 3-point gaps and 6-point outer insets.
+An explicit exception to the shared palette surface: a continuously scrolling four-column grid,
+365 points wide, with up to four rows of 86-point square tiles, 3-point gaps and 6-point outer insets.
 Text wraps inside each tile, files show a symbol above their name, and images fill the square with
 centered cropping and 4-point inner padding. A subtle semantic fill defines each tile.
 An 8-point gap separates the fixed footer: All / Text / Images / Files icons centered with 12-point

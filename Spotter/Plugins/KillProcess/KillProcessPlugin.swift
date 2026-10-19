@@ -54,7 +54,8 @@ enum KillProcessPlugin {
             parameterizedCommand: { [weak core] query in
                 guard let core, let argument = KillProcessEngine.applicationArgument(query) else { return nil }
                 let apps = NSWorkspace.shared.runningApplications.filter {
-                    $0.activationPolicy == .regular && !$0.isTerminated
+                    ($0.activationPolicy == .regular || $0.activationPolicy == .accessory)
+                        && !$0.isTerminated
                 }
                 let candidates = apps.compactMap { app -> RunningProcessInfo? in
                     guard let executable = app.executableURL, let name = app.localizedName,

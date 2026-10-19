@@ -6,8 +6,14 @@ extension AppCore {
         switch fallback.action {
         case .aiChat:
             startAIChat(prompt: fallback.query)
-        case .chatGPT:
-            sendAIChatPromptToChatGPT(fallback.query)
+        case .translate:
+            openTranslate()
+            palette.query = fallback.query
+        case .clipboardSearch:
+            showPalette(mode: .clipboard)
+            palette.query = fallback.query
+        case .sfSymbols:
+            openSFSymbols(query: fallback.query)
         case .terminal:
             runInTerminal(fallback.query)
         case .fileSearch:

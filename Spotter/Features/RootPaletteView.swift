@@ -63,7 +63,7 @@ struct RootPaletteView: View {
 
     private struct LauncherBrowse {
         let entries: [AppEntry]
-        /// Section headers over the flat entries; nil in query mode (the plain "Results" list).
+        /// Section headers partition the same flat entries used for keyboard selection.
         let sections: [LauncherSectionSlice]?
         /// Usage accessory per entry ID, only for entries seated in the Active Apps section.
         let usage: [String: String]
@@ -76,8 +76,10 @@ struct RootPaletteView: View {
         guard isQueryEmpty else {
             let parameterized = plugins.parameterizedCommands(matching: vm.query).filter(visibility.isVisible)
             let replacedIDs = Set(parameterized.map(\.id))
-            return LauncherBrowse(entries: parameterized + base.filter { !replacedIDs.contains($0.id) },
-                                  sections: nil, usage: [:])
+            let grouped = LauncherSectionsEngine.queryGroups(
+                parameterized + base.filter { !replacedIDs.contains($0.id) },
+                isMenuBarItem: \.isMenuBarItem)
+            return LauncherBrowse(entries: grouped.entries, sections: grouped.sections, usage: [:])
         }
 
         // The flat array is rebuilt in section order, so the flat selection index and the visible

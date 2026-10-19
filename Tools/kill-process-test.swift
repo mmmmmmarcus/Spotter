@@ -36,12 +36,20 @@ struct KillProcessTests {
          30 1 0 0 /Applications/Safari Technology Preview.app/Contents/MacOS/Safari Technology Preview
          40 1 0 0 /Applications/Spotter.app/Contents/MacOS/Spotter
          50 1 0 0 /usr/bin/Chrome
+         60 1 0 0 /Applications/VibeRemote.app/Contents/MacOS/VibeRemote
+         70 1 0 0 /Applications/VibeRemote Helper.app/Contents/MacOS/VibeRemote Helper
         """)
         func target(_ argument: String, in source: [RunningProcessInfo]? = nil) -> Int32? {
             KillProcessEngine.applicationTarget(in: source ?? apps, argument: argument, excludingPID: 40)?.id
         }
         check("Chrome resolves a running Google Chrome", target("chrome") == 10)
         check("partial application name works", target("Chro") == 10)
+        check("spaced application name finds a compact name", target("Vibe Remote") == 60)
+        check("compact argument finds a spaced name", target("GoogleChrome") == 10)
+        check("extra whitespace and case do not change target", target(" VIBE  \tRemote ") == 60)
+        check("normalized exact name outranks helper", target("Vibe Remote", in: Array(apps.reversed())) == 60)
+        check("whitespace-only argument produces no target", target(" \t ") == nil)
+        check("misspelled application name is not guessed", target("Viber Remote") == nil)
         check("exact name outranks variants", target("Safari") == 20)
         check("full variant name selects that variant", target("Safari Technology") == 30)
         check("matching is independent of process order", target("Safari", in: Array(apps.reversed())) == 20)

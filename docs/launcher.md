@@ -206,8 +206,11 @@ Return. See [background-tasks.md](background-tasks.md).
 
 ## Query destinations
 
-Every non-empty launcher query appends four explicit `Try With` rows after its normal results: ask
-Spotter's AI Chat, send to ChatGPT on the web, run in Terminal, and search files in Finder. The AI
+Typed matches keep their ranking within two groups: Results, then Menu Bar. Empty groups are omitted.
+Their flattened order also drives keyboard selection and activation; Try With follows both groups.
+
+Every non-empty launcher query appends six explicit `Try With` rows after its normal results: ask
+Spotter's AI Chat, Translate, Search Clipboard, Search SF Symbols, run in Terminal, and Search Files. The AI
 Chat row names the model it will ask — `Ask Gemini 2.0 Flash…` — resolved from
 `OpenRouterStore.chatModel` through `OpenRouterModelCatalog.modelName(for:in:)`, which prefers the
 live catalog's own label and otherwise prettifies the id's tail. The **version stays in the name**
@@ -220,14 +223,17 @@ never enter the app index, ranking, favorites, visibility settings or command re
 
 In the flat selection order the rows follow background tasks, the optional inline answer, and every
 app/command match. AI Chat reuses the normal fresh-session send path and preserves the draft when no
-OpenRouter key is configured. ChatGPT reuses the encoded web handoff. Terminal receives the command
+OpenRouter key is configured. Translate opens the existing typed-translation screen with the query,
+retaining its API-key gate, debounce and memo. Search Clipboard opens full history with the query
+and the All filter. Search SF Symbols opens the existing local symbol browser with the query.
+Terminal receives the command
 in the user's preferred terminal (General → "Run in Terminal uses"; `AppSettings.preferredTerminal`,
 synced): Terminal and iTerm2 get it as one `osascript` argv value — never interpolated into
 AppleScript source — while Ghostty, Alacritty and kitty launch with the command as their own `-e`
 shell input, followed by an `exec zsh -i` so the window outlives it. The picker lists only installed
 terminals. Either way it executes in a new shell only after the user activates
-that row; file search uses macOS's native Finder search. Both external-app actions dismiss Spotter
-without restoring focus.
+that row and dismisses Spotter without restoring focus; file search opens the existing Search Files
+palette screen with the query.
 
 ## Reveal in Finder
 

@@ -41,7 +41,10 @@ final class QuickClipboardMenuView: NSView {
         glassView.contentView = rowsView
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
+        scrollView.contentView = QuickClipboardVerticalClipView()
         scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.usesPredominantAxisScrolling = false
         scrollView.scrollerStyle = .overlay
         scrollView.autohidesScrollers = true
         scrollView.horizontalScrollElasticity = .none
@@ -114,7 +117,7 @@ final class QuickClipboardMenuView: NSView {
             rowsView.frame = CGRect(origin: .zero, size: size)
         }
         scrollView.frame = QuickClipboardPresentation.listFrame(items: items, filter: filter, maximumHeight: maximumHeight)
-        documentView.frame = CGRect(x: 0, y: 0, width: scrollView.bounds.width,
+        documentView.frame = CGRect(x: 0, y: 0, width: scrollView.contentSize.width,
             height: max(scrollView.contentSize.height, frames.first?.maxY ?? 0))
         let offset = max(0, documentView.bounds.height - scrollView.contentView.bounds.height - max(0, topOffset))
         scrollView.contentView.scroll(to: CGPoint(x: 0, y: offset))
@@ -285,6 +288,16 @@ final class QuickClipboardMenuView: NSView {
         button.toolTip = title
         button.setAccessibilityLabel(title)
         return button
+    }
+}
+
+@MainActor
+final class QuickClipboardVerticalClipView: NSClipView {
+    // Scroller visibility and elasticity alone do not constrain gesture-driven horizontal offsets.
+    override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
+        var constrained = super.constrainBoundsRect(proposedBounds)
+        constrained.origin.x = 0
+        return constrained
     }
 }
 
