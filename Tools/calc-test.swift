@@ -360,6 +360,16 @@ struct CalcTests {
 
         // Date/time — evaluated against a fixed clock: Fri 2026-07-24 00:18 UTC
         expectDisplayAt("hrs till 9am", "8.7 hours")
+        var daylightCalendar = clock.calendar
+        daylightCalendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let afterSpringGap = daylightCalendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 4))!
+        let beforeSpringGap = daylightCalendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 1))!
+        expectDisplayAt("hrs till 2:30", "22.5 hours", now: afterSpringGap, calendar: daylightCalendar)
+        expectDisplayAt("hrs since 2:30", "22.5 hours", now: beforeSpringGap, calendar: daylightCalendar)
+        expectDisplayAt("hrs till 2:30", "1 hour", now: beforeSpringGap, calendar: daylightCalendar)
+        expectDisplayAt("hrs since 2:30", "1 hour", now: afterSpringGap, calendar: daylightCalendar)
+        expectDisplayAt("hrs till 3:30", "23.5 hours", now: afterSpringGap, calendar: daylightCalendar)
+        expectDisplayAt("days until tomorrow", "1 day", now: beforeSpringGap, calendar: daylightCalendar)
         expectBadgesAt("hrs till 9am", source: "12:18 AM", target: "9:00 AM")
         expectDisplayAt("hrs till july", "8,207.7 hours")
         expectBadgesAt("hrs till july", source: "12:18 AM", target: "12:00 AM")
@@ -645,10 +655,10 @@ struct CalcTests {
 
     // MARK: - Helpers
 
-    static func expectDisplayAt(_ query: String, _ expected: String, now: Date? = nil) {
+    static func expectDisplayAt(_ query: String, _ expected: String, now: Date? = nil, calendar: Calendar? = nil) {
         guard
             case .value(let display, _)? = CalcEngine.evaluate(
-                query, now: now ?? clock.now, calendar: clock.calendar)?.payload
+                query, now: now ?? clock.now, calendar: calendar ?? clock.calendar)?.payload
         else {
             fail(query, expected: expected, got: "nil / error")
             return

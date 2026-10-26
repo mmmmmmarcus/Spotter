@@ -305,11 +305,17 @@ enum CalcDateTime {
         let sod = calendar.startOfDay(for: now)
         guard var date = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: sod)
         else { return nil }
+        let dayOffset: Int
         switch bias {
-        case .future:
-            if date <= now, let next = shift(date, days: 1, calendar: calendar) { date = next }
-        case .past:
-            if date > now, let prev = shift(date, days: -1, calendar: calendar) { date = prev }
+        case .future: dayOffset = date <= now ? 1 : 0
+        case .past: dayOffset = date > now ? -1 : 0
+        }
+        if dayOffset != 0 {
+            // Resolve the requested wall time again; a DST gap may have changed today's hour.
+            guard let day = shift(sod, days: dayOffset, calendar: calendar),
+                let shifted = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)
+            else { return nil }
+            date = shifted
         }
         return Moment(date: date, hasTime: true)
     }

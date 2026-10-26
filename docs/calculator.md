@@ -35,6 +35,8 @@ February 29 skips non-leap years, while impossible dates remain rejected.
 
 Bare weekday queries include today: on Friday, `days since friday` and `days till friday` both return
 zero. Explicit `last friday` and `next friday` skip today and refer to the adjacent week.
+When a clock query moves to yesterday or tomorrow, the requested hour and minute are resolved on
+that date rather than carrying over a time normalized through today's daylight-saving gap.
 
 `CalcQuantity` is a separate typed precedence parser rather than a mode added to the scalar
 `CalcParser`. Scalar `*` / `/` preserve the unit, compatible quantity division returns a scalar, and a
