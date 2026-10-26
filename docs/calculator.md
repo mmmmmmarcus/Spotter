@@ -33,6 +33,9 @@ uses the live clock, and `evaluate(_:now:calendar:)` lets `calc-test.swift` asse
 against a fixed clock. Yearless month/day queries choose the next or previous valid occurrence;
 February 29 skips non-leap years, while impossible dates remain rejected.
 
+Bare weekday queries include today: on Friday, `days since friday` and `days till friday` both return
+zero. Explicit `last friday` and `next friday` skip today and refer to the adjacent week.
+
 `CalcQuantity` is a separate typed precedence parser rather than a mode added to the scalar
 `CalcParser`. Scalar `*` / `/` preserve the unit, compatible quantity division returns a scalar, and a
 trailing `to` / `in` converts the complete expression. Percentages keep relative semantics for addition

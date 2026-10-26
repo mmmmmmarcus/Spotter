@@ -458,6 +458,15 @@ struct CalcTests {
         expectBadgesAt("days since 9jul", source: "Thursday, 9 July", target: "Friday, 24 July")
         expectDisplayAt("weeks since 3jul", "3 weeks")
         expectDisplayAt("days since yesterday", "1 day")
+        expectDisplayAt("days since friday", "0 days")
+        expectDisplayAt("weeks since friday", "0 weeks")
+        expectDisplayAt("hrs since friday", "0.3 hours")
+        expectDisplayAt("days since last friday", "7 days")
+        expectDisplayAt("hrs since last friday", "168.3 hours")
+        expectDisplayAt("days till friday", "0 days")
+        expectDisplayAt("days till next friday", "7 days")
+        expectDisplayAt("days since thursday", "1 day")
+        expectDisplayAt("days since saturday", "6 days")
         // Date ± duration now carries the resolved start as a source badge
         expectBadgesAt("today + 3 weeks", source: "Friday, 24 July", target: "Result")
 

@@ -224,7 +224,7 @@ enum CalcDateTime {
         }
         if let weekday = weekdayByName[atom] {
             return nextWeekday(
-                weekday, offsetToFuture: false, past: bias == .past, now: now, calendar: calendar)
+                weekday, excludingToday: false, past: bias == .past, now: now, calendar: calendar)
         }
         if let month = monthByName[atom] {
             return monthDayMoment(month: month, day: 1, now: now, calendar: calendar, bias: bias)
@@ -253,7 +253,7 @@ enum CalcDateTime {
         if a == "next" || a == "last" {
             if let weekday = weekdayByName[b] {
                 return nextWeekday(
-                    weekday, offsetToFuture: a == "next", past: a == "last", now: now,
+                    weekday, excludingToday: true, past: a == "last", now: now,
                     calendar: calendar)
             }
             if let month = monthByName[b] {
@@ -332,19 +332,19 @@ enum CalcDateTime {
     }
 
     private static func nextWeekday(
-        _ weekday: Int, offsetToFuture: Bool, past: Bool = false, now: Date, calendar: Calendar
+        _ weekday: Int, excludingToday: Bool, past: Bool = false, now: Date, calendar: Calendar
     ) -> Moment? {
         let sod = calendar.startOfDay(for: now)
         let today = calendar.component(.weekday, from: sod)
         if past {
             var back = (today - weekday + 7) % 7
-            if back == 0 { back = 7 }
+            if back == 0 && excludingToday { back = 7 }
             return shift(sod, days: -back, calendar: calendar).map {
                 Moment(date: $0, hasTime: false)
             }
         }
         var ahead = (weekday - today + 7) % 7
-        if ahead == 0 && offsetToFuture { ahead = 7 }
+        if ahead == 0 && excludingToday { ahead = 7 }
         return shift(sod, days: ahead, calendar: calendar).map { Moment(date: $0, hasTime: false) }
     }
 
