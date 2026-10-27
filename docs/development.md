@@ -649,3 +649,8 @@ pasteboard, binding updates and single-step undo.
 
 Clipboard search caches related-result identities with its rows, restoring the Related Results grouping
 after empty browsing and a repeated query. The semantic harness covers this cache round trip.
+
+The Notes harness also checks ID-based folder migration, repeated title edits without filename churn,
+duplicate cleanup and explicit deletion through an injected temporary Trash, stale-plan rejection,
+failed Trash preservation, filename-cycle recovery and protected ID paths. It never alters real Notes
+or the user's Trash.

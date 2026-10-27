@@ -199,24 +199,26 @@ that keeps content. An empty or whitespace-only file with no front matter is not
 left alone, neither adopted nor removed. A blank Note likewise gets no file until it has something in
 it.
 
-### Naming, retitles and collisions
+### Stable file identity and migration
 
-The file is named after the Note's title, which is what makes the folder worth having in Finder;
-identity lives in the front matter, never in the name. Path separators, control characters and the
-Windows-hostile set become spaces, runs of whitespace collapse, leading and trailing spaces and dots
-go, a leading `~` is stripped (that prefix belongs to an interrupted rename) and the base is capped
-at 60 characters. A blank title falls back to `Untitled Note`.
+Each Note is stored as `<UUID>.md`, using the same full identifier as its `spotter-id` header.
+The title remains the first Markdown heading. Editing a title, body or tint updates that same path;
+it never creates a title-derived filename, a numbered sibling or a discarded title version.
+Different Notes with identical titles still have different paths. Empty H1 drafts do not create files.
 
-A **retitle** is therefore a rename, not a delete plus a create: the reconciler emits a move for the
-file already carrying that id. The move is performed in two coordinated steps — the file first goes
-to `~<uuid>.md`, then to its new name — so two Notes swapping titles cannot clobber one another, and
-a crash between the halves leaves a well-formed Note file the next scan simply renames.
+Existing title-named files, hand-added Markdown and interrupted `~<uuid>.md` migrations are adopted
+in place and moved to their ID path. The existing ID, content, timestamps, tint and foreign header
+fields are preserved. Imported plain Markdown receives its header before the move, so interruption
+cannot leave an unidentified file under an ID filename. Ordinary migration takes one move; only
+legacy filename cycles use temporary staging. A completed migration is a fixpoint and needs no
+separate persisted migration flag.
 
-**Collisions** resolve deterministically: among Notes competing for one base name the oldest
-(`createdAt`, then id) keeps it and the rest take ` 2`, ` 3`. Two Macs resolving the same set
-independently therefore choose the same names and never fight. Names already occupied by files
-Spotter cannot read are reserved, so a write can never land on top of a file whose contents are
-unknown.
+A reserved ID path (an unreadable file, placeholder, divergent copy, directory or symlink) defers the
+write instead of inventing another filename. Existing destinations are never replaced by a move.
+The coordinated write pass rechecks its scanned files and ledger before changing anything; a stale
+plan is discarded and retried. Symlinks are not followed. Update every Mac sharing the folder to the
+ID-based version: an older Spotter still renames files back to titles and can reintroduce file churn.
+The local `notes.json` archive and front-matter format stay compatible; no note IDs are regenerated.
 
 ### Downloaded, missing, deleted
 
@@ -238,8 +240,11 @@ These are three different things and the reconciler keeps them apart:
   grow, so no pass can quietly unlearn what another Mac deleted.
 
 Only two removals exist, and both provably keep the content: a file whose id has a winning tombstone,
-and a duplicate whose body and tint are byte-identical to the copy that stays. Removed files go to
-the **Trash**, not into thin air. The whole folder being unreachable is an error that leaves both the
+and a duplicate whose complete file bytes match the copy that stays. Explicitly deleted
+Notes go to the **Trash**. Redundant copies are removed directly after the coordinated recheck;
+ordinary edits and duplicate cleanup do not fill the Trash. If trashing fails, the file is retained
+and sync reports an error rather than falling back to permanent deletion. The tombstone ledger is
+written before file removal so an interrupted deletion retains its intent. The whole folder being unreachable is an error that leaves both the
 Notes and the files untouched; it is never read as a folder full of deletions.
 
 ### Conflicts
@@ -270,7 +275,7 @@ rewrite the user's edit away. When a file's body differs from the Note Spotter h
 timestamps are equal, the file's own modification date settles it in favour of the newer bytes.
 
 Two files claiming one id never lose a version, and in steady state they never *gain* one either.
-Identical bodies collapse to one file — provably safe, since the survivor is byte-identical.
+Byte-identical copies collapse to one file; differing headers are retained.
 **Different** bodies are three different situations, and the reconciler decides between them after
 the merge rather than while reading the files:
 
@@ -279,8 +284,8 @@ the merge rather than while reading the files:
   deleting a Note while a second file for it was in flight put the deleted text straight back under
   an id nothing could ever delete again.
 - **Steady state.** The pair is a filesystem race, not two versions of anything. iCloud delivers a
-  retitle as a create and a delete that arrive in either order, and the two-step move publishes its
-  `~<uuid>.md` half on the way through, so *every* retitle can be observed as two files under one
+  legacy retitle as a create and a delete that arrive in either order, and a staged migration publishes its
+  `~<uuid>.md` half on the way through, so a legacy retitle can be observed as two files under one
   id. Forking there manufactured a Note per title state. The newer file is the Note; the other is
   left exactly where it is — never parsed into a Note, never written over, never removed, its name
   reserved — the same "present, unknown" treatment a placeholder gets. Replication finishes clearing
@@ -333,8 +338,10 @@ path itself.
 
 ### Pipeline
 
-`NoteFolderIO` is an actor and does every read, write, move and delete through `NSFileCoordinator`;
-writes are atomic, so a half-written file can never be read as a truncated Note. The folder is
+`NoteFolderIO` is an actor and coordinates reads and complete write passes on the folder through
+`NSFileCoordinator` batch preparation; the scan is revalidated before mutation and each individual
+operation checks its expected bytes inside file coordination. Duplicate cleanup claims both the
+removed file and its survivor together, and writes are atomic, so a half-written file can never be read as a truncated Note. The folder is
 watched the way `SettingsSyncManager` watches its file: an `NSFilePresenter` on the folder (which
 also receives `presentedSubitemDidChange`) plus a dispatch source on the directory, catching
 uncoordinated editors and atomic replacement. Local edits debounce for 400 ms.
@@ -531,7 +538,7 @@ deterministic Note/deletion merges and the former sync document's decode bridge.
 Folder sync is covered twice over. Purely, through `NoteFolderDocument`/`NoteFolderReconciler`:
 byte-for-byte round trips of a hostile body, a file with no front matter, an unclosed fence, a
 human's own YAML header, a malformed identifier, an empty file, an unknown tint, a header with no
-dates, foreign header lines, the naming and collision rules, an undownloaded placeholder, a missing
+dates, foreign header lines, stable ID naming and occupied-path deferral, an undownloaded placeholder, a missing
 file, a ledger deletion, a tombstone an edit tried to beat, an unreadable ledger, a retitle,
 identical and divergent duplicate ids, and an outside edit — with an assertion that every removal the
 reconciler can emit is one of the two safe kinds.
@@ -539,8 +546,8 @@ reconciler can emit is one of the two safe kinds.
 The 1.5.29/1.5.30 resurrection has its own block, pinned from both ends: a deletion that beats a
 contested pair takes both files and forks neither, on the steady *and* the adoption pass; a
 tombstoned Note whose file reappears from the other Mac is removed again rather than revived; a
-retitle observed mid-move — in the `~<uuid>.md` shape and the both-names shape — stays one Note and
-asks for no file work; an edit made after the deletion elsewhere does not outlive it and does not
+legacy retitle observed mid-move — in the `~<uuid>.md` shape and the both-names shape — stays one Note
+and migrates only when its ID path is available; an edit made after the deletion elsewhere does not outlive it and does not
 erase its tombstone; and an ordinary two-Mac edit collision still merges to one Note.
 
 The two passes are pinned against the same fixture, which is the point: one local Note and one file
@@ -552,8 +559,8 @@ the same plan as a steady pass over an empty folder (compared whole), and no Not
 life when a tombstone beats both sides.
 
 And against a real temporary directory through `NoteFolderIO`: writing a
-Note out and reading it back unchanged, a second pass finding nothing to do, a retitle leaving
-exactly one file, a hand-dropped file becoming a Note, a deletion removing its file and writing the
+Note out and reading it back unchanged, a second pass finding nothing to do, a retitle updating
+exactly one stable ID file, a hand-dropped file becoming a Note, a deletion removing its file and writing the
 ledger, a second Mac applying that deletion without resurrecting the Note, an in-flight retitle
 making no second Note and leaving the file it did not choose alone, deleting that contested Note
 taking both its files and staying deleted across the next pass, an offline Mac returning with its
@@ -589,3 +596,9 @@ Notes native copy/paste preserves list Markdown. Pasting a list block into an em
 bullet or number prefixes. Plain text, partial selections, occupied items and fenced code retain
 normal paste behavior. The note-editor harness exercises native copy/readSelection with an isolated
 pasteboard, binding updates and single-step undo.
+
+The ID migration regression cases use temporary folders and an injected temporary Trash. They check
+legacy migration, twelve successive retitles, duplicate cleanup without Trash, preservation of foreign
+headers, a duplicate edited after scanning, a newly occupied destination, deletion-intent ordering,
+Trash failure without permanent deletion, empty H1 drafts, filename cycles and directory/symlink
+collisions. These are local filesystem tests, not a claim of live multi-Mac iCloud validation.

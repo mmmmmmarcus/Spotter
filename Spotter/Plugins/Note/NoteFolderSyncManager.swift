@@ -68,7 +68,7 @@ final class NoteFolderSyncManager: ObservableObject {
         guard folderURL != nil else { return "Off · Notes stay on this Mac" }
         if isWorking { return "Syncing…" }
         if pendingDownloads > 0 {
-            return "Waiting for \(pendingDownloads) file\(pendingDownloads == 1 ? "" : "s") to download…"
+            return "Waiting for \(pendingDownloads) file\(pendingDownloads == 1 ? "" : "s") to become available…"
         }
         guard let lastSyncedAt else { return "Waiting for the folder…" }
         return "Up to date · " + lastSyncedAt.formatted(date: .omitted, time: .shortened)
@@ -170,6 +170,9 @@ final class NoteFolderSyncManager: ObservableObject {
             errorMessage = nil
             lastSyncedAt = Date()
             scheduleDownloadRetryIfNeeded()
+        } catch NoteFolderIO.Failure.changedDuringSync {
+            isApplyingRemote = false
+            needsAnotherPass = true
         } catch {
             isApplyingRemote = false
             errorMessage = "Couldn’t sync the Notes folder: " + error.localizedDescription

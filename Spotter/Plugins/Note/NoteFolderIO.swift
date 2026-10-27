@@ -6,24 +6,26 @@ import Foundation
 actor NoteFolderIO {
     enum Failure: LocalizedError {
         case unreachable(String)
+        case changedDuringSync
 
         var errorDescription: String? {
             switch self {
             case .unreachable(let path): "The Notes folder isn’t available (\(path))."
+            case .changedDuringSync: "The Notes folder changed during sync. Retrying…"
             }
         }
     }
 
-    /// A removed Note file goes to the Trash so the bytes stay recoverable. Harnesses turn it off
-    /// rather than filling the running user's Trash with fixtures.
-    private let trashesRemovedFiles: Bool
+    private let trash: @Sendable (URL) throws -> Void
 
-    init(trashesRemovedFiles: Bool = true) {
-        self.trashesRemovedFiles = trashesRemovedFiles
+    init(trash: @escaping @Sendable (URL) throws -> Void = { url in
+        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+    }) {
+        self.trash = trash
     }
 
     private static let resourceKeys: [URLResourceKey] = [
-        .isRegularFileKey, .isDirectoryKey, .contentModificationDateKey, .isUbiquitousItemKey,
+        .isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey, .isUbiquitousItemKey,
         .ubiquitousItemDownloadingStatusKey,
     ]
 
@@ -46,41 +48,174 @@ actor NoteFolderIO {
     }
 
     func apply(_ plan: NoteFolderPlan, in folder: URL) throws {
+        try performApply(plan, in: folder)
+    }
+
+    private nonisolated func performApply(_ plan: NoteFolderPlan, in folder: URL) throws {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory),
             isDirectory.boolValue
         else { throw Failure.unreachable(folder.path) }
 
-        for name in plan.removals.keys.sorted() {
-            try remove(folder.appendingPathComponent(name))
+        let coordinator = NSFileCoordinator()
+        var coordinationError: NSError?
+        var result: Result<Void, Error>?
+        coordinator.prepare(forReadingItemsAt: [], options: [], writingItemsAt: [folder], options: [],
+            error: &coordinationError) { finished in
+            defer { finished() }
+            result = Result {
+                let current = try readContents(of: folder)
+                let expected = plan.observed.files.sorted { $0.name < $1.name }
+                guard current.files.sorted(by: { $0.name < $1.name }) == expected,
+                    current.ledger == plan.observed.ledger
+                else { throw Failure.changedDuringSync }
+                try applyCoordinated(plan, in: folder, coordinator: coordinator)
+            }
         }
-        // Two moves rather than one: a straight rename can collide with a file that is itself about
-        // to move. A crash between the halves leaves `~<uuid>.md`, still a well-formed Note file the
-        // next scan renames into place.
-        let moving = plan.placements.filter(\.needsMove)
-        for placement in moving {
-            guard let current = placement.currentName else { continue }
-            try move(
-                folder.appendingPathComponent(current),
-                to: folder.appendingPathComponent(NoteFolderFormat.temporaryName(for: placement.id)))
-        }
-        for placement in moving {
-            try move(
-                folder.appendingPathComponent(NoteFolderFormat.temporaryName(for: placement.id)),
-                to: folder.appendingPathComponent(placement.desiredName))
-        }
-        for placement in plan.placements where placement.needsWrite {
-            try write(
-                Data(placement.contents.utf8),
-                to: folder.appendingPathComponent(placement.desiredName))
-        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw CocoaError(.fileWriteUnknown) }
+        try result.get()
+    }
+
+    private nonisolated func applyCoordinated(_ plan: NoteFolderPlan, in folder: URL, coordinator: NSFileCoordinator) throws {
+        // Publish deletion intent before removing bytes, so an interrupted pass cannot resurrect them.
         if let tombstones = plan.ledger {
             let data = try NoteFolderLedger(tombstones: tombstones).encoded()
-            try write(data, to: folder.appendingPathComponent(NoteFolderFormat.ledgerFileName))
+            let url = folder.appendingPathComponent(NoteFolderFormat.ledgerFileName)
+            try coordinateWrite(url, options: [], coordinator: coordinator) { target in
+                guard readLedger(at: target, downloaded: true) == plan.observed.ledger
+                    || (plan.observed.ledger == .missing && !FileManager.default.fileExists(atPath: target.path))
+                else { throw Failure.changedDuringSync }
+                try data.write(to: target, options: .atomic)
+            }
+        }
+        for name in plan.removals.keys.sorted() {
+            let url = folder.appendingPathComponent(name)
+            guard let original = plan.observed.files.first(where: { $0.name == name })?.contents else {
+                throw Failure.changedDuringSync
+            }
+            switch plan.removals[name] {
+            case .deleted:
+                try coordinateWrite(url, options: .forDeleting, coordinator: coordinator) { target in
+                    try requireContents(original, at: target)
+                    try trash(target)
+                }
+            case .redundantDuplicate:
+                guard let survivor = plan.observed.files.first(where: {
+                    $0.name != name && plan.removals[$0.name] == nil
+                        && $0.contents.map { $0.utf8.elementsEqual(original.utf8) } == true
+                }) else { throw Failure.changedDuringSync }
+                try removeDuplicate(url, keeping: folder.appendingPathComponent(survivor.name),
+                    contents: original, coordinator: coordinator)
+            case nil:
+                break
+            }
+        }
+        let moving = plan.placements.filter(\.needsMove)
+        // An imported plain file must carry its ID before a crash can strand it under a new name.
+        for placement in moving where placement.needsWrite {
+            try write(placement.contents, replacing: placement.currentContents,
+                at: folder.appendingPathComponent(placement.currentName!), coordinator: coordinator)
+        }
+        try moveFiles(moving, in: folder, coordinator: coordinator)
+        for placement in plan.placements where placement.needsWrite && !placement.needsMove {
+            try write(placement.contents, replacing: placement.currentContents,
+                at: folder.appendingPathComponent(placement.desiredName), coordinator: coordinator)
         }
     }
 
-    private func readContents(of folder: URL) throws -> NoteFolderScan {
+    private nonisolated func moveFiles(_ placements: [NoteFolderPlacement], in folder: URL, coordinator: NSFileCoordinator) throws {
+        var pending = placements.map { (source: $0.currentName!, target: $0.desiredName, id: $0.id, contents: $0.contents) }
+        while !pending.isEmpty {
+            if let index = pending.firstIndex(where: {
+                !FileManager.default.fileExists(atPath: folder.appendingPathComponent($0.target).path)
+            }) {
+                let item = pending.remove(at: index)
+                try move(folder.appendingPathComponent(item.source), to: folder.appendingPathComponent(item.target),
+                    contents: item.contents, coordinator: coordinator)
+            } else {
+                // Only a legacy filename cycle needs staging; ordinary migration is a single move.
+                let item = pending[0]
+                let temporary = NoteFolderFormat.temporaryName(for: item.id)
+                guard item.source != temporary,
+                    pending.contains(where: { $0.source.lowercased() == item.target.lowercased() })
+                else { throw Failure.changedDuringSync }
+                try move(folder.appendingPathComponent(item.source), to: folder.appendingPathComponent(temporary),
+                    contents: item.contents, coordinator: coordinator)
+                pending[0].source = temporary
+            }
+        }
+    }
+
+    private nonisolated func coordinateWrite(_ url: URL, options: NSFileCoordinator.WritingOptions,
+        coordinator: NSFileCoordinator, action: (URL) throws -> Void) throws {
+        var error: NSError?
+        var result: Result<Void, Error>?
+        coordinator.coordinate(writingItemAt: url, options: options, error: &error) { target in
+            result = Result { try action(target) }
+        }
+        if let error { throw error }
+        guard let result else { throw CocoaError(.fileWriteUnknown) }
+        try result.get()
+    }
+
+    private nonisolated func requireContents(_ expected: String?, at url: URL) throws {
+        let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        if let expected {
+            guard values?.isRegularFile == true, values?.isSymbolicLink != true,
+                try Data(contentsOf: url) == Data(expected.utf8)
+            else { throw Failure.changedDuringSync }
+        } else if values != nil || FileManager.default.fileExists(atPath: url.path) {
+            throw Failure.changedDuringSync
+        }
+    }
+
+    private nonisolated func write(_ contents: String, replacing expected: String?, at url: URL,
+        coordinator: NSFileCoordinator) throws {
+        try coordinateWrite(url, options: .forMerging, coordinator: coordinator) { target in
+            try requireContents(expected, at: target)
+            try Data(contents.utf8).write(to: target, options: .atomic)
+        }
+    }
+
+    private nonisolated func move(_ source: URL, to destination: URL, contents: String,
+        coordinator: NSFileCoordinator) throws {
+        var error: NSError?
+        var result: Result<Void, Error>?
+        coordinator.coordinate(writingItemAt: source, options: .forMoving,
+            writingItemAt: destination, options: .forReplacing, error: &error) { from, to in
+            result = Result {
+                try requireContents(contents, at: from)
+                try requireContents(nil, at: to)
+                coordinator.item(at: from, willMoveTo: to)
+                try FileManager.default.moveItem(at: from, to: to)
+                coordinator.item(at: from, didMoveTo: to)
+            }
+        }
+        if let error { throw error }
+        guard let result else { throw CocoaError(.fileWriteUnknown) }
+        try result.get()
+    }
+
+    private nonisolated func removeDuplicate(_ duplicate: URL, keeping survivor: URL, contents: String,
+        coordinator: NSFileCoordinator) throws {
+        var error: NSError?
+        var result: Result<Void, Error>?
+        coordinator.coordinate(readingItemAt: survivor, options: [],
+            writingItemAt: duplicate, options: .forDeleting, error: &error) { kept, removed in
+            result = Result {
+                // Both files are claimed together: cleanup cannot race a surviving copy's edit.
+                try requireContents(contents, at: kept)
+                try requireContents(contents, at: removed)
+                try FileManager.default.removeItem(at: removed)
+            }
+        }
+        if let error { throw error }
+        guard let result else { throw CocoaError(.fileWriteUnknown) }
+        try result.get()
+    }
+
+    private nonisolated func readContents(of folder: URL) throws -> NoteFolderScan {
         let entries = try FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: Self.resourceKeys,
             options: [.skipsSubdirectoryDescendants])
@@ -88,7 +223,6 @@ actor NoteFolderIO {
         var ledger: NoteFolderLedgerState = .missing
         for entry in entries {
             let values = try? entry.resourceValues(forKeys: Set(Self.resourceKeys))
-            if values?.isDirectory == true { continue }
             let name = entry.lastPathComponent
             let downloaded = isDownloaded(values)
             if let placeholder = placeholderTarget(of: name) {
@@ -102,11 +236,13 @@ actor NoteFolderIO {
                 continue
             }
             if name == NoteFolderFormat.ledgerFileName {
-                ledger = readLedger(at: entry, downloaded: downloaded)
+                ledger = values?.isRegularFile == true && values?.isSymbolicLink != true
+                    ? readLedger(at: entry, downloaded: downloaded) : .unavailable
                 continue
             }
             guard NoteFolderFormat.isNoteFileName(name) else { continue }
-            guard downloaded, let data = try? Data(contentsOf: entry),
+            guard values?.isRegularFile == true, values?.isSymbolicLink != true,
+                downloaded, let data = try? Data(contentsOf: entry),
                 let text = String(data: data, encoding: .utf8)
             else {
                 if !downloaded { try? FileManager.default.startDownloadingUbiquitousItem(at: entry) }
@@ -120,7 +256,7 @@ actor NoteFolderIO {
         return NoteFolderScan(files: files, ledger: ledger)
     }
 
-    private func readLedger(at url: URL, downloaded: Bool) -> NoteFolderLedgerState {
+    private nonisolated func readLedger(at url: URL, downloaded: Bool) -> NoteFolderLedgerState {
         guard downloaded else {
             try? FileManager.default.startDownloadingUbiquitousItem(at: url)
             return .unavailable
@@ -131,76 +267,16 @@ actor NoteFolderIO {
         return .readable(decoded.tombstones)
     }
 
-    private func isDownloaded(_ values: URLResourceValues?) -> Bool {
+    private nonisolated func isDownloaded(_ values: URLResourceValues?) -> Bool {
         guard values?.isUbiquitousItem == true else { return true }
         guard let status = values?.ubiquitousItemDownloadingStatus else { return true }
         return status == .current
     }
 
     /// `.Groceries.md.icloud` names the not-yet-downloaded `Groceries.md`.
-    private func placeholderTarget(of name: String) -> String? {
+    private nonisolated func placeholderTarget(of name: String) -> String? {
         guard name.hasPrefix("."), name.hasSuffix(".icloud") else { return nil }
         return String(name.dropFirst().dropLast(".icloud".count))
-    }
-
-    private func write(_ data: Data, to url: URL) throws {
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var writeError: Error?
-        coordinator.coordinate(writingItemAt: url, options: [], error: &coordinationError) {
-            coordinatedURL in
-            do { try data.write(to: coordinatedURL, options: .atomic) } catch { writeError = error }
-        }
-        if let coordinationError { throw coordinationError }
-        if let writeError { throw writeError }
-    }
-
-    private func move(_ from: URL, to destination: URL) throws {
-        guard FileManager.default.fileExists(atPath: from.path) else { return }
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var moveError: Error?
-        coordinator.coordinate(
-            writingItemAt: from, options: .forMoving, writingItemAt: destination,
-            options: .forReplacing, error: &coordinationError
-        ) { source, target in
-            do {
-                if FileManager.default.fileExists(atPath: target.path) {
-                    _ = try FileManager.default.replaceItemAt(target, withItemAt: source)
-                } else {
-                    try FileManager.default.moveItem(at: source, to: target)
-                }
-            } catch {
-                moveError = error
-            }
-        }
-        if let coordinationError { throw coordinationError }
-        if let moveError { throw moveError }
-    }
-
-    /// Deleted Note files go to the Trash, not into thin air: the ledger already records the
-    /// deletion, so the only thing left to decide is whether the bytes are recoverable.
-    private func remove(_ url: URL) throws {
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var removeError: Error?
-        coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &coordinationError) {
-            coordinatedURL in
-            do {
-                if trashesRemovedFiles {
-                    try FileManager.default.trashItem(at: coordinatedURL, resultingItemURL: nil)
-                } else {
-                    try FileManager.default.removeItem(at: coordinatedURL)
-                }
-            } catch {
-                do { try FileManager.default.removeItem(at: coordinatedURL) } catch {
-                    removeError = error
-                }
-            }
-        }
-        if let coordinationError { throw coordinationError }
-        if let removeError { throw removeError }
     }
 }
 

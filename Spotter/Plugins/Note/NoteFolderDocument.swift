@@ -16,8 +16,7 @@ enum NoteFolderFormat {
 
     static let knownKeys: Set<String> = [idKey, createdKey, updatedKey, contentUpdatedKey, tintKey]
 
-    /// Reserved for the two-step rename that unblocks a name swap; a crash mid-move therefore
-    /// leaves a well-formed Note file the next scan simply renames.
+    // Legacy filename cycles can leave a readable staging file after an interrupted migration.
     static let temporaryPrefix = "~"
 
     static func temporaryName(for id: UUID) -> String {
@@ -159,56 +158,18 @@ enum NoteFolderDocument {
     }
 }
 
-/// The folder is worth having in Finder only if the files are named after their notes, so the name
-/// is derived from the title — while identity stays in the front matter, which is what keeps a
-/// retitle a rename instead of a delete plus a create.
+// A title is editable content; only the UUID determines the file's lifetime and path.
 enum NoteFileName {
-    static let maximumBaseLength = 60
-    static let fallbackBase = "Untitled Note"
-
-    private static let illegal = CharacterSet(charactersIn: "/\\:*?\"<>|")
-
-    static func sanitizedBase(for title: String) -> String {
-        var scalars = String.UnicodeScalarView()
-        for scalar in title.unicodeScalars {
-            if CharacterSet.controlCharacters.contains(scalar) || illegal.contains(scalar) {
-                scalars.append(" ")
-            } else {
-                scalars.append(scalar)
-            }
-        }
-        let collapsed = String(String(scalars).split(separator: " ", omittingEmptySubsequences: true)
-            .joined(separator: " "))
-        var base = collapsed.trimmingCharacters(in: CharacterSet(charactersIn: " ."))
-        // A leading `~` is how an interrupted rename names its file; keep titles clear of it.
-        while base.hasPrefix(NoteFolderFormat.temporaryPrefix) { base.removeFirst() }
-        if base.count > maximumBaseLength { base = String(base.prefix(maximumBaseLength)) }
-        base = base.trimmingCharacters(in: CharacterSet(charactersIn: " ."))
-        return base.isEmpty ? fallbackBase : base
+    static func name(for id: UUID) -> String {
+        id.uuidString + "." + NoteFolderFormat.fileExtension
     }
 
-    /// Deterministic across Macs: the oldest note claims the bare name, later ones take a suffix, so
-    /// two devices resolving the same collision independently pick the same names and never fight.
     static func names(for notes: [SpotterNote], reserved: Set<String> = []) -> [UUID: String] {
-        var taken = Set(reserved.map { $0.lowercased() })
-        taken.insert(NoteFolderFormat.ledgerFileName.lowercased())
-        var result: [UUID: String] = [:]
-        let ordered = notes.sorted {
-            $0.createdAt == $1.createdAt
-                ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt
-        }
-        for note in ordered {
-            let base = sanitizedBase(for: note.title)
-            var candidate = base + "." + NoteFolderFormat.fileExtension
-            var suffix = 2
-            while taken.contains(candidate.lowercased()) {
-                candidate = "\(base) \(suffix)." + NoteFolderFormat.fileExtension
-                suffix += 1
-            }
-            taken.insert(candidate.lowercased())
-            result[note.id] = candidate
-        }
-        return result
+        let taken = Set(reserved.map { $0.lowercased() })
+        return Dictionary(uniqueKeysWithValues: notes.compactMap { note in
+            let name = name(for: note.id)
+            return taken.contains(name.lowercased()) ? nil : (note.id, name)
+        })
     }
 }
 
@@ -270,13 +231,14 @@ enum NoteFolderRemoval: Equatable, Sendable {
 }
 
 struct NoteFolderPlan: Equatable, Sendable {
+    let observed: NoteFolderScan
     var snapshot: NoteSyncSnapshot
     var placements: [NoteFolderPlacement]
     var removals: [String: NoteFolderRemoval]
     /// The tombstones to write. `nil` means leave the ledger alone — either it already says this,
     /// or it could not be read and overwriting it would erase another Mac's deletions.
     var ledger: [NoteTombstone]?
-    /// Files left completely untouched this cycle: placeholders, unreadable files, blank strays.
+    // Unavailable files and blocked ID paths remain untouched until a later pass.
     var deferred: [String]
     var adopted: [UUID]
     var forked: [UUID]
@@ -363,7 +325,7 @@ enum NoteFolderReconciler {
                 let winner = keepsExisting ? existing : candidate
                 let loser = keepsExisting ? candidate : existing
                 parsed[note.id] = winner
-                if loser.note.content == winner.note.content, loser.note.tint == winner.note.tint {
+                if loser.raw.utf8.elementsEqual(winner.raw.utf8) {
                     // Byte-identical to the file that stays, so removing it cannot lose anything.
                     removals[loser.name] = .redundantDuplicate(note.id)
                 } else {
@@ -414,16 +376,25 @@ enum NoteFolderReconciler {
             // The only other way a file leaves: an explicit tombstone won its merge.
             removals[entry.name] = .deleted(id)
         }
-        for name in removals.keys { reserved.remove(name) }
+        for (name, reason) in removals {
+            if case .redundantDuplicate(let id) = reason, !mergedIDs.contains(id) {
+                removals[name] = .deleted(id)
+            }
+            reserved.remove(name)
+        }
 
         let names = NoteFileName.names(for: merged.notes, reserved: reserved)
         var placements: [NoteFolderPlacement] = []
         for note in merged.notes {
-            guard let desired = names[note.id] else { continue }
+            guard let desired = names[note.id] else {
+                let blocked = NoteFileName.name(for: note.id)
+                if !deferred.contains(blocked) { deferred.append(blocked) }
+                continue
+            }
             let entry = parsed[note.id]
             // A blank note that has no file yet stays unwritten: an empty file adds nothing to the
             // folder, and the Notes window sweeps blank notes away when it closes anyway.
-            if entry == nil, note.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if entry == nil, NoteEngine.isEmptyDraft(note.content) {
                 continue
             }
             let extras = entry?.extras ?? []
@@ -437,7 +408,7 @@ enum NoteFolderReconciler {
 
         let writesLedger = ledgerReadable && merged.tombstones != ledgerTombstones
         return NoteFolderPlan(
-            snapshot: merged, placements: placements, removals: removals,
+            observed: scan, snapshot: merged, placements: placements, removals: removals,
             ledger: writesLedger ? merged.tombstones : nil,
             deferred: deferred, adopted: adopted, forked: forked)
     }
@@ -472,7 +443,7 @@ enum NoteFolderReconciler {
                 removals[loser.name] = .deleted(id)
                 continue
             }
-            guard pass == .adoption else {
+            guard pass == .adoption, loser.note.content != merged.notesByID[id]?.content else {
                 reserved.insert(loser.name)
                 continue
             }

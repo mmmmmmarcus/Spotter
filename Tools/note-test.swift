@@ -671,30 +671,19 @@ struct NoteTests {
             print("FAIL  a foreign header line still parses as a note")
         }
 
-        // Naming.
-        check(
-            "a name is derived from the title", "Meeting Notes",
-            NoteFileName.sanitizedBase(for: "Meeting Notes"))
-        check(
-            "path separators never reach a name", "Q3 plan 2026",
-            NoteFileName.sanitizedBase(for: "Q3/plan: 2026"))
-        check("a blank title falls back", "Untitled Note", NoteFileName.sanitizedBase(for: "   "))
-        check(
-            "a long title is truncated", 60,
-            NoteFileName.sanitizedBase(for: String(repeating: "a", count: 200)).count)
         let twins = [
             SpotterNote(id: nextID(), content: "# Same", createdAt: fixedDate),
             SpotterNote(id: nextID(), content: "# Same", createdAt: fixedDate.addingTimeInterval(1)),
         ]
         let twinNames = NoteFileName.names(for: twins)
-        check("the oldest note keeps the bare name", "Same.md", twinNames[twins[0].id])
-        check("a colliding note takes a suffix", "Same 2.md", twinNames[twins[1].id])
-        check(
-            "collision resolution is deterministic", twinNames,
-            NoteFileName.names(for: twins.reversed()))
-        check(
-            "a reserved name is stepped over", "Same 2.md",
-            NoteFileName.names(for: [twins[0]], reserved: ["same.md"])[twins[0].id])
+        check("a filename uses the full ID", twins[0].id.uuidString + ".md", twinNames[twins[0].id])
+        check("equal titles keep separate IDs", twins[1].id.uuidString + ".md", twinNames[twins[1].id])
+        check("names do not depend on order", twinNames, NoteFileName.names(for: twins.reversed()))
+        check("an occupied ID is deferred, never suffixed", nil,
+            NoteFileName.names(for: [twins[0]], reserved: [NoteFileName.name(for: twins[0].id).lowercased()])[twins[0].id])
+        var changedTitle = twins[0]
+        changedTitle.content = "# /Very different: title?"
+        check("retitling cannot change a path", twinNames[twins[0].id], NoteFileName.names(for: [changedTitle])[twins[0].id])
 
         // Reconciliation.
         let noteA = SpotterNote(
@@ -711,7 +700,7 @@ struct NoteTests {
             "a note with no file yet is written", true,
             emptyFolderPlan.placements.first?.needsWrite == true)
         check(
-            "a new file gets the title's name", "Alpha.md",
+            "a new file gets the ID name", NoteFileName.name(for: noteA.id),
             emptyFolderPlan.placements.first?.desiredName)
 
         let blankPlan = NoteFolderReconciler.plan(
@@ -723,20 +712,20 @@ struct NoteTests {
         check("a blank note is still a note", 1, blankPlan.snapshot.notes.count)
 
         // A file that exists but has not downloaded is present, not gone.
-        let placeholderScan = NoteFolderScan(files: [NoteFolderFile(name: "Alpha.md", contents: nil)])
+        let placeholderScan = NoteFolderScan(files: [NoteFolderFile(name: NoteFileName.name(for: noteA.id), contents: nil)])
         let placeholderPlan = NoteFolderReconciler.plan(
             local: localOnly, scan: placeholderScan, pass: .steady, newID: nextID,
             now: { folderClock })
-        check("an undownloaded file is deferred", ["Alpha.md"], placeholderPlan.deferred)
+        check("an undownloaded file is deferred", [NoteFileName.name(for: noteA.id)], placeholderPlan.deferred)
         check("an undownloaded file is never removed", 0, placeholderPlan.removals.count)
         check("an undownloaded file keeps its local note", 1, placeholderPlan.snapshot.notes.count)
         check(
-            "an undownloaded file's name is not stolen", "Alpha 2.md",
+            "an undownloaded file never produces an extra copy", nil,
             placeholderPlan.placements.first?.desiredName)
 
         // A missing file is not a deletion; only the ledger is.
         let liveFile = NoteFolderFile(
-            name: "Alpha.md", contents: NoteFolderDocument.serialize(noteA))
+            name: NoteFileName.name(for: noteA.id), contents: NoteFolderDocument.serialize(noteA))
         let deletion = NoteTombstone(id: noteA.id, deletedAt: fixedDate.addingTimeInterval(30))
         let deletionPlan = NoteFolderReconciler.plan(
             local: localOnly,
@@ -746,7 +735,7 @@ struct NoteTests {
         check("a ledger deletion removes its file", 1, deletionPlan.removals.count)
         check(
             "a removal is always an explicit deletion", NoteFolderRemoval.deleted(noteA.id),
-            deletionPlan.removals["Alpha.md"])
+            deletionPlan.removals[NoteFileName.name(for: noteA.id)])
         check("removals stay provably safe", true, removalsAreSafe(deletionPlan))
 
         // The other Mac was offline, kept editing, and comes back with its own copy. The deletion
@@ -785,7 +774,7 @@ struct NoteTests {
         check("an unreadable ledger deletes nothing", 0, blindPlan.removals.count)
         check("an unreadable ledger keeps every note", 1, blindPlan.snapshot.notes.count)
 
-        // A retitle is a move, never a delete plus a create.
+        // A retitle updates the same ID file without any move or removal.
         let retitled = SpotterNote(
             id: noteA.id, content: "# Beta\nbody", createdAt: fixedDate,
             updatedAt: fixedDate.addingTimeInterval(90))
@@ -793,10 +782,10 @@ struct NoteTests {
             local: NoteSyncSnapshot(notes: [retitled], tombstones: []),
             scan: NoteFolderScan(files: [liveFile]), pass: .steady, newID: nextID,
             now: { folderClock })
-        check("a retitle moves the file", true, retitlePlan.placements.first?.needsMove == true)
-        check("a retitle keeps the same file", "Alpha.md", retitlePlan.placements.first?.currentName)
+        check("a retitle never moves the file", false, retitlePlan.placements.first?.needsMove == true)
+        check("a retitle keeps the same file", NoteFileName.name(for: noteA.id), retitlePlan.placements.first?.currentName)
         check(
-            "a retitle renames to the new title", "Beta.md",
+            "a retitle keeps the ID path", NoteFileName.name(for: noteA.id),
             retitlePlan.placements.first?.desiredName)
         check("a retitle removes nothing", 0, retitlePlan.removals.count)
 
@@ -812,9 +801,19 @@ struct NoteTests {
             "the removed copy is the redundant one",
             [NoteFolderRemoval.redundantDuplicate(noteA.id)], Array(duplicatePlan.removals.values))
         check(
-            "the survivor still takes the canonical name", "Alpha.md",
+            "the survivor still takes the canonical name", NoteFileName.name(for: noteA.id),
             duplicatePlan.placements.first?.desiredName)
         check("removals stay provably safe for duplicates", true, removalsAreSafe(duplicatePlan))
+
+        let unicodeNote = SpotterNote(id: nextID(), content: "# Caf\u{00E9}", createdAt: fixedDate)
+        let unicodeRaw = NoteFolderDocument.serialize(unicodeNote)
+        let unicodePlan = NoteFolderReconciler.plan(
+            local: NoteSyncSnapshot(notes: [unicodeNote], tombstones: []),
+            scan: NoteFolderScan(files: [
+                NoteFolderFile(name: NoteFileName.name(for: unicodeNote.id), contents: unicodeRaw),
+                NoteFolderFile(name: "Unicode copy.md", contents: unicodeRaw.replacingOccurrences(of: "\u{00E9}", with: "e\u{0301}")),
+            ]), pass: .steady, newID: nextID, now: { folderClock })
+        check("equivalent Unicode with different bytes is not removed", 0, unicodePlan.removals.count)
 
         let divergentTwin = NoteFolderFile(
             name: "Alpha copy.md",
@@ -832,7 +831,7 @@ struct NoteTests {
         check("a divergent duplicate removes nothing", 0, forkPlan.removals.count)
         check("a divergent duplicate forks nothing in steady state", 0, forkPlan.forked.count)
         check("the newer of the two files is the note", "# Alpha\ndifferent", forkPlan.snapshot.notes.first?.content)
-        check("the losing file's name is not stolen", "Alpha 2.md", forkPlan.placements.first?.desiredName)
+        check("the divergent canonical file is not overwritten", nil, forkPlan.placements.first?.desiredName)
 
         // The adoption pass still keeps both, for the reason `NoteFolderPass` gives.
         let forkAdoptionPlan = NoteFolderReconciler.plan(
@@ -895,7 +894,7 @@ struct NoteTests {
         check("a retitle seen mid-move forks nothing", 0, midMovePlan.forked.count)
         check("a retitle seen mid-move removes nothing", 0, midMovePlan.removals.count)
         check("a retitle seen mid-move settles on the new title", "Alpha renamed", midMovePlan.snapshot.notes.first?.title)
-        check("a retitle seen mid-move asks for no file work", false, midMovePlan.hasFileWork)
+        check("a legacy retitle is migrated to its ID", true, midMovePlan.placements.first?.needsMove == true)
 
         // And the plain shape of the same race: both names present, one id, no marker.
         let midRetitleScan = NoteFolderScan(files: [
@@ -1051,7 +1050,11 @@ struct NoteTests {
         // ── Notes folder sync: a real temporary directory ───────────────────────────────────────
         let folder = directory.appendingPathComponent("notes-folder", isDirectory: true)
         try! FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let io = NoteFolderIO(trashesRemovedFiles: false)
+        let trashFolder = directory.appendingPathComponent("test-trash", isDirectory: true)
+        try! FileManager.default.createDirectory(at: trashFolder, withIntermediateDirectories: true)
+        let io = NoteFolderIO(trash: { url in
+            try FileManager.default.moveItem(at: url, to: trashFolder.appendingPathComponent(UUID().uuidString + ".md"))
+        })
 
         let liveNote = SpotterNote(
             id: nextID(), content: hostileBody, createdAt: fixedDate, updatedAt: fixedDate,
@@ -1062,8 +1065,8 @@ struct NoteTests {
             newID: nextID, now: { folderClock })
         try! await io.apply(diskPlan, in: folder)
         check(
-            "the note reaches the folder under its title", true,
-            FileManager.default.fileExists(atPath: folder.appendingPathComponent("Title.md").path))
+            "the note reaches the folder under its ID", true,
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent(NoteFileName.name(for: liveNote.id)).path))
 
         let reread = NoteFolderReconciler.plan(
             local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
@@ -1077,7 +1080,7 @@ struct NoteTests {
             "the tint survives the real write and read", NoteTint.blue,
             reread.snapshot.notes.first?.tint)
 
-        // A retitle on disk moves the file rather than creating a second one.
+        // A retitle updates the same ID path.
         let renamedNote = SpotterNote(
             id: liveNote.id, content: "# Renamed\nbody", createdAt: fixedDate,
             updatedAt: fixedDate.addingTimeInterval(120),
@@ -1089,7 +1092,7 @@ struct NoteTests {
         try! await io.apply(diskPlan, in: folder)
         let afterRename = try! FileManager.default.contentsOfDirectory(atPath: folder.path)
             .filter { $0.hasSuffix(".md") }.sorted()
-        check("a retitle leaves exactly one file", ["Renamed.md"], afterRename)
+        check("a retitle leaves exactly one file", [NoteFileName.name(for: liveNote.id)], afterRename)
 
         // A file dropped into the folder by hand becomes a note on the next pass.
         try! "# Dropped in\nby hand".write(
@@ -1101,9 +1104,9 @@ struct NoteTests {
         check("a dropped file becomes a note", 2, diskPlan.snapshot.notes.count)
         diskLocal = diskPlan.snapshot
         check(
-            "an adopted file is renamed to its title", true,
+            "an adopted file is migrated to its ID", true,
             FileManager.default.fileExists(
-                atPath: folder.appendingPathComponent("Dropped in.md").path))
+                atPath: folder.appendingPathComponent(NoteFileName.name(for: diskLocal.notes.first { $0.content.hasPrefix("# Dropped in") }!.id)).path))
         let adoptedRoundTrip = NoteFolderReconciler.plan(
             local: diskLocal, scan: try! await io.scan(folder: folder), pass: .steady,
             newID: nextID, now: { folderClock })
@@ -1126,7 +1129,7 @@ struct NoteTests {
         check(
             "a deleted note's file goes away", false,
             FileManager.default.fileExists(
-                atPath: folder.appendingPathComponent("Dropped in.md").path))
+                atPath: folder.appendingPathComponent(NoteFileName.name(for: deletedNote.id)).path))
         check(
             "the deletion is recorded in the ledger", true,
             FileManager.default.fileExists(
@@ -1184,7 +1187,9 @@ struct NoteTests {
         check("deleting a contested note forks nothing", 0, racedPlan.forked.count)
         let survivingDisneyFiles = try! FileManager.default.contentsOfDirectory(atPath: folder.path)
             .filter { $0.hasPrefix("Disney") }.sorted()
-        check("both files of the deleted note are gone", [String](), survivingDisneyFiles)
+        check("both legacy files of the deleted note are gone", [String](), survivingDisneyFiles)
+        check("the deleted ID file is gone", false,
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent(NoteFileName.name(for: racedID)).path))
 
         // The deletion sticks: a pass over the folder brings nothing back.
         let settled = NoteFolderReconciler.plan(
@@ -1211,6 +1216,139 @@ struct NoteTests {
             "an offline Mac writes no file for it", false,
             staleMacPlan.placements.contains { $0.id == racedID })
         check("an offline Mac forks nothing", 0, staleMacPlan.forked.count)
+
+        // Migration and ordinary edits must never use the Trash as a version store.
+        let migrationFolder = directory.appendingPathComponent("id-migration", isDirectory: true)
+        try! FileManager.default.createDirectory(at: migrationFolder, withIntermediateDirectories: true)
+        func trashCount() -> Int { (try! FileManager.default.contentsOfDirectory(atPath: trashFolder.path)).count }
+        func planFor(_ snapshot: NoteSyncSnapshot, in folder: URL) async -> NoteFolderPlan {
+            NoteFolderReconciler.plan(local: snapshot, scan: try! await io.scan(folder: folder),
+                pass: .steady, newID: nextID, now: { folderClock })
+        }
+        var migrating = SpotterNote(id: nextID(), content: "# Legacy title\nkeep me", createdAt: fixedDate, tint: .green)
+        let legacyURL = migrationFolder.appendingPathComponent("Legacy title.md")
+        let stableURL = migrationFolder.appendingPathComponent(NoteFileName.name(for: migrating.id))
+        let extras = ["author: original"]
+        try! NoteFolderDocument.serialize(migrating, extras: extras).write(to: legacyURL, atomically: true, encoding: .utf8)
+        let trashBeforeMigration = trashCount()
+        var migrationLocal = NoteSyncSnapshot(notes: [migrating], tombstones: [])
+        let migrationPlan = await planFor(migrationLocal, in: migrationFolder)
+        check("a legacy file migrates without a deletion", 0, migrationPlan.removals.count)
+        try! await io.apply(migrationPlan, in: migrationFolder)
+        check("migration preserves every file byte", NoteFolderDocument.serialize(migrating, extras: extras), try! String(contentsOf: stableURL, encoding: .utf8))
+        check("migration removes the old name by moving it", false, FileManager.default.fileExists(atPath: legacyURL.path))
+        check("migration produces no trash", trashBeforeMigration, trashCount())
+        check("migration only happens once", false, (await planFor(migrationLocal, in: migrationFolder)).hasFileWork)
+        for index in 1...12 {
+            migrating.content = "# Retitle \(index)\nkeep me"
+            migrating.updatedAt = fixedDate.addingTimeInterval(Double(index))
+            migrating.contentUpdatedAt = migrating.updatedAt
+            migrationLocal = NoteSyncSnapshot(notes: [migrating], tombstones: [])
+            let plan = await planFor(migrationLocal, in: migrationFolder)
+            check("retitle \(index) has no move", false, plan.placements.contains(where: \.needsMove))
+            check("retitle \(index) has no deletion", 0, plan.removals.count)
+            try! await io.apply(plan, in: migrationFolder)
+        }
+        check("repeated retitles keep exactly one ID file", [stableURL.lastPathComponent], try! FileManager.default.contentsOfDirectory(atPath: migrationFolder.path))
+        check("repeated retitles produce no trash", trashBeforeMigration, trashCount())
+        check("retitles preserve extra header fields", true, (try! String(contentsOf: stableURL, encoding: .utf8)).contains("author: original"))
+
+        let copyURL = migrationFolder.appendingPathComponent("Legacy copy.md")
+        try! FileManager.default.copyItem(at: stableURL, to: copyURL)
+        let cleanupPlan = await planFor(migrationLocal, in: migrationFolder)
+        check("an identical copy has a cleanup reason", NoteFolderRemoval.redundantDuplicate(migrating.id), cleanupPlan.removals[copyURL.lastPathComponent])
+        try! await io.apply(cleanupPlan, in: migrationFolder)
+        check("identical-copy cleanup bypasses Trash", trashBeforeMigration, trashCount())
+        check("identical-copy cleanup preserves the survivor", NoteFolderDocument.serialize(migrating, extras: extras), try! String(contentsOf: stableURL, encoding: .utf8))
+
+        try! NoteFolderDocument.serialize(migrating, extras: ["author: different"]).write(to: copyURL, atomically: true, encoding: .utf8)
+        let extrasPlan = await planFor(migrationLocal, in: migrationFolder)
+        check("different foreign metadata is not redundant", 0, extrasPlan.removals.count)
+        let metadataAdoption = NoteFolderReconciler.plan(local: migrationLocal,
+            scan: try! await io.scan(folder: migrationFolder), pass: .adoption, newID: nextID, now: { folderClock })
+        check("metadata-only differences do not fork notes", 0, metadataAdoption.forked.count)
+        try! FileManager.default.removeItem(at: copyURL)
+
+        // Revalidate under folder coordination before any write, move or permanent duplicate cleanup.
+        try! FileManager.default.copyItem(at: stableURL, to: copyURL)
+        let staleCleanup = await planFor(migrationLocal, in: migrationFolder)
+        let changedCopy = "# Edited after the scan\nunique writing"
+        try! changedCopy.write(to: copyURL, atomically: true, encoding: .utf8)
+        var refusedStaleCleanup = false
+        do { try await io.apply(staleCleanup, in: migrationFolder) }
+        catch NoteFolderIO.Failure.changedDuringSync { refusedStaleCleanup = true }
+        catch { failures += 1; print("FAIL unexpected cleanup error: \(error)") }
+        check("a changed duplicate aborts cleanup", true, refusedStaleCleanup)
+        check("a changed duplicate keeps its new bytes", changedCopy, try! String(contentsOf: copyURL, encoding: .utf8))
+        try! FileManager.default.removeItem(at: copyURL)
+
+        try! FileManager.default.moveItem(at: stableURL, to: legacyURL)
+        let occupiedPlan = await planFor(migrationLocal, in: migrationFolder)
+        try! "# Arrived after scan".write(to: stableURL, atomically: true, encoding: .utf8)
+        var refusedOccupied = false
+        do { try await io.apply(occupiedPlan, in: migrationFolder) }
+        catch NoteFolderIO.Failure.changedDuringSync { refusedOccupied = true }
+        catch { failures += 1; print("FAIL unexpected occupied-path error: \(error)") }
+        check("migration refuses a newly occupied ID path", true, refusedOccupied)
+        check("a newly occupied ID path stays untouched", "# Arrived after scan", try! String(contentsOf: stableURL, encoding: .utf8))
+        check("failed migration preserves its source", true, FileManager.default.fileExists(atPath: legacyURL.path))
+        try! FileManager.default.removeItem(at: stableURL)
+        try! await io.apply(await planFor(migrationLocal, in: migrationFolder), in: migrationFolder)
+
+        let deleteID = NoteTombstone(id: migrating.id, deletedAt: folderClock)
+        let deleteLocal = NoteSyncSnapshot(notes: [], tombstones: [deleteID])
+        let failedTrash = NoteFolderIO(trash: { _ in throw CocoaError(.fileWriteNoPermission) })
+        var refusedTrash = false
+        do { try await failedTrash.apply(await planFor(deleteLocal, in: migrationFolder), in: migrationFolder) }
+        catch { refusedTrash = true }
+        check("Trash failure remains a failure", true, refusedTrash)
+        check("Trash failure never permanently deletes a note", true, FileManager.default.fileExists(atPath: stableURL.path))
+        check("deletion intent precedes removing its file", .readable([deleteID]), try! await io.scan(folder: migrationFolder).ledger)
+        try! await io.apply(await planFor(deleteLocal, in: migrationFolder), in: migrationFolder)
+        check("an explicit deletion uses Trash exactly once", trashBeforeMigration + 1, trashCount())
+        check("an explicit deletion leaves no ID file", false, FileManager.default.fileExists(atPath: stableURL.path))
+        check("a completed deletion is idempotent", false, (await planFor(deleteLocal, in: migrationFolder)).hasFileWork)
+
+        let emptyDraft = SpotterNote(id: nextID(), content: "# ", createdAt: fixedDate)
+        let emptyDraftPlan = await planFor(NoteSyncSnapshot(notes: [emptyDraft], tombstones: [deleteID]), in: migrationFolder)
+        check("an empty H1 draft writes no file", 0, emptyDraftPlan.placements.count)
+        check("an empty H1 draft creates no file work", false, emptyDraftPlan.hasFileWork)
+        let emptyDeleted = NoteSyncSnapshot(notes: [], tombstones: [deleteID,
+            NoteTombstone(id: emptyDraft.id, deletedAt: folderClock)])
+        try! await io.apply(await planFor(emptyDeleted, in: migrationFolder), in: migrationFolder)
+        check("closing an empty draft creates no trash", trashBeforeMigration + 1, trashCount())
+
+        // Even malformed legacy filenames can be swapped without replacing either note.
+        let swapFolder = directory.appendingPathComponent("id-swap", isDirectory: true)
+        try! FileManager.default.createDirectory(at: swapFolder, withIntermediateDirectories: true)
+        let firstSwap = SpotterNote(id: nextID(), content: "# First", createdAt: fixedDate)
+        let secondSwap = SpotterNote(id: nextID(), content: "# Second", createdAt: fixedDate)
+        let firstURL = swapFolder.appendingPathComponent(NoteFileName.name(for: firstSwap.id))
+        let secondURL = swapFolder.appendingPathComponent(NoteFileName.name(for: secondSwap.id))
+        try! NoteFolderDocument.serialize(firstSwap).write(to: secondURL, atomically: true, encoding: .utf8)
+        try! NoteFolderDocument.serialize(secondSwap).write(to: firstURL, atomically: true, encoding: .utf8)
+        let swapLocal = NoteSyncSnapshot(notes: [firstSwap, secondSwap], tombstones: [])
+        try! await io.apply(await planFor(swapLocal, in: swapFolder), in: swapFolder)
+        check("a cyclic migration keeps the first note", NoteFolderDocument.serialize(firstSwap), try! String(contentsOf: firstURL, encoding: .utf8))
+        check("a cyclic migration keeps the second note", NoteFolderDocument.serialize(secondSwap), try! String(contentsOf: secondURL, encoding: .utf8))
+        check("a cyclic migration leaves no staging file", 2, try! FileManager.default.contentsOfDirectory(atPath: swapFolder.path).count)
+        check("cyclic migration never uses Trash", trashBeforeMigration + 1, trashCount())
+        let interruptedURL = swapFolder.appendingPathComponent(NoteFolderFormat.temporaryName(for: firstSwap.id))
+        try! FileManager.default.moveItem(at: firstURL, to: interruptedURL)
+        try! await io.apply(await planFor(swapLocal, in: swapFolder), in: swapFolder)
+        check("an interrupted staged migration preserves its ID", NoteFolderDocument.serialize(firstSwap), try! String(contentsOf: firstURL, encoding: .utf8))
+        check("an interrupted staged migration settles", false, (await planFor(swapLocal, in: swapFolder)).hasFileWork)
+
+        // A canonical path occupied by a directory or symlink is not an editable note file.
+        let blockedFolder = directory.appendingPathComponent("id-blocked", isDirectory: true)
+        try! FileManager.default.createDirectory(at: blockedFolder, withIntermediateDirectories: true)
+        let blockedURL = blockedFolder.appendingPathComponent(NoteFileName.name(for: firstSwap.id))
+        try! FileManager.default.createDirectory(at: blockedURL, withIntermediateDirectories: true)
+        let blockedLocal = NoteSyncSnapshot(notes: [firstSwap], tombstones: [])
+        check("a directory at the ID path blocks writes", 0, (await planFor(blockedLocal, in: blockedFolder)).placements.count)
+        try! FileManager.default.removeItem(at: blockedURL)
+        try! FileManager.default.createSymbolicLink(at: blockedURL, withDestinationURL: firstURL)
+        check("a symlink at the ID path blocks writes", 0, (await planFor(blockedLocal, in: blockedFolder)).placements.count)
 
         // ── The adoption flag, against real defaults and a real folder ──────────────────────────
         let adoptionSuite = "spotter.note.adoption.\(UUID().uuidString)"

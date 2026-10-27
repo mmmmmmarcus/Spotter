@@ -403,13 +403,13 @@ Never break these without an explicit task to do so.
   device-local. See [`docs/settings-sync.md`](docs/settings-sync.md).
 - **A missing Note file is never a deletion.** The Notes folder is reconciled by the pure
   `NoteFolderReconciler`, and only two things may remove a file: a tombstone that won its merge, and
-  a duplicate whose body and tint are identical to the copy that stays. An absent file, an iCloud
+  a duplicate whose complete file bytes match the copy that stays. An absent file, an iCloud
   placeholder, an unreadable or non-UTF-8 file and an unreadable ledger are all "present, unknown" —
   left untouched, never overwritten, never counted as gone, and their names stay reserved so a write
   cannot land on top of one. Deletions travel only in the hidden `.spotter-notes.json` tombstone
-  ledger, which is never rewritten while it cannot be read. Identity lives in the front matter, so a
-  retitle is a coordinated two-step move rather than a delete plus a create; collisions resolve
-  deterministically (oldest note keeps the bare name) so two Macs never fight over one. Conflicts
+  ledger, which is never rewritten while it cannot be read. Identity lives in the front matter and the stable `<UUID>.md` filename (owner decision, Oct 2026).
+  Retitles update the same path. Title-named legacy files migrate by moving once; only filename
+  cycles need staging. Reserved ID paths defer writes instead of producing suffixed duplicates. Conflicts
   reuse `NoteSyncMerge` — the one merge policy in the codebase — and the body round-trips
   byte-for-byte. **A deletion is absorbing and a fork can never launder one.** A tombstoned id is
   never a Note again whatever the timestamps say, so the tombstone set only grows and the ledger is
@@ -420,7 +420,9 @@ Never break these without an explicit task to do so.
   the `.adoption` pass forks. Ranking a deletion against an edit by time, and forking a
   duplicated id in steady state, is how 1.5.29/1.5.30 resurrected deleted Notes and grew a Note per
   title state — do not restore either. Reads, writes, moves and deletions all go through `NSFileCoordinator`, writes are
-  atomic, and a removed file goes to the Trash. **The first reconcile after a folder is adopted is
+  atomic, and a write pass revalidates its scan before changing files. Explicit deletions go to the
+  Trash and a Trash failure never falls back to permanent deletion; verified redundant copies are
+  removed directly. Empty H1 drafts never create sync files. **The first reconcile after a folder is adopted is
   deliberately not that merge**, and the asymmetry is an owner decision (Sep 2026): that pass keeps
   *both* texts when one id diverges, forking the loser to a fresh id, because it runs once per Mac
   over timestamps that were never comparable across machines and a silent winner there is an

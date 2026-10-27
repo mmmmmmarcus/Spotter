@@ -311,8 +311,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   and an inset overlay list, plus `Open Notes` and `New Note` actions. Selected text has a native
   editing and visible H1/H2/H3/Text/list format section, wrapped list content uses marker-width
   hanging indents, and a background-only transparency preference syncs through trusted Settings.
-  Empty Notes are discarded when the window closes. Its consented private CloudKit sync replicates
-  each Note and deletion independently from automatic Settings Sync.
+  Empty Notes are discarded when the window closes without creating empty sync files. A user-chosen
+  folder replicates Notes as stable UUID-named Markdown files, independently from Settings Sync.
+  Title edits keep the path; redundant-copy cleanup bypasses Trash, while explicit deletion remains recoverable.
 - **Quicklinks** (`Spotter/Plugins/Quicklinks/`) — user-saved links, files and
   deep links published as launcher entries through `dynamicLauncherCommands`, with `{argument}`
   placeholders collected one step at a time on a palette screen using `livePlaceholder`.

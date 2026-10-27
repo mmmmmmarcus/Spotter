@@ -48,8 +48,9 @@ struct NoteSettingsView: View {
             SettingsCallout(
                 title: "One Markdown file per note",
                 message:
-                    "Each Note is written as a Markdown file named after its title, with a small "
-                    + "front-matter header carrying its identifier, dates and color. Put the folder "
+                    "Each Note uses a stable ID-based Markdown filename, so changing its title "
+                    + "doesn’t rename the file. A small "
+                    + "front-matter header carries its identifier, dates and color. Put the folder "
                     + "in iCloud Drive and your Macs share it. Deleting a note is recorded "
                     + "explicitly, so a file that hasn’t downloaded yet is never mistaken for one "
                     + "you deleted, and disconnecting leaves every note and every file in place.",
