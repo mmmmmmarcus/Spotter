@@ -62,6 +62,9 @@ answering nothing.
 Once an operator is involved the answer stays in the units written, so `2 * 5kg` is `10 kg`. Only a
 bare quantity (`50cm`, `1m`) falls through to the keyword-less auto-conversion below.
 
+Compound feet-and-inches results carry an inch component that rounds to 12 into the next foot,
+so floating-point conversion noise cannot display an equivalent length as `6 feet 12 inches`.
+
 Derived dimensions are deliberately not guessed: multiplying two unit values returns a clear error.
 Affine temperatures may only be added or subtracted when both operands use the same scale; treating
 an absolute Celsius/Fahrenheit value as a delta would silently produce physically incorrect answers.

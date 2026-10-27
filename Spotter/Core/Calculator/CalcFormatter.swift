@@ -36,10 +36,15 @@ enum CalcFormatter {
     static func compoundFeetInches(_ feet: Double) -> String {
         let sign = feet < 0 ? "-" : ""
         let magnitude = abs(feet)
-        let wholeFeet = magnitude.rounded(.towardZero)
+        var wholeFeet = magnitude.rounded(.towardZero)
         let inches = (magnitude - wholeFeet) * 12
+        var inchText = display(inches)
+        // Roundoff can display a full twelve inches; carry it into feet at the same display precision.
+        if inchText == "12" {
+            wholeFeet += 1
+            inchText = "0"
+        }
         let feetPart = wholeFeet == 0 ? "" : "\(sign)\(display(wholeFeet)) \(wholeFeet == 1 ? "foot" : "feet")"
-        let inchText = display(inches)
         let inchPart = "\(inchText) \(inchText == "1" ? "inch" : "inches")"
         if feetPart.isEmpty { return "\(sign)\(inchPart)" }
         return "\(feetPart) \(inchPart)"
