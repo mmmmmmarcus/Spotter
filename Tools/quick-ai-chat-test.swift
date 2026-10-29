@@ -15,6 +15,8 @@ final class OpenRouterStore: ObservableObject {
     var ignoresDecisionCancellation = false
     private var decisions: [CheckedContinuation<Void, Error>] = []
     var models: [String] = []
+    var searchFlags: [Bool] = []
+    var completeReplyFlags: [Bool] = []
     var requests: [[(role: String, content: String)]] = []
     private var completions: [CheckedContinuation<Void, Error>] = []
 
@@ -29,9 +31,12 @@ final class OpenRouterStore: ObservableObject {
     func completeDecision() { decisions.removeFirst().resume() }
 
     func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool, imageDataURLs: [Int: [String]] = [:],
+              completionLimit: Int = 4096, requiresCompleteReply: Bool = false,
               onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         requests.append(messages)
         models.append(model)
+        searchFlags.append(webSearch)
+        completeReplyFlags.append(requiresCompleteReply)
         onDelta("Partial ")
         try await withCheckedThrowingContinuation { completions.append($0) }
         try Task.checkCancellation()
@@ -39,20 +44,25 @@ final class OpenRouterStore: ObservableObject {
     }
 
     func completeNext() { completions.removeFirst().resume() }
+    func failNext() { completions.removeFirst().resume(throwing: OpenRouterError.notConfigured) }
 }
 
 enum OpenRouterError: Error { case notConfigured }
 
 enum LocalAIModel {
-    static func resolve(_ id: String) -> LocalAIModel? { nil }
+    case codex
+    static func resolve(_ id: String) -> LocalAIModel? { id.hasPrefix("local-cli/codex") ? .codex : nil }
 }
 
 @MainActor
 final class LocalAIStore: ObservableObject {
     var isAvailable = false
+    var models: [String] = []
     func chat(messages: [(role: String, content: String)], modelID: String, webSearch: Bool = false, images: [Data] = [],
               onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
-        throw OpenRouterError.notConfigured
+        guard isAvailable else { throw OpenRouterError.notConfigured }
+        models.append(modelID)
+        onDelta("the")
     }
 }
 
@@ -99,6 +109,7 @@ struct QuickAIChatTests {
     }
 
     static func main() async {
+        await spellingReplacement()
         layout()
         await nativePanel()
         headerDragging()
@@ -110,6 +121,69 @@ struct QuickAIChatTests {
         await commandConversations()
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
+    }
+
+    private static func spellingReplacement() async {
+        let router = OpenRouterStore()
+        let local = LocalAIStore()
+        let tools = AIToolStore()
+        tools.isConfigured = true
+        let chat = AIChatStore(openRouter: router, localAI: local, tools: tools)
+        let originalSessions = chat.sessions
+        var command = AICommand.makeBuiltIn(.spelling)
+        command.model = "spelling-model"
+        var replies: [String] = []
+        var errors = 0
+        let completion: @MainActor (Result<String, Error>) -> Void = { result in
+            switch result {
+            case .success(let text): replies.append(text)
+            case .failure: errors += 1
+            }
+        }
+        var backgroundRows = 0
+        chat.onRequestStarted = { _, _ in backgroundRows += 1; return UUID() }
+        chat.replaceSpelling(command: command, selection: "teh", completion: completion)
+        await waitUntil { router.requests.count == 1 }
+        expect(replies.isEmpty && chat.streamingReply == nil, "spelling never delivers or presents partial output")
+        expect(chat.sessions == originalSessions && backgroundRows == 0, "spelling creates no conversation or chat task row")
+        expect(router.models == ["spelling-model"] && router.decisionRequests.isEmpty, "spelling preserves the command model pin")
+        expect(router.requests[0].first?.content == AISpellingResponse.instructions && router.searchFlags == [false], "spelling uses its plain replacement contract without web search")
+        expect(router.completeReplyFlags == [true], "spelling requires a confirmed complete provider response")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        expect(replies == ["Partial answer"] && chat.sessions == originalSessions, "spelling returns the complete reply without history changes")
+
+        chat.replaceSpelling(command: command, selection: "old", completion: completion)
+        await waitUntil { router.requests.count == 2 }
+        chat.replaceSpelling(command: command, selection: "new", completion: completion)
+        await waitUntil { router.requests.count == 3 }
+        router.completeNext()
+        await Task.yield()
+        expect(replies.count == 1 && chat.isWaiting, "superseded spelling cannot deliver its late answer or end the newer request")
+        router.failNext()
+        await waitUntil { !chat.isWaiting }
+        expect(replies.count == 1 && errors == 1, "failed spelling never delivers the partial replacement")
+
+        chat.replaceSpelling(command: command, selection: "cancel", completion: completion)
+        await waitUntil { router.requests.count == 4 }
+        chat.stop()
+        router.completeNext()
+        for _ in 0..<10 { await Task.yield() }
+        expect(replies.count == 1 && errors == 1 && !chat.isWaiting, "cancelled spelling never replaces or opens an error conversation")
+
+        command.model = nil
+        chat.replaceSpelling(command: command, selection: "route", completion: completion)
+        await waitUntil { router.requests.count == 5 }
+        expect(router.models.last == "chosen-model" && router.decisionRequests.count == 1, "automatic spelling preserves Jev model routing")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        router.isReady = false
+        local.isAvailable = true
+        command.model = "local-cli/codex/gpt-fixture"
+        chat.replaceSpelling(command: command, selection: "teh", completion: completion)
+        await waitUntil { !chat.isWaiting }
+        expect(local.models == ["local-cli/codex/gpt-fixture"] && replies.last == "the", "spelling supports the selected Codex CLI model without OpenRouter")
+        expect(chat.sessions == originalSessions && backgroundRows == 0, "all replacement outcomes leave chat history unchanged")
     }
 
     private static func reopenTimeout() {

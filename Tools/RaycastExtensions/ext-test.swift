@@ -900,6 +900,42 @@ struct ExtensionTests {
             "parseCallback parses hash fragment",
             fragParams["access_token"] == "token_xyz" && fragParams["state"] == "state_789")
 
+        for scheme in ["spotter://oauth", "tinycast://oauth", "raycast://oauth", "com.raycast:/oauth"] {
+            let callback = URL(string: "\(scheme)?code=relayed&state=current")!
+            let result = try? ExtensionOAuthSession.validatedCallback(url: callback, expectedState: "current")
+            check("OAuth accepts a matching state for \(scheme)", result?["code"] == "relayed")
+        }
+        for suffix in ["", "&state=", "&state=wrong", "&state=previous-request", "&state=current&state=current", "&state=wrong&state=current", "&state=current#state=current", "&%73tate=current&state=current"] {
+            let callback = URL(string: "spotter://oauth?code=relayed\(suffix)")!
+            do {
+                _ = try ExtensionOAuthSession.validatedCallback(url: callback, expectedState: "current")
+                check("OAuth rejects missing, stale or repeated state: \(suffix)", false)
+            } catch ExtensionOAuthSession.OAuthError.stateMismatch {
+                check("OAuth rejects missing, stale or repeated state: \(suffix)", true)
+            } catch {
+                check("OAuth rejects invalid state with the right error", false, error.localizedDescription)
+            }
+        }
+        let encoded = URL(string: "spotter://oauth#code=a%26b%3Dc&state=%E6%9D%B1%E4%BA%AC%26%3D%2B")!
+        let encodedResult = try? ExtensionOAuthSession.validatedCallback(url: encoded, expectedState: "東京&=+")
+        check("OAuth fragments decode once after splitting", encodedResult?["code"] == "a&b=c")
+        let implicit = try? ExtensionOAuthSession.validatedCallback(url: fragmentURL, expectedState: "state_789")
+        check("OAuth retains implicit token callbacks", implicit?["access_token"] == "token_xyz")
+        let stateless = URL(string: "spotter://oauth?code=stateless")!
+        check("OAuth permits custom URLs without a state", (try? ExtensionOAuthSession.validatedCallback(url: stateless, expectedState: nil))?["code"] == "stateless")
+        let emptyState = URL(string: "spotter://oauth?code=empty&state=")!
+        check("OAuth checks an explicitly empty state", (try? ExtensionOAuthSession.validatedCallback(url: emptyState, expectedState: ""))?["code"] == "empty")
+        check("OAuth empty state cannot be omitted", (try? ExtensionOAuthSession.validatedCallback(url: stateless, expectedState: "")) == nil)
+        let codeless = URL(string: "spotter://oauth?state=current")!
+        check("OAuth rejects callbacks without a code or token", (try? ExtensionOAuthSession.validatedCallback(url: codeless, expectedState: "current")) == nil)
+        let denied = URL(string: "spotter://oauth?error=access_denied&error_description=Permission%20denied")!
+        do {
+            _ = try ExtensionOAuthSession.validatedCallback(url: denied, expectedState: "current")
+            check("OAuth surfaces provider errors", false)
+        } catch {
+            check("OAuth surfaces provider errors", error.localizedDescription == "Permission denied")
+        }
+
         let nonOAuthURL = URL(string: "raycast://extensions/installed")!
         check(
             "handleCallbackURL ignores a non-oauth URL",
@@ -1262,6 +1298,10 @@ struct ExtensionTests {
         await settle(70)
         await pending.stop(session: "p1")
         pending.shutdown()
+        await settle(100)
+        let stoppedRenderCount = pendingRecorder.trees.count
+        await settle(120)
+        check("a stopped extension leaves no ticking render callbacks", pendingRecorder.trees.count == stoppedRenderCount)
         let pendingRerun = Recorder()
         pending.setDelegate(pendingRerun)
         try? await pending.boot(

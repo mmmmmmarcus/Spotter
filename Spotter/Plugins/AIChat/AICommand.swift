@@ -133,6 +133,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     }
 
     var isBuiltIn: Bool { builtIn != nil }
+    var replacesSelection: Bool { builtIn == .spelling }
     var entryID: String { builtIn?.entryID ?? Self.entryIDPrefix + id.uuidString.lowercased() }
     var systemImage: String { symbol ?? builtIn?.systemImage ?? "sparkles" }
     /// A user command's session is titled by the command; a built-in keeps its shorter session name.

@@ -253,6 +253,63 @@ final class AIChatStore: ObservableObject {
         return true
     }
 
+    func replaceSpelling(command: AICommand, selection: String,
+        completion: @escaping @MainActor (Result<String, Error>) -> Void) {
+        stop()
+        guard selection.utf8.count <= AISpellingResponse.maximumBytes else {
+            completion(.failure(AISpellingResponse.Failure.invalidReply))
+            return
+        }
+        let requestID = UUID()
+        guard isReady, requests.begin(sessionID: requestID) else {
+            completion(.failure(OpenRouterError.notConfigured))
+            return
+        }
+        let pinned = command.resolvedModel()
+        isChoosingModel = pinned == nil
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let turns = [(role: "system", content: AISpellingResponse.instructions),
+                    (role: "user", content: command.rendered(selection: selection))]
+                var model = pinned ?? openRouter.aiRouting.everydayModel
+                if pinned == nil, openRouter.isReady {
+                    model = try await openRouter.selectChatModel(messages: turns, defaultModel: model)?.model ?? model
+                }
+                try Task.checkCancellation()
+                guard waitingSessionID == requestID else { return }
+                isChoosingModel = false
+                var response = ""
+                var overflow = false
+                let receive: @MainActor @Sendable (String) -> Void = { delta in
+                    guard !Task.isCancelled else { return }
+                    if response.utf8.count + delta.utf8.count <= AISpellingResponse.maximumBytes {
+                        response += delta
+                    } else { overflow = true }
+                }
+                if LocalAIModel.resolve(model) != nil {
+                    try await localAI.chat(messages: turns, modelID: model, webSearch: false, onDelta: receive)
+                } else {
+                    try await openRouter.chat(messages: turns, model: model, webSearch: false,
+                        imageDataURLs: [:], completionLimit: 16_384, requiresCompleteReply: true, onDelta: receive)
+                }
+                try Task.checkCancellation()
+                guard waitingSessionID == requestID else { return }
+                guard !overflow else { throw AISpellingResponse.Failure.invalidReply }
+                let replacement = try AISpellingResponse.replacement(response, original: selection)
+                requests.remove(sessionID: requestID)
+                task = nil
+                completion(.success(replacement))
+            } catch {
+                guard waitingSessionID == requestID else { return }
+                requests.remove(sessionID: requestID)
+                isChoosingModel = false
+                task = nil
+                if !Task.isCancelled, !(error is CancellationError) { completion(.failure(error)) }
+            }
+        }
+    }
+
     // Keep the full rendered prompt in model context while the transcript presents only the command input.
     @discardableResult
     func startCommandConversation(command: AICommand, selection: String, selectSession: Bool = true) -> UUID {

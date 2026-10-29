@@ -29,8 +29,8 @@ function generateRandomString(length = 16) {
 }
 
 function generateState(client) {
-  // raycast.com/redirect expects state to be a JSON object (base64url-encoded)
-  // containing providerName and scheme ("tinycast") so it redirects to tinycast://oauth
+  if (client.redirectMethod !== nestedEnums.OAuth.RedirectMethod.Web) return generateRandomString(16);
+  // Preserve Spotter's registered relay scheme in the hosted page's base64url JSON envelope.
   const payload = {
     token: generateRandomString(16),
     providerName: client?.providerName || "",
@@ -70,7 +70,9 @@ export class PKCEClient {
   }
 
   async authorizationRequest(options) {
-    if (!options || !options.endpoint || !options.clientId) {
+    const metadataMethod = this.redirectMethod === nestedEnums.OAuth.RedirectMethod.ClientIdMetadataDocument;
+    const clientId = options?.clientId ?? (metadataMethod ? "https://www.raycast.com/.well-known/oauth-client-metadata/raycast.json" : undefined);
+    if (!options || !options.endpoint || !clientId) {
       throw new Error("authorizationRequest requires endpoint and clientId");
     }
 
@@ -85,6 +87,8 @@ export class PKCEClient {
         redirectURI = "raycast://oauth?package_name=Extension";
       } else if (this.redirectMethod === nestedEnums.OAuth.RedirectMethod.AppURI) {
         redirectURI = "com.raycast:/oauth?package_name=Extension";
+      } else if (metadataMethod) {
+        redirectURI = "com.raycast:/oauth";
       } else {
         redirectURI = "https://raycast.com/redirect?packageName=Extension";
       }
@@ -92,7 +96,7 @@ export class PKCEClient {
 
     const url = new URL(options.endpoint);
     url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", options.clientId);
+    url.searchParams.set("client_id", clientId);
     if (options.scope) {
       url.searchParams.set("scope", options.scope);
     }
@@ -111,7 +115,7 @@ export class PKCEClient {
 
     return {
       endpoint: options.endpoint,
-      clientId: options.clientId,
+      clientId,
       scope: options.scope,
       codeVerifier,
       codeChallenge,
@@ -134,7 +138,8 @@ export class PKCEClient {
     if (!url) {
       throw new Error("authorize requires a valid authorization URL");
     }
-    const state = typeof request === "object" ? request?.state : undefined;
+    // The native callback validator must check what was sent, including custom URLs and overrides.
+    const state = new URL(url).searchParams.get("state");
 
     let res = await hostCall("oauth", "authorize", [url, state]);
 

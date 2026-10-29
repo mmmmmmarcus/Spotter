@@ -245,6 +245,7 @@ final class AppCore: ObservableObject {
     let aiTools = AIToolStore()
     let aiChat: AIChatStore
     let aiCommands = AICommandStore()
+    var aiCommandCaptureTask: Task<Void, Never>?
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()

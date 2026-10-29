@@ -193,3 +193,7 @@ Menu search is session-scoped: AppCore owns menuSearch, NavigationReader perform
 `AppCore.extensionKeepAwake` tracks detached caffeinate processes started by the Raycast bridge and
 feeds the shared BackgroundTaskStore. It validates executable, user and kernel start time before
 restoring or stopping a process, and keeps its recovery records device-local.
+
+`AppCore.aiCommandCaptureTask` serializes AI-command selection capture. Fix Spelling uses the
+AppCore-owned AIChatStore request gate without creating a session; its transient AISelectionReplacement
+target revalidates the editable control and original selection before pasting the complete response.

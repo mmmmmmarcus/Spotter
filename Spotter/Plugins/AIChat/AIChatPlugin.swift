@@ -134,10 +134,7 @@ extension AppCore {
             showAICommandFailure(command, message: Self.aiCommandKeyMessage)
             return
         }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            presentAICommand(command, capture: await selectedTextCapture.capture())
-        }
+        captureAICommand(command, restoringFocus: false)
     }
 
     /// The launcher row's path: the palette dismisses first so the capture reads the app the user
@@ -153,10 +150,20 @@ extension AppCore {
             return
         }
         hidePalette()
-        Task { @MainActor [weak self] in
+        captureAICommand(command, restoringFocus: true)
+    }
+
+    private func captureAICommand(_ command: AICommand, restoringFocus: Bool) {
+        aiCommandCaptureTask?.cancel()
+        aiChat.stop()
+        aiCommandCaptureTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            presentAICommand(
-                command, capture: await selectedTextCapture.captureAfterRestoringFocus())
+            let capture = restoringFocus
+                ? await selectedTextCapture.captureAfterRestoringFocus()
+                : await selectedTextCapture.capture()
+            guard !Task.isCancelled else { return }
+            aiCommandCaptureTask = nil
+            presentAICommand(command, capture: capture)
         }
     }
 
@@ -167,6 +174,22 @@ extension AppCore {
         _ command: AICommand,
         capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
     ) {
+        if command.replacesSelection {
+            switch capture {
+            case .failure(let error): showAICommandFailure(command, message: error.message)
+            case .success(let snapshot):
+                do {
+                    let target = try AISelectionReplacement.capture(text: snapshot.text, pid: snapshot.source.processIdentifier)
+                    aiChat.replaceSpelling(command: command, selection: snapshot.text) { [weak self] result in
+                        do { try target.replace(with: result.get()) }
+                        catch { self?.showAICommandFailure(command, message: error.localizedDescription) }
+                    }
+                } catch {
+                    showAICommandFailure(command, message: error.localizedDescription)
+                }
+            }
+            return
+        }
         let sessionID: UUID
         switch capture {
         case .failure(let error):
@@ -180,6 +203,10 @@ extension AppCore {
     }
 
     private func showAICommandFailure(_ command: AICommand, message: String) {
+        if command.replacesSelection {
+            hud.show(title: message, symbol: "exclamationmark.triangle", isNoOp: true)
+            return
+        }
         let sessionID = aiChat.showCommandFailure(command: command, message: message,
             selectSession: false)
         showAICommandSession(sessionID)

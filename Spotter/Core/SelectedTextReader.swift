@@ -69,7 +69,7 @@ enum SelectedTextReader {
         return nil
     }
 
-    private static func selectedText(from element: AXUIElement) -> String? {
+    static func selectedText(from element: AXUIElement) -> String? {
         resolveSelection(primary: {
             var value: CFTypeRef?
             guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &value) == .success

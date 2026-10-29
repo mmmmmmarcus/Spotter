@@ -227,6 +227,9 @@ run_harness() {
             ;;
         selected-text-capture)
             swiftc -swift-version 6 Spotter/Core/SelectedTextReader.swift \
+                Spotter/Core/SelectedTextCapture.swift \
+                Spotter/Plugins/AIChat/AISpellingResponse.swift \
+                Spotter/Plugins/AIChat/AISelectionReplacement.swift \
                 Spotter/Core/SelectionCopyCapture.swift Tools/selected-text-capture-test.swift \
                 -o "$output" && "$output"
             ;;
@@ -320,6 +323,7 @@ run_harness() {
             swiftc -swift-version 6 Spotter/Core/WindowDragCursor.swift Spotter/Core/PaletteDragHandle.swift Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
                 Spotter/Plugins/AIChat/AIRoutingTypes.swift \
                 Spotter/Plugins/AIChat/AIChatTypes.swift \
+                Spotter/Plugins/AIChat/AISpellingResponse.swift \
                 Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
                 Spotter/Plugins/AIChat/AIChatStore.swift Spotter/Plugins/AIChat/QuickAIChatLayout.swift \
                 Spotter/Plugins/AIChat/QuickAIChatPanel.swift Spotter/Plugins/AIChat/QuickAIChatController.swift \
@@ -336,6 +340,7 @@ run_harness() {
             ;;
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
+                Spotter/Plugins/AIChat/AISpellingResponse.swift \
                 Spotter/Plugins/AIChat/AIRoutingTypes.swift \
                 Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
                 Spotter/Plugins/AIChat/AICommand.swift \

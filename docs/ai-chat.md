@@ -1,7 +1,19 @@
 # AI Chat
 
 AI Chat uses Quick AI Chat as its only conversation surface. The launcher commands, ⌥Space,
-AI commands, running-task rows and the launcher's Ask AI fallback all open the floating panel.
+AI commands other than Fix Spelling, running-task rows and the launcher's Ask AI fallback open the floating panel.
+
+Fix Spelling (Hyper+W by default) replaces the selected text directly, without opening a chat or
+persisting a conversation. It retains its editable prompt and model pin; Automatic still routes
+through Jev. The request shares AIChatStore's cancellation gate, buffers the complete answer, and
+does not invoke Spotter MCP tools or web search. Errors use a brief HUD; partial, empty, oversized,
+wrapped or canceled answers are never pasted. Boundary whitespace comes from the original selection.
+
+`AISelectionReplacement` captures the original editable control and selection range (or Chromium
+text marker). Before replacement it rechecks the frontmost process, control, range and original text;
+it never brings a different app back to the front to paste. Unverifiable/read-only selections are
+refused without making a model request. External editors receive a native paste for undo support;
+Spotter Notes uses its NSTextView insertion path. Pronunciation and other commands still use chat.
 ⌘↵ with a typed launcher query opens a new conversation and sends it. The main Palette no longer
 contains a chat mode, composer, history list or chat actions menu; Tab cycles Apps, Clipboard and Emoji.
 The launcher's Send to ChatGPT fallback remains a separate browser handoff.
@@ -250,7 +262,9 @@ including clickable link and copy events, rich blocks, CSP, resizing and incompl
 An **AI command** is a name, a prompt, a shortcut and a model choice. The prompt is a template:
 `{selection}` — the same single-brace shape a quicklink's `{argument}` uses — is where the selected
 text lands. Running one captures the selection through the `AppCore`-owned `SelectedTextCapture`,
-renders the prompt, opens a new titled chat session and sends immediately. Commands always open Quick AI Chat. The old surface preference is ignored. Each command has an editable SF Symbol, shown in Settings, launcher results and compact user bubbles; old records keep their existing default icon. Floating command sessions and their
+renders the prompt, opens a new titled chat session and sends immediately, except Fix Spelling,
+which replaces the verified original selection directly without a session. Other commands open
+Quick AI Chat. The old surface preference is ignored. Each command has an editable SF Symbol, shown in Settings, launcher results and compact user bubbles; old records keep their existing default icon. Floating command sessions and their
 capture/key errors open their owning floating conversation. Opening a command preserves
 an unsent floating composer draft.
 
@@ -271,11 +285,12 @@ Substitution (`AICommandEngine.render`, pure) settles the three edge cases expli
 - **A selection containing `{selection}`** — the template is split on the token once and the parts
   joined with the selection, so inserted text is never rescanned.
 
-Spotter ships two commands, **Define Selected Text** and **Check Selected Text Grammar**. They are
+Spotter ships four commands: **Define Selected Text**, **Check Selected Text Grammar**,
+**Fix Selected Text Spelling** and **Get Selected Text Pronunciation**. They are
 ordinary records — same launcher entry, same shortcut recorder, same run path as one the user writes
 — with a fixed identity: their ids, launcher entry ids (`command:selection-tools:define` /
 `:grammar`) and shortcut keys (`KeyboardShortcuts_plugin.selection-tools.*`) are the ones they have
-always had, which is why an existing binding, favorite, alias, learned rank or hidden-row choice
+always had for Define and Grammar; Spelling and Pronunciation use their stable UUID keys. This is why an existing binding, favorite, alias, learned rank or hidden-row choice
 survives untouched. Their prompt, model and shortcut are editable and **Reset** restores Spotter's;
 their name is not editable and they cannot be deleted, because those ids are what every existing
 reference resolves through and a deleted one could not be recovered. A user who wants one gone hides

@@ -3,11 +3,12 @@ import Foundation
 // SSE framing stays separate from transport so arbitrary byte boundaries and UTF-8 are testable.
 struct OpenRouterStream {
     enum Failure: LocalizedError {
-        case malformed, interrupted, oversized, provider(String)
+        case malformed, interrupted, incomplete, oversized, provider(String)
         var errorDescription: String? {
             switch self {
             case .malformed: "OpenRouter returned an unreadable stream."
             case .interrupted: "The reply was interrupted. Any received text has been kept."
+            case .incomplete: "The model did not return a complete replacement. Nothing was changed."
             case .oversized: "OpenRouter's reply exceeded the supported size."
             case .provider(let message): "OpenRouter: \(message)"
             }
@@ -19,6 +20,12 @@ struct OpenRouterStream {
     private var eventSize = 0
     private var skipLF = false
     private(set) var done = false
+    private let requiresCompleteReply: Bool
+    private var finishReason: String?
+
+    init(requiresCompleteReply: Bool = false) {
+        self.requiresCompleteReply = requiresCompleteReply
+    }
 
     mutating func feed(_ byte: UInt8) throws -> String? {
         guard !done else { return nil }
@@ -50,6 +57,7 @@ struct OpenRouterStream {
             if let error = chunk.error { throw Failure.provider(error.message) }
             guard let choice = chunk.choices?.first(where: { ($0.index ?? 0) == 0 }) else { return nil }
             if choice.finish_reason == "error" { throw Failure.interrupted }
+            if let reason = choice.finish_reason { finishReason = reason }
             return choice.delta?.content
         }
         if value.hasPrefix("data:") {
@@ -65,6 +73,7 @@ struct OpenRouterStream {
 
     func finish() throws {
         guard done else { throw Failure.interrupted }
+        if requiresCompleteReply, finishReason != "stop" { throw Failure.incomplete }
     }
 
     private struct Chunk: Decodable {

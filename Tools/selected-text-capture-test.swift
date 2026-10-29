@@ -10,6 +10,10 @@ enum Permissions {
 enum HyperKeyTap {
     static let syntheticTag: Int64 = 0x5459_4354
 }
+enum Paster {
+    static func copyString(_ text: String) { fatalError("Tests must not alter the system clipboard") }
+    static func postCommandV(toPid: pid_t) { fatalError("Tests must not paste into another app") }
+}
 
 @main
 @MainActor
@@ -78,6 +82,22 @@ struct SelectedTextCaptureTests {
         cancelled.cancel()
         let cancelledResult = await cancelled.value
         check("cancelled capture never synthesizes a key", cancelledResult == .nothingCopied)
+        let editor = NSTextView()
+        editor.string = "🧭 teh first, teh second"
+        let originalRange = (editor.string as NSString).range(of: "teh")
+        editor.setSelectedRange(originalRange)
+        check("replacement matches the captured UTF-16 selection", AISelectionReplacement.localSelectionMatches(editor, range: originalRange, text: "teh"))
+        editor.setSelectedRange((editor.string as NSString).range(of: "teh", options: .backwards))
+        check("same word in a different position is not the captured selection", !AISelectionReplacement.localSelectionMatches(editor, range: originalRange, text: "teh"))
+        editor.setSelectedRange(originalRange)
+        editor.string = "🧭 new first, teh second"
+        check("edited text cannot receive a stale spelling result", !AISelectionReplacement.localSelectionMatches(editor, range: originalRange, text: "teh"))
+        editor.string = "🧭 teh first, teh second"
+        editor.setSelectedRange(originalRange)
+        editor.isEditable = false
+        check("read-only selections cannot be replaced", !AISelectionReplacement.localSelectionMatches(editor, range: originalRange, text: "teh"))
+        editor.isEditable = true
+        check("stale out-of-bounds ranges cannot crash replacement", !AISelectionReplacement.localSelectionMatches(editor, range: NSRange(location: NSNotFound, length: 3), text: "teh"))
         print("Selected text capture: \(failures) failure(s)")
         exit(failures == 0 ? 0 : 1)
     }

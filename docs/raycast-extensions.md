@@ -54,6 +54,8 @@ progress. Disabling stops runtimes and background commands.
   metadata, versions, forms, keyboard behavior, image sizing and search accessories.
 - `node scripts/raycast-runtime/fixtures.mjs`: JavaScript compatibility fixtures; install the locked
   development dependencies under `scripts/raycast-runtime` first.
+- `node scripts/raycast-runtime/oauth-fixtures.mjs`: OAuth request/bridge contracts and API 2.8.2
+  exports; callback validation itself runs against native code in `scripts/test-raycast.sh`.
 - `scripts/test-raycast.sh /path/to/built-extension command-name`: real extension smoke test.
   Optional `EXT_TEST_ARGS='name=value'` and `EXT_TEST_RERUN=1` exercise arguments and a fresh context.
 
@@ -68,6 +70,14 @@ untested. The current installer reports completion in the palette; installed ext
 The native selection modifier must be inside both extension environment injections; reversing that
 order crashes SwiftUI before the command screen can render. While OAuth is pending, reopening the
 extension screen explains that sign-in must be completed in the browser.
+
+OAuth validates the state actually sent in the authorization URL, including a custom URL or an
+`extraParameters` override. When a state was sent, the callback must contain that exact value once;
+missing, stale and duplicate states fail. Both query and fragment callbacks are supported. Web
+redirects retain the existing provider envelope and registered relay scheme; App, AppURI and
+ClientIdMetadataDocument use a fresh opaque state. API enums are generated from the locked 2.8.2
+definitions. Raycast AI methods remain unsupported and return explicit errors. See the
+[selective upstream audit](vendor/tinycast-extensions.md#selective-compatibility-audit-2026-10-29).
 
 
 Global runtime consent, launcher visibility and source-build options live under General → Raycast

@@ -596,6 +596,29 @@ struct AIChatTests {
         check("new sync can deliberately clear shipped default shortcuts", knownShortcutIDs.contains(AIBuiltInCommand.spelling.id) && knownShortcutIDs.contains(AIBuiltInCommand.pronunciation.id))
         check("old sync can supply a new command binding", AICommandEngine.shortcutReplacementIDs(knownIDs: nil, boundIDs: [AIBuiltInCommand.spelling.id], localCommands: []).contains(AIBuiltInCommand.spelling.id))
 
+        for reason in ["stop", "length", "content_filter", "tool_calls", ""] {
+            var parser = OpenRouterStream(requiresCompleteReply: true)
+            let finish = reason.isEmpty ? "" : "data: {\"choices\":[{\"finish_reason\":\"\(reason)\"}]}\n\n"
+            let wire = "data: {\"choices\":[{\"delta\":{\"content\":\"the\"}}]}\n\n" + finish + "data: [DONE]\n\n"
+            do {
+                for byte in wire.utf8 { _ = try parser.feed(byte) }
+                try parser.finish()
+                check("replacement requires a successful stop: \(reason)", reason == "stop")
+            } catch {
+                check("truncated or unconfirmed replacement is rejected: \(reason)", reason != "stop")
+            }
+        }
+        check("only built-in spelling replaces the selection", AIBuiltInCommand.allCases.filter { AICommand.makeBuiltIn($0).replacesSelection } == [.spelling])
+        check("a custom spelling-named command stays in chat", !AICommand(name: "Fix Spelling", prompt: "Fix this").replacesSelection)
+        check("spelling response preserves whitespace and line breaks", (try? AISpellingResponse.replacement("  the\nword  ", original: "  teh\nword  ")) == "  the\nword  ")
+        check("CLI trimming cannot remove selection boundary whitespace", (try? AISpellingResponse.replacement("the", original: " \nteh\t")) == " \nthe\t")
+        check("model trailing newline is not added to the selection", (try? AISpellingResponse.replacement("the\n", original: "teh")) == "the")
+        check("unchanged JSON remains literal text", (try? AISpellingResponse.replacement("{\"a\":1}", original: "{\"a\":1}")) == "{\"a\":1}")
+        check("unchanged code fences remain literal text", (try? AISpellingResponse.replacement("```text\nword\n```", original: "```text\nword\n```")) != nil)
+        for reply in ["", " \n", "```text\nthe\n```", "{\"corrected\":\"the\"}", "the\0", String(repeating: "x", count: AISpellingResponse.maximumBytes + 1)] {
+            check("unsafe spelling output is rejected", (try? AISpellingResponse.replacement(reply, original: "teh")) == nil)
+        }
+
         print(failures == 0 ? "\nAI Chat: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

@@ -107,26 +107,38 @@ final class ExtensionOAuthSession {
     }
 
     private func receiveCallback(url: URL) {
-        let params = Self.parseCallback(url: url)
+        do {
+            finish(result: try Self.validatedCallback(url: url, expectedState: expectedState))
+        } catch {
+            finish(error: error)
+        }
+    }
+
+    static func validatedCallback(url: URL, expectedState: String?) throws -> [String: String] {
+        let items = callbackItems(url: url)
+        let params = parseCallback(url: url)
         if let error = params["error"] {
             let desc = params["error_description"] ?? error
-            finish(error: OAuthError.failed(desc))
-            return
+            throw OAuthError.failed(desc)
         }
 
-        if let expected = expectedState, !expected.isEmpty {
-            guard let received = params["state"], !received.isEmpty, received == expected else {
-                finish(error: OAuthError.stateMismatch)
-                return
+        if let expected = expectedState {
+            let states = items.filter { $0.name == "state" }
+            guard states.count == 1, (states[0].value ?? "") == expected else {
+                throw OAuthError.stateMismatch
             }
         }
 
-        finish(result: params)
+        guard !(params["code"] ?? "").isEmpty || !(params["access_token"] ?? "").isEmpty else {
+            throw OAuthError.failed("Sign-in returned no authorization code or access token.")
+        }
+        return params
     }
 
     private func finish(result: [String: String]? = nil, error: Error? = nil) {
         timeoutTimer?.invalidate()
         timeoutTimer = nil
+        expectedState = nil
 
         if Self.activeSession === self {
             Self.activeSession = nil
@@ -151,27 +163,22 @@ final class ExtensionOAuthSession {
     // MARK: - URL Parsing
 
     static func parseCallback(url: URL) -> [String: String] {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return [:]
-        }
         var result: [String: String] = [:]
-        if let queryItems = components.queryItems {
-            for item in queryItems {
-                result[item.name] = item.value ?? ""
-            }
-        }
-        // Implicit and hash callbacks arrive as `raycast://oauth#code=…`.
-        if let fragment = components.fragment, !fragment.isEmpty {
-            let pairs = fragment.split(separator: "&")
-            for pair in pairs {
-                let parts = pair.split(separator: "=", maxSplits: 1)
-                if parts.count == 2 {
-                    let key = String(parts[0])
-                    let val = String(parts[1]).removingPercentEncoding ?? String(parts[1])
-                    result[key] = val
-                }
-            }
-        }
+        for item in callbackItems(url: url) { result[item.name] = item.value ?? "" }
         return result
+    }
+
+    private static func callbackItems(url: URL) -> [URLQueryItem] {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return []
+        }
+        var items = components.queryItems ?? []
+        // Keep fragments encoded until splitting, and count state across query and fragment together.
+        if let fragment = components.percentEncodedFragment, !fragment.isEmpty {
+            var fragmentComponents = URLComponents()
+            fragmentComponents.percentEncodedQuery = fragment
+            items += fragmentComponents.queryItems ?? []
+        }
+        return items
     }
 }

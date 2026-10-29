@@ -257,7 +257,8 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     }
 
     func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool,
-        imageDataURLs: [Int: [String]], completionLimit: Int = 4096, onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
+        imageDataURLs: [Int: [String]], completionLimit: Int = 4096, requiresCompleteReply: Bool = false,
+        onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         guard isReady else { throw OpenRouterError.notConfigured }
         let requestKey = apiKey
         let body = ChatRequest(
@@ -277,7 +278,7 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONEncoder().encode(body)
-        try await Self.consumeStream(request) { [weak self] delta in
+        try await Self.consumeStream(request, requiresCompleteReply: requiresCompleteReply) { [weak self] delta in
             try Task.checkCancellation()
             guard let self else { throw OpenRouterError.notConfigured }
             try await self.deliver(delta, for: requestKey, to: onDelta)
@@ -340,7 +341,8 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     private func acceptsReply(for key: String) -> Bool { isReady && apiKey == key }
 
     private nonisolated static func consumeStream(
-        _ request: URLRequest, onDelta: @escaping @Sendable (String) async throws -> Void
+        _ request: URLRequest, requiresCompleteReply: Bool = false,
+        onDelta: @escaping @Sendable (String) async throws -> Void
     ) async throws {
         let (bytes, response) = try await session.bytes(for: request)
         defer { bytes.task.cancel() }
@@ -356,7 +358,7 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
             if http.statusCode == 401 || http.statusCode == 403 { throw OpenRouterError.unauthorized }
             throw OpenRouterError.http(http.statusCode, detail: errorDetail(in: data))
         }
-        var parser = OpenRouterStream()
+        var parser = OpenRouterStream(requiresCompleteReply: requiresCompleteReply)
         var count = 0
         for try await byte in bytes {
             try Task.checkCancellation()

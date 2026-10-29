@@ -8,6 +8,13 @@ external JavaScript commands behind its separate trust gate. Adding or removing 
 rebuilding the app; once built, registry calls have the same performance characteristics as the rest
 of Spotter.
 
+Raycast compatibility updates are selective: preserve the AppCore-owned host, its trust gate and
+palette lifecycle. Record upstream fixes and deliberate differences in the
+[vendor audit](vendor/tinycast-extensions.md); a newer API enum catalog does not imply every API is implemented.
+
+AI Chat's built-in Fix Spelling is a direct selected-text replacement command. Other AI commands
+retain Quick AI Chat presentation; all share the existing model configuration and request gate.
+
 This design keeps development boundaries clear for 20+ features while preserving static type checking,
 Swift 6 actor isolation, dead-code optimization and predictable startup/security behavior.
 

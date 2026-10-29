@@ -268,6 +268,7 @@ swiftc -swift-version 6 Spotter/Plugins/WindowManagement/WindowCommand.swift \
 swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift Tools/background-task-test.swift \
     -o /tmp/background-task-test && /tmp/background-task-test     # task lifetime + dismissal
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
+    Spotter/Plugins/AIChat/AISpellingResponse.swift \
     Spotter/Plugins/AIChat/AIRoutingTypes.swift \
     Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
     Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift \
@@ -548,6 +549,9 @@ place and denied authorization. This harness never contacts a provider or asks m
 
 ```sh
 swiftc -swift-version 6 Spotter/Core/SelectedTextReader.swift \
+    Spotter/Core/SelectedTextCapture.swift \
+    Spotter/Plugins/AIChat/AISpellingResponse.swift \
+    Spotter/Plugins/AIChat/AISelectionReplacement.swift \
     Spotter/Core/SelectionCopyCapture.swift Tools/selected-text-capture-test.swift \
     -o /tmp/selected-text-capture-test && /tmp/selected-text-capture-test
 ```
@@ -597,6 +601,10 @@ retry actions, byte fractions, unknown content lengths and rejection of stale in
 ## Raycast extensions
 
 Raycast compatibility checks: `scripts/test-raycast.sh`, `scripts/test-raycast-models.sh`, and `node scripts/raycast-runtime/fixtures.mjs` (requires runtime development dependencies). The generated runtime is committed; ordinary Xcode builds do not need Node. See [Raycast extensions](raycast-extensions.md).
+
+The full JavaScript suite includes `oauth-fixtures.mjs`, which can also run directly for OAuth URL
+generation, native bridge arguments and API 2.8.2 exports. Callback state validation runs against the
+real Swift parser in `test-raycast.sh`; these fixtures do not open a browser or use account secrets.
 
 Local AI CLI path regression: `swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o /tmp/spotter-local-ai-test && /tmp/spotter-local-ai-test`. The harness uses isolated defaults and temporary executable fixtures, and is included in `scripts/test-all.sh`.
 
