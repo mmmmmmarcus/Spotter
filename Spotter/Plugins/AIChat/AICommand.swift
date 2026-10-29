@@ -109,18 +109,20 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     var prompt: String
     // A nil model delegates to Jev using the configured category mappings.
     var model: String?
+    var effort: String?
     var symbol: String?
     /// Set for shipped commands, `nil` for user-created ones.
     let builtIn: AIBuiltInCommand?
 
     init(
         id: UUID = UUID(), name: String, prompt: String, model: String? = nil,
-        builtIn: AIBuiltInCommand? = nil, symbol: String? = nil
+        builtIn: AIBuiltInCommand? = nil, symbol: String? = nil, effort: String? = nil
     ) {
         self.id = id
         self.name = name
         self.prompt = prompt
         self.model = model
+        self.effort = model == nil ? nil : AIReasoningEffort.normalized(effort)
         self.builtIn = builtIn
         self.symbol = symbol
     }
@@ -173,7 +175,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     var isDefault: Bool {
         guard let builtIn else { return false }
         let shipped = Self.makeBuiltIn(builtIn)
-        return prompt == shipped.prompt && model == shipped.model && systemImage == shipped.systemImage
+        return prompt == shipped.prompt && model == shipped.model && effort == nil && systemImage == shipped.systemImage
     }
 }
 
@@ -293,7 +295,7 @@ enum AICommandEngine {
             id: id, name: command.name.trimmingCharacters(in: .whitespacesAndNewlines),
             prompt: command.prompt.trimmingCharacters(in: .whitespacesAndNewlines),
             model: command.model?.trimmingCharacters(in: .whitespacesAndNewlines),
-            builtIn: command.builtIn, symbol: command.symbol)
+            builtIn: command.builtIn, symbol: command.symbol, effort: command.effort)
         if value.model?.isEmpty == true { value.model = nil }
         guard !value.name.isEmpty, !value.prompt.isEmpty, !value.name.contains("\0"),
             !value.prompt.contains("\0")

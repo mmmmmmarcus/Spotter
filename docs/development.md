@@ -606,7 +606,7 @@ The full JavaScript suite includes `oauth-fixtures.mjs`, which can also run dire
 generation, native bridge arguments and API 2.8.2 exports. Callback state validation runs against the
 real Swift parser in `test-raycast.sh`; these fixtures do not open a browser or use account secrets.
 
-Local AI CLI path regression: `swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o /tmp/spotter-local-ai-test && /tmp/spotter-local-ai-test`. The harness uses isolated defaults and temporary executable fixtures, and is included in `scripts/test-all.sh`.
+Local AI CLI path regression: `swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o /tmp/spotter-local-ai-test && /tmp/spotter-local-ai-test`. The harness uses isolated defaults and temporary executable fixtures, and is included in `scripts/test-all.sh`.
 
 `test-raycast-models.sh store catalog` also checks the Palette installation states, consent and
 cancellation rows, action identity separation, reinstall labels, visible search errors, and bounded
@@ -670,3 +670,10 @@ defaults and never run Coffee's global `killall` command.
 
 The AI Chat harness covers adding Spelling and Pronunciation to an existing two-command list,
 identity and JSON round trips, preservation of customizations, and built-in reset/delete rules.
+
+Reasoning-effort regression coverage lives in the existing AI harnesses: `ai-chat` validates catalog
+capabilities and backward-compatible command records; `ai-routing` verifies paired routing, streamed
+and MCP request bodies, and revocation during catalog discovery; `quick-ai-chat` checks session
+persistence, follow-ups and direct spelling dispatch; `local-ai` exercises real temporary CLI
+processes, capability discovery and literal arguments with attachments and search; `ai-tools` pins
+the effort across multiple tool rounds. These tests do not invoke a paid model or require UI driving.

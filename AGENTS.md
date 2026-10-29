@@ -316,8 +316,8 @@ Never break these without an explicit task to do so.
   direct detached caffeinate children observed in the extension bridge. Its device-local recovery
   records never sync; restore and cancellation validate the executable, user and kernel start time,
   never a saved PID alone. Closing an extension view does not end its keep-awake session.
-- **Jev classifies tasks; Spotter chooses the configured model.** `OpenRouterStore` owns always-on
-  `AIRoutingPreferences` (owner decision, Oct 2026), with Everyday / Professional / Deep Reasoning model mappings. One Jev
+- **Jev classifies tasks; Spotter chooses the configured model and optional reasoning effort.** `OpenRouterStore` owns always-on
+  `AIRoutingPreferences` (owner decision, Oct 2026), with Everyday / Professional / Deep Reasoning model/effort mappings. Effort defaults to the provider setting, only catalogued levels may be sent, and the selected pair persists with the session; command overrides and trusted backup/sync carry both. One Jev
   Decisions request precedes the first unpinned chat turn, using only its prompt and bounded recent
   conversation. The session persists the selected model and reuses it for later turns (owner decision, Oct 2026). Cancellation and key/configuration changes must never turn into a fallback. Unavailable
   or uncertain classification falls back to the captured Everyday model with a visible label; failures

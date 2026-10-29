@@ -248,6 +248,23 @@ struct AIChatTests {
             AIChatSelectionPrompts.defaultDefinition.contains("follow-up")
                 && AIChatSelectionPrompts.defaultGrammar.contains("if asked"))
 
+        let effortCatalog = try! OpenRouterModelCatalog.brands(fromJSON: Data(#"{"data":[{"id":"v/a","reasoning":{"supported_efforts":["low","high","high","default","bad!"]}},{"id":"v/b","reasoning":"unknown"},{"id":"v/c","reasoning":{"supported_efforts":42}}]}"#.utf8))
+        let effortModels = effortCatalog.flatMap(\.models)
+        check("only catalogued, valid reasoning efforts are offered", effortModels.first(where: { $0.id == "v/a" })?.reasoningEfforts == ["low", "high"])
+        check("malformed optional reasoning metadata preserves models", effortModels.count == 3 && effortModels.filter { $0.id != "v/a" }.allSatisfy { $0.reasoningEfforts.isEmpty })
+        check("unsupported efforts resolve to provider default", AIReasoningEffort.resolve("max", supported: ["low"]) == nil)
+        var effortCommand = AICommand.makeBuiltIn(.spelling)
+        effortCommand.effort = "low"
+        let effortCommands = AICommandEngine.normalized([effortCommand])
+        check("command normalization preserves its effort", effortCommands.first(where: { $0.builtIn == .spelling })?.effort == "low")
+        check("effort changes make a built-in resettable", !effortCommand.isDefault)
+        let effortRoundTrip = try! JSONDecoder().decode(AICommand.self, from: JSONEncoder().encode(effortCommand))
+        check("command effort survives backup encoding", effortRoundTrip == effortCommand)
+        var legacyCommand = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(effortCommand)) as! [String: Any]
+        legacyCommand.removeValue(forKey: "effort")
+        let decodedLegacyCommand = try! JSONDecoder().decode(AICommand.self, from: JSONSerialization.data(withJSONObject: legacyCommand))
+        check("legacy commands retain provider-default effort", decodedLegacyCommand.effort == nil && decodedLegacyCommand.model == effortCommand.model)
+
         // The OpenRouter model catalog behind the Settings brand → model menus.
         let payload = """
             {"data": [

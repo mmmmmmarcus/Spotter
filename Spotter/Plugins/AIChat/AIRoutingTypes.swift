@@ -24,6 +24,26 @@ struct AIRoutingPreferences: Codable, Equatable, Sendable {
     var everydayModel = ""
     var professionalModel = ""
     var reasoningModel = ""
+    var everydayEffort: String?
+    var professionalEffort: String?
+    var reasoningEffort: String?
+
+    func effort(for category: AIRoutingCategory) -> String? {
+        switch category {
+        case .everyday: everydayEffort
+        case .professional: professionalEffort
+        case .reasoning: reasoningEffort
+        }
+    }
+
+    mutating func setEffort(_ effort: String?, for category: AIRoutingCategory) {
+        let value = AIReasoningEffort.normalized(effort)
+        switch category {
+        case .everyday: everydayEffort = value
+        case .professional: professionalEffort = value
+        case .reasoning: reasoningEffort = value
+        }
+    }
 
     func model(for category: AIRoutingCategory) -> String {
         switch category {
@@ -35,6 +55,7 @@ struct AIRoutingPreferences: Codable, Equatable, Sendable {
 
     mutating func setModel(_ model: String, for category: AIRoutingCategory) {
         let value = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value != self.model(for: category) { setEffort(nil, for: category) }
         switch category {
         case .everyday: everydayModel = value
         case .professional: professionalModel = value
@@ -47,6 +68,7 @@ struct AIRoutingPreferences: Codable, Equatable, Sendable {
         for category in AIRoutingCategory.allCases {
             let value = model(for: category).trimmingCharacters(in: .whitespacesAndNewlines)
             copy.setModel(value.isEmpty ? fallbackModel : value, for: category)
+            copy.setEffort(copy.effort(for: category), for: category)
         }
         return copy
     }
@@ -67,6 +89,7 @@ struct AIRoutingSelection: Codable, Equatable, Sendable {
     let category: AIRoutingCategory?
     var fallback: Fallback?
     var webSearch: Bool? = nil
+    var effort: String? = nil
 
     var label: String { fallback?.label ?? "Jev · \(category?.title ?? "Default")" }
 }
@@ -150,9 +173,37 @@ enum AIRoutingDecision {
         let runnerUp = answer.probabilities.filter { $0.key != answer.choice }.values.max() ?? 0
         // An ambiguous classification keeps the user's default instead of silently spending on a different tier.
         guard probability >= 0.6, probability - runnerUp >= 0.2 else {
-            return AIRoutingSelection(model: defaultModel, category: nil, fallback: .uncertain, webSearch: needsWeb)
+            return AIRoutingSelection(model: defaultModel, category: nil, fallback: .uncertain, webSearch: needsWeb,
+                effort: preferences.everydayModel == defaultModel ? preferences.everydayEffort : nil)
         }
         let configured = preferences.model(for: category).trimmingCharacters(in: .whitespacesAndNewlines)
-        return AIRoutingSelection(model: configured.isEmpty ? defaultModel : configured, category: category, webSearch: needsWeb)
+        return AIRoutingSelection(model: configured.isEmpty ? defaultModel : configured, category: category, webSearch: needsWeb,
+            effort: configured.isEmpty ? nil : preferences.effort(for: category))
+    }
+}
+
+enum AIReasoningEffort {
+    static func normalized(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty, value.count <= 32, value != "default",
+            value.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 95 }) else { return nil }
+        return value
+    }
+
+    static func supported(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.compactMap(normalized).filter { seen.insert($0).inserted }
+    }
+
+    static func resolve(_ value: String?, supported: [String]) -> String? {
+        guard let value = normalized(value), supported.contains(value) else { return nil }
+        return value
+    }
+
+    static func title(_ value: String) -> String {
+        switch value {
+        case "xhigh": "Extra High"
+        default: value.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").capitalized
+        }
     }
 }

@@ -99,7 +99,7 @@ run_harness() {
                 Tools/clipboard-semantic-test.swift -o "$output" && "$output"
             ;;
         local-ai)
-            swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o "$output" && "$output"
+            swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o "$output" && "$output"
             ;;
         apple-shortcuts)
             swiftc -swift-version 6 Spotter/Plugins/AppleShortcuts/AppleShortcutTypes.swift \

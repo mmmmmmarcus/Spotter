@@ -13,7 +13,7 @@ palette lifecycle. Record upstream fixes and deliberate differences in the
 [vendor audit](vendor/tinycast-extensions.md); a newer API enum catalog does not imply every API is implemented.
 
 AI Chat's built-in Fix Spelling is a direct selected-text replacement command. Other AI commands
-retain Quick AI Chat presentation; all share the existing model configuration and request gate.
+retain Quick AI Chat presentation; all share the existing model/effort configuration and request gate. Effort is optional, catalog-driven, and included in trusted settings sync.
 
 This design keeps development boundaries clear for 20+ features while preserving static type checking,
 Swift 6 actor isolation, dead-code optimization and predictable startup/security behavior.

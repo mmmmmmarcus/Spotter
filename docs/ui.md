@@ -843,3 +843,8 @@ routes the selection without activating a window; no pre-capture desktop bitmap 
 
 Coffee keep-awake sessions use the existing Background Tasks row in the empty Palette: extension
 name, remaining duration, progress, and Actions → Cancel. No separate window or status UI is added.
+
+AI model settings show a **Thinking effort** row directly below each category's model and each
+command's explicit model, only when its provider reports supported levels. The picker is right-aligned
+with the existing model menu and starts with **Model Default**. Automatic (Jev) commands inherit
+the category pair and show no redundant effort picker. No control is added to Quick AI Chat.

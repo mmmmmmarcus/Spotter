@@ -87,6 +87,7 @@ struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     var messages: [AIChatMessage]
     var selectedModel: String?
+    var selectedEffort: String?
     let startedAt: Date
     let titleOverride: String?
     let sourceSystemImage: String?
@@ -109,6 +110,11 @@ struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
 
     var routingModel: String? {
         selectedModel ?? messages.last(where: { $0.role == .assistant && $0.routing != nil })?.routing?.model
+    }
+
+    var routingEffort: String? {
+        if selectedModel != nil { return selectedEffort }
+        return messages.last(where: { $0.role == .assistant && $0.routing != nil })?.routing?.effort
     }
 
     var title: String { titleOverride ?? AIChatEngine.sessionTitle(for: messages) }

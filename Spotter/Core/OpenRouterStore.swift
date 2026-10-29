@@ -70,13 +70,15 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     private static let routingKey = "openrouter.ai-routing"
     private let defaults: UserDefaults
     private let decisionClient: JevDecisionClient
+    private let requestSession: URLSession
     private var routingRevision = UUID()
     private var catalogTask: Task<Void, Never>?
     private var catalogFetchedAt: Date?
 
-    init(defaults: UserDefaults = .standard, decisionClient: JevDecisionClient = JevDecisionClient()) {
+    init(defaults: UserDefaults = .standard, decisionClient: JevDecisionClient = JevDecisionClient(), session: URLSession? = nil) {
         self.defaults = defaults
         self.decisionClient = decisionClient
+        requestSession = session ?? Self.session
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
         let previousModel = Self.resolve(defaults.string(forKey: Self.chatModelKey) ?? "", default: Self.defaultChatModel)
         chatModel = previousModel
@@ -120,7 +122,8 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
             let reason: AIRoutingSelection.Fallback
             if case JevDecisionError.inputTooLong = error { reason = .inputTooLong }
             else { reason = .unavailable }
-            return AIRoutingSelection(model: fallbackModel, category: nil, fallback: reason)
+            return AIRoutingSelection(model: fallbackModel, category: nil, fallback: reason,
+                effort: routeModel && fallbackModel == preferences.everydayModel ? preferences.everydayEffort : nil)
         }
     }
 
@@ -171,7 +174,7 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         do {
             var request = URLRequest(url: Self.keyEndpoint, timeoutInterval: 20)
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-            let (data, response) = try await Self.session.data(for: request)
+            let (data, response) = try await requestSession.data(for: request)
             // The key may have changed while the request was in flight; a stale result must not label the new key.
             guard apiKey == key else { return }
             guard let http = response as? HTTPURLResponse else {
@@ -214,11 +217,25 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         }
     }
 
+    func reasoningEfforts(for model: String) -> [String] {
+        catalog.lazy.flatMap(\.models).first(where: { $0.id == model })?.reasoningEfforts ?? []
+    }
+
+    private func resolvedEffort(_ effort: String?, model: String) async throws -> String? {
+        guard let effort = AIReasoningEffort.normalized(effort) else { return nil }
+        let key = apiKey
+        refreshCatalog()
+        await catalogTask?.value
+        try Task.checkCancellation()
+        guard acceptsReply(for: key) else { throw OpenRouterError.notConfigured }
+        return AIReasoningEffort.resolve(effort, supported: reasoningEfforts(for: model))
+    }
+
     private func loadCatalog() async {
         do {
             var request = URLRequest(url: Self.modelsEndpoint, timeoutInterval: 20)
             request.setValue("application/json", forHTTPHeaderField: "Accept")
-            let (data, response) = try await Self.session.data(for: request)
+            let (data, response) = try await requestSession.data(for: request)
             try Task.checkCancellation()
             // The key can be cleared while the list is in flight; a late catalog must not arrive
             // for a store that no longer has a reason to hold one.
@@ -250,17 +267,19 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
 
     // Re-check the exact key before every delivery so a replaced credential cannot receive late output.
     func chat(
-        messages: [(role: String, content: String)], model: String, webSearch: Bool = false,
+        messages: [(role: String, content: String)], model: String, webSearch: Bool = false, effort: String? = nil,
         onDelta: @escaping @MainActor @Sendable (String) -> Void
     ) async throws {
-        try await chat(messages: messages, model: model, webSearch: webSearch, imageDataURLs: [:], onDelta: onDelta)
+        try await chat(messages: messages, model: model, webSearch: webSearch, imageDataURLs: [:], effort: effort, onDelta: onDelta)
     }
 
     func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool,
-        imageDataURLs: [Int: [String]], completionLimit: Int = 4096, requiresCompleteReply: Bool = false,
+        imageDataURLs: [Int: [String]], effort: String? = nil, completionLimit: Int = 4096, requiresCompleteReply: Bool = false,
         onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         guard isReady else { throw OpenRouterError.notConfigured }
         let requestKey = apiKey
+        let effort = try await resolvedEffort(effort, model: model)
+        guard acceptsReply(for: requestKey) else { throw OpenRouterError.notConfigured }
         let body = ChatRequest(
             model: model,
             messages: messages.enumerated().map { index, message in
@@ -271,14 +290,15 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
                 return .init(role: message.role, content: content)
             },
             max_tokens: min(max(completionLimit, 1), 16_384),
-            plugins: webSearch ? [.init(id: "web", max_results: 5)] : nil)
+            plugins: webSearch ? [.init(id: "web", max_results: 5)] : nil,
+            reasoning: effort.map { ["effort": $0] })
         var request = URLRequest(url: Self.chatEndpoint, timeoutInterval: 60)
         request.httpMethod = "POST"
         request.setValue("Bearer \(requestKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONEncoder().encode(body)
-        try await Self.consumeStream(request, requiresCompleteReply: requiresCompleteReply) { [weak self] delta in
+        try await Self.consumeStream(request, session: requestSession, requiresCompleteReply: requiresCompleteReply) { [weak self] delta in
             try Task.checkCancellation()
             guard let self else { throw OpenRouterError.notConfigured }
             try await self.deliver(delta, for: requestKey, to: onDelta)
@@ -287,21 +307,24 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         guard acceptsReply(for: requestKey) else { throw OpenRouterError.notConfigured }
     }
 
-    func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool) async throws -> AIToolTurn {
+    func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool, effort: String? = nil) async throws -> AIToolTurn {
         guard isReady else { throw OpenRouterError.notConfigured }
         let key = apiKey
+        let effort = try await resolvedEffort(effort, model: model)
+        guard acceptsReply(for: key) else { throw OpenRouterError.notConfigured }
         let result = try await Self.fetchToolTurn(messages: messages, tools: tools.map(\.wire),
-            model: model, webSearch: webSearch, key: key)
+            model: model, webSearch: webSearch, effort: effort, key: key, session: requestSession)
         try Task.checkCancellation()
         guard acceptsReply(for: key) else { throw OpenRouterError.notConfigured }
         return result
     }
 
     private nonisolated static func fetchToolTurn(messages: [AIJSON], tools: [AIJSON], model: String,
-        webSearch: Bool, key: String) async throws -> AIToolTurn {
+        webSearch: Bool, effort: String?, key: String, session: URLSession) async throws -> AIToolTurn {
         var body: [String: AIJSON] = ["model": .string(model), "messages": .array(messages),
             "max_tokens": .number(Double(maxCompletionTokens)), "stream": .bool(false),
             "provider": .object(["require_parameters": .bool(true)])]
+        if let effort { body["reasoning"] = .object(["effort": .string(effort)]) }
         if !tools.isEmpty { body["tools"] = .array(tools); body["tool_choice"] = .string("auto") }
         if webSearch { body["plugins"] = .array([.object(["id": .string("web"), "max_results": .number(5)])]) }
         var request = URLRequest(url: chatEndpoint, timeoutInterval: 120)
@@ -341,7 +364,7 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     private func acceptsReply(for key: String) -> Bool { isReady && apiKey == key }
 
     private nonisolated static func consumeStream(
-        _ request: URLRequest, requiresCompleteReply: Bool = false,
+        _ request: URLRequest, session: URLSession, requiresCompleteReply: Bool = false,
         onDelta: @escaping @Sendable (String) async throws -> Void
     ) async throws {
         let (bytes, response) = try await session.bytes(for: request)
@@ -410,6 +433,7 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         let stream = true
         // Synthesized Codable omits a nil optional, so non-search requests stay byte-identical.
         let plugins: [Plugin]?
+        let reasoning: [String: String]?
     }
 
     private struct KeyInfo: Decodable {

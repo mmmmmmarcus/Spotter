@@ -161,7 +161,7 @@ final class AIChatStore: ObservableObject {
 
     /// Appends the turn and asks; a selected-text action may override the model for its first turn.
     @discardableResult
-    func send(_ text: String, model: String? = nil, webSearch: Bool? = nil, allowsTools: Bool = true,
+    func send(_ text: String, model: String? = nil, effort: String? = nil, webSearch: Bool? = nil, allowsTools: Bool = true,
         sessionID: UUID? = nil, commandInput: AIChatMessage.CommandInput? = nil,
         attachments suppliedAttachments: [AIChatMessage.Attachment]? = nil) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -183,6 +183,7 @@ final class AIChatStore: ObservableObject {
             return trimmed.isEmpty ? nil : trimmed
         } ?? session.routingModel
         let requestModel = pinnedModel ?? openRouter.chatModel
+        let pinnedEffort = model == nil ? session.routingEffort : effort
         let usesTools = allowsTools && tools.isConfigured
         pendingReply = ""
         streamingReply = nil
@@ -215,7 +216,7 @@ final class AIChatStore: ObservableObject {
                 } else {
                     let fallback = openRouter.aiRouting.everydayModel
                     guard LocalAIModel.resolve(fallback) != nil else { throw OpenRouterError.notConfigured }
-                    selection = AIRoutingSelection(model: fallback, category: .everyday, fallback: .unavailable)
+                    selection = AIRoutingSelection(model: fallback, category: .everyday, fallback: .unavailable, effort: openRouter.aiRouting.everydayEffort)
                 }
                 try Task.checkCancellation()
                 guard waitingSessionID == sessionID, replyID == expectedReply else { throw CancellationError() }
@@ -223,8 +224,10 @@ final class AIChatStore: ObservableObject {
                 routingSelection = pinnedModel == nil ? selection : nil
                 isChoosingModel = false
                 let selectedModel = routingSelection?.model ?? requestModel
+                let selectedEffort = pinnedModel == nil ? selection?.effort : pinnedEffort
                 if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
                     sessions[index].selectedModel = selectedModel
+                    sessions[index].selectedEffort = selectedEffort
                 }
                 let receive: @MainActor @Sendable (String) -> Void = { [weak self] delta in
                     guard !Task.isCancelled, let self, self.waitingSessionID == sessionID else { return }
@@ -233,12 +236,12 @@ final class AIChatStore: ObservableObject {
                     self.startReveal(for: sessionID)
                 }
                 if LocalAIModel.resolve(selectedModel) != nil {
-                    try await localAI.chat(messages: turns, modelID: selectedModel, webSearch: requestWebSearch, images: window.flatMap { $0.attachments.compactMap(\.imageData) }, onDelta: receive)
+                    try await localAI.chat(messages: turns, modelID: selectedModel, webSearch: requestWebSearch, images: window.flatMap { $0.attachments.compactMap(\.imageData) }, effort: selectedEffort, onDelta: receive)
                 } else if usesTools {
                     try await tools.run(messages: turns, model: selectedModel, webSearch: requestWebSearch,
-                        sessionID: sessionID, router: openRouter, imageDataURLs: imageDataURLs, onText: receive)
+                        sessionID: sessionID, router: openRouter, imageDataURLs: imageDataURLs, effort: selectedEffort, onText: receive)
                 } else {
-                    try await openRouter.chat(messages: turns, model: selectedModel, webSearch: requestWebSearch, imageDataURLs: imageDataURLs, onDelta: receive)
+                    try await openRouter.chat(messages: turns, model: selectedModel, webSearch: requestWebSearch, imageDataURLs: imageDataURLs, effort: selectedEffort, onDelta: receive)
                 }
                 guard !Task.isCancelled else { return }
                 self.finishRequest(for: sessionID, failure: nil)
@@ -273,8 +276,11 @@ final class AIChatStore: ObservableObject {
                 let turns = [(role: "system", content: AISpellingResponse.instructions),
                     (role: "user", content: command.rendered(selection: selection))]
                 var model = pinned ?? openRouter.aiRouting.everydayModel
+                var effort = pinned == nil ? openRouter.aiRouting.everydayEffort : command.effort
                 if pinned == nil, openRouter.isReady {
-                    model = try await openRouter.selectChatModel(messages: turns, defaultModel: model)?.model ?? model
+                    let selection = try await openRouter.selectChatModel(messages: turns, defaultModel: model)
+                    model = selection?.model ?? model
+                    effort = selection?.effort
                 }
                 try Task.checkCancellation()
                 guard waitingSessionID == requestID else { return }
@@ -288,10 +294,10 @@ final class AIChatStore: ObservableObject {
                     } else { overflow = true }
                 }
                 if LocalAIModel.resolve(model) != nil {
-                    try await localAI.chat(messages: turns, modelID: model, webSearch: false, onDelta: receive)
+                    try await localAI.chat(messages: turns, modelID: model, webSearch: false, effort: effort, onDelta: receive)
                 } else {
                     try await openRouter.chat(messages: turns, model: model, webSearch: false,
-                        imageDataURLs: [:], completionLimit: 16_384, requiresCompleteReply: true, onDelta: receive)
+                        imageDataURLs: [:], effort: effort, completionLimit: 16_384, requiresCompleteReply: true, onDelta: receive)
                 }
                 try Task.checkCancellation()
                 guard waitingSessionID == requestID else { return }
@@ -317,7 +323,7 @@ final class AIChatStore: ObservableObject {
         let session = createCommandSession(command, selectSession: selectSession)
         _ = send(
             command.rendered(selection: selection),
-            model: command.resolvedModel(),
+            model: command.resolvedModel(), effort: command.effort,
             allowsTools: false, sessionID: session.id,
             commandInput: .init(name: command.name, text: selection, symbol: command.systemImage))
         return session.id

@@ -45,7 +45,7 @@ plumbing without being presented as an optional plugin.
 | --- | --- |
 | `AIChatTypes.swift` | Foundation-only, pure: portable message/session models, derived session title, the request status vocabulary, system prompt, transcript windowing and ChatGPT web URL. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
-| `AIRoutingTypes.swift` | Pure Foundation categories, preferences, bounded decision input and strict category-to-model mapping. |
+| `AIRoutingTypes.swift` | Pure Foundation categories, model/effort preferences, supported-effort validation, bounded decision input and strict category mapping. |
 | `JevDecisionClient.swift` | Bounded, cacheless OpenRouter Decisions transport for Jev. |
 | `AIToolTypes.swift` | Foundation-only JSON values, MCP configuration validation, tool calls and multimodal result conversion. |
 | `AIMCPConnection.swift` | Per-request MCP client: stdio processes and cacheless Streamable HTTP/SSE. |
@@ -62,7 +62,7 @@ plumbing without being presented as an optional plugin.
 | `QuickAIChatView.swift` | Compact composer and expanded conversation using the shared `AIChatTranscriptView`. |
 | `QuickAIChatLayout.swift` | Pure Foundation + CoreGraphics placement and bottom-anchored expansion. |
 | `AIChatMarkdownView.swift` | Transparent, self-sizing WebKit Markdown view and explicit link/copy bridge. |
-| `AIChatSettingsView.swift` | The OpenRouter API key, the chat model and web search, plus the AI command list and its editor sheet. |
+| `AIChatSettingsView.swift` | Provider configuration, the three model/effort mappings, AI command editors and MCP servers. |
 
 `Core/OpenRouterModelCatalog.swift` is Foundation-only and pure too: it turns the `/models` payload
 into the brand → model menus.
@@ -549,3 +549,35 @@ The command editor uses a compact identity row with a visual icon picker beside 
 and Insert Selection stay inside the prompt card; model and existing-command shortcut controls align
 on separate rows below. Custom SF Symbol names remain available in the icon popover, validated before
 applying. Built-in names remain fixed, and Reset Prompt changes only the draft prompt.
+
+## Thinking effort
+
+Settings → AI Chat & Command pairs each Everyday / Professional / Deep Reasoning model with an
+optional **Thinking effort** row. Command editors show the same row below an explicit model;
+Automatic (Jev) inherits the selected category's model and effort together. **Model Default** omits
+the override, retaining the provider or CLI configuration. Existing installations and old backup
+records decode without an override. Changing a model resets that selection's effort to Model Default.
+No effort control is added to the Quick AI composer.
+
+Only catalogued levels appear: OpenRouter's `reasoning.supported_efforts`, Codex's bundled
+`supported_reasoning_levels`, and Claude's `initialize` model response `supportedEffortLevels`.
+Claude CLI now offers its reported models alongside Use CLI Default. Codex Use CLI Default does not
+advertise effort because it does not identify a concrete catalog model. Missing or malformed
+capabilities produce no effort picker. Unknown saved levels are omitted at dispatch rather than sent.
+The Claude catalog probe sends no user prompt, disables MCP and hooks, does not persist a session,
+and bounds output and process lifetime. Catalogs remain device-local and in memory.
+
+`AIRoutingPreferences` stores optional effort fields alongside its existing model fields;
+`AICommand.effort`, `AIRoutingSelection.effort` and `AIChatSession.selectedEffort` carry the choice
+through commands, classification and conversation history. They ride the existing trusted backup
+and sync records, with no new preference namespace or migration that changes model choices.
+A conversation retains its first selected pair on follow-ups. Jev still chooses only a category;
+there is no extra classification request for effort. Fallback uses the captured Everyday pair.
+Fix Spelling uses its explicit pair or the routed pair without creating a session.
+
+OpenRouter streaming and every MCP round send `reasoning: {effort: ...}` only when offered by the
+catalog. An explicit override refreshes an absent/expired catalog under the existing API-key gate;
+key changes and cancellation are checked before sending the prompt. Model Default adds no catalog
+request. Codex gets a per-invocation `-c model_reasoning_effort="..."`; Claude gets `--effort`.
+Neither writes to the user's CLI configuration. Attachment and web-search arguments retain the same
+model/effort pair.

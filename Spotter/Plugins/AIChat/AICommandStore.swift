@@ -79,6 +79,7 @@ final class AICommandStore: ObservableObject {
 
     func setModel(_ model: String?, for id: UUID) {
         guard var command = command(id: id) else { return }
+        if command.model != model { command.effort = nil }
         command.model = model
         try? update(command)
     }
@@ -98,6 +99,7 @@ final class AICommandStore: ObservableObject {
         value.prompt = draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         value.model = draft.model?.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.model?.isEmpty == true { value.model = nil }
+        value.effort = value.model == nil ? nil : AIReasoningEffort.normalized(value.effort)
         // A built-in's name is Spotter's; only its prompt, model and shortcut are the user's.
         if let builtIn = value.builtIn { value.name = builtIn.name }
         guard !value.name.isEmpty else { throw AICommandValidationError.emptyName }

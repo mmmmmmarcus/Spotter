@@ -4,6 +4,7 @@ import Foundation
 struct OpenRouterModel: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
+    var reasoningEfforts: [String] = []
 }
 
 /// The models one vendor publishes, newest first.
@@ -34,7 +35,8 @@ enum OpenRouterModelCatalog {
             titles[slug] = titles[slug] ?? split.brand ?? Self.prettified(slug)
             let label = split.model ?? Self.tail(of: id)
             grouped[slug, default: []].append(
-                Ranked(model: OpenRouterModel(id: id, name: label), created: entry.created ?? 0))
+                Ranked(model: OpenRouterModel(id: id, name: label,
+                    reasoningEfforts: AIReasoningEffort.supported(entry.reasoning?.supportedEfforts ?? [])), created: entry.created ?? 0))
         }
 
         return grouped.map { slug, ranked in
@@ -78,6 +80,17 @@ enum OpenRouterModelCatalog {
         let name: String?
         let created: Double?
         let architecture: Architecture?
+        var reasoning: Reasoning? = nil
+
+        struct Reasoning: Decodable {
+            let supportedEfforts: [String]
+            private enum CodingKeys: String, CodingKey { case supportedEfforts = "supported_efforts" }
+
+            init(from decoder: Decoder) throws {
+                let container = try? decoder.container(keyedBy: CodingKeys.self)
+                supportedEfforts = (try? container?.decode([String].self, forKey: .supportedEfforts)) ?? []
+            }
+        }
 
         struct Architecture: Decodable {
             let output_modalities: [String]?

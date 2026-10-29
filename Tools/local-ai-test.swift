@@ -16,7 +16,7 @@ struct LocalAITests {
         #!/bin/sh
         if [ "$2" = "--version" ]; then echo fixture-version; exit 0; fi
         if [ "$2" = "debug" ]; then
-          echo '{"models":[{"slug":"test-fast","display_name":"Test Fast","visibility":"list"}]}'
+          echo '{"models":[{"slug":"test-fast","display_name":"Test Fast","visibility":"list","supported_reasoning_levels":[{"effort":"low"},{"effort":"high"}]}]}'
           exit 0
         fi
         pwd > workspace.txt
@@ -45,9 +45,10 @@ struct LocalAITests {
         precondition(LocalAIModel.resolve("local-cli/codex/") == nil)
         precondition(CodexCLIModel.decode("invalid").isEmpty)
         precondition(CodexCLIModel.decode(#"{"models":[{"slug":"x","visibility":"hide"},{"slug":"y"},{"slug":"y"}]}"#).map(\.slug) == ["y"])
-        try await store.chat(messages: [], modelID: "local-cli/codex/test-fast", webSearch: true, images: [Data([1, 2, 3])]) { _ in }
+        try await store.chat(messages: [], modelID: "local-cli/codex/test-fast", webSearch: true, images: [Data([1, 2, 3])], effort: "high") { _ in }
         let selectedArguments = try String(contentsOf: workspace.appendingPathComponent("arguments.txt"), encoding: .utf8)
         precondition(selectedArguments.contains("--model\ntest-fast\n"))
+        precondition(selectedArguments.contains("model_reasoning_effort=\"high\""))
         precondition(selectedArguments.contains("web_search=\"live\"") && selectedArguments.contains("--image"))
         let children = try FileManager.default.contentsOfDirectory(atPath: workspace.path)
         precondition(!children.contains(where: { $0.hasPrefix("attachments-") }), "temporary images are removed")
@@ -55,6 +56,42 @@ struct LocalAITests {
         precondition(URL(fileURLWithPath: cwd.trimmingCharacters(in: .whitespacesAndNewlines)).resolvingSymlinksInPath().path == workspace.resolvingSymlinksInPath().path)
         let arguments = try String(contentsOf: workspace.appendingPathComponent("arguments.txt"), encoding: .utf8)
         precondition(arguments.contains("--json") && arguments.contains("read-only"))
+        try await store.chat(messages: [], modelID: "local-cli/codex/test-fast", effort: "unsupported") { _ in }
+        let omittedArguments = try String(contentsOf: workspace.appendingPathComponent("arguments.txt"), encoding: .utf8)
+        precondition(!omittedArguments.contains("model_reasoning_effort"))
+        try await store.chat(messages: [], modelID: "local-cli/codex", effort: "high") { _ in }
+        let defaultArguments = try String(contentsOf: workspace.appendingPathComponent("arguments.txt"), encoding: .utf8)
+        precondition(!defaultArguments.contains("model_reasoning_effort"))
+        let claude = root.appendingPathComponent("claude fixture")
+        try Data("""
+        #!/bin/sh
+        if [ "$1" = "--version" ]; then echo fixture-version; exit 0; fi
+        input=$(cat)
+        case "$input" in
+          *control_request*)
+            printf '%s\\n' "$@" > claude-probe-arguments.txt
+            echo '{"type":"control_response","response":{"request_id":"spotter-models","response":{"models":[{"value":"default","supportedEffortLevels":["low","high"]},{"value":"sonnet","displayName":"Sonnet","supportedEffortLevels":["low","high"]},{"value":"haiku","displayName":"Haiku"}]}}}'
+            exit 0;;
+        esac
+        printf '%s\\n' "$@" > claude-arguments.txt
+        echo '{"type":"result","result":"claude reply"}'
+        """.utf8).write(to: claude)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: claude.path)
+        store.setCustomPath(claude.path, for: .claude)
+        try await wait(store)
+        let probeArguments = try String(contentsOf: workspace.appendingPathComponent("claude-probe-arguments.txt"), encoding: .utf8)
+        precondition(probeArguments.contains("--strict-mcp-config") && probeArguments.contains("disableAllHooks") && probeArguments.contains("--no-session-persistence"))
+        precondition(store.claudeModels.count == 3 && store.reasoningEfforts(for: "local-cli/claude/sonnet") == ["low", "high"])
+        precondition(store.reasoningEfforts(for: "local-cli/claude/haiku").isEmpty)
+        precondition(ClaudeCLIModel.decode("invalid").isEmpty)
+        var claudeReply = ""
+        try await store.chat(messages: [], modelID: "local-cli/claude/sonnet", webSearch: true, images: [Data([1])], effort: "high") { claudeReply += $0 }
+        let claudeArguments = try String(contentsOf: workspace.appendingPathComponent("claude-arguments.txt"), encoding: .utf8)
+        precondition(claudeReply == "claude reply" && claudeArguments.contains("--effort\nhigh\n") && claudeArguments.contains("--model\nsonnet\n"))
+        precondition(claudeArguments.contains("WebSearch") && claudeArguments.contains("stream-json"))
+        try await store.chat(messages: [], modelID: "local-cli/claude/haiku", effort: "high") { _ in }
+        let unsupportedArguments = try String(contentsOf: workspace.appendingPathComponent("claude-arguments.txt"), encoding: .utf8)
+        precondition(!unsupportedArguments.contains("--effort"))
         try responseTests()
         store.setCustomPath(root.path, for: .codex)
         store.setCustomPath(executable.path, for: .codex)

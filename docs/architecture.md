@@ -105,7 +105,7 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
   screenshot cleanup hides it along with other auxiliary surfaces. See [ai-chat.md](ai-chat.md#quick-ai-chat).
 - **Jev model selection** — `OpenRouterStore` owns always-on routing preferences and a cacheless
   `JevDecisionClient`. `AIChatStore` runs classification inside its one-request gate before streaming
-  or tool execution. Pure `AIRoutingTypes` maps Jev's category to a user-configured model; settings
+  or tool execution. Pure `AIRoutingTypes` maps Jev's category to a user-configured model and optional effort; settings
   sync and optional per-reply metadata preserve configuration and history without new singletons.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and

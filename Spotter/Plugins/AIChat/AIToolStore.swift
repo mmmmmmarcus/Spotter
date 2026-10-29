@@ -5,9 +5,9 @@ import Foundation
 protocol AIToolModel: AnyObject {
     var apiKey: String { get }
     var isReady: Bool { get }
-    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool,
+    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool, effort: String?,
         onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws
-    func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool) async throws -> AIToolTurn
+    func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool, effort: String?) async throws -> AIToolTurn
 }
 
 @MainActor
@@ -100,7 +100,7 @@ final class AIToolStore: ObservableObject {
     }
 
     func run(messages: [(role: String, content: String)], model: String, webSearch: Bool,
-        sessionID: UUID, router: any AIToolModel, imageDataURLs: [Int: [String]] = [:], onText: @escaping @MainActor @Sendable (String) -> Void) async throws {
+        sessionID: UUID, router: any AIToolModel, imageDataURLs: [Int: [String]] = [:], effort: String? = nil, onText: @escaping @MainActor @Sendable (String) -> Void) async throws {
         guard router.isReady, runID == nil else { throw AIToolFailure("AI tools are unavailable.") }
         let configuration = try AIMCPConfiguration.parse(configurationText)
         let id = UUID()
@@ -160,7 +160,7 @@ final class AIToolStore: ObservableObject {
                 return (role, content)
             }
             plainMessages.insert((role: "system", content: "No MCP tools or computer access are available for this request. Answer directly when possible. If the request requires them, explain that limitation and direct the user to MCP & Computer Use in AI Chat Settings. Do not claim to have observed or operated the computer. Do not mention unavailable tools for questions that do not need them."), at: min(2, plainMessages.count))
-            try await router.chat(messages: plainMessages, model: model, webSearch: webSearch) { [weak self] text in
+            try await router.chat(messages: plainMessages, model: model, webSearch: webSearch, effort: effort) { [weak self] text in
                 guard let self, (try? self.check(id, router: router, key: key)) != nil else { return }
                 self.statusSymbol = "text.line.first.and.arrowtriangle.forward"
                 self.status = "Generating reply…"
@@ -174,7 +174,7 @@ final class AIToolStore: ObservableObject {
             try check(id, router: router, key: key)
             statusSymbol = "brain"
             status = "Planning next step…"
-            let turn = try await router.toolTurn(messages: turns, tools: tools, model: model, webSearch: webSearch)
+            let turn = try await router.toolTurn(messages: turns, tools: tools, model: model, webSearch: webSearch, effort: effort)
             try check(id, router: router, key: key)
             if let text = turn.content, !text.isEmpty { onText(text + "\n\n") }
             let calls = turn.tool_calls ?? []

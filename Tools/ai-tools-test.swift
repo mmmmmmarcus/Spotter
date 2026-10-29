@@ -4,6 +4,7 @@ import Foundation
 private final class Model: AIToolModel {
     var apiKey = "fixture-key"
     var isReady: Bool { !apiKey.isEmpty }
+    var efforts: [String?] = []
     var rounds = 0
     var callsPerTurn = 1
     var captured: [AIJSON] = []
@@ -13,8 +14,9 @@ private final class Model: AIToolModel {
     var streamedModel: String?
     var streamedWebSearch = false
     var offeredTools: [AIToolDefinition] = []
-    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool,
+    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool, effort: String?,
         onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
+        efforts.append(effort)
         streams += 1
         streamedModel = model
         streamedWebSearch = webSearch
@@ -22,8 +24,9 @@ private final class Model: AIToolModel {
         onStream?()
         onDelta("Plain answer")
     }
-    func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool) async throws -> AIToolTurn {
+    func toolTurn(messages: [AIJSON], tools: [AIToolDefinition], model: String, webSearch: Bool, effort: String?) async throws -> AIToolTurn {
         captured = messages
+        efforts.append(effort)
         offeredTools = tools
         rounds += 1
         onTurn?()
@@ -134,7 +137,8 @@ private struct Tests {
         let model = Model()
         store.onApproval = { [weak store] approval in store?.resolveApproval(approval.id, allowed: true) }
         var text = ""
-        try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: model) { text += $0 }
+        try await store.run(messages: messages, model: "fixture", webSearch: false, sessionID: session, router: model, effort: "high") { text += $0 }
+        check(model.efforts == ["high", "high"], "every tool round retains the selected effort")
         check(text.trimmingCharacters(in: .whitespacesAndNewlines) == "Done", "full tool loop")
         check(model.captured.contains { $0["role"] == .string("tool") }, "tool result reaches model")
         check(model.captured.contains { $0["content"]?.string?.contains("FIXTURE_USAGE_NOTES") == true && $0["role"] == .string("user") }, "server usage notes stay untrusted reference context")

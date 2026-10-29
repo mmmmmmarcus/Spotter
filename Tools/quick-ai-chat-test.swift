@@ -15,6 +15,7 @@ final class OpenRouterStore: ObservableObject {
     var ignoresDecisionCancellation = false
     private var decisions: [CheckedContinuation<Void, Error>] = []
     var models: [String] = []
+    var efforts: [String?] = []
     var searchFlags: [Bool] = []
     var completeReplyFlags: [Bool] = []
     var requests: [[(role: String, content: String)]] = []
@@ -30,11 +31,12 @@ final class OpenRouterStore: ObservableObject {
 
     func completeDecision() { decisions.removeFirst().resume() }
 
-    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool, imageDataURLs: [Int: [String]] = [:],
+    func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool, imageDataURLs: [Int: [String]] = [:], effort: String? = nil,
               completionLimit: Int = 4096, requiresCompleteReply: Bool = false,
               onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         requests.append(messages)
         models.append(model)
+        efforts.append(effort)
         searchFlags.append(webSearch)
         completeReplyFlags.append(requiresCompleteReply)
         onDelta("Partial ")
@@ -58,10 +60,12 @@ enum LocalAIModel {
 final class LocalAIStore: ObservableObject {
     var isAvailable = false
     var models: [String] = []
-    func chat(messages: [(role: String, content: String)], modelID: String, webSearch: Bool = false, images: [Data] = [],
+    var efforts: [String?] = []
+    func chat(messages: [(role: String, content: String)], modelID: String, webSearch: Bool = false, images: [Data] = [], effort: String? = nil,
               onDelta: @escaping @MainActor @Sendable (String) -> Void) async throws {
         guard isAvailable else { throw OpenRouterError.notConfigured }
         models.append(modelID)
+        efforts.append(effort)
         onDelta("the")
     }
 }
@@ -71,8 +75,8 @@ final class AIToolStore: ObservableObject {
     var isConfigured = false
     func stop() {}
     func run(messages: [(role: String, content: String)], model: String, webSearch: Bool,
-             sessionID: UUID, router: OpenRouterStore, imageDataURLs: [Int: [String]] = [:], onText: @escaping @MainActor @Sendable (String) -> Void) async throws {
-        try await router.chat(messages: messages, model: model, webSearch: webSearch, onDelta: onText)
+             sessionID: UUID, router: OpenRouterStore, imageDataURLs: [Int: [String]] = [:], effort: String? = nil, onText: @escaping @MainActor @Sendable (String) -> Void) async throws {
+        try await router.chat(messages: messages, model: model, webSearch: webSearch, effort: effort, onDelta: onText)
     }
 }
 
@@ -109,6 +113,7 @@ struct QuickAIChatTests {
     }
 
     static func main() async {
+        await effortRouting()
         await spellingReplacement()
         layout()
         await nativePanel()
@@ -121,6 +126,51 @@ struct QuickAIChatTests {
         await commandConversations()
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
+    }
+
+    private static func effortRouting() async {
+        let router = OpenRouterStore()
+        let local = LocalAIStore()
+        let tools = AIToolStore()
+        tools.isConfigured = true
+        let chat = AIChatStore(openRouter: router, localAI: local, tools: tools)
+        router.route.effort = "high"
+        expect(chat.send("Analyze"), "effort routing accepts first turn")
+        await waitUntil { router.requests.count == 1 }
+        expect(router.efforts == ["high"], "Jev route effort reaches the tools path")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        let saved = try! JSONDecoder().decode([AIChatSession].self, from: JSONEncoder().encode(chat.sessions))
+        router.route.effort = "low"
+        chat.replace(sessions: saved, currentID: chat.currentID)
+        expect(chat.send("Continue"), "restored session accepts follow-up")
+        await waitUntil { router.requests.count == 2 }
+        expect(router.efforts == ["high", "high"], "restored conversation retains its effort despite routing changes")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        var command = AICommand.makeBuiltIn(.grammar)
+        command.effort = "low"
+        chat.startCommandConversation(command: command, selection: "hello")
+        await waitUntil { router.requests.count == 3 }
+        expect(router.efforts.last! == "low", "command effort overrides routing and reaches plain chat")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        local.isAvailable = true
+        command = AICommand.makeBuiltIn(.spelling)
+        command.model = "local-cli/codex/test"
+        command.effort = "medium"
+        chat.replaceSpelling(command: command, selection: "teh") { _ in }
+        await waitUntil { !local.models.isEmpty }
+        expect(local.efforts == ["medium"], "direct spelling forwards pinned effort to local CLI")
+        await waitUntil { !chat.isWaiting }
+        command.model = nil
+        command.effort = "high"
+        router.route.effort = "low"
+        chat.replaceSpelling(command: command, selection: "teh") { _ in }
+        await waitUntil { router.requests.count == 4 }
+        expect(router.efforts.last! == "low", "automatic spelling uses route effort instead of a stale pin")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
     }
 
     private static func spellingReplacement() async {

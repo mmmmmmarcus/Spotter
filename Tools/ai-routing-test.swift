@@ -39,7 +39,7 @@ private final class DecisionProtocol: URLProtocol, @unchecked Sendable {
 private struct RoutingTests {
     static var count = 0
     static let preferences = AIRoutingPreferences(everydayModel: "vendor/fast",
-        professionalModel: "vendor/work", reasoningModel: "vendor/deep")
+        professionalModel: "vendor/work", reasoningModel: "vendor/deep", everydayEffort: "low", professionalEffort: "medium", reasoningEffort: "high")
     static let prompt = [(role: "user", content: "Explain this code")]
 
     static func check(_ value: Bool, _ name: String) {
@@ -68,18 +68,26 @@ private struct RoutingTests {
         check(webSelection.model == "pinned" && webSelection.webSearch == true, "web decision preserves pinned model")
         try pureDecisions()
         try await transportAndConsent()
+        try await effortTransport()
         print("AI Routing: \(count) checks passed")
     }
 
     static func pureDecisions() throws {
+        var changed = preferences
+        changed.setModel("new-model", for: .everyday)
+        check(changed.everydayEffort == nil && changed.professionalEffort == "medium", "model change resets only its own effort")
+        let legacy = Data(#"{"everydayModel":"a","professionalModel":"b","reasoningModel":"c"}"#.utf8)
+        let legacyPreferences = try JSONDecoder().decode(AIRoutingPreferences.self, from: legacy)
+        check(AIRoutingCategory.allCases.allSatisfy { legacyPreferences.effort(for: $0) == nil }, "legacy routing defaults every effort without changing models")
+
         for category in AIRoutingCategory.allCases {
             let result = try AIRoutingDecision.selection(from: answer(category), preferences: preferences, defaultModel: "default")
-            check(result.model == preferences.model(for: category) && result.category == category && result.fallback == nil,
+            check(result.model == preferences.model(for: category) && result.category == category && result.fallback == nil && result.effort == preferences.effort(for: category),
                 "each category maps only to the user's configured model")
         }
         let uncertain = try AIRoutingDecision.selection(from: answer(.professional,
             probabilities: ["everyday": 0.3, "professional": 0.4, "reasoning": 0.3]), preferences: preferences, defaultModel: "default")
-        check(uncertain.model == "default" && uncertain.fallback == .uncertain, "an ambiguous distribution uses the declared default")
+        check(uncertain.model == "default" && uncertain.fallback == .uncertain && uncertain.effort == nil, "an ambiguous distribution uses the declared default")
         let empty = try AIRoutingDecision.selection(from: answer(.reasoning), preferences: AIRoutingPreferences(), defaultModel: "default")
         check(empty.model == "default" && empty.category == .reasoning, "an unset tier resolves to Chat Model")
         for invalid in [Data("{}".utf8), Data("not JSON".utf8), answer(.professional,
@@ -177,7 +185,7 @@ private struct RoutingTests {
         for fixture in [(Data("malformed".utf8), 200), (answer(.professional), 503), (Data(repeating: 32, count: 65_537), 200)] {
             reset(data: fixture.0, status: fixture.1)
             let fallback = try await store.selectChatModel(messages: prompt, defaultModel: "default")
-            check(fallback?.model == "vendor/fast" && fallback?.fallback == .unavailable, "unavailable or malformed classification uses a labelled default")
+            check(fallback?.model == "vendor/fast" && fallback?.fallback == .unavailable && fallback?.effort == "low", "unavailable or malformed classification uses a labelled default")
         }
         reset(error: URLError(.timedOut))
         check(try await store.selectChatModel(messages: prompt, defaultModel: "default")?.fallback == .unavailable,
@@ -216,4 +224,63 @@ private struct RoutingTests {
         do { _ = try await store.selectChatModel(messages: prompt, defaultModel: "default"); fatalError("A missing key must reject before dispatch") }
         catch OpenRouterError.notConfigured { check(requestCount() == 0, "no key means no request") }
     }
+    static func capturedBody() throws -> [String: Any] {
+        let request = DecisionProtocol.fixture.withLock { $0.requests.last! }
+        var data = request.httpBody ?? Data()
+        if data.isEmpty, let input = request.httpBodyStream {
+            input.open()
+            defer { input.close() }
+            var bytes = [UInt8](repeating: 0, count: 4096)
+            while input.hasBytesAvailable {
+                let count = input.read(&bytes, maxLength: bytes.count)
+                if count <= 0 { break }
+                data.append(contentsOf: bytes.prefix(count))
+            }
+        }
+        return try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    }
+
+    static func effortTransport() async throws {
+        let suite = "spotter-effort-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [DecisionProtocol.self]
+        configuration.urlCache = nil
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let store = OpenRouterStore(defaults: defaults, session: session)
+        store.setAPIKey("fixture-key")
+        let catalog = Data(#"{"data":[{"id":"vendor/reasoning","reasoning":{"supported_efforts":["low","high"]}},{"id":"vendor/plain"}]}"#.utf8)
+        reset(data: catalog)
+        store.refreshCatalog()
+        for _ in 0..<1000 {
+            if store.catalogState == .ready { break }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        check(store.reasoningEfforts(for: "vendor/reasoning") == ["low", "high"], "live catalog controls effort choices")
+        let stream = Data("data: {\"choices\":[{\"delta\":{\"content\":\"Answer\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".utf8)
+        for (model, effort, expected) in [("vendor/reasoning", "high", "high" as String?), ("vendor/reasoning", "invalid", nil), ("vendor/plain", "high", nil)] {
+            reset(data: stream)
+            var reply = ""
+            try await store.chat(messages: [("user", "fixture")], model: model, effort: effort) { reply += $0 }
+            let body = try capturedBody()
+            check((body["reasoning"] as? [String: String])?["effort"] == expected && reply == "Answer", "streaming request sends only an offered effort")
+            check(requestCount() == 1, "cached effort discovery adds no extra request")
+        }
+        reset(data: stream)
+        try await store.chat(messages: [], model: "vendor/reasoning") { _ in }
+        check(try capturedBody()["reasoning"] == nil, "model default omits the reasoning parameter")
+        reset(data: Data(#"{"choices":[{"message":{"content":"Done"},"finish_reason":"stop"}]}"#.utf8))
+        _ = try await store.toolTurn(messages: [], tools: [], model: "vendor/reasoning", webSearch: false, effort: "low")
+        check((try capturedBody()["reasoning"] as? [String: String])?["effort"] == "low", "MCP request uses the same reasoning contract")
+        let fresh = OpenRouterStore(defaults: defaults, session: session)
+        reset(data: catalog, delay: 0.1)
+        let pending = Task { try await fresh.chat(messages: [], model: "vendor/reasoning", effort: "high") { _ in } }
+        await awaitRequest()
+        fresh.setAPIKey("")
+        do { try await pending.value; fatalError("Revoked key must block completion after catalog discovery") }
+        catch OpenRouterError.notConfigured { check(requestCount() == 1, "revoking the key during discovery sends no prompt") }
+    }
+
 }

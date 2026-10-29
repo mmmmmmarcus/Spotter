@@ -37,15 +37,23 @@ struct AIChatSettingsView: View {
 
             Section("Model Selection") {
                 ForEach(AIRoutingCategory.allCases) { category in
-                    SettingsRow(title: category.title) {
-                        AIChatModelMenu(brands: openRouter.catalog,
-                            selected: openRouter.aiRouting.model(for: category),
-                            chatModel: nil, set: { model in
-                                guard let model else { return }
+                    VStack(spacing: Theme.Spacing.md) {
+                        SettingsRow(title: category.title) {
+                            AIChatModelMenu(brands: openRouter.catalog,
+                                selected: openRouter.aiRouting.model(for: category),
+                                chatModel: nil, set: { model in
+                                    guard let model else { return }
+                                    var preferences = openRouter.aiRouting
+                                    preferences.setModel(model, for: category)
+                                    openRouter.setAIRouting(preferences)
+                                })
+                        }
+                        AIEffortSettingsRow(model: openRouter.aiRouting.model(for: category),
+                            effort: Binding(get: { openRouter.aiRouting.effort(for: category) }, set: { effort in
                                 var preferences = openRouter.aiRouting
-                                preferences.setModel(model, for: category)
+                                preferences.setEffort(effort, for: category)
                                 openRouter.setAIRouting(preferences)
-                            })
+                            }))
                     }
                 }
             }
@@ -141,7 +149,14 @@ private struct AIChatModelMenu: View {
     var body: some View {
         Menu {
             Section("On This Mac") {
-                item(id: LocalAIModel.claude.id, name: LocalAIModel.claude.title)
+                Menu("Claude CLI") {
+                    item(id: LocalAIModel.claude.id, name: "Use CLI Default")
+                    ForEach(localAI.claudeModels.filter { $0.slug != "default" }) { model in item(id: model.id, name: model.title) }
+                    if let selected, let model = LocalAIModel.claudeModelID(selected), !localAI.claudeModels.contains(where: { $0.id == selected }) {
+                        item(id: selected, name: model)
+                    }
+                    if localAI.isRefreshing { Text("Loading models…") }
+                }
                 Menu("Codex CLI") {
                     item(id: LocalAIModel.codex.id, name: "Use CLI Default")
                     ForEach(localAI.codexModels) { model in item(id: model.id, name: model.title) }
@@ -216,6 +231,7 @@ private struct AICommandEditorSheet: View {
     @State private var symbol: String
     @State private var prompt: String
     @State private var model: String?
+    @State private var effort: String?
     @State private var errorMessage: String?
 
     init(command: AICommand?) {
@@ -224,6 +240,7 @@ private struct AICommandEditorSheet: View {
         _symbol = State(initialValue: command?.systemImage ?? "sparkles")
         _prompt = State(initialValue: command?.prompt ?? "")
         _model = State(initialValue: command?.model)
+        _effort = State(initialValue: command?.effort)
     }
 
     @State private var showsIconPicker = false
@@ -359,9 +376,10 @@ private struct AICommandEditorSheet: View {
                 AIChatModelMenu(
                     brands: openRouter.catalog, selected: model,
                     chatModel: openRouter.chatModel,
-                    defaultLabel: "Automatic (Jev)", set: { model = $0 })
+                    defaultLabel: "Automatic (Jev)", set: { if model != $0 { effort = nil }; model = $0 })
                     .accessibilityLabel("Command model")
             }
+            AIEffortSettingsRow(model: model, effort: $effort)
             if let command {
                 Divider()
                 SettingsRow(title: "Shortcut") {
@@ -387,7 +405,7 @@ private struct AICommandEditorSheet: View {
         // Editing keeps the UUID, and with it the command's shortcut, favorite and ranking references.
         let draft = AICommand(
             id: command?.id ?? UUID(), name: name, prompt: prompt,
-            model: model, builtIn: command?.builtIn, symbol: symbol)
+            model: model, builtIn: command?.builtIn, symbol: symbol, effort: effort)
         do {
             if command == nil {
                 try AppCore.shared.addAICommand(draft)
@@ -501,6 +519,33 @@ private struct OpenRouterSettingsSection: View {
         case .checking: "Checking key with \(OpenRouterStore.provider)…"
         case .valid(let detail): detail
         case .invalid(let message): message
+        }
+    }
+}
+
+private struct AIEffortSettingsRow: View {
+    @ObservedObject private var openRouter = AppCore.shared.openRouter
+    @ObservedObject private var localAI = AppCore.shared.localAI
+    let model: String?
+    @Binding var effort: String?
+
+    private var supported: [String] {
+        guard let model else { return [] }
+        return LocalAIModel.resolve(model) == nil ? openRouter.reasoningEfforts(for: model) : localAI.reasoningEfforts(for: model)
+    }
+
+    var body: some View {
+        if !supported.isEmpty {
+            SettingsRow(title: "Thinking effort") {
+                Picker("Thinking effort", selection: Binding(
+                    get: { AIReasoningEffort.resolve(effort, supported: supported) ?? "" },
+                    set: { effort = $0.isEmpty ? nil : $0 })) {
+                    Text("Model Default").tag("")
+                    ForEach(supported, id: \.self) { Text(AIReasoningEffort.title($0)).tag($0) }
+                }
+                .labelsHidden()
+                .frame(width: 240, alignment: .trailing)
+            }
         }
     }
 }
