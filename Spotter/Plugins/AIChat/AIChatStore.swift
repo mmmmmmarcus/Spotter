@@ -11,6 +11,7 @@ final class AIChatStore: ObservableObject {
     private let localAI: LocalAIStore
     private let tools: AIToolStore
     private var task: Task<Void, Never>?
+    private var cancelSpelling: (() -> Void)?
     @Published private(set) var streamingReply: AIChatMessage?
     @Published private(set) var isChoosingModel = false
     @Published private(set) var routingSelection: AIRoutingSelection?
@@ -257,6 +258,7 @@ final class AIChatStore: ObservableObject {
     }
 
     func replaceSpelling(command: AICommand, selection: String,
+        onCancel: @escaping @MainActor () -> Void = {},
         completion: @escaping @MainActor (Result<String, Error>) -> Void) {
         stop()
         guard selection.utf8.count <= AISpellingResponse.maximumBytes else {
@@ -268,6 +270,7 @@ final class AIChatStore: ObservableObject {
             completion(.failure(OpenRouterError.notConfigured))
             return
         }
+        cancelSpelling = onCancel
         let pinned = command.resolvedModel()
         isChoosingModel = pinned == nil
         task = Task { [weak self] in
@@ -305,13 +308,17 @@ final class AIChatStore: ObservableObject {
                 let replacement = try AISpellingResponse.replacement(response, original: selection)
                 requests.remove(sessionID: requestID)
                 task = nil
+                cancelSpelling = nil
                 completion(.success(replacement))
             } catch {
                 guard waitingSessionID == requestID else { return }
                 requests.remove(sessionID: requestID)
                 isChoosingModel = false
                 task = nil
-                if !Task.isCancelled, !(error is CancellationError) { completion(.failure(error)) }
+                let cancellation = cancelSpelling
+                cancelSpelling = nil
+                if Task.isCancelled || error is CancellationError { cancellation?() }
+                else { completion(.failure(error)) }
             }
         }
     }
@@ -354,6 +361,9 @@ final class AIChatStore: ObservableObject {
         if let backgroundTaskID { onRequestCancelled?(backgroundTaskID) }
         backgroundTaskID = nil
         requests.cancel()
+        let cancellation = cancelSpelling
+        cancelSpelling = nil
+        cancellation?()
     }
 
     private func append(_ message: AIChatMessage, to sessionID: UUID) {

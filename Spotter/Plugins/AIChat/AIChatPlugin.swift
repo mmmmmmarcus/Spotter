@@ -12,9 +12,25 @@ enum AIChatPlugin {
     static func defaultCommandShortcuts(includesShift: Bool) -> [(UUID, KeyShortcut)] {
         let modifiers = controlKey | optionKey | cmdKey | (includesShift ? shiftKey : 0)
         return [
-            (AIBuiltInCommand.spelling.id, KeyShortcut(carbonKeyCode: Int(kVK_ANSI_W), carbonModifiers: modifiers)),
+            (AIBuiltInCommand.spelling.id, KeyShortcut(carbonKeyCode: Int(kVK_ANSI_F), carbonModifiers: modifiers)),
             (AIBuiltInCommand.pronunciation.id, KeyShortcut(carbonKeyCode: Int(kVK_ANSI_P), carbonModifiers: modifiers))
         ]
+    }
+
+    static func migrateSpellingShortcut(hotKeys: HotKeyManager, defaults: UserDefaults = .standard) {
+        let marker = "ai-commands.spelling-hyper-f-migrated"
+        guard !defaults.bool(forKey: marker) else { return }
+        defer { defaults.set(true, forKey: marker) }
+        let action = HotKeyAction.aiCommand(id: AIBuiltInCommand.spelling.id)
+        guard let current = hotKeys.shortcut(for: action), current.carbonKeyCode == kVK_ANSI_W,
+              [controlKey | optionKey | cmdKey, controlKey | optionKey | cmdKey | shiftKey].contains(current.carbonModifiers)
+        else { return }
+        let replacement = KeyShortcut(carbonKeyCode: Int(kVK_ANSI_F), carbonModifiers: current.carbonModifiers)
+        guard hotKeys.conflictOwner(of: replacement, excluding: action) == nil else {
+            AppLog.info("ai-chat", "Kept the spelling shortcut because Hyper+F is already assigned.")
+            return
+        }
+        hotKeys.setShortcut(replacement, for: action)
     }
 
     static func registration(core: AppCore) -> PluginRegistration {
@@ -180,9 +196,15 @@ extension AppCore {
             case .success(let snapshot):
                 do {
                     let target = try AISelectionReplacement.capture(text: snapshot.text, pid: snapshot.source.processIdentifier)
-                    aiChat.replaceSpelling(command: command, selection: snapshot.text) { [weak self] result in
+                    try target.showProgress()
+                    aiChat.replaceSpelling(command: command, selection: snapshot.text, onCancel: {
+                        target.restoreOriginal()
+                    }) { [weak self] result in
                         do { try target.replace(with: result.get()) }
-                        catch { self?.showAICommandFailure(command, message: error.localizedDescription) }
+                        catch {
+                            target.restoreOriginal()
+                            self?.showAICommandFailure(command, message: error.localizedDescription)
+                        }
                     }
                 } catch {
                     showAICommandFailure(command, message: error.localizedDescription)

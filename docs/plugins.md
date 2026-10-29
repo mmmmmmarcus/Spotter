@@ -12,7 +12,8 @@ Raycast compatibility updates are selective: preserve the AppCore-owned host, it
 palette lifecycle. Record upstream fixes and deliberate differences in the
 [vendor audit](vendor/tinycast-extensions.md); a newer API enum catalog does not imply every API is implemented.
 
-AI Chat's built-in Fix Spelling is a direct selected-text replacement command. Other AI commands
+AI Chat's built-in Fix Spelling is a direct selected-text replacement command with an inline `{Fixing}`
+placeholder, guarded completion and cancellation restoration. Other AI commands
 retain Quick AI Chat presentation; all share the existing model/effort configuration and request gate. Effort is optional, catalog-driven, and included in trusted settings sync.
 
 This design keeps development boundaries clear for 20+ features while preserving static type checking,

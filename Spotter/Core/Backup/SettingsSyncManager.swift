@@ -34,6 +34,7 @@ final class SettingsSyncManager: ObservableObject {
     private var isConnecting = false
     private var connectionTask: Task<Void, Never>?
     private var hasStarted = false
+    private var initialLoadCompleted: (() -> Void)?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -50,19 +51,28 @@ final class SettingsSyncManager: ObservableObject {
         return "Up to date · " + lastSyncedAt.formatted(date: .omitted, time: .shortened)
     }
 
-    func start(core: AppCore) {
+    func start(core: AppCore, afterInitialLoad: @escaping () -> Void = {}) {
         guard !hasStarted else { return }
         hasStarted = true
+        initialLoadCompleted = afterInitialLoad
         self.core = core
         observeLocalChanges(core: core)
         if isEnabled {
             Task {
                 if let fileURL { await io.invalidate(fileURL) }
-                guard isEnabled else { return }
+                guard isEnabled else { finishInitialLoad(); return }
                 startWatching()
                 scheduleReload()
             }
+        } else {
+            finishInitialLoad()
         }
+    }
+
+    private func finishInitialLoad() {
+        let completion = initialLoadCompleted
+        initialLoadCompleted = nil
+        completion?()
     }
 
     func connect(toFolder folder: URL) {
@@ -104,6 +114,7 @@ final class SettingsSyncManager: ObservableObject {
             errorMessage = nil
             defaults.removeObject(forKey: Key.filePath)
             defaults.removeObject(forKey: Key.enabled)
+            finishInitialLoad()
         }
     }
 
@@ -322,6 +333,8 @@ final class SettingsSyncManager: ObservableObject {
 
     private func reloadNow() async {
         guard let core, let fileURL, isEnabled else { return }
+        // Startup migrations must follow the initial snapshot, or sync immediately restores old defaults.
+        defer { if !Task.isCancelled { finishInitialLoad() } }
         let clipboardBaseline = core.clipboardStore.synchronizationBaseline()
         do {
             guard let data = try await io.readIfChanged(from: fileURL) else { return }

@@ -184,6 +184,7 @@ struct QuickAIChatTests {
         command.model = "spelling-model"
         var replies: [String] = []
         var errors = 0
+        var cancellations = 0
         let completion: @MainActor (Result<String, Error>) -> Void = { result in
             switch result {
             case .success(let text): replies.append(text)
@@ -203,7 +204,7 @@ struct QuickAIChatTests {
         await waitUntil { !chat.isWaiting }
         expect(replies == ["Partial answer"] && chat.sessions == originalSessions, "spelling returns the complete reply without history changes")
 
-        chat.replaceSpelling(command: command, selection: "old", completion: completion)
+        chat.replaceSpelling(command: command, selection: "old", onCancel: { cancellations += 1 }, completion: completion)
         await waitUntil { router.requests.count == 2 }
         chat.replaceSpelling(command: command, selection: "new", completion: completion)
         await waitUntil { router.requests.count == 3 }
@@ -214,12 +215,13 @@ struct QuickAIChatTests {
         await waitUntil { !chat.isWaiting }
         expect(replies.count == 1 && errors == 1, "failed spelling never delivers the partial replacement")
 
-        chat.replaceSpelling(command: command, selection: "cancel", completion: completion)
+        chat.replaceSpelling(command: command, selection: "cancel", onCancel: { cancellations += 1 }, completion: completion)
         await waitUntil { router.requests.count == 4 }
         chat.stop()
+        expect(cancellations == 2, "superseding and stopping spelling restore progress synchronously exactly once")
         router.completeNext()
         for _ in 0..<10 { await Task.yield() }
-        expect(replies.count == 1 && errors == 1 && !chat.isWaiting, "cancelled spelling never replaces or opens an error conversation")
+        expect(replies.count == 1 && errors == 1 && cancellations == 2 && !chat.isWaiting, "cancelled spelling never replaces or opens an error conversation")
 
         command.model = nil
         chat.replaceSpelling(command: command, selection: "route", completion: completion)

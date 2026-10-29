@@ -15,6 +15,12 @@ enum Paster {
     static func postCommandV(toPid: pid_t) { fatalError("Tests must not paste into another app") }
 }
 
+@MainActor
+private final class UndoTextView: NSTextView {
+    let testUndo = UndoManager()
+    override var undoManager: UndoManager? { testUndo }
+}
+
 @main
 @MainActor
 struct SelectedTextCaptureTests {
@@ -82,7 +88,7 @@ struct SelectedTextCaptureTests {
         cancelled.cancel()
         let cancelledResult = await cancelled.value
         check("cancelled capture never synthesizes a key", cancelledResult == .nothingCopied)
-        let editor = NSTextView()
+        let editor = UndoTextView()
         editor.string = "🧭 teh first, teh second"
         let originalRange = (editor.string as NSString).range(of: "teh")
         editor.setSelectedRange(originalRange)
@@ -98,6 +104,77 @@ struct SelectedTextCaptureTests {
         check("read-only selections cannot be replaced", !AISelectionReplacement.localSelectionMatches(editor, range: originalRange, text: "teh"))
         editor.isEditable = true
         check("stale out-of-bounds ranges cannot crash replacement", !AISelectionReplacement.localSelectionMatches(editor, range: NSRange(location: NSNotFound, length: 3), text: "teh"))
+        var state = AISelectionReplacement.Snapshot(value: "🧭 teh word", selection: NSRange(location: 3, length: 3))
+        var focused = true
+        var acceptsWrites = true
+        var writes = 0
+        let original = state
+        func transaction() -> AISelectionReplacement {
+            AISelectionReplacement(original: state, text: NSAttributedString(string: "teh"), read: { state },
+                write: { expected, range, text, selection, _ in
+                    guard acceptsWrites, state == expected else { return false }
+                    writes += 1
+                    state = .init(value: (state.value as NSString).replacingCharacters(in: range, with: text.string), selection: selection)
+                    return true
+                }, isFocused: { focused })
+        }
+        let pending = transaction()
+        try! pending.showProgress()
+        check("progress immediately replaces only the captured UTF-16 range", state.value == "🧭 {Fixing} word")
+        try! pending.replace(with: "the")
+        check("completed text replaces the placeholder, not the old selection length", state.value == "🧭 the word" && state.selection == NSRange(location: 6, length: 0))
+        let writesAfterSuccess = writes
+        pending.restoreOriginal()
+        check("completed work cannot be rolled back by late cleanup", writes == writesAfterSuccess)
+
+        state = original
+        let failed = transaction()
+        try! failed.showProgress()
+        check("failure or cancellation restores original selection", failed.restoreOriginal() && state == original)
+        state = original
+        let moved = transaction()
+        try! moved.showProgress()
+        focused = false
+        do { try moved.replace(with: "the"); check("focus change rejects result", false) }
+        catch { check("focus change rejects result", true) }
+        state = .init(value: state.value, selection: NSRange(location: (state.value as NSString).length, length: 0))
+        check("cleanup can restore the original control without activating it", moved.restoreOriginal() && state.value == original.value && state.selection.location == (original.value as NSString).length)
+
+        focused = true
+        state = original
+        let edited = transaction()
+        try! edited.showProgress()
+        state = .init(value: "user's newer text", selection: NSRange(location: 17, length: 0))
+        let userEdit = state
+        do { try edited.replace(with: "the"); check("edited document rejects stale answer", false) }
+        catch { check("edited document rejects stale answer", true) }
+        check("cleanup never overwrites the user's newer text", !edited.restoreOriginal() && state == userEdit)
+        state = original
+        acceptsWrites = false
+        do { try transaction().showProgress(); check("failed insertion is rejected", false) }
+        catch { check("failed insertion leaves original intact", state == original) }
+
+        editor.isRichText = true
+        editor.string = "teh word"
+        editor.setSelectedRange(NSRange(location: 0, length: 3))
+        let font = NSFont.boldSystemFont(ofSize: 16)
+        editor.textStorage?.addAttribute(.font, value: font, range: editor.selectedRange())
+        let local = AISelectionReplacement.captureLocal(editor, isFocused: { true })
+        try! local.showProgress()
+        check("native editor displays progress", editor.string == "{Fixing} word")
+        local.restoreOriginal()
+        check("native failure restoration preserves rich text", editor.string == "teh word" && editor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont == font)
+        editor.allowsUndo = true
+        editor.testUndo.removeAllActions()
+        editor.testUndo.groupsByEvent = false
+        editor.testUndo.beginUndoGrouping()
+        let localSuccess = AISelectionReplacement.captureLocal(editor, isFocused: { true })
+        try! localSuccess.showProgress()
+        try! localSuccess.replace(with: "the")
+        check("native editor receives corrected text with its formatting", editor.string == "the word" && editor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont == font)
+        editor.testUndo.endUndoGrouping()
+        editor.testUndo.undo()
+        check("native Undo skips progress and restores the original selection text", editor.string == "teh word")
         print("Selected text capture: \(failures) failure(s)")
         exit(failures == 0 ? 0 : 1)
     }

@@ -677,3 +677,7 @@ and MCP request bodies, and revocation during catalog discovery; `quick-ai-chat`
 persistence, follow-ups and direct spelling dispatch; `local-ai` exercises real temporary CLI
 processes, capability discovery and literal arguments with attachments and search; `ai-tools` pins
 the effort across multiple tool rounds. These tests do not invoke a paid model or require UI driving.
+
+`selected-text-capture` also tests inline spelling progress, UTF-16 replacement ranges, guarded
+restoration after cancellation/focus changes, stale-edit rejection and native rich-text preservation.
+`quick-ai-chat` verifies exactly-once synchronous cleanup when spelling is stopped or superseded.

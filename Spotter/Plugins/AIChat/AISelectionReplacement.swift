@@ -3,21 +3,28 @@ import ApplicationServices
 
 @MainActor
 final class AISelectionReplacement {
-    private let pid: pid_t
-    private let original: String
-    private let element: AXUIElement?
-    private let range: NSRange?
-    private let marker: CFTypeRef?
-    private weak var textView: NSTextView?
+    static let progressText = "{Fixing}"
 
-    private init(pid: pid_t, original: String, element: AXUIElement? = nil,
-        range: NSRange? = nil, marker: CFTypeRef? = nil, textView: NSTextView? = nil) {
-        self.pid = pid
+    struct Snapshot: Equatable {
+        let value: String
+        let selection: NSRange
+    }
+
+    typealias Writer = (Snapshot, NSRange, NSAttributedString, NSRange, Bool) -> Bool
+    private let original: Snapshot
+    private let originalText: NSAttributedString
+    private let read: () -> Snapshot?
+    private let write: Writer
+    private let isFocused: () -> Bool
+    private var pending: Snapshot?
+
+    init(original: Snapshot, text: NSAttributedString, read: @escaping () -> Snapshot?,
+        write: @escaping Writer, isFocused: @escaping () -> Bool) {
         self.original = original
-        self.element = element
-        self.range = range
-        self.marker = marker
-        self.textView = textView
+        self.originalText = text
+        self.read = read
+        self.write = write
+        self.isFocused = isFocused
     }
 
     static func capture(text: String, pid: pid_t) throws -> AISelectionReplacement {
@@ -29,45 +36,129 @@ final class AISelectionReplacement {
                   view.identifier == SelectedTextCapture.localSourceIdentifier,
                   localSelectionMatches(view, range: view.selectedRange(), text: text)
             else { throw AISpellingResponse.Failure.unsupportedControl }
-            return AISelectionReplacement(pid: pid, original: text, range: view.selectedRange(), textView: view)
+            return captureLocal(view)
         }
         guard AXIsProcessTrusted(), let element = focusedElement(pid: pid),
-              SelectedTextReader.selectedText(from: element) == text,
-              isEditable(element)
+              isSettable(kAXSelectedTextAttribute, on: element),
+              isSettable(kAXSelectedTextRangeAttribute, on: element),
+              let snapshot = snapshot(element), substring(snapshot.value, range: snapshot.selection) == text
         else { throw AISpellingResponse.Failure.unsupportedControl }
-        let range = selectedRange(element)
-        let marker = attribute("AXSelectedTextMarkerRange", from: element)
-        guard range != nil || marker != nil else { throw AISpellingResponse.Failure.unsupportedControl }
-        return AISelectionReplacement(pid: pid, original: text, element: element, range: range, marker: marker)
+        return AISelectionReplacement(original: snapshot, text: NSAttributedString(string: text), read: {
+            guard AXIsProcessTrusted() else { return nil }
+            return self.snapshot(element)
+        }, write: { expected, range, replacement, selection, _ in
+            guard self.snapshot(element) == expected, setRange(range, on: element),
+                  SelectedTextReader.selectedText(from: element) == substring(expected.value, range: range)
+            else { return false }
+            guard AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString,
+                replacement.string as CFString) == .success else {
+                _ = setRange(expected.selection, on: element)
+                return false
+            }
+            guard attribute(kAXValueAttribute, from: element) as? String
+                == (expected.value as NSString).replacingCharacters(in: range, with: replacement.string)
+            else { return false }
+            return setRange(selection, on: element)
+        }, isFocused: {
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                  let focused = focusedElement(pid: pid) else { return false }
+            return CFEqual(element, focused)
+        })
+    }
+
+    static func captureLocal(_ view: NSTextView, isFocused: (() -> Bool)? = nil) -> AISelectionReplacement {
+        let range = view.selectedRange()
+        let text = view.attributedString().attributedSubstring(from: range)
+        return AISelectionReplacement(original: Snapshot(value: view.string, selection: range), text: text,
+            read: { [weak view] in
+                guard let view, view.isEditable, !view.hasMarkedText() else { return nil }
+                return Snapshot(value: view.string, selection: view.selectedRange())
+            }, write: { [weak view] expected, range, replacement, selection, recordUndo in
+                guard let view, view.isEditable, !view.hasMarkedText(), view.string == expected.value,
+                      view.selectedRange() == expected.selection else { return false }
+                let undo = view.undoManager
+                let disableUndo = !recordUndo && undo?.isUndoRegistrationEnabled == true
+                if disableUndo { undo?.disableUndoRegistration() }
+                defer { if disableUndo { undo?.enableUndoRegistration() } }
+                guard view.shouldChangeText(in: range, replacementString: replacement.string),
+                      let storage = view.textStorage else { return false }
+                storage.replaceCharacters(in: range, with: replacement)
+                view.didChangeText()
+                guard view.string == (expected.value as NSString).replacingCharacters(in: range, with: replacement.string)
+                else { return false }
+                view.setSelectedRange(selection)
+                return true
+            }, isFocused: isFocused ?? { [weak view] in
+                guard let view else { return false }
+                return view.window?.isKeyWindow == true && view.window?.firstResponder === view
+            })
+    }
+
+    func showProgress() throws {
+        guard pending == nil, isFocused(), read() == original else {
+            throw AISpellingResponse.Failure.selectionChanged
+        }
+        let range = NSRange(location: original.selection.location, length: (Self.progressText as NSString).length)
+        let value = (original.value as NSString).replacingCharacters(in: original.selection, with: Self.progressText)
+        pending = Snapshot(value: value, selection: range)
+        guard write(original, original.selection, NSAttributedString(string: Self.progressText), range, false),
+              read() == pending else {
+            restoreOriginal()
+            throw AISpellingResponse.Failure.unsupportedControl
+        }
     }
 
     func replace(with text: String) throws {
-        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+        guard let pending, let current = read(), current.value == pending.value, isFocused(),
+              current.selection == pending.selection
+                || current.selection == NSRange(location: NSMaxRange(pending.selection), length: 0)
+        else { throw AISpellingResponse.Failure.selectionChanged }
+        // Restore without recording the temporary text, so native Undo returns to the user's original.
+        guard write(current, pending.selection, originalText, original.selection, false),
+              let restored = read(), restored.value == original.value else {
             throw AISpellingResponse.Failure.selectionChanged
         }
-        if let view = textView, let range {
-            guard view.window?.firstResponder === view, view.window?.isKeyWindow == true,
-                  Self.localSelectionMatches(view, range: range, text: original)
-            else { throw AISpellingResponse.Failure.selectionChanged }
-            if text != original { view.insertText(text, replacementRange: range) }
-            return
-        }
-        guard AXIsProcessTrusted(), let element, let focused = Self.focusedElement(pid: pid),
-              CFEqual(focused, element), Self.isEditable(element), SelectedTextReader.selectedText(from: element) == original,
-              range.map({ Self.selectedRange(element) == $0 })
-                ?? marker.map({ saved in Self.attribute("AXSelectedTextMarkerRange", from: element).map { CFEqual(saved, $0) } ?? false }) == true
+        self.pending = nil
+        guard text != originalText.string else { return }
+        let attributes = originalText.length > 0 ? originalText.attributes(at: 0, effectiveRange: nil) : [:]
+        let replacement = NSAttributedString(string: text, attributes: attributes)
+        guard write(restored, original.selection, replacement,
+            NSRange(location: original.selection.location + replacement.length, length: 0), true)
         else { throw AISpellingResponse.Failure.selectionChanged }
-        guard text != original else { return }
-        // A native paste preserves the editor's undo transaction; never reactivate a stale target.
-        Paster.copyString(text)
-        Paster.postCommandV(toPid: pid)
+    }
+
+    @discardableResult
+    func restoreOriginal() -> Bool {
+        guard let pending else { return true }
+        defer { self.pending = nil }
+        guard let current = read(), current.value == pending.value else { return false }
+        let selection = Self.restoredSelection(current.selection, replacing: pending.selection, original: original.selection)
+        return write(current, pending.selection, originalText, selection, false)
+    }
+
+    static func restoredSelection(_ selection: NSRange, replacing placeholder: NSRange, original: NSRange) -> NSRange {
+        if selection.location >= NSMaxRange(placeholder) {
+            return NSRange(location: selection.location + original.length - placeholder.length, length: selection.length)
+        }
+        if NSMaxRange(selection) <= placeholder.location { return selection }
+        return original
     }
 
     static func localSelectionMatches(_ view: NSTextView, range: NSRange, text: String) -> Bool {
-        let value = view.string as NSString
-        return view.isEditable && view.selectedRange() == range && range.location != NSNotFound
-            && range.location <= value.length && range.length <= value.length - range.location
-            && value.substring(with: range) == text
+        view.isEditable && view.selectedRange() == range && substring(view.string, range: range) == text
+    }
+
+    private static func substring(_ value: String, range: NSRange) -> String? {
+        let value = value as NSString
+        guard range.location != NSNotFound, range.location >= 0, range.length >= 0,
+              range.location <= value.length, range.length <= value.length - range.location else { return nil }
+        return value.substring(with: range)
+    }
+
+    private static func snapshot(_ element: AXUIElement) -> Snapshot? {
+        guard let value = attribute(kAXValueAttribute, from: element) as? String,
+              let range = selectedRange(element), substring(value, range: range) != nil else { return nil }
+        return Snapshot(value: value, selection: range)
     }
 
     private static func focusedElement(pid: pid_t) -> AXUIElement? {
@@ -87,16 +178,17 @@ final class AISelectionReplacement {
         return AXUIElementIsAttributeSettable(element, name as CFString, &result) == .success && result.boolValue
     }
 
-    private static func isEditable(_ element: AXUIElement) -> Bool {
-        isSettable(kAXSelectedTextAttribute, on: element) || isSettable(kAXValueAttribute, on: element)
-            || (attribute("AXEditable", from: element) as? Bool == true)
-    }
-
     private static func selectedRange(_ element: AXUIElement) -> NSRange? {
         guard let raw = attribute(kAXSelectedTextRangeAttribute, from: element),
               CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
         var range = CFRange()
-        guard AXValueGetValue(raw as! AXValue, .cfRange, &range), range.location >= 0, range.length > 0 else { return nil }
+        guard AXValueGetValue(raw as! AXValue, .cfRange, &range), range.location >= 0, range.length >= 0 else { return nil }
         return NSRange(location: range.location, length: range.length)
+    }
+
+    private static func setRange(_ range: NSRange, on element: AXUIElement) -> Bool {
+        var raw = CFRange(location: range.location, length: range.length)
+        guard let value = AXValueCreate(.cfRange, &raw) else { return false }
+        return AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, value) == .success
     }
 }

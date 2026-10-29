@@ -3,17 +3,23 @@
 AI Chat uses Quick AI Chat as its only conversation surface. The launcher commands, ⌥Space,
 AI commands other than Fix Spelling, running-task rows and the launcher's Ask AI fallback open the floating panel.
 
-Fix Spelling (Hyper+W by default) replaces the selected text directly, without opening a chat or
+Fix Spelling (Hyper+F by default) immediately replaces the selected text with `{Fixing}`, then replaces
+that placeholder with the complete correction, without opening a chat or
 persisting a conversation. It retains its editable prompt and model pin; Automatic still routes
 through Jev. The request shares AIChatStore's cancellation gate, buffers the complete answer, and
 does not invoke Spotter MCP tools or web search. Errors use a brief HUD; partial, empty, oversized,
 wrapped or canceled answers are never pasted. Boundary whitespace comes from the original selection.
 
-`AISelectionReplacement` captures the original editable control and selection range (or Chromium
-text marker). Before replacement it rechecks the frontmost process, control, range and original text;
-it never brings a different app back to the front to paste. Unverifiable/read-only selections are
-refused without making a model request. External editors receive a native paste for undo support;
-Spotter Notes uses its NSTextView insertion path. Pronunciation and other commands still use chat.
+`AISelectionReplacement` captures the original editable control, UTF-16 range, document text and
+(for Spotter Notes) attributed selection. Progress is inserted only when the editor exposes a verifiable,
+replaceable text range. External editors use scoped Accessibility selected-text writes, never whole-field
+replacement or blind keystrokes. Spotter Notes uses its NSTextView insertion path; temporary progress
+and restoration do not enter Undo, so a successful correction undoes to the original text.
+The final write rechecks the original process/control, focus, document and placeholder selection.
+Failure or cancellation restores the original only while the document still matches the pending
+snapshot; cleanup may restore the captured background control without activating it. User edits are
+never overwritten. Unsupported controls fail before any model request. Pronunciation and other
+commands still use chat.
 ⌘↵ with a typed launcher query opens a new conversation and sends it. The main Palette no longer
 contains a chat mode, composer, history list or chat actions menu; Tab cycles Apps, Clipboard and Emoji.
 The launcher's Send to ChatGPT fallback remains a separate browser handoff.
@@ -534,16 +540,19 @@ AI Command user bubbles place a symbol-and-name capsule on their first line, abo
 wording and formatting rather than rewriting grammar or style. **Get Selected Text Pronunciation**
 returns a text guide with IPA, syllable stress, readable pronunciation and relevant regional variants;
 it does not generate audio. Both capture selected text through the existing focus-restoration path
-and open Quick AI Chat, with a concise command capsule and their own SF Symbol.
+while Pronunciation opens Quick AI Chat with a concise command capsule and its own SF Symbol.
+Fix Spelling uses the inline progress/replacement path described above.
 
 Existing installations automatically receive the two records without replacing customized Define,
 Grammar or user commands. Their UUIDs, launcher entries and shortcut keys remain stable; users can
 edit their prompt, icon and model, assign shortcuts, or Reset in Settings → AI Chat & Command.
 Built-ins cannot be deleted. They use the existing AI provider/key gates and settings backup/sync.
 
-Fix Spelling defaults to **Hyper+W**, and Pronunciation to **Hyper+P**. Defaults use the configured
+Fix Spelling defaults to **Hyper+F**, and Pronunciation to **Hyper+P**. Defaults use the configured
 Hyper modifier set (including Shift only when enabled), seed once when unbound and conflict-free,
-and preserve later customization or deliberate unbinding.
+and preserve later customization or deliberate unbinding. A one-time upgrade moves the old Hyper+W
+spelling default to Hyper+F with the same modifiers, only if Hyper+F is free. Conflicts retain the old
+binding; custom shortcuts and deliberate unbinding are left alone.
 
 The command editor uses a compact identity row with a visual icon picker beside the name. Prompt hints
 and Insert Selection stay inside the prompt card; model and existing-command shortcut controls align

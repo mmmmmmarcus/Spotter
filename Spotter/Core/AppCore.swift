@@ -386,7 +386,6 @@ final class AppCore: ObservableObject {
         Task { await appIndex.refresh() }
         plugins.start()
         localAI.refresh()
-        settingsSync.start(core: self)
 
         // Selected-text actions borrow the pasteboard only as a last resort; keep that transient copy and restore out of history.
         selectedTextCapture.suspendClipboardCapture = { [weak self] in
@@ -476,6 +475,10 @@ final class AppCore: ObservableObject {
             customCommandIDs: Set(customCommands.commands.map(\.id)),
             quicklinkIDs: Set(quicklinks.quicklinks.map(\.id)),
             aiCommandIDs: Set(aiCommands.commands.map(\.id)))
+        settingsSync.start(core: self) { [weak self] in
+            guard let self else { return }
+            AIChatPlugin.migrateSpellingShortcut(hotKeys: hotKeys)
+        }
         // Deliberately keeps running while `hotKeys.recordingAction` pauses Carbon: the recorder relies on the tap's rewritten flags to capture Hyper shortcuts.
         hyperKeyTap.start(settings: settings)
 

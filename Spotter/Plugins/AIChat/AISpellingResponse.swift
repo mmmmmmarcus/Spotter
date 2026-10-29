@@ -16,9 +16,9 @@ enum AISpellingResponse {
 
         var errorDescription: String? {
             switch self {
-            case .invalidReply: "The spelling response could not safely replace your selection. Nothing was changed."
+            case .invalidReply: "The spelling response could not safely replace your selection."
             case .selectionChanged: "The selected text or focused app changed. Select the text and try again."
-            case .unsupportedControl: "This app does not expose an editable selection. Nothing was changed."
+            case .unsupportedControl: "This app does not expose a safely replaceable text selection."
             }
         }
     }

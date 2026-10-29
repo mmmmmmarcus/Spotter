@@ -196,4 +196,9 @@ restoring or stopping a process, and keeps its recovery records device-local.
 
 `AppCore.aiCommandCaptureTask` serializes AI-command selection capture. Fix Spelling uses the
 AppCore-owned AIChatStore request gate without creating a session; its transient AISelectionReplacement
-target revalidates the editable control and original selection before pasting the complete response.
+target owns the temporary `{Fixing}` replacement and revalidates the control, focus and document before
+writing the complete response. Synchronous cancellation cleanup restores an unchanged pending document.
+
+AppCore starts settings sync after shortcut registration and supplies a one-shot initial-load callback
+for shipped shortcut migration. Sync invokes it after reading the initial snapshot (or immediately
+when disconnected), then normal change observation persists the migrated binding.
