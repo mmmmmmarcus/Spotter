@@ -338,6 +338,7 @@
 		D7A6D3EE0D68E59D585C12EE /* ClipboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFE9CB942C341FA21C55E4B /* ClipboardManager.swift */; };
 		DA1B830A62DF54A49DFB94F0 /* ExtensionMenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCE81AD6B420F77EC60DAAB /* ExtensionMenuBarManager.swift */; };
 		DAC839A82F6DCA87EA2E4439 /* PluginShortcutSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25840DB097D93CD67BAB8C5D /* PluginShortcutSync.swift */; };
+		DACD6B78AE45BC843A72C516 /* ExtensionKeepAwake.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A6E9EC5EBE873DDF03DD84 /* ExtensionKeepAwake.swift */; };
 		DB133C56890D10F8F19E5998 /* ExtensionFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AAB33AC76DFFB890A064BCC /* ExtensionFormView.swift */; };
 		DBC0473AD7BAD7330021F19E /* CalcParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2380F1A9DCF790E5C6C0FA61 /* CalcParser.swift */; };
 		DC155A29D549C154DFCDA278 /* ExtensionCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FEB2F2DAE33EACB5F59CF9 /* ExtensionCleanup.swift */; };
@@ -740,6 +741,7 @@
 		E196A0B64D45C449593C4989 /* SystemCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCommand.swift; sourceTree = "<group>"; };
 		E1A5104C40D9A6C6391AE462 /* DashboardWeatherEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWeatherEngine.swift; sourceTree = "<group>"; };
 		E1BAC44EF4725782ADE2FE16 /* DiagnosticsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsSettingsView.swift; sourceTree = "<group>"; };
+		E2A6E9EC5EBE873DDF03DD84 /* ExtensionKeepAwake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionKeepAwake.swift; sourceTree = "<group>"; };
 		E2B77FEF044354D9DD8D2779 /* QuickClipboardMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickClipboardMenuView.swift; sourceTree = "<group>"; };
 		E316818499A51F277F1FC8D4 /* ScreenshotSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSettingsView.swift; sourceTree = "<group>"; };
 		E32693F711055DB32C3901ED /* ExtensionLaunchError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionLaunchError.swift; sourceTree = "<group>"; };
@@ -1508,6 +1510,7 @@
 				06CA29F27BD1CAB6B3261D00 /* ExtensionHostBridge.swift */,
 				B5DC234571BBB5E0C48E7076 /* ExtensionIconCache.swift */,
 				564927E3ECA104CAFEDC22B6 /* ExtensionInstaller.swift */,
+				E2A6E9EC5EBE873DDF03DD84 /* ExtensionKeepAwake.swift */,
 				1B2FE77DB304272905A5822B /* ExtensionManager.swift */,
 				122D8F5C54818B06D3EA312F /* ExtensionMenuBarHost.swift */,
 				DFCE81AD6B420F77EC60DAAB /* ExtensionMenuBarManager.swift */,
@@ -1789,6 +1792,7 @@
 				50F997518996A4D980F71438 /* ExtensionImage.swift in Sources */,
 				043D816AF22BB4CE7A637559 /* ExtensionImageSize.swift in Sources */,
 				7B34D35607D84EB48CB8FC64 /* ExtensionInstaller.swift in Sources */,
+				DACD6B78AE45BC843A72C516 /* ExtensionKeepAwake.swift in Sources */,
 				C02828FF3BEE672411B6E766 /* ExtensionLaunchError.swift in Sources */,
 				83E83503425CDED1A5FDB1F5 /* ExtensionLaunchType.swift in Sources */,
 				99563D8D2125C0EA7C471FE3 /* ExtensionListKey.swift in Sources */,
@@ -2077,7 +2081,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.24;
+				MARKETING_VERSION = 1.7.25;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -2149,7 +2153,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.24;
+				MARKETING_VERSION = 1.7.25;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

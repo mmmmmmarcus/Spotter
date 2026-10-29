@@ -1,11 +1,13 @@
 import Foundation
 
-/// The AI commands Spotter ships. They are ordinary `AICommand` records — what the case adds is a
-/// fixed identity: the launcher entry id, the shortcut key and the prompt key they have always used,
-/// which is how bindings and customizations survive the move to AI Commands.
+// Built-ins use ordinary command records with fixed identities so bindings and customizations survive upgrades.
 enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
     case define
     case grammar
+    case spelling
+    case pronunciation
+
+    static let legacyCases: [Self] = [.define, .grammar]
 
     /// Fixed and never regenerated: every reference to a built-in — shortcut, favorite, learned
     /// ranking, backup — resolves through this id.
@@ -13,6 +15,8 @@ enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
         switch self {
         case .define: UUID(uuidString: "A1C0DE00-DEF1-4000-A000-000000000001")!
         case .grammar: UUID(uuidString: "A1C0DE00-64A1-4000-A000-000000000002")!
+        case .spelling: UUID(uuidString: "A1C0DE00-5E11-4000-A000-000000000003")!
+        case .pronunciation: UUID(uuidString: "A1C0DE00-F04E-4000-A000-000000000004")!
         }
     }
 
@@ -20,6 +24,8 @@ enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
         switch self {
         case .define: "Define Selected Text"
         case .grammar: "Check Selected Text Grammar"
+        case .spelling: "Fix Selected Text Spelling"
+        case .pronunciation: "Get Selected Text Pronunciation"
         }
     }
 
@@ -28,6 +34,8 @@ enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
         switch self {
         case .define: "Definition"
         case .grammar: "Grammar Check"
+        case .spelling: "Fix Spelling"
+        case .pronunciation: "Pronunciation"
         }
     }
 
@@ -35,30 +43,38 @@ enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
         switch self {
         case .define: "character.book.closed"
         case .grammar: "text.badge.checkmark"
+        case .spelling: "textformat.abc"
+        case .pronunciation: "text.bubble"
         }
     }
 
-    /// The launcher entry id from the Selection Tools era; favorites, visibility, aliases and learned
-    /// ranking key off it, so it outlives every rename of the feature that owns it.
-    var entryID: String { "command:selection-tools:" + rawValue }
+    // Define and Grammar retain their Selection Tools identities; newer commands use UUIDs.
+    var entryID: String {
+        Self.legacyCases.contains(self) ? "command:selection-tools:" + rawValue
+            : AICommand.entryIDPrefix + id.uuidString.lowercased()
+    }
 
-    /// Where this command's binding has always been stored. Kept verbatim so an existing Define or
-    /// Grammar shortcut needs no migration — the record is new, the key is not.
-    var shortcutDefaultsKey: String { "KeyboardShortcuts_plugin.selection-tools." + rawValue }
+    // Only Define and Grammar have historical shortcut keys to preserve.
+    var shortcutDefaultsKey: String {
+        Self.legacyCases.contains(self) ? "KeyboardShortcuts_plugin.selection-tools." + rawValue
+            : "KeyboardShortcuts_aiCommandHotkey." + id.uuidString.lowercased()
+    }
 
     /// The pre-AI-Commands prompt key, read once to seed the record.
-    var legacyPromptKey: String {
+    var legacyPromptKey: String? {
         switch self {
         case .define: "selection-tools.definition-prompt"
         case .grammar: "selection-tools.grammar-prompt"
+        case .spelling, .pronunciation: nil
         }
     }
 
     /// The pre-AI-Commands model key, read once to seed the record.
-    var legacyModelKey: String {
+    var legacyModelKey: String? {
         switch self {
         case .define: "openrouter.definition-model"
         case .grammar: "openrouter.grammar-model"
+        case .spelling, .pronunciation: nil
         }
     }
 
@@ -72,6 +88,8 @@ enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
         switch self {
         case .define: AIChatSelectionPrompts.defaultDefinition
         case .grammar: AIChatSelectionPrompts.defaultGrammar
+        case .spelling: AIChatSelectionPrompts.defaultSpelling
+        case .pronunciation: AIChatSelectionPrompts.defaultPronunciation
         }
     }
 }
@@ -83,8 +101,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     /// The one token a prompt substitutes, in the same single-brace shape a quicklink's `{argument}`
     /// uses. A prompt without it still works — the selection follows the instructions.
     static let placeholder = "{selection}"
-    /// Fast, strong instruction-following and multilingual quality: the class the two shipped
-    /// commands have always used for their first, quick answer.
+    // Reset preserves the existing fast-model default shared by built-in commands.
     static let defaultBuiltInModel = "anthropic/claude-haiku-4.5"
 
     let id: UUID
@@ -93,7 +110,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     // A nil model delegates to Jev using the configured category mappings.
     var model: String?
     var symbol: String?
-    /// Set for the two shipped commands, `nil` for user-created ones.
+    /// Set for shipped commands, `nil` for user-created ones.
     let builtIn: AIBuiltInCommand?
 
     init(
@@ -190,6 +207,14 @@ struct AICommandSeed: Equatable, Sendable {
 /// The pure half of AI Commands: substitution, validation and the repair that keeps a decoded list
 /// usable. Foundation-only so `Tools/ai-chat-test.swift` compiles it standalone.
 enum AICommandEngine {
+    // Older writers cannot deliberately clear shortcuts for built-ins they did not ship with defaults.
+    static func shortcutReplacementIDs(knownIDs: [UUID]?, boundIDs: [UUID], localCommands: [AICommand]) -> Set<UUID> {
+        let known = knownIDs ?? localCommands.filter {
+            $0.builtIn == nil || AIBuiltInCommand.legacyCases.contains($0.builtIn!)
+        }.map(\.id)
+        return Set(known).union(boundIDs)
+    }
+
     /// The prompt with the selection substituted in.
     ///
     /// Three cases, all deliberate: every occurrence of the token is replaced, a prompt with no token
@@ -211,7 +236,7 @@ enum AICommandEngine {
         prompt.contains(AICommand.placeholder)
     }
 
-    /// Repairs whatever was decoded: both built-ins exist exactly once and lead in shipped order,
+    /// Repairs whatever was decoded: all built-ins exist exactly once and lead in shipped order,
     /// records are trimmed, and unusable or duplicated ones drop out. A built-in the list doesn't
     /// carry is rebuilt from its defaults, seeded with any prompt or model the user set before AI
     /// Commands existed — which is the whole upgrade path for Define and Grammar.

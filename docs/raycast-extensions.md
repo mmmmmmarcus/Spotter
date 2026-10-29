@@ -75,3 +75,25 @@ Extension. Installation controls and the combined installed-extension list have 
 Settings. Uninstall removes the dynamic sidebar destination. Command artwork is decoded as image
 content through ExtensionIconCache, with assets-directory and extension-root resolution; the
 launcher does not ask NSWorkspace for the image file’s generic document icon.
+
+## Coffee and keep-awake tasks
+
+A detached `/usr/bin/caffeinate` launched directly through the extension child-process bridge
+creates a Background Tasks row in the empty Palette. The row names its extension, shows remaining
+time and elapsed progress for a simple `-t` duration, and exposes **Actions → Cancel**. Indefinite
+or process-watched sessions stay indeterminate. Closing the extension view does not end the task.
+The row completes only after the process exits, including when Coffee's own Decaffeinate command
+stops it. Cancel signals only the recorded process, never every caffeinate process on the Mac.
+
+`AppCore.extensionKeepAwake` owns this lifecycle. Device-local records in the app's defaults retain
+the process ID, kernel start time, extension identity and duration. On relaunch, records are restored
+only if the same user-owned `/usr/bin/caffeinate` process is still alive; stale or reused PIDs are
+dropped. Disabling extensions or uninstalling the owning extension stops its tracked work. A timer
+checks only recorded processes and runs only while work is active; there is no system-wide scan.
+These records do not enter settings backup/sync. Pre-existing sessions started before this tracking
+was installed and indirect shell-launched children are not adopted. Future recurring Coffee schedules
+remain managed by the extension.
+
+`scripts/test-raycast.sh` covers the real JavaScript spawn bridge, process cancellation/isolation,
+countdown, natural expiry, closing a runtime, saved-record restoration, and disable/uninstall races
+using short-lived test processes and isolated defaults.

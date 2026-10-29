@@ -189,3 +189,7 @@ it, so the compact external sidebar circle can draw independently. The controlle
 and only the composer receives the compact native backdrop; expanded glass fills the panel again.
 
 Menu search is session-scoped: AppCore owns menuSearch, NavigationReader performs bounded Accessibility reads, and AppIndex exposes its temporary entries only to typed root Palette searches. See [navigation.md](navigation.md).
+
+`AppCore.extensionKeepAwake` tracks detached caffeinate processes started by the Raycast bridge and
+feeds the shared BackgroundTaskStore. It validates executable, user and kernel start time before
+restoring or stopping a process, and keeps its recovery records device-local.

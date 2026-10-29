@@ -449,3 +449,10 @@ Todo state and indentation without displaying duplicate Markdown prefixes.
 
 Clipboard search caches related-result identities with its rows, restoring the Related Results grouping
 after empty browsing and a repeated query. The semantic harness covers this cache round trip.
+
+The Raycast adapter reports detached native caffeinate work to the shared Background Tasks surface.
+Coffee keeps its own commands and preferences; no built-in Caffeinate plugin is reintroduced.
+
+AI Chat ships four selected-text commands: Define, Grammar Check, Fix Spelling, and Pronunciation.
+They share the command store and Quick AI Chat path; the new commands use UUID-based identities,
+while Define and Grammar retain their historical launcher and shortcut keys.

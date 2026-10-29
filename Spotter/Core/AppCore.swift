@@ -228,7 +228,8 @@ final class AppCore: ObservableObject {
     let selectedTextCapture = SelectedTextCapture()
     let selectionTools: SelectionToolsManager
     var extensionPasteTarget: NSRunningApplication? { windowController.previousApp }
-    lazy var extensions = ExtensionManager(clipboardStore: clipboardStore)
+    lazy var extensionKeepAwake = ExtensionKeepAwake(tasks: backgroundTasks)
+    lazy var extensions = ExtensionManager(clipboardStore: clipboardStore, keepAwake: extensionKeepAwake)
     lazy var extensionCoordinator = ExtensionCoordinator(core: self)
     let translate = TranslateManager()
     lazy var raycastStore = RaycastStoreController(core: self)
@@ -470,6 +471,7 @@ final class AppCore: ObservableObject {
         hotKeys.start(
             pluginActions: plugins.shortcutActions,
             defaultPluginShortcuts: plugins.defaultShortcutActions,
+            defaultAICommandShortcuts: AIChatPlugin.defaultCommandShortcuts(includesShift: settings.hyperKeyIncludesShift),
             customCommandIDs: Set(customCommands.commands.map(\.id)),
             quicklinkIDs: Set(quicklinks.quicklinks.map(\.id)),
             aiCommandIDs: Set(aiCommands.commands.map(\.id)))

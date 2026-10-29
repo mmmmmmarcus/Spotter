@@ -35,12 +35,15 @@ final class HotKeyManager: ObservableObject {
     func start(
         pluginActions: [PluginActionKey],
         defaultPluginShortcuts: [(PluginActionKey, KeyShortcut)] = [],
+        defaultAICommandShortcuts: [(UUID, KeyShortcut)] = [],
         customCommandIDs: Set<UUID>,
         quicklinkIDs: Set<UUID>,
         aiCommandIDs: Set<UUID>
     ) {
         self.pluginActions = pluginActions
-        seedDefaultPluginShortcuts(defaultPluginShortcuts)
+        seedDefaultShortcuts(
+            defaultPluginShortcuts.map { (.plugin($0.0), $0.1) }
+                + defaultAICommandShortcuts.map { (.aiCommand(id: $0.0), $0.1) })
         register(.togglePalette)
         register(.togglePaletteBackup)
         for action in pluginActions { register(.plugin(action)) }
@@ -93,12 +96,9 @@ final class HotKeyManager: ObservableObject {
     }
 
     /// Seeds a shipped default once. The marker distinguishes a deliberate later unbind from a fresh install.
-    private func seedDefaultPluginShortcuts(
-        _ defaults: [(PluginActionKey, KeyShortcut)]
-    ) {
-        for (key, shortcut) in defaults {
-            let action = HotKeyAction.plugin(key)
-            let marker = "hotkey.default-seeded." + key.defaultsKey
+    private func seedDefaultShortcuts(_ defaults: [(HotKeyAction, KeyShortcut)]) {
+        for (action, shortcut) in defaults {
+            let marker = "hotkey.default-seeded." + action.defaultsKey
             guard UserDefaults.standard.object(forKey: marker) == nil else { continue }
             defer { UserDefaults.standard.set(true, forKey: marker) }
             guard UserDefaults.standard.object(forKey: action.defaultsKey) == nil else { continue }

@@ -126,7 +126,7 @@ Never break these without an explicit task to do so.
   `Core/OpenRouterModelCatalog.swift` stay Foundation-only and pure while
   `Plugins/AIChat/AICommandStore.swift` stays Foundation + Combine, all for
   `Tools/ai-chat-test.swift` — the AI command record, its `{selection}` substitution, its validation
-  and the list repair that keeps the two shipped commands present live there,
+  and the list repair that keeps all shipped commands present live there,
   `Plugins/DashboardWidgets/DashboardWidgetsEngine.swift`,
   `Plugins/DashboardWidgets/DashboardWeatherEngine.swift`,
   `Plugins/DashboardWidgets/DashboardMusicEngine.swift`,
@@ -312,6 +312,10 @@ Never break these without an explicit task to do so.
   selected-text command answers retain their existing streaming path. `AIToolTypes.swift` remains
   pure Foundation, and `AIToolStore` stays Foundation + Combine for the fixture-backed
   `Tools/ai-tools-test.swift` harness. MCP does not introduce runtime-loaded Spotter plugins.
+- **Raycast keep-awake processes stay owned and identifiable.** `AppCore.extensionKeepAwake` tracks only
+  direct detached caffeinate children observed in the extension bridge. Its device-local recovery
+  records never sync; restore and cancellation validate the executable, user and kernel start time,
+  never a saved PID alone. Closing an extension view does not end its keep-awake session.
 - **Jev classifies tasks; Spotter chooses the configured model.** `OpenRouterStore` owns always-on
   `AIRoutingPreferences` (owner decision, Oct 2026), with Everyday / Professional / Deep Reasoning model mappings. One Jev
   Decisions request precedes the first unpinned chat turn, using only its prompt and bounded recent
@@ -348,9 +352,9 @@ Never break these without an explicit task to do so.
   needs no migration and a kind that leaves drops out of a saved order the same way. A card with
   nothing to report says so in its resting state; a feature whose visibility would be a consent act
   belongs in a plugin of its own, which is why Uptime became one. AI Chat owns **AI commands**
-  (`Plugins/AIChat/AICommand.swift`): Define and Check Grammar are the two Spotter ships and are the
-  same record as one the user writes, keeping their historical launcher entry ids and
-  `KeyboardShortcuts_plugin.selection-tools.*` binding keys — their prompt, model and shortcut are
+  (`Plugins/AIChat/AICommand.swift`): Define, Check Grammar, Fix Spelling and Pronunciation are the four Spotter ships and are the
+  same record as one the user writes. Define and Grammar keep their historical launcher entry ids and
+  `KeyboardShortcuts_plugin.selection-tools.*` binding keys; newer commands use UUID keys. Their prompt, model and shortcut are
   editable and resettable, their name and identity are not, and they cannot be deleted. Commands
   owns the custom-command Settings view and dynamic launcher entries. AI commands always open Quick AI Chat; old surface preferences are ignored. Their bubbles show the command symbol and
   original selection, while the rendered prompt remains intact in model context and stored history.

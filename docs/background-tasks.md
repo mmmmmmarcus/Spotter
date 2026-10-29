@@ -75,3 +75,8 @@ rows. Built-in and custom Commands deliberately use the brief HUD instead of thi
 Updater installation is excluded because it replaces and relaunches Spotter. Clipboard polling is an
 ongoing service, not a dismissible one-shot task. Automatic refreshes, indexing and rate/dashboard
 updates are not user-started work and do not enter the launcher.
+
+Raycast Coffee keep-awake sessions also appear here. Their row shows remaining time and progress
+when a duration is known, otherwise an indeterminate keep-awake state. **Actions → Cancel** stops
+only that session's process; the row becomes Done after exit. ExtensionKeepAwake owns execution
+tracking and device-local recovery independently of these display snapshots.

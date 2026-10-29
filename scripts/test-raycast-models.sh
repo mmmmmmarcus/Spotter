@@ -5,6 +5,8 @@ TEST_DIR=$(mktemp -d /tmp/spotter-raycast-models.XXXXXX)
 trap 'rm -rf "$TEST_DIR"' EXIT
 E=Spotter/Plugins/RaycastExtensions
 sources=(
+  Spotter/Core/BackgroundTaskStore.swift
+  Spotter/Plugins/RaycastExtensions/Service/ExtensionKeepAwake.swift
   Spotter/Plugins/Infrastructure/PluginTypes.swift
   Spotter/Plugins/RaycastExtensions/Model/RaycastStorePresentation.swift
   Spotter/Core/RaycastImport/Zlib.swift

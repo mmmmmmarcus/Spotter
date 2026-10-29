@@ -5,6 +5,9 @@ TEST_BINARY=$(mktemp -u /tmp/spotter-raycast-test.XXXXXX)
 trap 'rm -f "$TEST_BINARY"' EXIT
 swiftc -swift-version 6 -parse-as-library \
   Tools/RaycastExtensions/ext-test.swift \
+  Tools/RaycastExtensions/ext-keep-awake-test.swift \
+  Spotter/Core/BackgroundTaskStore.swift \
+  Spotter/Plugins/RaycastExtensions/Service/ExtensionKeepAwake.swift \
   Tools/RaycastExtensions/ext-menu-bar-test.swift \
   Tools/RaycastExtensions/ext-fetch-test.swift \
   Spotter/Plugins/RaycastExtensions/Model/ExtensionLaunchError.swift \

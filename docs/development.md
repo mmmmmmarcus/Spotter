@@ -654,3 +654,11 @@ The Notes harness also checks ID-based folder migration, repeated title edits wi
 duplicate cleanup and explicit deletion through an injected temporary Trash, stale-plan rejection,
 failed Trash preservation, filename-cycle recovery and protected ID paths. It never alters real Notes
 or the user's Trash.
+
+The Raycast bridge suite (`scripts/test-raycast.sh`) also compiles `ExtensionKeepAwake.swift` and
+`BackgroundTaskStore.swift`. Coffee tests launch short-lived native caffeinate children to check
+countdowns, cancellation isolation, natural expiry and restored process identity. They use isolated
+defaults and never run Coffee's global `killall` command.
+
+The AI Chat harness covers adding Spelling and Pronunciation to an existing two-command list,
+identity and JSON round trips, preservation of customizations, and built-in reset/delete rules.

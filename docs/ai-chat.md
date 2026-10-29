@@ -22,7 +22,7 @@ same pane's **AI (OpenRouter)** card, moved there from General in 1.6.0 so the g
 feature it gates (entering or syncing a key is the consent act). The field is titled **Open Router API key**
 and carries no example or standing explanatory text. Checking progress and validation results still
 appear below it. The key remains included in settings backups and sync. AI Chat also owns **AI commands**, the prompts that run on
-selected text; Define Selected Text and Check Selected Text Grammar are the two Spotter ships.
+selected text; Spotter ships Define Selected Text, Check Selected Text Grammar, Fix Selected Text Spelling, and Get Selected Text Pronunciation.
 Google-powered translation lives in the [Translate](translate.md) plugin. Its implementation lives in
 `Spotter/Plugins/AIChat/` so it can reuse the registry's Settings, command, permission and shortcut
 plumbing without being presented as an optional plugin.
@@ -39,7 +39,7 @@ plumbing without being presented as an optional plugin.
 | `AIMCPConnection.swift` | Per-request MCP client: stdio processes and cacheless Streamable HTTP/SSE. |
 | `AIToolStore.swift` | AppCore-owned configuration, tool discovery, bounded model/tool loop and approval continuations. |
 | `AIToolSettingsView.swift` | Individual device-local MCP server editors and per-call confirmation. |
-| `AIChatSelectionPrompts.swift` | Foundation-only: the prompts the two shipped AI commands start with. |
+| `AIChatSelectionPrompts.swift` | Foundation-only: the prompts the shipped AI commands start with. |
 | `AICommand.swift` | Foundation-only, pure: the AI command record, built-in identity, `{selection}` substitution and list repair. |
 | `AICommandStore.swift` | Foundation + Combine: the saved commands, their validation and the upgrade from the old prompt/model keys. |
 | `AIChatLink.swift` | Foundation-only URL policy and Codex file/line reference normalization. |
@@ -158,7 +158,7 @@ API contract: [OpenRouter Jev tutorial](https://openrouter.ai/docs/guides/commun
 The chat model and every AI command pick from a two-level menu — brand, then model — rather than a
 typed identifier: OpenRouter publishes hundreds of models across dozens of vendors, which is a list
 to browse, not a string to remember. A command's menu also carries **Default**, which is the command
-following the chat model instead of pinning one of its own; the two shipped commands pin
+following the chat model instead of pinning one of its own; the shipped commands pin
 `anthropic/claude-haiku-4.5`, the fast class their first answer has always used.
 Opening Settings → AI Chat & Command reloads the catalog from
 `https://openrouter.ai/api/v1/models` so the menu is what the provider offers right now; a Reload
@@ -511,4 +511,21 @@ Grammar Check also renders legacy JSON replies with `corrected` and `issues`, or
 
 The compact composer has no History button. Up opens all history sessions above it; Up/Down selects a pill and Enter opens it without submitting the draft. Escape closes the picker. The viewport shows at most ten pills and scrolls to the keyboard selection. In expanded chat, History collapses the current conversation into the bottom pill and displays the other conversations above it, sharing the same surface transition as opening a pill. IME composition and modified text-navigation keys retain their native handling.
 
-AI Command user bubbles place a symbol-and-name capsule on their first line, above the selected text. Shipped command display names are Grammar Check and Definition; custom commands retain their full names. The capsule follows the inverse bubble appearance, and stored prompts remain unchanged.
+AI Command user bubbles place a symbol-and-name capsule on their first line, above the selected text. Shipped command display names are Grammar Check, Definition, Fix Spelling and Pronunciation; custom commands retain their full names. The capsule follows the inverse bubble appearance, and stored prompts remain unchanged.
+
+## Built-in spelling and pronunciation commands
+
+**Fix Selected Text Spelling** returns only the corrected selection, preserving its language,
+wording and formatting rather than rewriting grammar or style. **Get Selected Text Pronunciation**
+returns a text guide with IPA, syllable stress, readable pronunciation and relevant regional variants;
+it does not generate audio. Both capture selected text through the existing focus-restoration path
+and open Quick AI Chat, with a concise command capsule and their own SF Symbol.
+
+Existing installations automatically receive the two records without replacing customized Define,
+Grammar or user commands. Their UUIDs, launcher entries and shortcut keys remain stable; users can
+edit their prompt, icon and model, assign shortcuts, or Reset in Settings → AI Chat & Command.
+Built-ins cannot be deleted. They use the existing AI provider/key gates and settings backup/sync.
+
+Fix Spelling defaults to **Hyper+W**, and Pronunciation to **Hyper+P**. Defaults use the configured
+Hyper modifier set (including Shift only when enabled), seed once when unbound and conflict-free,
+and preserve later customization or deliberate unbinding.

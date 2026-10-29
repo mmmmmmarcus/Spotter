@@ -359,7 +359,7 @@ struct AIChatTests {
             "the placeholder is the single-brace shape quicklinks use",
             AICommand.placeholder == "{selection}")
         check(
-            "both shipped prompts carry the placeholder",
+            "all shipped prompts carry the placeholder",
             AIBuiltInCommand.allCases.allSatisfy {
                 AICommandEngine.hasPlaceholder($0.defaultPrompt)
             })
@@ -375,7 +375,7 @@ struct AIChatTests {
                 == "KeyboardShortcuts_plugin.selection-tools.grammar")
         check(
             "the shipped launcher entry ids are unchanged",
-            AIBuiltInCommand.allCases.map(\.entryID) == [
+            AIBuiltInCommand.legacyCases.map(\.entryID) == [
                 "command:selection-tools:define", "command:selection-tools:grammar",
             ])
         check(
@@ -421,11 +421,11 @@ struct AIChatTests {
             OpenRouterModelCatalog.modelName(for: "vendor/retired-model", in: [])
                 == "Retired Model")
 
-        // Repair: whatever was decoded, both shipped commands exist once and lead.
+        // Repair: whatever was decoded, all shipped commands exist once and lead.
         let fresh = AICommandEngine.normalized([])
         check(
-            "an empty list rebuilds both shipped commands, in order",
-            fresh.map(\.builtIn) == [.define, .grammar])
+            "an empty list rebuilds all shipped commands, in order",
+            fresh.map(\.builtIn) == [.define, .grammar, .spelling, .pronunciation])
         check(
             "the rebuilt commands carry the shipped prompts",
             fresh[0].prompt == AIBuiltInCommand.define.defaultPrompt)
@@ -455,12 +455,12 @@ struct AIChatTests {
                 id: UUID(), name: "renamed by a hand-edit", prompt: "kept prompt",
                 model: nil, builtIn: .define),
         ])
-        check("shipped commands still lead", mixed.map(\.builtIn) == [.define, .grammar, nil])
+        check("shipped commands still lead", mixed.map(\.builtIn) == [.define, .grammar, .spelling, .pronunciation, nil])
         check(
             "a built-in record with the wrong id is repaired onto the fixed one",
             mixed[0].id == AIBuiltInCommand.define.id && mixed[0].prompt == "kept prompt")
         check("a built-in keeps Spotter's name", mixed[0].name == "Define Selected Text")
-        check("names and prompts are trimmed", mixed[2].name == "Summarize")
+        check("names and prompts are trimmed", mixed[4].name == "Summarize")
         check("a duplicate name drops out", mixed.filter { $0.name == "Summarize" }.count == 1)
         check("a command with no prompt drops out", !mixed.contains { $0.name == "Broken" })
         check(
@@ -501,7 +501,7 @@ struct AIChatTests {
                 && compactReloaded.text == "Long preset instructions: selected text")
         check("ordinary messages retain their complete displayed text",
             AIChatMessage(role: .user, text: "Regular prompt").displayedText == "Regular prompt")
-        check("the store starts with both shipped commands", store.commands.count == 2)
+        check("the store starts with all shipped commands", store.commands.count == 4)
         check(
             "a customized prompt migrates onto its command",
             store.command(.define)?.prompt == "my definition prompt")
@@ -539,7 +539,7 @@ struct AIChatTests {
         check(
             "a shipped command cannot be removed",
             store.remove(id: AIBuiltInCommand.define.id) == nil)
-        check("the shipped command is still there", store.commands.count == 3)
+        check("the shipped command is still there", store.commands.count == 5)
 
         let reloaded = AICommandStore(defaults: commandDefaults)
         check("commands persist across a relaunch", reloaded.commands == store.commands)
@@ -548,14 +548,53 @@ struct AIChatTests {
         if let addedID = added?.id {
             check("a user command can be removed", store.remove(id: addedID) != nil)
         }
-        check("removal leaves the shipped pair", store.commands.count == 2)
+        check("removal leaves the shipped commands", store.commands.count == 4)
 
         check(
             "replace repairs an imported list",
-            store.replace(with: [AICommand(name: "Imported", prompt: "{selection}")]) == 3)
+            store.replace(with: [AICommand(name: "Imported", prompt: "{selection}")]) == 5)
         check(
             "an import can never drop a shipped command",
-            store.commands.map(\.builtIn) == [.define, .grammar, nil])
+            store.commands.map(\.builtIn) == [.define, .grammar, .spelling, .pronunciation, nil])
+
+        check("all built-ins have distinct stable identities", Set(AIBuiltInCommand.allCases.map(\.id)).count == 4)
+        for kind in [AIBuiltInCommand.spelling, .pronunciation] {
+            let command = AICommand.makeBuiltIn(kind)
+            check("new built-in entry resolves", AICommand.id(fromEntryID: command.entryID) == kind.id)
+            check("new built-in uses UUID shortcut namespace", command.shortcutDefaultsKey == "KeyboardShortcuts_aiCommandHotkey." + kind.id.uuidString.lowercased())
+            check("new built-in has no invented legacy prompt or model", kind.legacyPromptKey == nil && kind.legacyModelKey == nil)
+            check("new command JSON preserves built-in identity", (try? JSONDecoder().decode(AICommand.self, from: JSONEncoder().encode(command))) == command)
+            check("new command capsule uses concise title", AIChatMessage.CommandInput(name: command.name, text: "text").displayName == command.sessionTitle)
+            check("new command preserves selected text verbatim", command.rendered(selection: "teh\n{selection} café").hasSuffix("teh\n{selection} café"))
+            store.setPrompt("Custom {selection}", for: kind.id)
+            store.setModel("vendor/custom", for: kind.id)
+            var customized = store.command(kind)!
+            customized.symbol = "star"
+            try! store.update(customized)
+            check("new built-in customizations persist", AICommandStore(defaults: commandDefaults).command(kind) == customized)
+            check("new built-in cannot be deleted", store.remove(id: kind.id) == nil)
+            store.reset(kind)
+            check("new built-in resets prompt model and icon", store.command(kind) == command)
+        }
+        var oldDefinition = AICommand.makeBuiltIn(.define)
+        oldDefinition.prompt = "Preserve my customized definition"
+        oldDefinition.model = "vendor/my-choice"
+        oldDefinition.symbol = "star"
+        let previousCommands = [oldDefinition, AICommand.makeBuiltIn(.grammar), userCommand]
+        commandDefaults.set(try! JSONEncoder().encode(previousCommands), forKey: "ai-commands")
+        let upgraded = AICommandStore(defaults: commandDefaults)
+        check("upgrade from two built-ins adds both commands", upgraded.commands.map(\.builtIn) == [.define, .grammar, .spelling, .pronunciation, nil])
+        check("upgrade preserves existing built-in customization", upgraded.command(.define) == oldDefinition)
+        check("upgrade preserves custom commands", upgraded.command(id: userCommand.id) == userCommand)
+        check("new built-ins ignore legacy shared model", upgraded.command(.spelling)?.isDefault == true && upgraded.command(.pronunciation)?.isDefault == true)
+        check("upgrade is idempotent across relaunch", AICommandStore(defaults: commandDefaults).commands == upgraded.commands)
+
+        let oldShortcutIDs = AICommandEngine.shortcutReplacementIDs(knownIDs: nil, boundIDs: [], localCommands: upgraded.commands)
+        check("old sync cannot clear newly shipped default shortcuts", !oldShortcutIDs.contains(AIBuiltInCommand.spelling.id) && !oldShortcutIDs.contains(AIBuiltInCommand.pronunciation.id))
+        check("old sync still clears legacy and custom bindings", oldShortcutIDs.contains(AIBuiltInCommand.define.id) && oldShortcutIDs.contains(userCommand.id))
+        let knownShortcutIDs = AICommandEngine.shortcutReplacementIDs(knownIDs: upgraded.commands.map(\.id), boundIDs: [], localCommands: upgraded.commands)
+        check("new sync can deliberately clear shipped default shortcuts", knownShortcutIDs.contains(AIBuiltInCommand.spelling.id) && knownShortcutIDs.contains(AIBuiltInCommand.pronunciation.id))
+        check("old sync can supply a new command binding", AICommandEngine.shortcutReplacementIDs(knownIDs: nil, boundIDs: [AIBuiltInCommand.spelling.id], localCommands: []).contains(AIBuiltInCommand.spelling.id))
 
         print(failures == 0 ? "\nAI Chat: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)

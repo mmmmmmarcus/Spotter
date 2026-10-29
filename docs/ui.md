@@ -840,3 +840,6 @@ Current-application menu commands appear directly in typed Palette results with 
 
 Screenshot selection overlays are transparent and leave the desktop live. A temporary pointer tap
 routes the selection without activating a window; no pre-capture desktop bitmap is displayed.
+
+Coffee keep-awake sessions use the existing Background Tasks row in the empty Palette: extension
+name, remaining duration, progress, and Actions → Cancel. No separate window or status UI is added.

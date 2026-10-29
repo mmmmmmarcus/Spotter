@@ -15,6 +15,8 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
             switch name {
             case "Check Selected Text Grammar": "Grammar Check"
             case "Define Selected Text": "Definition"
+            case "Fix Selected Text Spelling": "Fix Spelling"
+            case "Get Selected Text Pronunciation": "Pronunciation"
             default: name
             }
         }

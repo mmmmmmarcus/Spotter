@@ -9,6 +9,14 @@ extension PluginActionKey {
 
 @MainActor
 enum AIChatPlugin {
+    static func defaultCommandShortcuts(includesShift: Bool) -> [(UUID, KeyShortcut)] {
+        let modifiers = controlKey | optionKey | cmdKey | (includesShift ? shiftKey : 0)
+        return [
+            (AIBuiltInCommand.spelling.id, KeyShortcut(carbonKeyCode: Int(kVK_ANSI_W), carbonModifiers: modifiers)),
+            (AIBuiltInCommand.pronunciation.id, KeyShortcut(carbonKeyCode: Int(kVK_ANSI_P), carbonModifiers: modifiers))
+        ]
+    }
+
     static func registration(core: AppCore) -> PluginRegistration {
         let open: () -> Void = { [weak core] in core?.openAIChat() }
         return PluginRegistration(
@@ -16,7 +24,7 @@ enum AIChatPlugin {
                 id: .aiChat,
                 name: "AI Chat & Command",
                 summary:
-                    "Chat through OpenRouter, use MCP and Cua tools, or define and proofread selected text.",
+                    "Chat through OpenRouter, use MCP and Cua tools, or define, proofread and pronounce selected text.",
                 systemImage: "sparkles",
                 tint: .purple,
                 settingsPlacement: .system),

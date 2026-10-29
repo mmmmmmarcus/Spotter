@@ -41,9 +41,10 @@ struct SettingsBackup: Codable, Sendable {
         var builtInCommands: [String: HotKeyBinding]?
         /// Per-quicklink bindings, keyed by quicklink UUID like `customCommands`.
         var quicklinks: [String: HotKeyBinding]?
-        /// Per-AI-command bindings, keyed by UUID. The two built-ins have fixed UUIDs, so they
-        /// round-trip here; they are also mirrored into `pluginActions` for older builds.
+        // Command bindings use stable UUIDs; only Define and Grammar also have legacy plugin aliases.
         var aiCommands: [String: HotKeyBinding]?
+        // Distinguishes deliberately unbound commands from defaults unknown to an older writer.
+        var aiCommandIDs: [String]?
         /// Every bound plugin shortcut, keyed `<plugin-id>.<action-id>` — new plugins sync automatically.
         var pluginActions: [String: HotKeyBinding]?
         // Includes unbound actions so absence from pluginActions means an explicit clear only for a known action.
@@ -178,6 +179,7 @@ extension SettingsBackup {
             uniqueKeysWithValues: hk.boundQuicklinkIDs.compactMap { id in
                 hk.binding(for: .quicklink(id: id)).map { (id.uuidString.lowercased(), $0) }
             })
+        hotkeys.aiCommandIDs = core.aiCommands.commands.map { $0.id.uuidString.lowercased() }.sorted()
         hotkeys.aiCommands = Dictionary(
             uniqueKeysWithValues: core.aiCommands.commands.compactMap { command in
                 hk.binding(for: .aiCommand(id: command.id))
@@ -185,7 +187,7 @@ extension SettingsBackup {
             })
         // Mirror the two built-ins under the plugin-action keys they had before AI Commands, so a
         // build that predates this file still reads a Define or Grammar binding out of it.
-        for kind in AIBuiltInCommand.allCases {
+        for kind in AIBuiltInCommand.legacyCases {
             guard let binding = hk.binding(for: .aiCommand(id: kind.id)) else { continue }
             hotkeys.pluginActions?[kind.legacyBackupKey] = binding
         }
@@ -632,8 +634,11 @@ extension SettingsBackup {
                 }
             }
             if let aiCommands = hotkeys.aiCommands {
-                let remoteIDs = Set(aiCommands.keys.compactMap(UUID.init(uuidString:)))
-                for id in Set(core.aiCommands.commands.map(\.id)).union(remoteIDs) {
+                let replacementIDs = AICommandEngine.shortcutReplacementIDs(
+                    knownIDs: hotkeys.aiCommandIDs.map { $0.compactMap(UUID.init(uuidString:)) },
+                    boundIDs: aiCommands.keys.compactMap(UUID.init(uuidString:)),
+                    localCommands: core.aiCommands.commands)
+                for id in replacementIDs {
                     hk.setBinding(nil, for: .aiCommand(id: id))
                 }
             }
@@ -688,7 +693,7 @@ extension SettingsBackup {
         // A file written before AI Commands carried the two built-ins as plugin actions — under
         // AI Chat's ids, or Selection Tools' older ones.
         if hotkeys.aiCommands == nil, let pluginActions = hotkeys.pluginActions {
-            for kind in AIBuiltInCommand.allCases {
+            for kind in AIBuiltInCommand.legacyCases {
                 guard
                     let s = pluginActions[kind.legacyBackupKey] ?? pluginActions[kind.olderBackupKey]
                 else { continue }

@@ -27,7 +27,7 @@ final class ExtensionRuntime: @unchecked Sendable {
     private var hostTasks: [String: Task<Void, Never>] = [:]
     private var generation = UUID()
     private var idleWaiters: [CheckedContinuation<Void, Never>] = []
-    private let nodeShims = ExtensionNodeShims()
+    private let nodeShims: ExtensionNodeShims
 
     /// Set once at startup; read on the JS queue, so it is written before the runtime ever boots.
     private nonisolated(unsafe) weak var delegate: ExtensionRuntimeDelegate?
@@ -35,7 +35,9 @@ final class ExtensionRuntime: @unchecked Sendable {
     private let runtimeOverride: URL?
 
     /// `runtimeURL` overrides the bundled runtime; only the harness passes it.
-    init(hostAPI: ExtensionHostAPI, runtimeURL: URL? = nil, priority: DispatchQoS = .userInitiated) {
+    init(hostAPI: ExtensionHostAPI, runtimeURL: URL? = nil, priority: DispatchQoS = .userInitiated,
+         onKeepAwake: @escaping @Sendable (ExtensionKeepAwakeProcess) -> Void = { _ in }) {
+        nodeShims = ExtensionNodeShims(onKeepAwake: onKeepAwake)
         queue = DispatchQueue(
             label: "com.spotter.extensions.js", qos: priority, autoreleaseFrequency: .workItem)
         self.hostAPI = hostAPI
@@ -114,6 +116,7 @@ final class ExtensionRuntime: @unchecked Sendable {
     ) async {
         let payload = launchContext.jsonString()
         await onQueue { context in
+            self.nodeShims.processOwner = (launchContext.extensionName, launchContext.extensionTitle)
             let compiled = context.objectForKeyedSubscript("__tinycast")
             _ = compiled?.invokeMethod(
                 "start",

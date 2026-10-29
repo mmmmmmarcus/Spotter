@@ -5,6 +5,13 @@ import Foundation
 
 /// Answered inline on the JS queue, so a blocking answer can never deadlock the UI.
 final class ExtensionNodeShims: @unchecked Sendable {
+    var processOwner: (name: String, title: String)?
+    let onKeepAwake: @Sendable (ExtensionKeepAwakeProcess) -> Void
+
+    init(onKeepAwake: @escaping @Sendable (ExtensionKeepAwakeProcess) -> Void = { _ in }) {
+        self.onKeepAwake = onKeepAwake
+    }
+
     private let fileManager = FileManager.default
     private var fileHandles: [Int32: FileHandle] = [:]
 
@@ -471,8 +478,17 @@ final class ExtensionNodeShims: @unchecked Sendable {
 
         let stdout = Pipe()
         let stderr = Pipe()
-        task.standardOutput = stdout
-        task.standardError = stderr
+        let detached = spec["detached"] as? Bool == true
+        task.standardOutput = detached ? FileHandle.nullDevice : stdout
+        task.standardError = detached ? FileHandle.nullDevice : stderr
+        defer {
+            if detached {
+                try? stdout.fileHandleForReading.close()
+                try? stdout.fileHandleForWriting.close()
+                try? stderr.fileHandleForReading.close()
+                try? stderr.fileHandleForWriting.close()
+            }
+        }
         let input = (spec["input"] as? String).flatMap { Data(base64Encoded: $0) }
         let stdin = input.map { _ in Pipe() }
         if let stdin { task.standardInput = stdin }
@@ -482,6 +498,11 @@ final class ExtensionNodeShims: @unchecked Sendable {
             exit = try task.runObservingExit()
         } catch {
             throw ShimError.failed("Could not run '\(command)': \(error.localizedDescription)", "ENOENT")
+        }
+        if detached, task.executableURL?.path == "/usr/bin/caffeinate", let owner = processOwner,
+           let process = ExtensionKeepAwakeProcess.capture(pid: task.processIdentifier,
+               name: owner.name, title: owner.title, arguments: task.arguments ?? []) {
+            onKeepAwake(process)
         }
         if let input, let stdin { feed(input, to: stdin) }
         return ExtensionAsyncProcess.Child(task: task, exit: exit, stdout: stdout, stderr: stderr)

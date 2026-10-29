@@ -61,10 +61,15 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
     @ObservationIgnored private var nextToastID = 1
     @ObservationIgnored private var lastOAuthExtensionName: String?
 
-    init(clipboardStore: ClipboardStore) {
+    @ObservationIgnored private let keepAwake: ExtensionKeepAwake
+
+    init(clipboardStore: ClipboardStore, keepAwake: ExtensionKeepAwake) {
+        self.keepAwake = keepAwake
         storage = ExtensionStorage(directory: ExtensionCatalog.storageDirectory())
         bridge = ExtensionHostBridge(clipboardStore: clipboardStore)
-        runtime = ExtensionRuntime(hostAPI: bridge)
+        runtime = ExtensionRuntime(hostAPI: bridge, onKeepAwake: { process in
+            Task { @MainActor in keepAwake.track(process) }
+        })
         bridge.context = self
     }
 
@@ -72,6 +77,7 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
     func start(coordinator: ExtensionCoordinator) {
         self.coordinator = coordinator
         runtime.setDelegate(self)
+        keepAwake.restore()
         // Not gated on `isEnabled`: a stranded workspace is ours whether or not the feature is on.
         let temp = FileManager.default.temporaryDirectory
         Task.detached(priority: .utility) { ExtensionCleanup.sweepWorkspaces(in: temp) }
@@ -81,6 +87,7 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
 
     /// Idempotent both ways, so launch and the switch are the same call.
     func setEnabled(_ enabled: Bool) async {
+        keepAwake.setEnabled(enabled)
         guard enabled != isEnabled else { return }
         isEnabled = enabled
         guard enabled else {
@@ -107,7 +114,10 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
                     return .init(
                         runtime: ExtensionRuntime(
                             hostAPI: bridge,
-                            priority: type == .background ? .utility : .userInitiated),
+                            priority: type == .background ? .utility : .userInitiated,
+                            onKeepAwake: { [keepAwake = self.keepAwake] process in
+                                Task { @MainActor in keepAwake.track(process) }
+                            }),
                         stop: {
                             host.stop()
                             bridge.context = nil
@@ -139,6 +149,7 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
             publishLauncherEntries()
             restartBackgroundLoop()
         }
+        keepAwake.synchronize(installed: Set(found.map(\.id)))
         menuBars?.synchronize(found)
     }
 
@@ -329,6 +340,7 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
         if backgroundRef?.extensionName == installedExtension.manifest.name {
             await abortBackgroundRun()
         }
+        keepAwake.remove(extensionName: installedExtension.manifest.name)
         let entryIDs = installedExtension.manifest.commands.map {
             ExtensionCommandRef(
                 extensionName: installedExtension.manifest.name, commandName: $0.name

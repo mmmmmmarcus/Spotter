@@ -241,3 +241,8 @@ Only data records are mapped; extension JavaScript, commands and executables are
 run. Existing Spotter rows are preserved and exact name/content duplicates are skipped.
 
 AI Chat streaming drafts are process-local. Automatic sync observes committed sessions and selected session changes, not token-level view updates.
+
+AI shortcut snapshots include `hotkeys.aiCommandIDs`, listing known bound and unbound commands.
+Replace clears only those known IDs and explicit incoming bindings. Legacy snapshots retain clearing
+for Define, Grammar and custom commands, but cannot erase the newer Spelling/Pronunciation defaults
+merely because their binding map omitted them. New snapshots still sync deliberate unbinding.

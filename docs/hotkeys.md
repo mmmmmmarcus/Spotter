@@ -175,3 +175,7 @@ The stable legacy full-history key is retained for settings, backup and sync com
 Sync snapshots include the writer’s complete `pluginActionIDs` catalog. Missing bindings clear only
 actions in that catalog; legacy files without it update explicit bindings and preserve absent ones.
 This prevents an older writer from erasing Quick Clipboard History after its one-time default seed.
+
+Built-in AI commands seed Hyper+W for Fix Spelling and Hyper+P for Pronunciation, using the current
+Include Shift preference. They share the one-time, conflict-aware default seeding used by plugin
+actions; existing bindings and deliberate later unbinding are preserved.

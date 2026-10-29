@@ -196,6 +196,7 @@ struct ExtensionTests {
         oauthUnitChecks()
         deepLinkChecks()
         nodeShimChecks()
+        await keepAwakeChecks()
         await runtimeChecks()
         await searchAccessoryRuntimeChecks()
         await nodeContractChecks()

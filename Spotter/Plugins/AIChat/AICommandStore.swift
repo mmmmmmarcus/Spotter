@@ -1,8 +1,7 @@
 import Combine
 import Foundation
 
-/// The saved AI commands: the two Spotter ships plus whatever the user adds. Foundation + Combine
-/// only, so `Tools/ai-chat-test.swift` compiles it beside the pure record it stores.
+// Foundation + Combine only so the command store remains testable without app state.
 @MainActor
 final class AICommandStore: ObservableObject {
     private static let defaultsKey = "ai-commands"
@@ -129,11 +128,12 @@ final class AICommandStore: ObservableObject {
 
     private static func legacySeed(from defaults: UserDefaults) -> AICommandSeed {
         var seed = AICommandSeed()
-        for kind in AIBuiltInCommand.allCases {
-            if let prompt = defaults.string(forKey: kind.legacyPromptKey) {
+        for kind in AIBuiltInCommand.legacyCases {
+            guard let promptKey = kind.legacyPromptKey, let modelKey = kind.legacyModelKey else { continue }
+            if let prompt = defaults.string(forKey: promptKey) {
                 seed.prompts[kind] = prompt
             }
-            if let model = defaults.string(forKey: kind.legacyModelKey)
+            if let model = defaults.string(forKey: modelKey)
                 ?? defaults.string(forKey: sharedLegacyModelKey)
             {
                 seed.models[kind] = model
