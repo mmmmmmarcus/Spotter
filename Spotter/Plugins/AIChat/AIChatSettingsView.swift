@@ -226,88 +226,34 @@ private struct AICommandEditorSheet: View {
         _model = State(initialValue: command?.model)
     }
 
+    @State private var showsIconPicker = false
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable { case name, prompt }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-            Text(title)
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxl) {
+            Text(command == nil ? "Add AI Command" : "Edit AI Command")
                 .font(.title2.weight(.bold))
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                Text("Name")
-                    .font(.callout.weight(.medium))
-                TextField("Summarize Selected Text", text: $name)
-                    .textFieldStyle(.roundedBorder)
-                    // A built-in's name is Spotter's: the launcher, the docs and the shortcut list all promise it.
-                    .disabled(command?.isBuiltIn == true)
-            }
-
-            HStack {
-                Image(systemName: symbol).frame(width: 24)
-                TextField("SF Symbol", text: $symbol).textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Command SF Symbol")
-            }
-
-            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                HStack {
-                    Text("Prompt")
-                        .font(.callout.weight(.medium))
-                    Spacer()
-                    Button("Insert \(AICommand.placeholder)") { prompt += AICommand.placeholder }
-                        .controlSize(.small)
-                    if let builtIn = command?.builtIn {
-                        Button("Reset to Default") {
-                            prompt = AICommand.makeBuiltIn(builtIn).prompt
-                        }
-                        .controlSize(.small)
-                    }
-                }
-                TextEditor(text: $prompt)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(Theme.Spacing.sm)
-                    .frame(height: 180)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
-                            .fill(Theme.Colors.cardFill)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous)
-                            .strokeBorder(Theme.Colors.cardStroke, lineWidth: 1)
-                    )
-            }
-
-            Text(placeholderHint)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(alignment: .top, spacing: Theme.Spacing.xxl) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    Text("Model")
-                        .font(.callout.weight(.medium))
-                    AIChatModelMenu(
-                        brands: openRouter.catalog, selected: model,
-                        chatModel: openRouter.chatModel,
-                        defaultLabel: "Automatic (Jev)",
-                        set: { model = $0 })
-                }
-                // A command that has not been saved yet has no id, and a binding needs one to hang on.
-                if let command {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                        Text("Shortcut")
-                            .font(.callout.weight(.medium))
-                        ShortcutRecorder(action: .aiCommand(id: command.id))
-                    }
-                }
-                Spacer(minLength: 0)
-            }
+            identity
+            promptEditor
+            options
 
             if let errorMessage {
                 Text(errorMessage)
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Could not save: \(errorMessage)")
             }
 
-            HStack {
+            Divider()
+            HStack(spacing: Theme.Spacing.md) {
+                if let builtIn = command?.builtIn {
+                    Button("Reset Prompt") { prompt = AICommand.makeBuiltIn(builtIn).prompt }
+                        .disabled(prompt == AICommand.makeBuiltIn(builtIn).prompt)
+                }
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
@@ -319,18 +265,118 @@ private struct AICommandEditorSheet: View {
             }
         }
         .padding(Theme.Spacing.xxl)
-        .frame(width: 520)
+        .frame(width: Theme.AICommandEditor.width)
+        .onAppear { focusedField = command == nil ? .name : .prompt }
     }
 
-    private var title: String {
-        guard let command else { return "Add AI Command" }
-        return "Edit \(command.name)"
+    private var identity: some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.xl) {
+            Button { showsIconPicker = true } label: {
+                Image(systemName: symbol)
+                    .font(.title2)
+                    .frame(width: Theme.AICommandEditor.iconSize, height: Theme.AICommandEditor.iconSize)
+                    .background(Theme.Colors.controlSurface, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(Theme.Spacing.xs)
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+            }
+            .buttonStyle(.plain)
+            .help("Choose Command Icon")
+            .accessibilityLabel("Choose Command Icon")
+            .accessibilityValue(symbol)
+            .popover(isPresented: $showsIconPicker) {
+                AICommandIconPicker(selected: symbol) {
+                    symbol = $0
+                    showsIconPicker = false
+                }
+            }
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text("Name").font(.callout.weight(.medium))
+                TextField("Command name", text: $name, prompt: Text("Summarize Selected Text"))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.large)
+                    .focused($focusedField, equals: .name)
+                    .disabled(command?.isBuiltIn == true)
+            }
+        }
+    }
+
+    private var promptEditor: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text("Prompt").font(.callout.weight(.medium))
+            VStack(spacing: 0) {
+                TextEditor(text: $prompt)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .focused($focusedField, equals: .prompt)
+                    .accessibilityLabel("Prompt")
+                    .padding(Theme.Spacing.md)
+                    .frame(height: Theme.AICommandEditor.promptHeight)
+                    .overlay(alignment: .topLeading) {
+                        if prompt.isEmpty {
+                            Text("Describe what Spotter should do with the selected text…")
+                                .font(.body)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, Theme.Spacing.md + Theme.Spacing.sm)
+                                .padding(.vertical, Theme.Spacing.md)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                Divider()
+                HStack(spacing: Theme.Spacing.md) {
+                    Text(placeholderHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.md)
+                    Button("Insert Selection") {
+                        prompt += AICommand.placeholder
+                        focusedField = .prompt
+                    }
+                    .controlSize(.small)
+                    .help("Insert \(AICommand.placeholder) into the prompt")
+                }
+                .padding(Theme.Spacing.lg)
+            }
+            .background(Theme.Colors.cardFill, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Theme.Colors.cardStroke, lineWidth: 1)
+            }
+        }
+    }
+
+    private var options: some View {
+        VStack(spacing: Theme.Spacing.xl) {
+            SettingsRow(title: "Model") {
+                AIChatModelMenu(
+                    brands: openRouter.catalog, selected: model,
+                    chatModel: openRouter.chatModel,
+                    defaultLabel: "Automatic (Jev)", set: { model = $0 })
+                    .accessibilityLabel("Command model")
+            }
+            if let command {
+                Divider()
+                SettingsRow(title: "Shortcut") {
+                    ShortcutRecorder(action: .aiCommand(id: command.id))
+                }
+            }
+        }
+        .padding(Theme.Spacing.xl)
+        .background(Theme.Colors.cardFill, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
     }
 
     private var placeholderHint: String {
         AICommandEngine.hasPlaceholder(prompt)
-            ? "The selected text replaces every \(AICommand.placeholder)."
-            : "No \(AICommand.placeholder) yet — the selected text will be appended after the prompt."
+            ? "Selected text replaces \(AICommand.placeholder)."
+            : "Selected text is added automatically."
     }
 
     private func save() {
@@ -352,6 +398,69 @@ private struct AICommandEditorSheet: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+private struct AICommandIconPicker: View {
+    let selected: String
+    let choose: (String) -> Void
+    @State private var customSymbol: String
+
+    private static let symbols = [
+        "sparkles", "text.badge.checkmark", "textformat.abc", "text.bubble", "character.book.closed", "character.bubble",
+        "doc.text", "list.bullet", "text.alignleft", "arrow.triangle.branch", "lightbulb", "brain.head.profile",
+        "pencil", "pencil.line", "wand.and.stars", "globe", "curlybraces", "terminal",
+        "envelope", "bubble.left.and.bubble.right", "megaphone", "graduationcap", "book", "checkmark.seal"
+    ]
+
+    init(selected: String, choose: @escaping (String) -> Void) {
+        self.selected = selected
+        self.choose = choose
+        _customSymbol = State(initialValue: selected)
+    }
+
+    private var validCustomSymbol: String? {
+        let value = customSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        return NSImage(systemSymbolName: value, accessibilityDescription: nil) == nil ? nil : value
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            Text("Command Icon").font(.headline)
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(Theme.AICommandEditor.symbolCellSize)), count: 6), spacing: Theme.Spacing.md) {
+                ForEach(Self.symbols, id: \.self) { candidate in
+                    Button { choose(candidate) } label: {
+                        Image(systemName: candidate)
+                            .font(.title3)
+                            .frame(width: Theme.AICommandEditor.symbolCellSize, height: Theme.AICommandEditor.symbolCellSize)
+                            .background(selected == candidate ? Theme.Colors.selection : .clear,
+                                in: RoundedRectangle(cornerRadius: Theme.Radius.menu))
+                            .overlay {
+                                if selected == candidate {
+                                    RoundedRectangle(cornerRadius: Theme.Radius.menu)
+                                        .strokeBorder(Theme.Colors.border, lineWidth: 1)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(candidate)
+                    .accessibilityLabel(candidate)
+                    .accessibilityAddTraits(selected == candidate ? .isSelected : [])
+                }
+            }
+            Divider()
+            Text("Custom SF Symbol").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: Theme.Spacing.md) {
+                TextField("SF Symbol name", text: $customSymbol)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { if let value = validCustomSymbol { choose(value) } }
+                Button("Use") { if let value = validCustomSymbol { choose(value) } }
+                    .disabled(validCustomSymbol == nil)
+            }
+        }
+        .padding(Theme.Spacing.xl)
+        .frame(width: Theme.AICommandEditor.iconPickerWidth)
     }
 }
 

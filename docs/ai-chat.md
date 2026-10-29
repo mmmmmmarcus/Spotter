@@ -529,3 +529,8 @@ Built-ins cannot be deleted. They use the existing AI provider/key gates and set
 Fix Spelling defaults to **Hyper+W**, and Pronunciation to **Hyper+P**. Defaults use the configured
 Hyper modifier set (including Shift only when enabled), seed once when unbound and conflict-free,
 and preserve later customization or deliberate unbinding.
+
+The command editor uses a compact identity row with a visual icon picker beside the name. Prompt hints
+and Insert Selection stay inside the prompt card; model and existing-command shortcut controls align
+on separate rows below. Custom SF Symbol names remain available in the icon popover, validated before
+applying. Built-in names remain fixed, and Reset Prompt changes only the draft prompt.

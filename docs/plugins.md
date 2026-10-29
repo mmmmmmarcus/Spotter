@@ -456,3 +456,6 @@ Coffee keeps its own commands and preferences; no built-in Caffeinate plugin is 
 AI Chat ships four selected-text commands: Define, Grammar Check, Fix Spelling, and Pronunciation.
 They share the command store and Quick AI Chat path; the new commands use UUID-based identities,
 while Define and Grammar retain their historical launcher and shortcut keys.
+
+AI Command editing keeps identity, prompt and execution options in separate groups. Its icon picker
+is local to the AI Chat settings editor and adds no catalog service or persistence format.

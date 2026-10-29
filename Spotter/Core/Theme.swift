@@ -97,6 +97,14 @@ enum Theme {
         static let scheduleUnmatched: Double = 0.12
     }
 
+    enum AICommandEditor {
+        static let width: CGFloat = 560
+        static let promptHeight: CGFloat = 200
+        static let iconSize: CGFloat = 52
+        static let symbolCellSize: CGFloat = 36
+        static let iconPickerWidth: CGFloat = 288
+    }
+
     enum Spacing {
         static let xxs: CGFloat = 2
         static let xs: CGFloat = 4

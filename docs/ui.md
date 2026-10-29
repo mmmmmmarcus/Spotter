@@ -806,7 +806,7 @@ Settings lists each installed extension as its own destination under the exact s
 source-build options live in General. Launcher command artwork is decoded from the extension’s
 image file, rather than represented by the system’s document-type icon.
 
-Quick AI Chat submits with Enter; the right-hand paperclip replaces the send arrow. Stop remains available while waiting. AI command editors expose an SF Symbol name with a live preview and validate it before saving. MCP settings list servers directly with Add Server, Edit and Delete actions.
+Quick AI Chat submits with Enter; the right-hand paperclip replaces the send arrow. Stop remains available while waiting. AI command editors group the icon button and name on one row, with a dedicated prompt editor and an inset selection toolbar. Model and shortcut controls use separate right-aligned settings rows; Reset Prompt, Cancel and Save share the footer. The icon button opens a visual grid and an optional validated custom SF Symbol field. MCP settings list servers directly with Add Server, Edit and Delete actions.
 
 Quick Translate uses secondary original text while loading and an overlapping crossfade to the result. Its bottom-left symbol buttons copy the full translation and toggle original-above/translation-below comparison. Word hover highlights linked spans in both texts; the shared scroll region keeps the footer visible.
 
