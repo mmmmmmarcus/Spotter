@@ -24,7 +24,7 @@ enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
         switch self {
         case .define: "Define Selected Text"
         case .grammar: "Check Selected Text Grammar"
-        case .spelling: "Fix Selected Text Spelling"
+        case .spelling: "Fix Selected Text"
         case .pronunciation: "Get Selected Text Pronunciation"
         }
     }
@@ -34,7 +34,7 @@ enum AIBuiltInCommand: String, Codable, CaseIterable, Sendable {
         switch self {
         case .define: "Definition"
         case .grammar: "Grammar Check"
-        case .spelling: "Fix Spelling"
+        case .spelling: "Fix Text"
         case .pronunciation: "Pronunciation"
         }
     }
@@ -261,6 +261,9 @@ enum AICommandEngine {
             guard var command = stored[kind.id] else { return seeded(kind, seed: seed) }
             // The name is Spotter's, not the file's: it is what the docs and the launcher promise.
             command.name = kind.name
+            if kind == .spelling, command.prompt == AIChatSelectionPrompts.legacySpelling {
+                command.prompt = AIChatSelectionPrompts.defaultSpelling
+            }
             return command
         }
         // Built-in names are reserved first, so an imported command can't shadow one.

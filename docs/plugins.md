@@ -12,9 +12,9 @@ Raycast compatibility updates are selective: preserve the AppCore-owned host, it
 palette lifecycle. Record upstream fixes and deliberate differences in the
 [vendor audit](vendor/tinycast-extensions.md); a newer API enum catalog does not imply every API is implemented.
 
-AI Chat's built-in Fix Spelling is a direct selected-text replacement command with an inline `{Fixing}`
+AI Chat's built-in Fix Text is a direct selected-text replacement command with an inline `{Fixing}`
 placeholder, guarded completion and cancellation restoration. Editors that cannot safely host the
-placeholder retain their original selection, show brief progress and receive a revalidated native paste. Other AI commands
+placeholder retain their original selection and receive a revalidated native paste without a Toast. Other AI commands
 retain Quick AI Chat presentation; all share the existing model/effort configuration and request gate. Effort is optional, catalog-driven, and included in trusted settings sync.
 
 This design keeps development boundaries clear for 20+ features while preserving static type checking,
@@ -462,7 +462,7 @@ after empty browsing and a repeated query. The semantic harness covers this cach
 The Raycast adapter reports detached native caffeinate work to the shared Background Tasks surface.
 Coffee keeps its own commands and preferences; no built-in Caffeinate plugin is reintroduced.
 
-AI Chat ships four selected-text commands: Define, Grammar Check, Fix Spelling, and Pronunciation.
+AI Chat ships four selected-text commands: Define, Grammar Check, Fix Text, and Pronunciation.
 They share the command store and Quick AI Chat path; the new commands use UUID-based identities,
 while Define and Grammar retain their historical launcher and shortcut keys.
 

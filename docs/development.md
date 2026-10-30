@@ -682,7 +682,7 @@ the effort across multiple tool rounds. These tests do not invoke a paid model o
 restoration after cancellation/focus changes, stale-edit rejection and native rich-text preservation.
 `quick-ai-chat` verifies exactly-once synchronous cleanup when spelling is stopped or superseded.
 
-Spelling fallback tests cover missing or ignored AX write capabilities, rejection of partial writes,
-revalidation through the shared
-copy capture, focus/selection changes during capture, cancellation, exactly-once cleanup and unchanged
-results. These fixtures exercise dispatch guards without typing into the user's applications.
+Fix Text tests cover the two-word scope boundary, punctuation/CJK segmentation, shipped-prompt
+migration with custom settings preserved, native placeholder writes, delayed verification,
+focus/selection changes, recovery, cancellation and newer edits. Copy-only guards still revalidate
+through shared capture, with exactly-once cleanup. These fixtures do not invoke paid models.

@@ -213,29 +213,67 @@ struct SelectedTextCaptureTests {
         catch { check("unchanged result is accepted", false) }
         check("unchanged result leaves both document and clipboard untouched", pasted.count == 1)
         state = original
-        var nativeRetryCount = 0
-        var nativeRetryResult = ""
-        func ignoredSetterTarget(mutates: Bool) -> AISelectionReplacement {
-            AISelectionReplacement(original: original, text: NSAttributedString(string: "teh"), read: { state },
-                write: { _, _, _, _, _ in
-                    if mutates { state = .init(value: "unexpected editor change", selection: .init(location: 0, length: 0)) }
-                    return false
-                }, isFocused: { true }, makePasteFallback: {
-                    nativeRetryCount += 1
-                    return AISelectionPasteFallback(original: "teh", isCurrent: { true }, paste: { nativeRetryResult = $0 })
+        focused = true
+        func nativeProgress() -> AISelectionNativeProgress {
+            AISelectionNativeProgress(original: original, text: "teh", read: { state }, isFocused: { focused },
+                write: { expected, range, text, selection in
+                    guard state == expected else { return nil }
+                    return Task { @MainActor in
+                        state = .init(value: (state.value as NSString).replacingCharacters(in: range, with: text), selection: selection)
+                        return true
+                    }
                 })
         }
-        let ignoredSetter = ignoredSetterTarget(mutates: false)
-        do {
-            try ignoredSetter.showProgress()
-            check("ignored AX writes use native paste only with the original selection intact", !ignoredSetter.usesInlineProgress && state == original)
-            try await ignoredSetter.complete(with: "the", readSelection: { "teh" })
-        } catch { check("ignored setter can fall back to native replacement", false) }
-        check("ignored setter completes through guarded native paste", nativeRetryCount == 1 && nativeRetryResult == "the")
+        let nativePaste = nativeProgress()
+        try! await nativePaste.begin()
+        check("native paste progress preserves the surrounding Unicode text", state.value == "🧭 {Fixing} word" && state.selection == NSRange(location: 3, length: 8))
+        try! await nativePaste.finish(with: "the")
+        check("native paste completes only inside its captured range", state.value == "🧭 the word")
+        nativePaste.restore()
+        check("native cleanup cannot restore over a completed result", state.value == "🧭 the word")
         state = original
-        let changedSetter = ignoredSetterTarget(mutates: true)
-        do { try changedSetter.showProgress(); check("partially applied writes cannot retry as paste", false) }
-        catch { check("partially applied writes cannot retry as paste", nativeRetryCount == 1 && changedSetter.usesInlineProgress) }
+        let nativeCancelled = nativeProgress()
+        try! await nativeCancelled.begin()
+        focused = false
+        do { try await nativeCancelled.finish(with: "the"); check("native focus switch rejects completion", false) }
+        catch { check("native focus switch rejects completion", true) }
+        nativeCancelled.restore()
+        _ = await nativeCancelled.settling?.value
+        check("native cancellation restores the captured control without activating it", state.value == original.value && state.selection == NSRange(location: NSMaxRange(original.selection), length: 0))
+        state = original
+        focused = true
+        let nativeEdited = nativeProgress()
+        try! await nativeEdited.begin()
+        state = .init(value: "User's new text", selection: .init(location: 15, length: 0))
+        nativeEdited.restore()
+        check("native cancellation preserves newer user edits", state.value == "User's new text")
+        state = original
+        focused = true
+        let deferredRecovery = AISelectionNativeProgress(original: original, text: "teh", read: { state }, isFocused: { focused },
+            write: { expected, range, text, selection in
+                guard focused, state == expected else { return nil }
+                return Task { @MainActor in
+                    state = .init(value: (state.value as NSString).replacingCharacters(in: range, with: text), selection: selection)
+                    return true
+                }
+            })
+        try! await deferredRecovery.begin()
+        focused = false
+        deferredRecovery.restore()
+        let recoveryTask = Task { @MainActor in await deferredRecovery.finishRestoringWhenFocused() }
+        await Task.yield()
+        check("inactive editors retain recovery without receiving a blind paste", state.value == "🧭 {Fixing} word")
+        focused = true
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        await recoveryTask.value
+        check("returning to the captured editor restores its original text", state.value == original.value)
+
+        state = original
+        let rejectedNativeWrite = AISelectionNativeProgress(original: original, text: "teh", read: { state }, isFocused: { true },
+            write: { _, _, _, _ in Task { false } })
+        do { try await rejectedNativeWrite.begin(); check("native writes require observed confirmation", false) }
+        catch { check("native writes require observed confirmation", state == original) }
+        await rejectedNativeWrite.finishRestoringWhenFocused()
         print("Selected text capture: \(failures) failure(s)")
         exit(failures == 0 ? 0 : 1)
     }

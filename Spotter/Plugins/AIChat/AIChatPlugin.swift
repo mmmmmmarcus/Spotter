@@ -172,16 +172,19 @@ extension AppCore {
     }
 
     private func captureAICommand(_ command: AICommand, restoringFocus: Bool) {
-        aiCommandCaptureTask?.cancel()
+        let previous = aiCommandCaptureTask
+        previous?.cancel()
         aiChat.stop()
         aiCommandCaptureTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            await previous?.value
+            _ = await aiCommandCleanupTask?.value
+            guard !Task.isCancelled else { return }
             let capture = restoringFocus
                 ? await selectedTextCapture.captureAfterRestoringFocus()
                 : await selectedTextCapture.capture()
             guard !Task.isCancelled else { return }
-            aiCommandCaptureTask = nil
-            presentAICommand(command, capture: capture)
+            await presentAICommand(command, capture: capture)
         }
     }
 
@@ -191,27 +194,22 @@ extension AppCore {
     private func presentAICommand(
         _ command: AICommand,
         capture: Result<SelectedTextSnapshot, SelectedTextCaptureFailure>
-    ) {
+    ) async {
         if command.replacesSelection {
             switch capture {
             case .failure(let error): showAICommandFailure(command, message: error.message)
             case .success(let snapshot):
                 do {
                     let target = try AISelectionReplacement.capture(text: snapshot.text, pid: snapshot.source.processIdentifier)
-                    try target.showProgress()
+                    do { try await target.prepare() }
+                    catch {
+                        restoreAICommandSelection(target)
+                        throw error
+                    }
                     AppLog.info("ai-spelling", target.usesInlineProgress ? "Using inline replacement." : "Using guarded native paste.")
-                    if !target.usesInlineProgress { hud.show(title: "Fixing…", symbol: "textformat.abc") }
-                    aiChat.replaceSpelling(command: command, selection: snapshot.text, onCancel: {
-                        target.restoreOriginal()
+                    aiChat.replaceSpelling(command: command, selection: snapshot.text, onCancel: { [weak self] in
+                        self?.restoreAICommandSelection(target)
                     }) { [weak self] result in
-                        if target.usesInlineProgress {
-                            do { try target.replace(with: result.get()) }
-                            catch {
-                                target.restoreOriginal()
-                                self?.showAICommandFailure(command, message: error.localizedDescription)
-                            }
-                            return
-                        }
                         guard let self else { target.restoreOriginal(); return }
                         aiCommandCaptureTask = Task { @MainActor [weak self] in
                             guard let self else { target.restoreOriginal(); return }
@@ -224,7 +222,7 @@ extension AppCore {
                                 }
                                 AppLog.info("ai-spelling", "Replacement completed.")
                             } catch {
-                                target.restoreOriginal()
+                                restoreAICommandSelection(target)
                                 if !Task.isCancelled { showAICommandFailure(command, message: error.localizedDescription) }
                             }
                         }
@@ -247,10 +245,19 @@ extension AppCore {
         showAICommandSession(sessionID)
     }
 
+    private func restoreAICommandSelection(_ target: AISelectionReplacement) {
+        target.restoreOriginal()
+        aiCommandCleanupTask = target.restorationTask
+        let id = UUID()
+        aiCommandRecoveryTasks[id] = Task { @MainActor [weak self] in
+            await target.finishRestoringWhenFocused()
+            self?.aiCommandRecoveryTasks.removeValue(forKey: id)
+        }
+    }
+
     private func showAICommandFailure(_ command: AICommand, message: String) {
         if command.replacesSelection {
             AppLog.error("ai-spelling", message)
-            hud.show(title: message, symbol: "exclamationmark.triangle", isNoOp: true)
             return
         }
         let sessionID = aiChat.showCommandFailure(command: command, message: message,

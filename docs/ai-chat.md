@@ -1,34 +1,35 @@
 # AI Chat
 
 AI Chat uses Quick AI Chat as its only conversation surface. The launcher commands, ⌥Space,
-AI commands other than Fix Spelling, running-task rows and the launcher's Ask AI fallback open the floating panel.
+AI commands other than Fix Text, running-task rows and the launcher's Ask AI fallback open the floating panel.
 
-Fix Spelling (Hyper+F by default) immediately replaces the selected text with `{Fixing}`, then replaces
-that placeholder with the complete correction, without opening a chat or
-persisting a conversation. It retains its editable prompt and model pin; Automatic still routes
-through Jev. The request shares AIChatStore's cancellation gate, buffers the complete answer, and
-does not invoke Spotter MCP tools or web search. Errors use a brief HUD; partial, empty, oversized,
-wrapped or canceled answers are never pasted. Boundary whitespace comes from the original selection.
+Fix Selected Text (Hyper+F) corrects spelling for one or two words, and grammar, spelling and
+punctuation for longer selections. Word boundaries use Foundation's native segmentation, including
+CJK text. It preserves meaning, language and tone and returns only replacement text. The existing
+spelling command UUID and shortcut key remain stable. Its unchanged legacy prompt upgrades; custom
+prompts, model and effort pins survive. Automatic still routes through Jev.
 
-`AISelectionReplacement` captures the original editable control, UTF-16 range, document text and
-(for Spotter Notes) attributed selection. Progress is inserted only when the editor exposes a verifiable,
-replaceable text range. Compatible external editors use scoped Accessibility selected-text writes,
-never whole-field replacement. Editors without writable AX selected-text/range attributes or a full
-AX document use a native-paste fallback, including copy-only selections supported by Translate.
-Editors that advertise AX setters but ignore writes also use that fallback, only after confirming
-the complete original text, selection and focus remain intact; partial writes never retry as paste.
-The fallback leaves the original selection untouched while waiting and shows a brief Fixing HUD.
-Before pasting it re-reads the selection through the shared AX/copy capture path and checks the
-original process, focused control/window, any available range or Chromium marker, and intervening
-keyboard/mouse activity. It repeats those checks after the asynchronous copy, never activates another
-app, and refuses a stale or cancelled completion. Its passive activity monitors last only for the
-request, store no keys/text, and ignore Spotter's tagged copy events. Spotter Notes uses its NSTextView insertion path; temporary progress
-and restoration do not enter Undo, so a successful correction undoes to the original text.
-The final write rechecks the original process/control, focus, document and placeholder selection.
-Failure or cancellation restores the original only while the document still matches the pending
-snapshot; cleanup may restore the captured background control without activating it. User edits are
-never overwritten. Read-only or changed selections cannot be forced writable; native paste follows
-the target editor's own behavior. Pronunciation and other commands still use chat.
+The command shows `{Fixing}` inside a verifiable editable selection, then replaces it with the complete
+answer. It opens no chat and shows no progress or error Toast; failures go to diagnostics. Partial,
+empty, oversized, wrapped or cancelled answers never replace text. It uses no tools or web search.
+
+`AISelectionReplacement` captures the control, UTF-16 range and full document text. External editors
+use native paste and native keyboard selection of the eight-character placeholder, with bounded
+asynchronous confirmation of the full value and range. AX range setters are deliberately not trusted:
+Figma can acknowledge one without moving its canvas selection. Every write rechecks the captured
+control and document; only the selected range changes. Spotter Notes retains its attributed-text path
+and excludes temporary progress/restoration from Undo.
+
+Copy-only editors without a verifiable full document keep their original selection until the complete
+correction arrives. They revalidate through the shared AX/copy capture path, checking process,
+control/window, any available range/marker, and intervening keyboard/mouse activity. The passive
+request-scoped monitors retain no keys or text. No status Toast is used on this path either.
+
+A newer invocation waits for preceding writes and immediate restoration to settle. Cancellation or
+failure restores the original only while the placeholder and document still match. External editors
+that cannot receive background writes defer restoration until their app becomes active again,
+without stealing focus or pasting into a different control. AppCore owns these recovery tasks;
+changed or closed documents discard the recovery. Pronunciation and other commands still use chat.
 ⌘↵ with a typed launcher query opens a new conversation and sends it. The main Palette no longer
 contains a chat mode, composer, history list or chat actions menu; Tab cycles Apps, Clipboard and Emoji.
 The launcher's Send to ChatGPT fallback remains a separate browser handoff.
@@ -49,7 +50,7 @@ same pane's **AI (OpenRouter)** card, moved there from General in 1.6.0 so the g
 feature it gates (entering or syncing a key is the consent act). The field is titled **Open Router API key**
 and carries no example or standing explanatory text. Checking progress and validation results still
 appear below it. The key remains included in settings backups and sync. AI Chat also owns **AI commands**, the prompts that run on
-selected text; Spotter ships Define Selected Text, Check Selected Text Grammar, Fix Selected Text Spelling, and Get Selected Text Pronunciation.
+selected text; Spotter ships Define Selected Text, Check Selected Text Grammar, Fix Selected Text, and Get Selected Text Pronunciation.
 Google-powered translation lives in the [Translate](translate.md) plugin. Its implementation lives in
 `Spotter/Plugins/AIChat/` so it can reuse the registry's Settings, command, permission and shortcut
 plumbing without being presented as an optional plugin.
@@ -277,7 +278,7 @@ including clickable link and copy events, rich blocks, CSP, resizing and incompl
 An **AI command** is a name, a prompt, a shortcut and a model choice. The prompt is a template:
 `{selection}` — the same single-brace shape a quicklink's `{argument}` uses — is where the selected
 text lands. Running one captures the selection through the `AppCore`-owned `SelectedTextCapture`,
-renders the prompt, opens a new titled chat session and sends immediately, except Fix Spelling,
+renders the prompt, opens a new titled chat session and sends immediately, except Fix Text,
 which replaces the verified original selection directly without a session. Other commands open
 Quick AI Chat. The old surface preference is ignored. Each command has an editable SF Symbol, shown in Settings, launcher results and compact user bubbles; old records keep their existing default icon. Floating command sessions and their
 capture/key errors open their owning floating conversation. Opening a command preserves
@@ -301,7 +302,7 @@ Substitution (`AICommandEngine.render`, pure) settles the three edge cases expli
   joined with the selection, so inserted text is never rescanned.
 
 Spotter ships four commands: **Define Selected Text**, **Check Selected Text Grammar**,
-**Fix Selected Text Spelling** and **Get Selected Text Pronunciation**. They are
+**Fix Selected Text** and **Get Selected Text Pronunciation**. They are
 ordinary records — same launcher entry, same shortcut recorder, same run path as one the user writes
 — with a fixed identity: their ids, launcher entry ids (`command:selection-tools:define` /
 `:grammar`) and shortcut keys (`KeyboardShortcuts_plugin.selection-tools.*`) are the ones they have
@@ -541,23 +542,23 @@ Grammar Check also renders legacy JSON replies with `corrected` and `issues`, or
 
 The compact composer has no History button. Up opens all history sessions above it; Up/Down selects a pill and Enter opens it without submitting the draft. Escape closes the picker. The viewport shows at most ten pills and scrolls to the keyboard selection. In expanded chat, History collapses the current conversation into the bottom pill and displays the other conversations above it, sharing the same surface transition as opening a pill. IME composition and modified text-navigation keys retain their native handling.
 
-AI Command user bubbles place a symbol-and-name capsule on their first line, above the selected text. Shipped command display names are Grammar Check, Definition, Fix Spelling and Pronunciation; custom commands retain their full names. The capsule follows the inverse bubble appearance, and stored prompts remain unchanged.
+AI Command user bubbles place a symbol-and-name capsule on their first line, above the selected text. Shipped command display names are Grammar Check, Definition, Fix Text and Pronunciation; custom commands retain their full names. The capsule follows the inverse bubble appearance, and stored prompts remain unchanged.
 
-## Built-in spelling and pronunciation commands
+## Built-in text correction and pronunciation commands
 
-**Fix Selected Text Spelling** returns only the corrected selection, preserving its language,
-wording and formatting rather than rewriting grammar or style. **Get Selected Text Pronunciation**
+**Fix Selected Text** returns only the corrected selection: spelling for one or two words,
+plus grammar and punctuation for longer selections, preserving language, meaning and tone. **Get Selected Text Pronunciation**
 returns a text guide with IPA, syllable stress, readable pronunciation and relevant regional variants;
 it does not generate audio. Both capture selected text through the existing focus-restoration path
 while Pronunciation opens Quick AI Chat with a concise command capsule and its own SF Symbol.
-Fix Spelling uses the inline progress/replacement path described above.
+Fix Text uses the inline progress/replacement path described above.
 
 Existing installations automatically receive the two records without replacing customized Define,
 Grammar or user commands. Their UUIDs, launcher entries and shortcut keys remain stable; users can
 edit their prompt, icon and model, assign shortcuts, or Reset in Settings → AI Chat & Command.
 Built-ins cannot be deleted. They use the existing AI provider/key gates and settings backup/sync.
 
-Fix Spelling defaults to **Hyper+F**, and Pronunciation to **Hyper+P**. Defaults use the configured
+Fix Text defaults to **Hyper+F**, and Pronunciation to **Hyper+P**. Defaults use the configured
 Hyper modifier set (including Shift only when enabled), seed once when unbound and conflict-free,
 and preserve later customization or deliberate unbinding. A one-time upgrade moves the old Hyper+W
 spelling default to Hyper+F with the same modifiers, only if Hyper+F is free. Conflicts retain the old
@@ -591,7 +592,7 @@ through commands, classification and conversation history. They ride the existin
 and sync records, with no new preference namespace or migration that changes model choices.
 A conversation retains its first selected pair on follow-ups. Jev still chooses only a category;
 there is no extra classification request for effort. Fallback uses the captured Everyday pair.
-Fix Spelling uses its explicit pair or the routed pair without creating a session.
+Fix Text uses its explicit pair or the routed pair without creating a session.
 
 OpenRouter streaming and every MCP round send `reasoning: {effort: ...}` only when offered by the
 catalog. An explicit override refreshes an absent/expired catalog under the existing API-key gate;

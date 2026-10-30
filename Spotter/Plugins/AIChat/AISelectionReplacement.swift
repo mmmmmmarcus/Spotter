@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 
 @MainActor
 final class AISelectionReplacement {
@@ -18,19 +19,27 @@ final class AISelectionReplacement {
     private let isFocused: () -> Bool
     private var pending: Snapshot?
     private var pasteFallback: AISelectionPasteFallback?
-    private let makePasteFallback: (() -> AISelectionPasteFallback)?
 
-    var usesInlineProgress: Bool { pasteFallback == nil }
+    var usesInlineProgress: Bool { pasteFallback == nil || pasteFallback?.nativeProgress != nil }
+    var restorationTask: Task<Bool, Never>? { pasteFallback?.nativeProgress?.settling }
+
+    func finishRestoringWhenFocused() async {
+        await pasteFallback?.nativeProgress?.finishRestoringWhenFocused()
+    }
+
+    func prepare() async throws {
+        try showProgress()
+        if let progress = pasteFallback?.nativeProgress { try await progress.begin() }
+        try Task.checkCancellation()
+    }
 
     init(original: Snapshot, text: NSAttributedString, read: @escaping () -> Snapshot?,
-        write: @escaping Writer, isFocused: @escaping () -> Bool,
-        makePasteFallback: (() -> AISelectionPasteFallback)? = nil) {
+        write: @escaping Writer, isFocused: @escaping () -> Bool) {
         self.original = original
         self.originalText = text
         self.read = read
         self.write = write
         self.isFocused = isFocused
-        self.makePasteFallback = makePasteFallback
     }
 
     static func capture(text: String, pid: pid_t) throws -> AISelectionReplacement {
@@ -45,32 +54,7 @@ final class AISelectionReplacement {
             return captureLocal(view)
         }
         guard AXIsProcessTrusted() else { throw AISpellingResponse.Failure.unsupportedControl }
-        guard let element = focusedElement(pid: pid),
-              isSettable(kAXSelectedTextAttribute, on: element),
-              isSettable(kAXSelectedTextRangeAttribute, on: element),
-              let snapshot = snapshot(element), substring(snapshot.value, range: snapshot.selection) == text
-        else { return capturePasteFallback(text: text, pid: pid) }
-        return AISelectionReplacement(original: snapshot, text: NSAttributedString(string: text), read: {
-            guard AXIsProcessTrusted() else { return nil }
-            return self.snapshot(element)
-        }, write: { expected, range, replacement, selection, _ in
-            guard self.snapshot(element) == expected, setRange(range, on: element),
-                  SelectedTextReader.selectedText(from: element) == substring(expected.value, range: range)
-            else { return false }
-            guard AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString,
-                replacement.string as CFString) == .success else {
-                _ = setRange(expected.selection, on: element)
-                return false
-            }
-            guard attribute(kAXValueAttribute, from: element) as? String
-                == (expected.value as NSString).replacingCharacters(in: range, with: replacement.string)
-            else { return false }
-            return setRange(selection, on: element)
-        }, isFocused: {
-            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-                  let focused = focusedElement(pid: pid) else { return false }
-            return CFEqual(element, focused)
-        }, makePasteFallback: { makeNativePasteFallback(text: text, pid: pid) })
+        return capturePasteFallback(text: text, pid: pid)
     }
 
     private static func capturePasteFallback(text: String, pid: pid_t) -> AISelectionReplacement {
@@ -87,6 +71,50 @@ final class AISelectionReplacement {
         let window = attribute(kAXFocusedWindowAttribute, from: application)
         let range = element.flatMap(selectedRange)
         let marker = element.flatMap { attribute("AXSelectedTextMarkerRange", from: $0) }
+        if let element, let original = snapshot(element), substring(original.value, range: original.selection) == text {
+            let progress = AISelectionNativeProgress(original: original, text: text,
+                read: { self.snapshot(element) }, isFocused: {
+                    NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+                        && sameElement(element, focusedElement(pid: pid))
+                        && sameElement(window, attribute(kAXFocusedWindowAttribute, from: application))
+                }, write: { expected, range, replacement, selection in
+                    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return nil }
+                    guard sameElement(element, focusedElement(pid: pid)),
+                          sameElement(window, attribute(kAXFocusedWindowAttribute, from: application)),
+                          self.snapshot(element) == expected else { return nil }
+                    let value = (expected.value as NSString).replacingCharacters(in: range, with: replacement)
+                    let needsSelection = expected.selection != range
+                    if needsSelection {
+                        guard range.length == AISelectionReplacement.progressText.count,
+                              expected.selection == NSRange(location: NSMaxRange(range), length: 0) else { return nil }
+                        for _ in 0..<range.length { postNativeKey(kVK_LeftArrow, flags: .maskShift, pid: pid) }
+                    } else {
+                        Paster.copyString(replacement)
+                        postNativeKey(kVK_ANSI_V, flags: .maskCommand, pid: pid)
+                    }
+                    return Task { @MainActor in
+                        if needsSelection {
+                            guard await waitForSnapshot(element, value: expected.value, selection: range),
+                                  NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                                  sameElement(element, focusedElement(pid: pid)),
+                                  sameElement(window, attribute(kAXFocusedWindowAttribute, from: application)) else { return false }
+                            Paster.copyString(replacement)
+                            postNativeKey(kVK_ANSI_V, flags: .maskCommand, pid: pid)
+                        }
+                        let caret = NSRange(location: range.location + (replacement as NSString).length, length: 0)
+                        guard await waitForSnapshot(element, value: value, selection: caret) else { return false }
+                        if selection.length == 0 { return true }
+                        guard selection.length == AISelectionReplacement.progressText.count,
+                              NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                              sameElement(element, focusedElement(pid: pid)),
+                              sameElement(window, attribute(kAXFocusedWindowAttribute, from: application)) else { return false }
+                        // Canvas editors can acknowledge AX ranges without moving their actual editing selection.
+                        for _ in 0..<selection.length { postNativeKey(kVK_LeftArrow, flags: .maskShift, pid: pid) }
+                        return await waitForSnapshot(element, value: value, selection: selection)
+                    }
+                })
+            return AISelectionPasteFallback(original: text, isCurrent: { progress.isCurrent }, paste: { _ in }, nativeProgress: progress)
+        }
         let activity = AISelectionActivityGuard()
         return AISelectionPasteFallback(original: text, isCurrent: {
             guard AXIsProcessTrusted(), !activity.changed,
@@ -100,6 +128,24 @@ final class AISelectionReplacement {
             Paster.copyString(replacement)
             Paster.postCommandV(toPid: pid)
         }, cleanup: { activity.stop() })
+    }
+
+    private static func waitForSnapshot(_ element: AXUIElement, value: String, selection: NSRange) async -> Bool {
+        for _ in 0..<30 {
+            if snapshot(element) == Snapshot(value: value, selection: selection) { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return false
+    }
+
+    private static func postNativeKey(_ key: Int, flags: CGEventFlags, pid: pid_t) {
+        let source = CGEventSource(stateID: .privateState)
+        for pressed in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: pressed)
+            event?.flags = flags
+            event?.setIntegerValueField(.eventSourceUserData, value: HyperKeyTap.syntheticTag)
+            event?.postToPid(pid)
+        }
     }
 
     private static func sameElement(_ lhs: CFTypeRef?, _ rhs: CFTypeRef?) -> Bool {
@@ -161,13 +207,6 @@ final class AISelectionReplacement {
         guard write(original, original.selection, NSAttributedString(string: Self.progressText), range, false),
               read() == pending else {
             restoreOriginal()
-            // Some editors advertise AX setters but ignore writes; only retry after proving no text or selection was lost.
-            if isFocused(), read() == original, let makePasteFallback {
-                let fallback = makePasteFallback()
-                guard fallback.isCurrent else { throw AISpellingResponse.Failure.selectionChanged }
-                pasteFallback = fallback
-                return
-            }
             throw AISpellingResponse.Failure.unsupportedControl
         }
     }
@@ -238,11 +277,6 @@ final class AISelectionReplacement {
         return value
     }
 
-    private static func isSettable(_ name: String, on element: AXUIElement) -> Bool {
-        var result = DarwinBoolean(false)
-        return AXUIElementIsAttributeSettable(element, name as CFString, &result) == .success && result.boolValue
-    }
-
     private static func selectedRange(_ element: AXUIElement) -> NSRange? {
         guard let raw = attribute(kAXSelectedTextRangeAttribute, from: element),
               CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
@@ -251,11 +285,7 @@ final class AISelectionReplacement {
         return NSRange(location: range.location, length: range.length)
     }
 
-    private static func setRange(_ range: NSRange, on element: AXUIElement) -> Bool {
-        var raw = CFRange(location: range.location, length: range.length)
-        guard let value = AXValueCreate(.cfRange, &raw) else { return false }
-        return AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, value) == .success
-    }
+
 }
 
 @MainActor
@@ -265,13 +295,15 @@ final class AISelectionPasteFallback {
     private let paste: (String) -> Void
     private let cleanup: () -> Void
     private var finished = false
+    let nativeProgress: AISelectionNativeProgress?
 
     init(original: String, isCurrent: @escaping () -> Bool, paste: @escaping (String) -> Void,
-        cleanup: @escaping () -> Void = {}) {
+        cleanup: @escaping () -> Void = {}, nativeProgress: AISelectionNativeProgress? = nil) {
         self.original = original
         self.validate = isCurrent
         self.paste = paste
         self.cleanup = cleanup
+        self.nativeProgress = nativeProgress
     }
 
     var isCurrent: Bool { !finished && validate() }
@@ -280,6 +312,10 @@ final class AISelectionPasteFallback {
         defer { cancel() }
         try Task.checkCancellation()
         guard isCurrent else { throw AISpellingResponse.Failure.selectionChanged }
+        if let nativeProgress {
+            try await nativeProgress.finish(with: text)
+            return
+        }
         let selected = await readSelection()
         try Task.checkCancellation()
         guard isCurrent, selected == original else { throw AISpellingResponse.Failure.selectionChanged }
@@ -289,8 +325,95 @@ final class AISelectionPasteFallback {
     func cancel() {
         guard !finished else { return }
         finished = true
+        nativeProgress?.restore()
         cleanup()
     }
+}
+
+@MainActor
+final class AISelectionNativeProgress {
+    typealias Snapshot = AISelectionReplacement.Snapshot
+    typealias Writer = (Snapshot, NSRange, String, NSRange) -> Task<Bool, Never>?
+    private let original: Snapshot
+    private let text: String
+    private let read: () -> Snapshot?
+    private let isFocused: () -> Bool
+    private let write: Writer
+    private var pending: Snapshot?
+    private(set) var settling: Task<Bool, Never>?
+    private var restorationInFlight = false
+
+    init(original: Snapshot, text: String, read: @escaping () -> Snapshot?,
+        isFocused: @escaping () -> Bool, write: @escaping Writer) {
+        self.original = original
+        self.text = text
+        self.read = read
+        self.isFocused = isFocused
+        self.write = write
+    }
+
+    var isCurrent: Bool {
+        guard isFocused(), let current = read() else { return false }
+        guard let pending else { return current == original }
+        return current.value == pending.value && (current.selection == pending.selection
+            || current.selection == NSRange(location: NSMaxRange(pending.selection), length: 0))
+    }
+
+    func begin() async throws {
+        guard isCurrent, pending == nil else { throw AISpellingResponse.Failure.selectionChanged }
+        let placeholder = AISelectionReplacement.progressText
+        let range = NSRange(location: original.selection.location, length: (placeholder as NSString).length)
+        pending = Snapshot(value: (original.value as NSString).replacingCharacters(in: original.selection, with: placeholder), selection: range)
+        settling = write(original, original.selection, placeholder, range)
+        guard await settling?.value == true, isCurrent else {
+            restore()
+            throw AISpellingResponse.Failure.unsupportedControl
+        }
+    }
+
+    func finish(with replacement: String) async throws {
+        try Task.checkCancellation()
+        guard isCurrent, let pending, let current = read() else { throw AISpellingResponse.Failure.selectionChanged }
+        let end = NSRange(location: pending.selection.location + (replacement as NSString).length, length: 0)
+        settling = write(current, pending.selection, replacement, end)
+        guard await settling?.value == true else { throw AISpellingResponse.Failure.selectionChanged }
+        self.pending = nil
+    }
+
+    func restore() {
+        guard !restorationInFlight, let pending, let current = read(), current.value == pending.value,
+              current.selection == pending.selection
+                || current.selection == NSRange(location: NSMaxRange(pending.selection), length: 0) else { return }
+        guard let operation = write(current, pending.selection, text, NSRange(location: NSMaxRange(original.selection), length: 0)) else { return }
+        restorationInFlight = true
+        settling = Task { @MainActor in
+            let restored = await operation.value
+            if restored { self.pending = nil }
+            restorationInFlight = false
+            return restored
+        }
+    }
+
+    func finishRestoringWhenFocused() async {
+        _ = await settling?.value
+        guard pending != nil else { return }
+        let (stream, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let center = NSWorkspace.shared.notificationCenter
+        let token = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { _ in
+            continuation.yield(())
+        }
+        defer { center.removeObserver(token) }
+        continuation.yield(())
+        for await _ in stream {
+            guard let pending else { return }
+            guard read()?.value == pending.value else { self.pending = nil; return }
+            if isCurrent {
+                restore()
+                if await settling?.value == true { return }
+            }
+        }
+    }
+
 }
 
 @MainActor

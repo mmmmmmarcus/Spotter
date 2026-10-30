@@ -276,7 +276,7 @@ final class AIChatStore: ObservableObject {
         task = Task { [weak self] in
             guard let self else { return }
             do {
-                let turns = [(role: "system", content: AISpellingResponse.instructions),
+                let turns = [(role: "system", content: AISpellingResponse.instructions(for: selection)),
                     (role: "user", content: command.rendered(selection: selection))]
                 var model = pinned ?? openRouter.aiRouting.everydayModel
                 var effort = pinned == nil ? openRouter.aiRouting.everydayEffort : command.effort

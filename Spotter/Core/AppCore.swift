@@ -246,6 +246,8 @@ final class AppCore: ObservableObject {
     let aiChat: AIChatStore
     let aiCommands = AICommandStore()
     var aiCommandCaptureTask: Task<Void, Never>?
+    var aiCommandCleanupTask: Task<Bool, Never>?
+    var aiCommandRecoveryTasks: [UUID: Task<Void, Never>] = [:]
     let quicklinks = QuicklinkStore()
     let quicklinkManager: QuicklinkManager
     let windowMover = WindowMover()

@@ -352,11 +352,11 @@ Never break these without an explicit task to do so.
   needs no migration and a kind that leaves drops out of a saved order the same way. A card with
   nothing to report says so in its resting state; a feature whose visibility would be a consent act
   belongs in a plugin of its own, which is why Uptime became one. AI Chat owns **AI commands**
-  (`Plugins/AIChat/AICommand.swift`): Define, Check Grammar, Fix Spelling and Pronunciation are the four Spotter ships and are the
+  (`Plugins/AIChat/AICommand.swift`): Define, Check Grammar, Fix Text and Pronunciation are the four Spotter ships and are the
   same record as one the user writes. Define and Grammar keep their historical launcher entry ids and
   `KeyboardShortcuts_plugin.selection-tools.*` binding keys; newer commands use UUID keys. Their prompt, model and shortcut are
   editable and resettable, their name and identity are not, and they cannot be deleted. Commands
-  owns the custom-command Settings view and dynamic launcher entries. Fix Spelling replaces the captured editable selection without a chat window or saved conversation (owner decision, Oct 2026); it revalidates the app, control, range and original text before pasting, and cancels stale requests. Other AI commands open Quick AI Chat; old surface preferences are ignored. Their bubbles show the command symbol and
+  owns the custom-command Settings view and dynamic launcher entries. Fix Text uses the stable spelling command identity: one or two words get spelling correction, longer selections also get grammar correction. It replaces the captured editable selection with inline progress and no Toast, chat window or saved conversation (owner decision, Oct 2026); it revalidates the app, control, range and original text before pasting, and cancels stale requests. Other AI commands open Quick AI Chat; old surface preferences are ignored. Their bubbles show the command symbol and
   original selection, while the rendered prompt remains intact in model context and stored history.
 - **Plugin interaction is palette-first.** Search/filter → result-list → action plugins must use a
   registered `PluginPaletteScreenRegistration` and the shared `PluginPaletteList`; they must not

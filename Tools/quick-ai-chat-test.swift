@@ -198,7 +198,7 @@ struct QuickAIChatTests {
         expect(replies.isEmpty && chat.streamingReply == nil, "spelling never delivers or presents partial output")
         expect(chat.sessions == originalSessions && backgroundRows == 0, "spelling creates no conversation or chat task row")
         expect(router.models == ["spelling-model"] && router.decisionRequests.isEmpty, "spelling preserves the command model pin")
-        expect(router.requests[0].first?.content == AISpellingResponse.instructions && router.searchFlags == [false], "spelling uses its plain replacement contract without web search")
+        expect(router.requests[0].first?.content == AISpellingResponse.instructions(for: "teh") && router.searchFlags == [false], "spelling uses its plain replacement contract without web search")
         expect(router.completeReplyFlags == [true], "spelling requires a confirmed complete provider response")
         router.completeNext()
         await waitUntil { !chat.isWaiting }

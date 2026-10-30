@@ -625,6 +625,20 @@ struct AIChatTests {
                 check("truncated or unconfirmed replacement is rejected: \(reason)", reason != "stop")
             }
         }
+        check("one word fixes spelling", AISpellingResponse.scope(for: "recieved") == .spelling)
+        check("two words retain spelling scope", AISpellingResponse.scope(for: "teh mesage") == .spelling)
+        check("three words fix grammar", AISpellingResponse.scope(for: "She go yesterday") == .grammar)
+        check("line breaks count as word boundaries", AISpellingResponse.scope(for: "She\ngo\nyesterday") == .grammar)
+        check("punctuation does not inflate the word count", AISpellingResponse.scope(for: "hello, world!") == .spelling)
+        check("CJK sentences use native word segmentation", AISpellingResponse.scope(for: "我们昨天去公园玩了") == .grammar)
+        var legacyFix = AICommand.makeBuiltIn(.spelling)
+        legacyFix.prompt = AIChatSelectionPrompts.legacySpelling
+        legacyFix.model = "custom-model"
+        legacyFix.effort = "low"
+        let migratedFix = AICommandEngine.normalized([legacyFix]).first { $0.builtIn == .spelling }!
+        check("old shipped prompt upgrades without losing model or effort", migratedFix.prompt == AIChatSelectionPrompts.defaultSpelling && migratedFix.model == "custom-model" && migratedFix.effort == "low")
+        legacyFix.prompt = "My custom editing prompt"
+        check("custom correction prompts survive migration", AICommandEngine.normalized([legacyFix]).first { $0.builtIn == .spelling }?.prompt == legacyFix.prompt)
         check("only built-in spelling replaces the selection", AIBuiltInCommand.allCases.filter { AICommand.makeBuiltIn($0).replacesSelection } == [.spelling])
         check("a custom spelling-named command stays in chat", !AICommand(name: "Fix Spelling", prompt: "Fix this").replacesSelection)
         check("spelling response preserves whitespace and line breaks", (try? AISpellingResponse.replacement("  the\nword  ", original: "  teh\nword  ")) == "  the\nword  ")
