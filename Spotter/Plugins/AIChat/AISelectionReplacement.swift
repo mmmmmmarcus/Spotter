@@ -17,14 +17,20 @@ final class AISelectionReplacement {
     private let write: Writer
     private let isFocused: () -> Bool
     private var pending: Snapshot?
+    private var pasteFallback: AISelectionPasteFallback?
+    private let makePasteFallback: (() -> AISelectionPasteFallback)?
+
+    var usesInlineProgress: Bool { pasteFallback == nil }
 
     init(original: Snapshot, text: NSAttributedString, read: @escaping () -> Snapshot?,
-        write: @escaping Writer, isFocused: @escaping () -> Bool) {
+        write: @escaping Writer, isFocused: @escaping () -> Bool,
+        makePasteFallback: (() -> AISelectionPasteFallback)? = nil) {
         self.original = original
         self.originalText = text
         self.read = read
         self.write = write
         self.isFocused = isFocused
+        self.makePasteFallback = makePasteFallback
     }
 
     static func capture(text: String, pid: pid_t) throws -> AISelectionReplacement {
@@ -38,11 +44,12 @@ final class AISelectionReplacement {
             else { throw AISpellingResponse.Failure.unsupportedControl }
             return captureLocal(view)
         }
-        guard AXIsProcessTrusted(), let element = focusedElement(pid: pid),
+        guard AXIsProcessTrusted() else { throw AISpellingResponse.Failure.unsupportedControl }
+        guard let element = focusedElement(pid: pid),
               isSettable(kAXSelectedTextAttribute, on: element),
               isSettable(kAXSelectedTextRangeAttribute, on: element),
               let snapshot = snapshot(element), substring(snapshot.value, range: snapshot.selection) == text
-        else { throw AISpellingResponse.Failure.unsupportedControl }
+        else { return capturePasteFallback(text: text, pid: pid) }
         return AISelectionReplacement(original: snapshot, text: NSAttributedString(string: text), read: {
             guard AXIsProcessTrusted() else { return nil }
             return self.snapshot(element)
@@ -63,7 +70,53 @@ final class AISelectionReplacement {
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
                   let focused = focusedElement(pid: pid) else { return false }
             return CFEqual(element, focused)
-        })
+        }, makePasteFallback: { makeNativePasteFallback(text: text, pid: pid) })
+    }
+
+    private static func capturePasteFallback(text: String, pid: pid_t) -> AISelectionReplacement {
+        let fallback = makeNativePasteFallback(text: text, pid: pid)
+        let target = AISelectionReplacement(original: Snapshot(value: text, selection: NSRange(location: 0, length: (text as NSString).length)),
+            text: NSAttributedString(string: text), read: { nil }, write: { _, _, _, _, _ in false }, isFocused: { fallback.isCurrent })
+        target.pasteFallback = fallback
+        return target
+    }
+
+    private static func makeNativePasteFallback(text: String, pid: pid_t) -> AISelectionPasteFallback {
+        let application = AXUIElementCreateApplication(pid)
+        let element = focusedElement(pid: pid)
+        let window = attribute(kAXFocusedWindowAttribute, from: application)
+        let range = element.flatMap(selectedRange)
+        let marker = element.flatMap { attribute("AXSelectedTextMarkerRange", from: $0) }
+        let activity = AISelectionActivityGuard()
+        return AISelectionPasteFallback(original: text, isCurrent: {
+            guard AXIsProcessTrusted(), !activity.changed,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                  sameElement(element, focusedElement(pid: pid)),
+                  sameElement(window, attribute(kAXFocusedWindowAttribute, from: application)) else { return false }
+            if let element, let range { return selectedRange(element) == range }
+            if let element, let marker { return sameElement(marker, attribute("AXSelectedTextMarkerRange", from: element)) }
+            return true
+        }, paste: { replacement in
+            Paster.copyString(replacement)
+            Paster.postCommandV(toPid: pid)
+        }, cleanup: { activity.stop() })
+    }
+
+    private static func sameElement(_ lhs: CFTypeRef?, _ rhs: CFTypeRef?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): true
+        case let (lhs?, rhs?): CFEqual(lhs, rhs)
+        default: false
+        }
+    }
+
+    func complete(with text: String, readSelection: () async -> String?) async throws {
+        if let pasteFallback {
+            try await pasteFallback.replace(with: text, readSelection: readSelection)
+        } else {
+            try Task.checkCancellation()
+            try replace(with: text)
+        }
     }
 
     static func captureLocal(_ view: NSTextView, isFocused: (() -> Bool)? = nil) -> AISelectionReplacement {
@@ -95,6 +148,10 @@ final class AISelectionReplacement {
     }
 
     func showProgress() throws {
+        if let pasteFallback {
+            guard pasteFallback.isCurrent else { throw AISpellingResponse.Failure.selectionChanged }
+            return
+        }
         guard pending == nil, isFocused(), read() == original else {
             throw AISpellingResponse.Failure.selectionChanged
         }
@@ -104,6 +161,13 @@ final class AISelectionReplacement {
         guard write(original, original.selection, NSAttributedString(string: Self.progressText), range, false),
               read() == pending else {
             restoreOriginal()
+            // Some editors advertise AX setters but ignore writes; only retry after proving no text or selection was lost.
+            if isFocused(), read() == original, let makePasteFallback {
+                let fallback = makePasteFallback()
+                guard fallback.isCurrent else { throw AISpellingResponse.Failure.selectionChanged }
+                pasteFallback = fallback
+                return
+            }
             throw AISpellingResponse.Failure.unsupportedControl
         }
     }
@@ -129,6 +193,7 @@ final class AISelectionReplacement {
 
     @discardableResult
     func restoreOriginal() -> Bool {
+        if let pasteFallback { pasteFallback.cancel(); return true }
         guard let pending else { return true }
         defer { self.pending = nil }
         guard let current = read(), current.value == pending.value else { return false }
@@ -190,5 +255,73 @@ final class AISelectionReplacement {
         var raw = CFRange(location: range.location, length: range.length)
         guard let value = AXValueCreate(.cfRange, &raw) else { return false }
         return AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, value) == .success
+    }
+}
+
+@MainActor
+final class AISelectionPasteFallback {
+    private let original: String
+    private let validate: () -> Bool
+    private let paste: (String) -> Void
+    private let cleanup: () -> Void
+    private var finished = false
+
+    init(original: String, isCurrent: @escaping () -> Bool, paste: @escaping (String) -> Void,
+        cleanup: @escaping () -> Void = {}) {
+        self.original = original
+        self.validate = isCurrent
+        self.paste = paste
+        self.cleanup = cleanup
+    }
+
+    var isCurrent: Bool { !finished && validate() }
+
+    func replace(with text: String, readSelection: () async -> String?) async throws {
+        defer { cancel() }
+        try Task.checkCancellation()
+        guard isCurrent else { throw AISpellingResponse.Failure.selectionChanged }
+        let selected = await readSelection()
+        try Task.checkCancellation()
+        guard isCurrent, selected == original else { throw AISpellingResponse.Failure.selectionChanged }
+        if text != original { paste(text) }
+    }
+
+    func cancel() {
+        guard !finished else { return }
+        finished = true
+        cleanup()
+    }
+}
+
+@MainActor
+private final class AISelectionActivityGuard {
+    private(set) var changed = false
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
+
+    init() {
+        let mask: NSEvent.EventTypeMask = [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
+            MainActor.assumeIsolated { self?.record(event) }
+        }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            self?.record(event)
+            return event
+        }
+    }
+
+    isolated deinit { stop() }
+
+    private func record(_ event: NSEvent) {
+        // Only ignore Spotter's own selection-copy events; never retain the user's keys or text.
+        guard event.cgEvent?.getIntegerValueField(.eventSourceUserData) != HyperKeyTap.syntheticTag else { return }
+        changed = true
+    }
+
+    func stop() {
+        if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
+        if let localMonitor { NSEvent.removeMonitor(localMonitor) }
+        globalMonitor = nil
+        localMonitor = nil
     }
 }

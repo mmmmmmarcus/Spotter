@@ -681,3 +681,8 @@ the effort across multiple tool rounds. These tests do not invoke a paid model o
 `selected-text-capture` also tests inline spelling progress, UTF-16 replacement ranges, guarded
 restoration after cancellation/focus changes, stale-edit rejection and native rich-text preservation.
 `quick-ai-chat` verifies exactly-once synchronous cleanup when spelling is stopped or superseded.
+
+Spelling fallback tests cover missing or ignored AX write capabilities, rejection of partial writes,
+revalidation through the shared
+copy capture, focus/selection changes during capture, cancellation, exactly-once cleanup and unchanged
+results. These fixtures exercise dispatch guards without typing into the user's applications.

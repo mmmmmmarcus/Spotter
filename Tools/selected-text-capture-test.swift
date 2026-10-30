@@ -175,6 +175,67 @@ struct SelectedTextCaptureTests {
         editor.testUndo.endUndoGrouping()
         editor.testUndo.undo()
         check("native Undo skips progress and restores the original selection text", editor.string == "teh word")
+        var pasted: [String] = []
+        var currentTarget = true
+        var cleanupCount = 0
+        func fallback() -> AISelectionPasteFallback {
+            AISelectionPasteFallback(original: "teh", isCurrent: { currentTarget },
+                paste: { pasted.append($0) }, cleanup: { cleanupCount += 1 })
+        }
+        let pasteOnly = fallback()
+        do { try await pasteOnly.replace(with: "the", readSelection: { "teh" }) }
+        catch { check("copy-only selection can be replaced", false) }
+        check("copy-only editors paste the result without AX setters or a full document", pasted == ["the"] && cleanupCount == 1)
+        pasteOnly.cancel()
+        check("fallback cleanup is exactly once", cleanupCount == 1)
+        let stalePaste = fallback()
+        do { try await stalePaste.replace(with: "the", readSelection: { "new selection" }); check("changed clipboard selection is rejected", false) }
+        catch { check("changed clipboard selection is rejected", pasted.count == 1) }
+        let movedPaste = fallback()
+        do {
+            try await movedPaste.replace(with: "the", readSelection: { currentTarget = false; return "teh" })
+            check("focus changes during copy are rejected", false)
+        } catch { check("focus changes during copy are rejected", pasted.count == 1) }
+        currentTarget = true
+        let stoppedPaste = fallback()
+        stoppedPaste.cancel()
+        do { try await stoppedPaste.replace(with: "the", readSelection: { fatalError("Cancelled work must not copy") }); check("cancelled fallback is rejected", false) }
+        catch { check("cancelled fallback is rejected", pasted.count == 1) }
+        let cancelledPaste = fallback()
+        let cancelledWrite = Task { @MainActor in
+            try await cancelledPaste.replace(with: "the", readSelection: { "teh" })
+        }
+        cancelledWrite.cancel()
+        do { try await cancelledWrite.value; check("superseded completion task cannot paste", false) }
+        catch { check("superseded completion task cannot paste", pasted.count == 1) }
+        let unchangedPaste = fallback()
+        do { try await unchangedPaste.replace(with: "teh", readSelection: { "teh" }) }
+        catch { check("unchanged result is accepted", false) }
+        check("unchanged result leaves both document and clipboard untouched", pasted.count == 1)
+        state = original
+        var nativeRetryCount = 0
+        var nativeRetryResult = ""
+        func ignoredSetterTarget(mutates: Bool) -> AISelectionReplacement {
+            AISelectionReplacement(original: original, text: NSAttributedString(string: "teh"), read: { state },
+                write: { _, _, _, _, _ in
+                    if mutates { state = .init(value: "unexpected editor change", selection: .init(location: 0, length: 0)) }
+                    return false
+                }, isFocused: { true }, makePasteFallback: {
+                    nativeRetryCount += 1
+                    return AISelectionPasteFallback(original: "teh", isCurrent: { true }, paste: { nativeRetryResult = $0 })
+                })
+        }
+        let ignoredSetter = ignoredSetterTarget(mutates: false)
+        do {
+            try ignoredSetter.showProgress()
+            check("ignored AX writes use native paste only with the original selection intact", !ignoredSetter.usesInlineProgress && state == original)
+            try await ignoredSetter.complete(with: "the", readSelection: { "teh" })
+        } catch { check("ignored setter can fall back to native replacement", false) }
+        check("ignored setter completes through guarded native paste", nativeRetryCount == 1 && nativeRetryResult == "the")
+        state = original
+        let changedSetter = ignoredSetterTarget(mutates: true)
+        do { try changedSetter.showProgress(); check("partially applied writes cannot retry as paste", false) }
+        catch { check("partially applied writes cannot retry as paste", nativeRetryCount == 1 && changedSetter.usesInlineProgress) }
         print("Selected text capture: \(failures) failure(s)")
         exit(failures == 0 ? 0 : 1)
     }

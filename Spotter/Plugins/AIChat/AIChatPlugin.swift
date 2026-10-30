@@ -146,6 +146,7 @@ extension AppCore {
     /// command reports that instead of capturing anything.
     func runAICommand(id: UUID) {
         guard let command = aiCommands.command(id: id) else { return }
+        if command.replacesSelection { AppLog.info("ai-spelling", "Command dispatched.") }
         guard aiChat.isReady else {
             showAICommandFailure(command, message: Self.aiCommandKeyMessage)
             return
@@ -157,6 +158,7 @@ extension AppCore {
     /// came from, not Spotter.
     func runAICommandFromLauncher(id: UUID) {
         guard let command = aiCommands.command(id: id) else { return }
+        if command.replacesSelection { AppLog.info("ai-spelling", "Command dispatched.") }
         guard aiChat.isReady else {
             showAICommandFailure(command, message: Self.aiCommandKeyMessage)
             return
@@ -197,13 +199,34 @@ extension AppCore {
                 do {
                     let target = try AISelectionReplacement.capture(text: snapshot.text, pid: snapshot.source.processIdentifier)
                     try target.showProgress()
+                    AppLog.info("ai-spelling", target.usesInlineProgress ? "Using inline replacement." : "Using guarded native paste.")
+                    if !target.usesInlineProgress { hud.show(title: "Fixing…", symbol: "textformat.abc") }
                     aiChat.replaceSpelling(command: command, selection: snapshot.text, onCancel: {
                         target.restoreOriginal()
                     }) { [weak self] result in
-                        do { try target.replace(with: result.get()) }
-                        catch {
-                            target.restoreOriginal()
-                            self?.showAICommandFailure(command, message: error.localizedDescription)
+                        if target.usesInlineProgress {
+                            do { try target.replace(with: result.get()) }
+                            catch {
+                                target.restoreOriginal()
+                                self?.showAICommandFailure(command, message: error.localizedDescription)
+                            }
+                            return
+                        }
+                        guard let self else { target.restoreOriginal(); return }
+                        aiCommandCaptureTask = Task { @MainActor [weak self] in
+                            guard let self else { target.restoreOriginal(); return }
+                            do {
+                                try await target.complete(with: result.get()) {
+                                    let captured = await self.selectedTextCapture.capture()
+                                    guard case .success(let current) = captured,
+                                          current.source.processIdentifier == snapshot.source.processIdentifier else { return nil }
+                                    return current.text
+                                }
+                                AppLog.info("ai-spelling", "Replacement completed.")
+                            } catch {
+                                target.restoreOriginal()
+                                if !Task.isCancelled { showAICommandFailure(command, message: error.localizedDescription) }
+                            }
                         }
                     }
                 } catch {
@@ -226,6 +249,7 @@ extension AppCore {
 
     private func showAICommandFailure(_ command: AICommand, message: String) {
         if command.replacesSelection {
+            AppLog.error("ai-spelling", message)
             hud.show(title: message, symbol: "exclamationmark.triangle", isNoOp: true)
             return
         }

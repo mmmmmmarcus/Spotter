@@ -12,14 +12,23 @@ wrapped or canceled answers are never pasted. Boundary whitespace comes from the
 
 `AISelectionReplacement` captures the original editable control, UTF-16 range, document text and
 (for Spotter Notes) attributed selection. Progress is inserted only when the editor exposes a verifiable,
-replaceable text range. External editors use scoped Accessibility selected-text writes, never whole-field
-replacement or blind keystrokes. Spotter Notes uses its NSTextView insertion path; temporary progress
+replaceable text range. Compatible external editors use scoped Accessibility selected-text writes,
+never whole-field replacement. Editors without writable AX selected-text/range attributes or a full
+AX document use a native-paste fallback, including copy-only selections supported by Translate.
+Editors that advertise AX setters but ignore writes also use that fallback, only after confirming
+the complete original text, selection and focus remain intact; partial writes never retry as paste.
+The fallback leaves the original selection untouched while waiting and shows a brief Fixing HUD.
+Before pasting it re-reads the selection through the shared AX/copy capture path and checks the
+original process, focused control/window, any available range or Chromium marker, and intervening
+keyboard/mouse activity. It repeats those checks after the asynchronous copy, never activates another
+app, and refuses a stale or cancelled completion. Its passive activity monitors last only for the
+request, store no keys/text, and ignore Spotter's tagged copy events. Spotter Notes uses its NSTextView insertion path; temporary progress
 and restoration do not enter Undo, so a successful correction undoes to the original text.
 The final write rechecks the original process/control, focus, document and placeholder selection.
 Failure or cancellation restores the original only while the document still matches the pending
 snapshot; cleanup may restore the captured background control without activating it. User edits are
-never overwritten. Unsupported controls fail before any model request. Pronunciation and other
-commands still use chat.
+never overwritten. Read-only or changed selections cannot be forced writable; native paste follows
+the target editor's own behavior. Pronunciation and other commands still use chat.
 ⌘↵ with a typed launcher query opens a new conversation and sends it. The main Palette no longer
 contains a chat mode, composer, history list or chat actions menu; Tab cycles Apps, Clipboard and Emoji.
 The launcher's Send to ChatGPT fallback remains a separate browser handoff.
