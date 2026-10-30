@@ -36,6 +36,13 @@ struct CalcTests {
         expectDisplay("10k * 2", "20,000")
         expectBadges("10k", source: "Expression", target: "Result")
 
+        // Overflow after applying the thousands suffix must not become a copyable infinity.
+        expectNil("1e308k")
+        expectNil("1e308K")
+        expectNil("1e306k")
+        expectDisplay("1e305k", "1e+308")
+        expectCopy("1e305K", "1e+308")
+
         // Scientific notation input
         expectDisplay("1e6 + 1", "1,000,001")
         expectDisplay("1.5e-3 * 2", "0.003")

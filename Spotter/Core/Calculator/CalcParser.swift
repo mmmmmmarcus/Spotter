@@ -78,7 +78,9 @@ enum CalcTokenizer {
                 guard let value = Double(text), value.isFinite else { return nil }
                 // Attached `k` means ×1,000; whitespace keeps Kelvin explicit, and `10kg` remains a unit literal.
                 if i < chars.count, chars[i] == "k" || chars[i] == "K", isCompactSuffix(chars, i) {
-                    tokens.append(.compactNumber(value * 1_000))
+                    let scaled = value * 1_000
+                    guard scaled.isFinite else { return nil }
+                    tokens.append(.compactNumber(scaled))
                     i += 1
                 } else if isShorthand {
                     tokens.append(.compactNumber(value))
