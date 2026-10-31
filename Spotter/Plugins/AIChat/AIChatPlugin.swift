@@ -203,7 +203,9 @@ extension AppCore {
                     let target = try AISelectionReplacement.capture(text: snapshot.text, pid: snapshot.source.processIdentifier)
                     do { try await target.prepare() }
                     catch {
+                        AppLog.error("ai-spelling", "Progress failed: \(target.diagnosticSummary)")
                         restoreAICommandSelection(target)
+                        _ = await target.restorationTask?.value
                         throw error
                     }
                     AppLog.info("ai-spelling", target.usesInlineProgress ? "Using inline replacement." : "Using guarded native paste.")
@@ -214,7 +216,9 @@ extension AppCore {
                         aiCommandCaptureTask = Task { @MainActor [weak self] in
                             guard let self else { target.restoreOriginal(); return }
                             do {
-                                try await target.complete(with: result.get()) {
+                                let replacement = try result.get()
+                                AppLog.info("ai-spelling", "Reply received; validating replacement.")
+                                try await target.complete(with: replacement) {
                                     let captured = await self.selectedTextCapture.capture()
                                     guard case .success(let current) = captured,
                                           current.source.processIdentifier == snapshot.source.processIdentifier else { return nil }
@@ -222,7 +226,9 @@ extension AppCore {
                                 }
                                 AppLog.info("ai-spelling", "Replacement completed.")
                             } catch {
+                                AppLog.error("ai-spelling", "Replacement failed: \(target.diagnosticSummary)")
                                 restoreAICommandSelection(target)
+                                _ = await target.restorationTask?.value
                                 if !Task.isCancelled { showAICommandFailure(command, message: error.localizedDescription) }
                             }
                         }
@@ -258,6 +264,7 @@ extension AppCore {
     private func showAICommandFailure(_ command: AICommand, message: String) {
         if command.replacesSelection {
             AppLog.error("ai-spelling", message)
+            hud.show(title: message, symbol: "exclamationmark.triangle", isNoOp: true)
             return
         }
         let sessionID = aiChat.showCommandFailure(command: command, message: message,

@@ -33,8 +33,7 @@ enum OpenRouterError: LocalizedError, Equatable {
 final class OpenRouterStore: ObservableObject, AIToolModel {
     static let provider = "OpenRouter"
     static let providerURL = URL(string: "https://openrouter.ai")!
-    /// Chat carries multi-turn reasoning, so it defaults a class up from the quick AI commands.
-    static let defaultChatModel = "anthropic/claude-sonnet-5"
+    static let defaultChatModel = AIRoutingPreferences.defaultModel
     private nonisolated static let chatEndpoint = URL(
         string: "https://openrouter.ai/api/v1/chat/completions")!
     private nonisolated static let keyEndpoint = URL(
@@ -80,10 +79,12 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
         self.decisionClient = decisionClient
         requestSession = session ?? Self.session
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
-        let previousModel = Self.resolve(defaults.string(forKey: Self.chatModelKey) ?? "", default: Self.defaultChatModel)
+        let savedModel = defaults.string(forKey: Self.chatModelKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let previousModel = Self.resolve(savedModel ?? "", default: Self.defaultChatModel)
         chatModel = previousModel
+        let initialRouting = savedModel?.isEmpty == false ? AIRoutingPreferences() : AIRoutingPreferences.defaults
         aiRouting = (defaults.data(forKey: Self.routingKey)
-            .flatMap { try? JSONDecoder().decode(AIRoutingPreferences.self, from: $0) } ?? AIRoutingPreferences())
+            .flatMap { try? JSONDecoder().decode(AIRoutingPreferences.self, from: $0) } ?? initialRouting)
             .normalized(fallbackModel: previousModel)
     }
 

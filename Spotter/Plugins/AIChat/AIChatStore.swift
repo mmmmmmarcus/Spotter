@@ -271,15 +271,15 @@ final class AIChatStore: ObservableObject {
             return
         }
         cancelSpelling = onCancel
-        let pinned = command.resolvedModel()
+        let pinned = command.resolvedSelection(using: openRouter.aiRouting)
         isChoosingModel = pinned == nil
         task = Task { [weak self] in
             guard let self else { return }
             do {
                 let turns = [(role: "system", content: AISpellingResponse.instructions(for: selection)),
                     (role: "user", content: command.rendered(selection: selection))]
-                var model = pinned ?? openRouter.aiRouting.everydayModel
-                var effort = pinned == nil ? openRouter.aiRouting.everydayEffort : command.effort
+                var model = pinned?.model ?? openRouter.aiRouting.everydayModel
+                var effort = pinned == nil ? openRouter.aiRouting.everydayEffort : pinned?.effort
                 if pinned == nil, openRouter.isReady {
                     let selection = try await openRouter.selectChatModel(messages: turns, defaultModel: model)
                     model = selection?.model ?? model
@@ -328,9 +328,10 @@ final class AIChatStore: ObservableObject {
     func startCommandConversation(command: AICommand, selection: String, selectSession: Bool = true) -> UUID {
         stop()
         let session = createCommandSession(command, selectSession: selectSession)
+        let selected = command.resolvedSelection(using: openRouter.aiRouting)
         _ = send(
             command.rendered(selection: selection),
-            model: command.resolvedModel(), effort: command.effort,
+            model: selected?.model, effort: selected?.effort,
             allowsTools: false, sessionID: session.id,
             commandInput: .init(name: command.name, text: selection, symbol: command.systemImage))
         return session.id

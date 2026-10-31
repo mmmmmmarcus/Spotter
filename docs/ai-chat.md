@@ -7,18 +7,21 @@ Fix Selected Text (Hyper+F) corrects spelling for one or two words, and grammar,
 punctuation for longer selections. Word boundaries use Foundation's native segmentation, including
 CJK text. It preserves meaning, language and tone and returns only replacement text. The existing
 spelling command UUID and shortcut key remain stable. Its unchanged legacy prompt upgrades; custom
-prompts, model and effort pins survive. Automatic still routes through Jev.
+prompts, model and effort pins survive. Fresh or reset Fix Text commands use `google/gemini-3.5-flash-lite`
+with Minimal effort; other built-in defaults are unchanged. Automatic still routes through Jev.
 
-The command shows `{Fixing}` inside a verifiable editable selection, then replaces it with the complete
-answer. It opens no chat and shows no progress or error Toast; failures go to diagnostics. Partial,
+The command cycles `{Fixing.}`, `{Fixing..}` and `{Fixing...}` every 650 ms inside a verifiable editable
+selection, then replaces it with the complete
+answer. It opens no chat or progress Toast; failures show an error Toast after attempting restoration. Diagnostics record guard states, text lengths and selection ranges without text contents. Partial,
 empty, oversized, wrapped or cancelled answers never replace text. It uses no tools or web search.
 
 `AISelectionReplacement` captures the control, UTF-16 range and full document text. External editors
-use native paste and native keyboard selection of the eight-character placeholder, with bounded
+use native paste and native keyboard selection of the current placeholder range, with bounded
 asynchronous confirmation of the full value and range. AX range setters are deliberately not trusted:
-Figma can acknowledge one without moving its canvas selection. Every write rechecks the captured
+Figma can acknowledge one without moving its canvas selection. A caret collapsed to either boundary of the placeholder is reselected with native arrow keys; unrelated ranges remain rejected. Every write rechecks the captured
 control and document; only the selected range changes. Spotter Notes retains its attributed-text path
-and excludes temporary progress/restoration from Undo.
+and excludes temporary progress/restoration from Undo. Progress writes stop on focus or document changes;
+completion waits for an in-flight progress write, and cancellation restores only after it settles.
 
 Copy-only editors without a verifiable full document keep their original selection until the complete
 correction arrives. They revalidate through the shared AX/copy capture path, checking process,
@@ -147,7 +150,8 @@ Professional and Deep Reasoning. Jev classifies the first unpinned turn of each 
 switch. Entering the pane reloads the model catalog; no Chat Model or Reload row remains. The three
 rows contain titles and model menus only.
 
-Each category preserves its saved model. Empty legacy mappings are initialized from the previous
+Fresh installations use Codex CLI `gpt-6-luna` for all three categories, with Low, Medium and Extra High
+effort respectively. Each category preserves its saved model and effort on upgrade. Empty legacy mappings are initialized from the previous
 Chat Model (or Spotter's shipped default). Jev is available whenever the OpenRouter key exists;
 legacy disabled flags are ignored. TypeSafe receives the prompt and bounded recent conversation
 through OpenRouter on each classification, adding the decision charge. Model mappings ride trusted
@@ -201,9 +205,13 @@ so existing settings, backups and sync are unchanged. A stored model the live ca
 **Current** section at the top of the menu, so nothing is silently rewritten. A command pinned to a
 model the user's key can no longer reach therefore keeps that choice: its editor still names it, the
 request still asks for it, and if OpenRouter refuses, the reply is a status row carrying OpenRouter's
-own message. Only an empty pin resolves to the chat model — Spotter never silently answers as some
-other model. Switching that command back to **Default** is one menu away; Default
-uses automatic selection and its menu says **Automatic (Jev)**.
+own message. The command menu also offers **Presets**: Everyday, Professional and Deep Reasoning. A preset stores
+its category and resolves the current model and effort together at invocation, bypassing category
+classification. The editor displays that inherited pair without an editable effort override. Both
+Quick AI Chat commands and inline Fix Text support presets. Changing a preset affects the next run;
+an active request and an existing command conversation retain their captured pair. Presets survive
+relaunch and trusted backup/sync; legacy commands retain their explicit model or Automatic choice.
+**Automatic (Jev)** still asks Jev to choose the category.
 
 The list is fetched only once a key exists: the key remains the gate, an absent key clears the
 catalog, and the request itself is unauthenticated and carries nothing about this Mac or its

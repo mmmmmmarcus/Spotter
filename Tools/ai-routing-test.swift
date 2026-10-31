@@ -157,6 +157,10 @@ private struct RoutingTests {
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
         let client = JevDecisionClient(session: session)
+        let fresh = OpenRouterStore(defaults: defaults, decisionClient: client)
+        check(fresh.aiRouting == .defaults && fresh.chatModel == AIRoutingPreferences.defaultModel,
+            "fresh installations default to Codex Luna with Low Medium and Extra High effort")
+        check(!fresh.isReady && requestCount() == 0, "new defaults do not grant network access")
         defaults.set("vendor/previous", forKey: "openrouter.chat-model")
         let store = OpenRouterStore(defaults: defaults, decisionClient: client)
         check(AIRoutingCategory.allCases.allSatisfy { store.aiRouting.model(for: $0) == "vendor/previous" },

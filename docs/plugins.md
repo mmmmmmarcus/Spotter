@@ -12,9 +12,9 @@ Raycast compatibility updates are selective: preserve the AppCore-owned host, it
 palette lifecycle. Record upstream fixes and deliberate differences in the
 [vendor audit](vendor/tinycast-extensions.md); a newer API enum catalog does not imply every API is implemented.
 
-AI Chat's built-in Fix Text is a direct selected-text replacement command with an inline `{Fixing}`
+AI Chat's built-in Fix Text is a direct selected-text replacement command with inline `{Fixing.}` / `{Fixing..}` / `{Fixing...}` loading
 placeholder, guarded completion and cancellation restoration. Editors that cannot safely host the
-placeholder retain their original selection and receive a revalidated native paste without a Toast. Other AI commands
+placeholder retain their original selection and receive a revalidated native paste without a progress Toast; errors show a Toast after guarded restoration. Other AI commands
 retain Quick AI Chat presentation; all share the existing model/effort configuration and request gate. Effort is optional, catalog-driven, and included in trusted settings sync.
 
 This design keeps development boundaries clear for 20+ features while preserving static type checking,
@@ -468,3 +468,7 @@ while Define and Grammar retain their historical launcher and shortcut keys.
 
 AI Command editing keeps identity, prompt and execution options in separate groups. Its icon picker
 is local to the AI Chat settings editor and adds no catalog service or persistence format.
+
+AI commands can select a routing preset (Everyday, Professional or Deep Reasoning) instead of an
+explicit model or Automatic. A preset is persisted as a category reference and resolves both the
+model and effort once per invocation, including inline Fix Text; existing sessions retain their pair.

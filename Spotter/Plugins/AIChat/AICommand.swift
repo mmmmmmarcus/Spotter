@@ -101,14 +101,16 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     /// The one token a prompt substitutes, in the same single-brace shape a quicklink's `{argument}`
     /// uses. A prompt without it still works — the selection follows the instructions.
     static let placeholder = "{selection}"
-    // Reset preserves the existing fast-model default shared by built-in commands.
+    // Fix Text favors low latency; the other shipped commands retain their existing default.
     static let defaultBuiltInModel = "anthropic/claude-haiku-4.5"
+    static let defaultFixTextModel = "google/gemini-3.5-flash-lite"
 
     let id: UUID
     var name: String
     var prompt: String
-    // A nil model delegates to Jev using the configured category mappings.
+    // With neither a preset nor an explicit model, Jev chooses the category.
     var model: String?
+    var preset: AIRoutingCategory?
     var effort: String?
     var symbol: String?
     /// Set for shipped commands, `nil` for user-created ones.
@@ -116,13 +118,14 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
 
     init(
         id: UUID = UUID(), name: String, prompt: String, model: String? = nil,
-        builtIn: AIBuiltInCommand? = nil, symbol: String? = nil, effort: String? = nil
+        builtIn: AIBuiltInCommand? = nil, symbol: String? = nil, effort: String? = nil, preset: AIRoutingCategory? = nil
     ) {
         self.id = id
         self.name = name
         self.prompt = prompt
-        self.model = model
-        self.effort = model == nil ? nil : AIReasoningEffort.normalized(effort)
+        self.preset = preset
+        self.model = preset == nil ? model : nil
+        self.effort = preset == nil && model != nil ? AIReasoningEffort.normalized(effort) : nil
         self.builtIn = builtIn
         self.symbol = symbol
     }
@@ -131,7 +134,8 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     static func makeBuiltIn(_ kind: AIBuiltInCommand) -> AICommand {
         AICommand(
             id: kind.id, name: kind.name, prompt: kind.defaultPrompt,
-            model: defaultBuiltInModel, builtIn: kind)
+            model: kind == .spelling ? defaultFixTextModel : defaultBuiltInModel, builtIn: kind,
+            effort: kind == .spelling ? "minimal" : nil)
     }
 
     var isBuiltIn: Bool { builtIn != nil }
@@ -159,12 +163,11 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
         return UUID(uuidString: String(entryID.dropFirst(entryIDPrefix.count)))
     }
 
-    // Unpinned commands always delegate to Jev; explicit model choices stay authoritative.
-    func resolvedModel() -> String? {
-        guard let trimmed = model?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !trimmed.isEmpty
-        else { return nil }
-        return trimmed
+    // Resolve once at invocation so preset edits affect future runs, not an in-flight answer.
+    func resolvedSelection(using preferences: AIRoutingPreferences) -> (model: String, effort: String?)? {
+        if let preset { return (preferences.model(for: preset), preferences.effort(for: preset)) }
+        guard let model = model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else { return nil }
+        return (model, AIReasoningEffort.normalized(effort))
     }
 
     /// The first user turn this command sends.
@@ -175,7 +178,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     var isDefault: Bool {
         guard let builtIn else { return false }
         let shipped = Self.makeBuiltIn(builtIn)
-        return prompt == shipped.prompt && model == shipped.model && effort == nil && systemImage == shipped.systemImage
+        return prompt == shipped.prompt && model == shipped.model && preset == shipped.preset && effort == shipped.effort && systemImage == shipped.systemImage
     }
 }
 
@@ -298,7 +301,7 @@ enum AICommandEngine {
             id: id, name: command.name.trimmingCharacters(in: .whitespacesAndNewlines),
             prompt: command.prompt.trimmingCharacters(in: .whitespacesAndNewlines),
             model: command.model?.trimmingCharacters(in: .whitespacesAndNewlines),
-            builtIn: command.builtIn, symbol: command.symbol, effort: command.effort)
+            builtIn: command.builtIn, symbol: command.symbol, effort: command.effort, preset: command.preset)
         if value.model?.isEmpty == true { value.model = nil }
         guard !value.name.isEmpty, !value.prompt.isEmpty, !value.name.contains("\0"),
             !value.prompt.contains("\0")

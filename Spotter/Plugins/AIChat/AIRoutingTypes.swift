@@ -21,6 +21,10 @@ enum AIRoutingCategory: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 struct AIRoutingPreferences: Codable, Equatable, Sendable {
+    static let defaultModel = "local-cli/codex/gpt-6-luna"
+    static let defaults = Self(everydayModel: defaultModel, professionalModel: defaultModel,
+        reasoningModel: defaultModel, everydayEffort: "low", professionalEffort: "medium", reasoningEffort: "xhigh")
+
     var everydayModel = ""
     var professionalModel = ""
     var reasoningModel = ""

@@ -120,7 +120,7 @@ struct SelectedTextCaptureTests {
         }
         let pending = transaction()
         try! pending.showProgress()
-        check("progress immediately replaces only the captured UTF-16 range", state.value == "🧭 {Fixing} word")
+        check("progress immediately replaces only the captured UTF-16 range", state.value == "🧭 {Fixing.} word")
         try! pending.replace(with: "the")
         check("completed text replaces the placeholder, not the old selection length", state.value == "🧭 the word" && state.selection == NSRange(location: 6, length: 0))
         let writesAfterSuccess = writes
@@ -161,7 +161,7 @@ struct SelectedTextCaptureTests {
         editor.textStorage?.addAttribute(.font, value: font, range: editor.selectedRange())
         let local = AISelectionReplacement.captureLocal(editor, isFocused: { true })
         try! local.showProgress()
-        check("native editor displays progress", editor.string == "{Fixing} word")
+        check("native editor displays progress", editor.string == "{Fixing.} word")
         local.restoreOriginal()
         check("native failure restoration preserves rich text", editor.string == "teh word" && editor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont == font)
         editor.allowsUndo = true
@@ -170,6 +170,8 @@ struct SelectedTextCaptureTests {
         editor.testUndo.beginUndoGrouping()
         let localSuccess = AISelectionReplacement.captureLocal(editor, isFocused: { true })
         try! localSuccess.showProgress()
+        check("local loading advances without losing surrounding text", await localSuccess.updateProgress(to: "{Fixing..}") && editor.string == "{Fixing..} word")
+        check("local loading supports a longer third frame", await localSuccess.updateProgress(to: "{Fixing...}") && editor.string == "{Fixing...} word")
         try! localSuccess.replace(with: "the")
         check("native editor receives corrected text with its formatting", editor.string == "the word" && editor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont == font)
         editor.testUndo.endUndoGrouping()
@@ -226,7 +228,11 @@ struct SelectedTextCaptureTests {
         }
         let nativePaste = nativeProgress()
         try! await nativePaste.begin()
-        check("native paste progress preserves the surrounding Unicode text", state.value == "🧭 {Fixing} word" && state.selection == NSRange(location: 3, length: 8))
+        check("native paste progress preserves the surrounding Unicode text", state.value == "🧭 {Fixing.} word" && state.selection == NSRange(location: 3, length: 9))
+        check("native loading advances to two dots", await nativePaste.updateProgress(to: "{Fixing..}") && state.value == "🧭 {Fixing..} word")
+        check("native loading advances to three dots", await nativePaste.updateProgress(to: "{Fixing...}") && state.selection.length == 11)
+        check("native loading wraps to one dot", await nativePaste.updateProgress(to: "{Fixing.}") && state.selection.length == 9)
+        _ = await nativePaste.updateProgress(to: "{Fixing...}")
         try! await nativePaste.finish(with: "the")
         check("native paste completes only inside its captured range", state.value == "🧭 the word")
         nativePaste.restore()
@@ -235,6 +241,7 @@ struct SelectedTextCaptureTests {
         let nativeCancelled = nativeProgress()
         try! await nativeCancelled.begin()
         focused = false
+        check("loading stops when the editor loses focus", !(await nativeCancelled.updateProgress(to: "{Fixing..}")))
         do { try await nativeCancelled.finish(with: "the"); check("native focus switch rejects completion", false) }
         catch { check("native focus switch rejects completion", true) }
         nativeCancelled.restore()
@@ -245,6 +252,7 @@ struct SelectedTextCaptureTests {
         let nativeEdited = nativeProgress()
         try! await nativeEdited.begin()
         state = .init(value: "User's new text", selection: .init(location: 15, length: 0))
+        check("loading never overwrites new user text", !(await nativeEdited.updateProgress(to: "{Fixing..}")))
         nativeEdited.restore()
         check("native cancellation preserves newer user edits", state.value == "User's new text")
         state = original
@@ -262,18 +270,86 @@ struct SelectedTextCaptureTests {
         deferredRecovery.restore()
         let recoveryTask = Task { @MainActor in await deferredRecovery.finishRestoringWhenFocused() }
         await Task.yield()
-        check("inactive editors retain recovery without receiving a blind paste", state.value == "🧭 {Fixing} word")
+        check("inactive editors retain recovery without receiving a blind paste", state.value == "🧭 {Fixing.} word")
         focused = true
         NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
         await recoveryTask.value
         check("returning to the captured editor restores its original text", state.value == original.value)
 
         state = original
+        focused = true
+        let resetCaret = nativeProgress()
+        try! await resetCaret.begin()
+        state = .init(value: state.value, selection: NSRange(location: original.selection.location, length: 0))
+        check("a caret reset to the start of progress remains replaceable", resetCaret.isCurrent)
+        try! await resetCaret.finish(with: "the")
+        check("start-caret completion changes only the placeholder", state.value == "🧭 the word")
+        state = original
+        let failedAtStart = nativeProgress()
+        try! await failedAtStart.begin()
+        state = .init(value: state.value, selection: NSRange(location: original.selection.location, length: 0))
+        failedAtStart.restore()
+        _ = await failedAtStart.settling?.value
+        check("start-caret failure restores the original", state.value == original.value)
+        let placeholderRange = NSRange(location: 3, length: 9)
+        check("start caret selects progress forward", AISelectionNativeProgress.selectionDirection(from: .init(location: 3, length: 0), to: placeholderRange) == .forward)
+        check("end caret selects progress backward", AISelectionNativeProgress.selectionDirection(from: .init(location: 12, length: 0), to: placeholderRange) == .backward)
+        check("a caret elsewhere cannot move into the captured selection", AISelectionNativeProgress.selectionDirection(from: .init(location: 1, length: 0), to: placeholderRange) == nil)
+        check("partial selections cannot be treated as progress", AISelectionNativeProgress.selectionDirection(from: .init(location: 3, length: 2), to: placeholderRange) == nil)
+        check("diagnostics exclude original and placeholder contents", !failedAtStart.diagnosticSummary.contains("teh") && !failedAtStart.diagnosticSummary.contains("{Fixing.}"))
+        state = original
         let rejectedNativeWrite = AISelectionNativeProgress(original: original, text: "teh", read: { state }, isFocused: { true },
             write: { _, _, _, _ in Task { false } })
         do { try await rejectedNativeWrite.begin(); check("native writes require observed confirmation", false) }
         catch { check("native writes require observed confirmation", state == original) }
         await rejectedNativeWrite.finishRestoringWhenFocused()
+        state = original
+        focused = true
+        acceptsWrites = true
+        let animated = transaction()
+        try! await animated.prepare()
+        for _ in 0..<100 {
+            if state.value.contains("{Fixing..}") { break }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        check("prepared replacements animate while waiting", state.value.contains("{Fixing..}"))
+        try! await animated.complete(with: "the", readSelection: { nil })
+        let completedWrites = writes
+        try? await Task.sleep(for: .milliseconds(700))
+        check("late animation cannot overwrite the final reply", state.value == "🧭 the word" && writes == completedWrites)
+
+        for cancel in [true, false] {
+            state = original
+            var gate: CheckedContinuation<Void, Never>?
+            var suspend = false
+            var nativeWrites = 0
+            let racing = AISelectionNativeProgress(original: original, text: "teh", read: { state }, isFocused: { true },
+                write: { expected, range, text, selection in
+                    guard state == expected else { return nil }
+                    nativeWrites += 1
+                    return Task { @MainActor in
+                        if suspend { await withCheckedContinuation { gate = $0 } }
+                        guard state == expected else { return false }
+                        state = .init(value: (state.value as NSString).replacingCharacters(in: range, with: text), selection: selection)
+                        return true
+                    }
+                })
+            try! await racing.begin()
+            suspend = true
+            let tick = Task { await racing.updateProgress(to: "{Fixing...}") }
+            while gate == nil { await Task.yield() }
+            if cancel { racing.restore() }
+            check("a pending loading paste serializes restoration", nativeWrites == 2)
+            let completion = Task {
+                if cancel { await racing.finishRestoringWhenFocused() }
+                else { try! await racing.finish(with: "the") }
+            }
+            suspend = false
+            gate?.resume()
+            _ = await tick.value
+            await completion.value
+            check("loading and completion cannot race: cancel=\(cancel)", state.value == (cancel ? original.value : "🧭 the word") && nativeWrites == 3)
+        }
         print("Selected text capture: \(failures) failure(s)")
         exit(failures == 0 ? 0 : 1)
     }

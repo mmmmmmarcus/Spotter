@@ -848,3 +848,7 @@ AI model settings show a **Thinking effort** row directly below each category's 
 command's explicit model, only when its provider reports supported levels. The picker is right-aligned
 with the existing model menu and starts with **Model Default**. Automatic (Jev) commands inherit
 the category pair and show no redundant effort picker. No control is added to Quick AI Chat.
+
+AI command model menus include a Presets section with Everyday, Professional and Deep Reasoning.
+A selected preset shows its current model and effort as secondary text in place of the effort picker.
+The three global model menus accept concrete models only; preset references cannot be recursive.

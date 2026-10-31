@@ -686,3 +686,10 @@ Fix Text tests cover the two-word scope boundary, punctuation/CJK segmentation, 
 migration with custom settings preserved, native placeholder writes, delayed verification,
 focus/selection changes, recovery, cancellation and newer edits. Copy-only guards still revalidate
 through shared capture, with exactly-once cleanup. These fixtures do not invoke paid models.
+
+Fix Text recovery tests also cover a caret collapsed to either placeholder boundary, rejection of
+unrelated ranges, and diagnostics that never include selected or replacement text.
+
+Fix Text regression coverage includes all three loading frame lengths, Unicode surrounding text,
+focus/edit guards, Undo without progress frames, and cancellation/completion during an in-flight
+loading paste. Command preset tests cover persistence, inherited effort, new runs and session pins.

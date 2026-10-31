@@ -114,6 +114,7 @@ struct QuickAIChatTests {
 
     static func main() async {
         await effortRouting()
+        await commandPresets()
         await spellingReplacement()
         layout()
         await nativePanel()
@@ -171,6 +172,43 @@ struct QuickAIChatTests {
         expect(router.efforts.last! == "low", "automatic spelling uses route effort instead of a stale pin")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
+    }
+
+    private static func commandPresets() async {
+        let router = OpenRouterStore()
+        router.aiRouting = AIRoutingPreferences(everydayModel: "vendor/fast", professionalModel: "vendor/work",
+            reasoningModel: "local-cli/codex/gpt-6-luna", everydayEffort: "low", professionalEffort: "medium", reasoningEffort: "xhigh")
+        let local = LocalAIStore()
+        local.isAvailable = true
+        let chat = AIChatStore(openRouter: router, localAI: local, tools: AIToolStore())
+        let command = AICommand(name: "Explain", prompt: "Explain {selection}", preset: .professional)
+        let sessionID = chat.startCommandConversation(command: command, selection: "test")
+        await waitUntil { router.requests.count == 1 }
+        expect(router.models.last == "vendor/work" && router.efforts.last! == "medium" && router.decisionRequests.isEmpty,
+            "preset chat bypasses category routing and uses its complete pair")
+        router.aiRouting.professionalModel = "vendor/new"
+        router.aiRouting.professionalEffort = "high"
+        expect(router.models.last == "vendor/work" && router.efforts.last! == "medium", "preset edits cannot change a running command")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        _ = chat.send("follow up", sessionID: sessionID)
+        await waitUntil { router.requests.count == 2 }
+        expect(router.models.last == "vendor/work" && router.efforts.last! == "medium", "existing command sessions retain their selected pair")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        _ = chat.startCommandConversation(command: command, selection: "new invocation")
+        await waitUntil { router.requests.count == 3 }
+        expect(router.models.last == "vendor/new" && router.efforts.last! == "high", "new command runs follow updated presets")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        var fix = AICommand.makeBuiltIn(.spelling)
+        fix.preset = .reasoning
+        var corrected: String?
+        chat.replaceSpelling(command: fix, selection: "teh") { corrected = try? $0.get() }
+        await waitUntil { !chat.isWaiting }
+        expect(corrected == "the" && local.models.last == "local-cli/codex/gpt-6-luna" && local.efforts.last! == "xhigh",
+            "Fix Text supports CLI preset model and effort")
+        expect(router.decisionRequests.isEmpty, "pinned presets never ask Jev to choose a category")
     }
 
     private static func spellingReplacement() async {

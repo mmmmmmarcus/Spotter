@@ -144,10 +144,20 @@ private struct AIChatModelMenu: View {
     /// The model a nil selection resolves to, or nil for the chat model's own row (which has no default).
     let chatModel: String?
     var defaultLabel: String? = nil
+    var preset: AIRoutingCategory? = nil
+    var choosePreset: ((AIRoutingCategory) -> Void)? = nil
     let set: (String?) -> Void
 
     var body: some View {
         Menu {
+            if let choosePreset {
+                Section("Presets") {
+                    ForEach(AIRoutingCategory.allCases) { category in
+                        Toggle(category.title, isOn: Binding(get: { preset == category },
+                            set: { picked in if picked { choosePreset(category) } }))
+                    }
+                }
+            }
             Section("On This Mac") {
                 Menu("Claude CLI") {
                     item(id: LocalAIModel.claude.id, name: "Use CLI Default")
@@ -173,7 +183,7 @@ private struct AIChatModelMenu: View {
                     Toggle(
                         defaultLabel ?? "Chat Model · \(OpenRouterModelCatalog.modelName(for: chatModel, in: brands) ?? chatModel)",
                         isOn: Binding(
-                            get: { selected == nil }, set: { picked in if picked { set(nil) } }))
+                            get: { selected == nil && preset == nil }, set: { picked in if picked { set(nil) } }))
                 }
             }
             if let selected, catalogLabel == nil {
@@ -207,17 +217,18 @@ private struct AIChatModelMenu: View {
     }
 
     private var label: String {
+        if let preset { return preset.title }
         guard let selected else { return defaultLabel ?? "Default" }
         return catalogLabel ?? selected
     }
 
-    private var usesMonospacedLabel: Bool { selected != nil && catalogLabel == nil }
+    private var usesMonospacedLabel: Bool { preset == nil && selected != nil && catalogLabel == nil }
 
     private func item(id: String, name: String) -> some View {
         Toggle(
             name,
             isOn: Binding(
-                get: { selected == id },
+                get: { preset == nil && selected == id },
                 set: { picked in if picked { set(id) } }))
     }
 }
@@ -232,6 +243,7 @@ private struct AICommandEditorSheet: View {
     @State private var prompt: String
     @State private var model: String?
     @State private var effort: String?
+    @State private var preset: AIRoutingCategory?
     @State private var errorMessage: String?
 
     init(command: AICommand?) {
@@ -241,6 +253,7 @@ private struct AICommandEditorSheet: View {
         _prompt = State(initialValue: command?.prompt ?? "")
         _model = State(initialValue: command?.model)
         _effort = State(initialValue: command?.effort)
+        _preset = State(initialValue: command?.preset)
     }
 
     @State private var showsIconPicker = false
@@ -376,10 +389,28 @@ private struct AICommandEditorSheet: View {
                 AIChatModelMenu(
                     brands: openRouter.catalog, selected: model,
                     chatModel: openRouter.chatModel,
-                    defaultLabel: "Automatic (Jev)", set: { if model != $0 { effort = nil }; model = $0 })
+                    defaultLabel: "Automatic (Jev)", preset: preset, choosePreset: { category in
+                        preset = category
+                        model = nil
+                        effort = nil
+                    }, set: { selection in
+                        if model != selection || preset != nil { effort = nil }
+                        preset = nil
+                        model = selection
+                    })
                     .accessibilityLabel("Command model")
             }
-            AIEffortSettingsRow(model: model, effort: $effort)
+            if let preset {
+                let model = openRouter.aiRouting.model(for: preset)
+                let label = LocalAIModel.label(model) ?? OpenRouterModelCatalog.label(for: model, in: openRouter.catalog) ?? model
+                let effort = openRouter.aiRouting.effort(for: preset).map(AIReasoningEffort.title) ?? "Model Default"
+                Text("\(label) · \(effort)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                AIEffortSettingsRow(model: model, effort: $effort)
+            }
             if let command {
                 Divider()
                 SettingsRow(title: "Shortcut") {
@@ -405,7 +436,7 @@ private struct AICommandEditorSheet: View {
         // Editing keeps the UUID, and with it the command's shortcut, favorite and ranking references.
         let draft = AICommand(
             id: command?.id ?? UUID(), name: name, prompt: prompt,
-            model: model, builtIn: command?.builtIn, symbol: symbol, effort: effort)
+            model: model, builtIn: command?.builtIn, symbol: symbol, effort: effort, preset: preset)
         do {
             if command == nil {
                 try AppCore.shared.addAICommand(draft)

@@ -81,6 +81,7 @@ final class AICommandStore: ObservableObject {
         guard var command = command(id: id) else { return }
         if command.model != model { command.effort = nil }
         command.model = model
+        command.preset = nil
         try? update(command)
     }
 
@@ -97,7 +98,7 @@ final class AICommandStore: ObservableObject {
         var value = draft
         value.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         value.prompt = draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        value.model = draft.model?.trimmingCharacters(in: .whitespacesAndNewlines)
+        value.model = value.preset == nil ? draft.model?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
         if value.model?.isEmpty == true { value.model = nil }
         value.effort = value.model == nil ? nil : AIReasoningEffort.normalized(value.effort)
         // A built-in's name is Spotter's; only its prompt, model and shortcut are the user's.

@@ -4,7 +4,8 @@ import Carbon.HIToolbox
 
 @MainActor
 final class AISelectionReplacement {
-    static let progressText = "{Fixing}"
+    static let progressFrames = ["{Fixing.}", "{Fixing..}", "{Fixing...}"]
+    static let progressText = progressFrames[0]
 
     struct Snapshot: Equatable {
         let value: String
@@ -19,9 +20,15 @@ final class AISelectionReplacement {
     private let isFocused: () -> Bool
     private var pending: Snapshot?
     private var pasteFallback: AISelectionPasteFallback?
+    private var progressTask: Task<Void, Never>?
 
     var usesInlineProgress: Bool { pasteFallback == nil || pasteFallback?.nativeProgress != nil }
     var restorationTask: Task<Bool, Never>? { pasteFallback?.nativeProgress?.settling }
+    var diagnosticSummary: String {
+        if let progress = pasteFallback?.nativeProgress { return progress.diagnosticSummary }
+        let current = read()
+        return "native=\(pasteFallback != nil), focused=\(isFocused()), readable=\(current != nil), documentMatches=\(current?.value == (pending ?? original).value)"
+    }
 
     func finishRestoringWhenFocused() async {
         await pasteFallback?.nativeProgress?.finishRestoringWhenFocused()
@@ -31,6 +38,44 @@ final class AISelectionReplacement {
         try showProgress()
         if let progress = pasteFallback?.nativeProgress { try await progress.begin() }
         try Task.checkCancellation()
+        startProgressAnimation()
+    }
+
+    private func startProgressAnimation() {
+        guard usesInlineProgress else { return }
+        progressTask = Task { @MainActor [weak self] in
+            var frame = 1
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
+                guard let self, !Task.isCancelled,
+                      await self.updateProgress(to: Self.progressFrames[frame]) else { return }
+                frame = (frame + 1) % Self.progressFrames.count
+            }
+        }
+    }
+
+    @discardableResult
+    private func stopProgressAnimation() -> Task<Void, Never>? {
+        let task = progressTask
+        progressTask = nil
+        task?.cancel()
+        return task
+    }
+
+    func updateProgress(to text: String) async -> Bool {
+        guard Self.progressFrames.contains(text) else { return false }
+        if let progress = pasteFallback?.nativeProgress { return await progress.updateProgress(to: text) }
+        guard let pending, let current = read(), current.value == pending.value, isFocused(),
+              current.selection == pending.selection
+                || AISelectionNativeProgress.selectionDirection(from: current.selection, to: pending.selection) != nil else { return false }
+        let range = NSRange(location: pending.selection.location, length: (text as NSString).length)
+        let next = Snapshot(value: (current.value as NSString).replacingCharacters(in: pending.selection, with: text), selection: range)
+        self.pending = next
+        guard write(current, pending.selection, NSAttributedString(string: text), range, false), read() == next else {
+            if read()?.value == pending.value { self.pending = pending }
+            return false
+        }
+        return true
     }
 
     init(original: Snapshot, text: NSAttributedString, read: @escaping () -> Snapshot?,
@@ -85,9 +130,9 @@ final class AISelectionReplacement {
                     let value = (expected.value as NSString).replacingCharacters(in: range, with: replacement)
                     let needsSelection = expected.selection != range
                     if needsSelection {
-                        guard range.length == AISelectionReplacement.progressText.count,
-                              expected.selection == NSRange(location: NSMaxRange(range), length: 0) else { return nil }
-                        for _ in 0..<range.length { postNativeKey(kVK_LeftArrow, flags: .maskShift, pid: pid) }
+                        guard let direction = AISelectionNativeProgress.selectionDirection(from: expected.selection, to: range) else { return nil }
+                        let key = direction == .forward ? kVK_RightArrow : kVK_LeftArrow
+                        for _ in 0..<range.length { postNativeKey(key, flags: .maskShift, pid: pid) }
                     } else {
                         Paster.copyString(replacement)
                         postNativeKey(kVK_ANSI_V, flags: .maskCommand, pid: pid)
@@ -104,7 +149,8 @@ final class AISelectionReplacement {
                         let caret = NSRange(location: range.location + (replacement as NSString).length, length: 0)
                         guard await waitForSnapshot(element, value: value, selection: caret) else { return false }
                         if selection.length == 0 { return true }
-                        guard selection.length == AISelectionReplacement.progressText.count,
+                        guard AISelectionReplacement.progressFrames.contains(replacement),
+                              selection.length == (replacement as NSString).length,
                               NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
                               sameElement(element, focusedElement(pid: pid)),
                               sameElement(window, attribute(kAXFocusedWindowAttribute, from: application)) else { return false }
@@ -112,6 +158,8 @@ final class AISelectionReplacement {
                         for _ in 0..<selection.length { postNativeKey(kVK_LeftArrow, flags: .maskShift, pid: pid) }
                         return await waitForSnapshot(element, value: value, selection: selection)
                     }
+                }, context: {
+                    "frontmost=\(NSWorkspace.shared.frontmostApplication?.processIdentifier == pid), sameControl=\(sameElement(element, focusedElement(pid: pid))), sameWindow=\(sameElement(window, attribute(kAXFocusedWindowAttribute, from: application)))"
                 })
             return AISelectionPasteFallback(original: text, isCurrent: { progress.isCurrent }, paste: { _ in }, nativeProgress: progress)
         }
@@ -157,6 +205,8 @@ final class AISelectionReplacement {
     }
 
     func complete(with text: String, readSelection: () async -> String?) async throws {
+        let animation = stopProgressAnimation()
+        await animation?.value
         if let pasteFallback {
             try await pasteFallback.replace(with: text, readSelection: readSelection)
         } else {
@@ -212,6 +262,7 @@ final class AISelectionReplacement {
     }
 
     func replace(with text: String) throws {
+        stopProgressAnimation()
         guard let pending, let current = read(), current.value == pending.value, isFocused(),
               current.selection == pending.selection
                 || current.selection == NSRange(location: NSMaxRange(pending.selection), length: 0)
@@ -232,6 +283,7 @@ final class AISelectionReplacement {
 
     @discardableResult
     func restoreOriginal() -> Bool {
+        stopProgressAnimation()
         if let pasteFallback { pasteFallback.cancel(); return true }
         guard let pending else { return true }
         defer { self.pending = nil }
@@ -342,21 +394,42 @@ final class AISelectionNativeProgress {
     private var pending: Snapshot?
     private(set) var settling: Task<Bool, Never>?
     private var restorationInFlight = false
+    private var updateInFlight = false
+    private let context: () -> String
 
     init(original: Snapshot, text: String, read: @escaping () -> Snapshot?,
-        isFocused: @escaping () -> Bool, write: @escaping Writer) {
+        isFocused: @escaping () -> Bool, write: @escaping Writer, context: @escaping () -> String = { "" }) {
         self.original = original
         self.text = text
         self.read = read
         self.isFocused = isFocused
         self.write = write
+        self.context = context
+    }
+
+    enum SelectionDirection { case forward, backward }
+
+    static func selectionDirection(from selection: NSRange, to placeholder: NSRange) -> SelectionDirection? {
+        guard AISelectionReplacement.progressFrames.contains(where: { $0.count == placeholder.length }), selection.length == 0 else { return nil }
+        if selection.location == placeholder.location { return .forward }
+        if selection.location == NSMaxRange(placeholder) { return .backward }
+        return nil
+    }
+
+    private static func matches(_ selection: NSRange, placeholder: NSRange) -> Bool {
+        selection == placeholder || selectionDirection(from: selection, to: placeholder) != nil
+    }
+
+    var diagnosticSummary: String {
+        let current = read()
+        let expected = pending ?? original
+        return "\(context()), focused=\(isFocused()), readable=\(current != nil), documentMatches=\(current?.value == expected.value), expectedLength=\((expected.value as NSString).length), actualLength=\(current.map { ($0.value as NSString).length } ?? -1), expectedRange=\(expected.selection), actualRange=\(current?.selection.description ?? "unavailable")"
     }
 
     var isCurrent: Bool {
         guard isFocused(), let current = read() else { return false }
         guard let pending else { return current == original }
-        return current.value == pending.value && (current.selection == pending.selection
-            || current.selection == NSRange(location: NSMaxRange(pending.selection), length: 0))
+        return current.value == pending.value && Self.matches(current.selection, placeholder: pending.selection)
     }
 
     func begin() async throws {
@@ -371,7 +444,24 @@ final class AISelectionNativeProgress {
         }
     }
 
+    func updateProgress(to replacement: String) async -> Bool {
+        guard !updateInFlight, !restorationInFlight, AISelectionReplacement.progressFrames.contains(replacement),
+              isCurrent, let pending, let current = read() else { return false }
+        let range = NSRange(location: pending.selection.location, length: (replacement as NSString).length)
+        guard let operation = write(current, pending.selection, replacement, range) else { return false }
+        self.pending = Snapshot(value: (current.value as NSString).replacingCharacters(in: pending.selection, with: replacement), selection: range)
+        updateInFlight = true
+        settling = Task { @MainActor in
+            let success = await operation.value
+            self.updateInFlight = false
+            if !success, self.read()?.value == pending.value { self.pending = pending }
+            return success
+        }
+        return await settling?.value == true && isCurrent
+    }
+
     func finish(with replacement: String) async throws {
+        if updateInFlight { _ = await settling?.value }
         try Task.checkCancellation()
         guard isCurrent, let pending, let current = read() else { throw AISpellingResponse.Failure.selectionChanged }
         let end = NSRange(location: pending.selection.location + (replacement as NSString).length, length: 0)
@@ -381,9 +471,8 @@ final class AISelectionNativeProgress {
     }
 
     func restore() {
-        guard !restorationInFlight, let pending, let current = read(), current.value == pending.value,
-              current.selection == pending.selection
-                || current.selection == NSRange(location: NSMaxRange(pending.selection), length: 0) else { return }
+        guard !updateInFlight, !restorationInFlight, let pending, let current = read(), current.value == pending.value,
+              Self.matches(current.selection, placeholder: pending.selection) else { return }
         guard let operation = write(current, pending.selection, text, NSRange(location: NSMaxRange(original.selection), length: 0)) else { return }
         restorationInFlight = true
         settling = Task { @MainActor in

@@ -419,20 +419,20 @@ struct AIChatTests {
         // a model the key can no longer reach stays the command's choice.
         check(
             "no pinned model delegates to Jev",
-            userCommand.resolvedModel() == nil)
+            userCommand.resolvedSelection(using: .defaults)?.model == nil)
         check(
             "a blank pinned model delegates to Jev",
             AICommand(name: "Blank", prompt: "p", model: "   ")
-                .resolvedModel() == nil)
+                .resolvedSelection(using: .defaults)?.model == nil)
         check(
             "a withdrawn model stays the command's choice",
             AICommand(name: "Pinned", prompt: "p", model: "vendor/retired-model")
-                .resolvedModel() == "vendor/retired-model")
+                .resolvedSelection(using: .defaults)?.model == "vendor/retired-model")
         check("an unpinned command delegates to Jev when automatic selection is enabled",
-            userCommand.resolvedModel() == nil)
+            userCommand.resolvedSelection(using: .defaults)?.model == nil)
         check("a command pin wins over automatic selection",
             AICommand(name: "Pinned", prompt: "p", model: "vendor/pinned")
-                .resolvedModel() == "vendor/pinned")
+                .resolvedSelection(using: .defaults)?.model == "vendor/pinned")
         check(
             "a withdrawn model still has a name to show",
             OpenRouterModelCatalog.modelName(for: "vendor/retired-model", in: [])
@@ -447,8 +447,10 @@ struct AIChatTests {
             "the rebuilt commands carry the shipped prompts",
             fresh[0].prompt == AIBuiltInCommand.define.defaultPrompt)
         check(
-            "the rebuilt commands pin the shipped fast model",
-            fresh.allSatisfy { $0.model == AICommand.defaultBuiltInModel })
+            "the rebuilt commands pin their shipped fast model",
+            fresh.allSatisfy { $0.model == ($0.builtIn == .spelling ? AICommand.defaultFixTextModel : AICommand.defaultBuiltInModel) })
+
+        check("Fix Text ships with Gemini Flash Lite and minimal effort", fresh[2].model == "google/gemini-3.5-flash-lite" && fresh[2].effort == "minimal" && fresh[2].isDefault)
 
         let seeded = AICommandEngine.normalized(
             [],
@@ -612,6 +614,34 @@ struct AIChatTests {
         let knownShortcutIDs = AICommandEngine.shortcutReplacementIDs(knownIDs: upgraded.commands.map(\.id), boundIDs: [], localCommands: upgraded.commands)
         check("new sync can deliberately clear shipped default shortcuts", knownShortcutIDs.contains(AIBuiltInCommand.spelling.id) && knownShortcutIDs.contains(AIBuiltInCommand.pronunciation.id))
         check("old sync can supply a new command binding", AICommandEngine.shortcutReplacementIDs(knownIDs: nil, boundIDs: [AIBuiltInCommand.spelling.id], localCommands: []).contains(AIBuiltInCommand.spelling.id))
+
+        var presetPreferences = AIRoutingPreferences.defaults
+        let presetSuite = "spotter-command-presets-" + UUID().uuidString
+        let presetDefaults = UserDefaults(suiteName: presetSuite)!
+        defer { presetDefaults.removePersistentDomain(forName: presetSuite) }
+        let presetStore = AICommandStore(defaults: presetDefaults)
+        for category in AIRoutingCategory.allCases {
+            let command = AICommand(name: category.title, prompt: "Fix {selection}", model: "ignored", effort: "max", preset: category)
+            check("preset owns the complete pair: \(category)", command.model == nil && command.effort == nil)
+            let selected = command.resolvedSelection(using: presetPreferences)
+            check("preset resolves configured model and effort: \(category)", selected?.model == presetPreferences.model(for: category) && selected?.effort == presetPreferences.effort(for: category))
+            let roundtrip = try! JSONDecoder().decode(AICommand.self, from: JSONEncoder().encode(command))
+            check("preset survives backup encoding: \(category)", roundtrip == command)
+            let saved = try! presetStore.add(command)
+            check("preset survives store restart: \(category)", AICommandStore(defaults: presetDefaults).command(id: saved.id)?.preset == category)
+            check("preset survives import normalization: \(category)", AICommandEngine.normalized([roundtrip]).last?.preset == category)
+        }
+        let followsPreset = AICommand(name: "Follow", prompt: "p", preset: .professional)
+        presetPreferences.setModel("vendor/new-professional", for: .professional)
+        presetPreferences.setEffort("high", for: .professional)
+        check("commands follow later preset edits", followsPreset.resolvedSelection(using: presetPreferences)?.model == "vendor/new-professional" && followsPreset.resolvedSelection(using: presetPreferences)?.effort == "high")
+        let savedPreset = try! presetStore.add(followsPreset)
+        presetStore.setModel("vendor/pinned", for: savedPreset.id)
+        check("choosing a model clears the preset", presetStore.command(id: savedPreset.id)?.preset == nil && presetStore.command(id: savedPreset.id)?.model == "vendor/pinned")
+        var legacyCommandJSON = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(userCommand)) as! [String: Any]
+        legacyCommandJSON.removeValue(forKey: "preset")
+        let legacyWithoutPreset = try! JSONDecoder().decode(AICommand.self, from: JSONSerialization.data(withJSONObject: legacyCommandJSON))
+        check("legacy commands need no preset migration", legacyWithoutPreset == userCommand && legacyWithoutPreset.preset == nil)
 
         for reason in ["stop", "length", "content_filter", "tool_calls", ""] {
             var parser = OpenRouterStream(requiresCompleteReply: true)
