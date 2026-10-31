@@ -401,6 +401,16 @@ struct CalcTests {
         expectDisplayAt("days since 29feb", "2,920 days", now: centuryPast)
         expectDisplayAt("days till 29feb", "0 days", now: leapDay)
         expectDisplayAt("days since 29feb", "0 days", now: leapDay)
+        // Calendar may truncate oversized years; every date component must round-trip unchanged.
+        expectNilAt("days until 9223372036854775807-01-01")
+        expectNilAt("days until 4294969323-04-09")
+        expectNilAt("days since 1/1/9223372036854775807")
+        expectNilAt("days until 2027--04-09")
+        expectNilAt("days until 2027-04-09-")
+        expectNilAt("days until 4//9/2027")
+        expectNilAt("days until /4/9/2027")
+        expectDisplayAt("days until 2027-04-09", "259 days")
+        expectDisplayAt("days until 4/9/2027", "259 days")
         expectNilAt("days till 30feb")
         expectNilAt("days since 31apr")
         expectBadgesAt(

@@ -274,7 +274,7 @@ enum CalcDateTime {
             return clockMoment(hour: hour, minute: minute, now: now, calendar: calendar, bias: bias)
         }
         if atom.contains("-") {
-            let parts = atom.split(separator: "-").map(String.init)
+            let parts = atom.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
             guard parts.count == 3, let year = Int(parts[0]), year > 31,
                 let month = Int(parts[1]), let day = Int(parts[2]),
                 let date = makeDate(year, month, day, calendar)
@@ -282,7 +282,7 @@ enum CalcDateTime {
             return Moment(date: date, hasTime: false)
         }
         if atom.contains("/") {
-            let parts = atom.split(separator: "/").map(String.init)
+            let parts = atom.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
             if parts.count == 2, let month = Int(parts[0]), let day = Int(parts[1]) {
                 return monthDayMoment(
                     month: month, day: day, now: now, calendar: calendar, bias: bias)
@@ -491,6 +491,8 @@ enum CalcDateTime {
         components.month = month
         components.day = day
         guard let date = calendar.date(from: components),
+            // Foundation can silently truncate an out-of-range year while preserving month and day.
+            calendar.component(.year, from: date) == year,
             calendar.component(.day, from: date) == day,
             calendar.component(.month, from: date) == month
         else { return nil }
