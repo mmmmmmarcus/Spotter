@@ -30,10 +30,11 @@ struct PaletteMenuTypeaheadBuffer {
 enum PaletteMenuTypeahead {
     static func bestMatch(query: String, titles: [String]) -> Int? {
         guard !query.isEmpty else { return nil }
+        let prepared = FuzzyMatch.Query(query)
         var best: (index: Int, score: Int)?
 
         for (index, title) in titles.enumerated() {
-            guard let score = FuzzyMatch.score(query: query, candidate: title) else { continue }
+            guard let score = FuzzyMatch.match(prepared, candidate: title)?.score else { continue }
             if let bestScore = best?.score, score <= bestScore {
                 continue
             } else {

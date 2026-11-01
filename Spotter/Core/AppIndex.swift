@@ -363,11 +363,12 @@ final class AppIndex: ObservableObject {
 
     private func rank(_ q: String, limit: Int, includeMenus: Bool) -> [AppEntry] {
         let learned = ranking.boosts(query: q)
+        let query = FuzzyMatch.Query(q)
         let scored = (apps + (includeMenus ? menuItems : [])).compactMap { app -> (AppEntry, Int)? in
             // Folded in here rather than stored on the entry: an alias edit must not force a rescan.
             var fields = app.searchFields
             fields.userAlias = aliases.alias(for: app.preferenceKey)
-            guard let score = SearchRelevance.score(query: q, fields: fields) else {
+            guard let score = SearchRelevance.score(query: query, fields: fields) else {
                 return nil
             }
             return (app, score + (learned[app.preferenceKey] ?? 0))

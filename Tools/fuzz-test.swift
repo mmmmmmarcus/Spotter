@@ -433,6 +433,7 @@ struct FuzzTest {
         }
         var rng = Random(seed: 0x5EED_1234_ABCD_0001)
 
+        var preparedMismatches = 0
         var bandViolations = 0
         var nondeterministic = 0
         var unstableOrder = 0
@@ -456,9 +457,12 @@ struct FuzzTest {
                 query = String((0..<(1 + rng.int(8))).map { _ in rng.element(alphabet) })
             }
 
+            let prepared = FuzzyMatch.Query(query)
             for app in apps {
                 let fields = app.fields
-                guard let score = SearchRelevance.score(query: query, fields: fields) else { continue }
+                let score = SearchRelevance.score(query: query, fields: fields)
+                if SearchRelevance.score(query: prepared, fields: fields) != score { preparedMismatches += 1 }
+                guard let score else { continue }
                 matched += 1
 
                 // Every score sits inside exactly one band, and the boost cap cannot lift it out.
@@ -474,6 +478,7 @@ struct FuzzTest {
             if i % 97 == 0, rank(query) != rank(query) { unstableOrder += 1 }
         }
 
+        check("prepared queries preserve matches and scores", preparedMismatches == 0, "\(preparedMismatches) mismatches")
         check("scores always sit inside their band", bandViolations == 0, "\(bandViolations) violations")
         check(
             "the max learned boost never lifts a score out of its band", boostCrossedBand == 0,

@@ -10,9 +10,8 @@ enum ScreenshotTextRecognizer {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        // Let Vision pick the script rather than pinning a language list, so a capture of mixed
-        // Latin and CJK text reads correctly without anything to configure.
-        request.automaticallyDetectsLanguage = true
+        // Chinese must lead: auto-detection and an English-first list both misread the Chinese in mixed lines ("你好世界" → "1547Ш").
+        request.recognitionLanguages = ["zh-Hans", "en-US"]
         try VNImageRequestHandler(cgImage: image).perform([request])
         let fragments = (request.results ?? []).compactMap { observation in
             observation.topCandidates(1).first.map {

@@ -25,7 +25,8 @@ final class ScreenshotPointerCapture {
                     let point = CGPoint(x: event.location.x,
                         y: (NSScreen.screens.first?.frame.maxY ?? 0) - event.location.y)
                     owner.onPointer?(type, point)
-                    return type == .mouseMoved
+                    // Moves are swallowed too: the app beneath would reset its own cursor on each one, flickering against the crosshair.
+                    return false
                 }
                 return forward ? Unmanaged.passUnretained(event) : nil
             }, userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return false }

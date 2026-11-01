@@ -21,20 +21,25 @@ same capture path as Option-Z instead of bypassing shortcut dispatch.
 
 ## Region selection
 
-Invoking capture immediately presents one transparent nonactivating panel per display. The desktop
-remains live throughout selection; pixels are acquired only after the overlays are dismissed.
-Region, OCR, display and color capture use the macOS screenshot rectangle API, with Quartz display
-origins and the selected output scale. Window capture keeps its shadow-aware path.
+Invoking capture first saves a Retina snapshot of every display, concurrently, then presents one
+nonactivating panel per display showing those frozen pixels (restored Nov 2026, owner request, after
+1.7.14 had made selection live). Region, OCR, whole-display and color capture all crop the same
+snapshots, at the selected output scale, so what is selected is exactly what is copied; completion
+and cancellation release them, and a failed snapshot aborts rather than falling back to a live read.
+The snapshot sets `ignoreShadows = false` explicitly: the rect capture API otherwise strips window
+framing, and the frozen desktop loses every window shadow. Right-click window capture keeps its independent live, shadow-aware window path.
 
 `ScreenshotPointerCapture` owns a temporary active session event tap while selection is visible.
-It consumes mouse button/drag and scroll events before they reach the underlying application, so
-selecting a transient surface does not send an outside click to dismiss it. Overlay panels ignore
+It consumes mouse button, drag, scroll and move events before they reach the underlying
+application, so selecting a transient surface does not send an outside click to dismiss it. Moves are
+swallowed as well because the app beneath otherwise resets its own cursor on each one, which flickers
+against the crosshair; with the screen frozen there is no live hover state to keep. Overlay panels ignore
 mouse events and never become key or main. Pointer coordinates route into the selection view;
 a drag stays on its starting display and right-click capture waits for button release. Escape,
 completion, a disabled tap and every cancellation path remove the tap. Nothing is monitored at
 startup or between screenshots. Accessibility is required for this bounded interception; an
 unavailable tap aborts with an Accessibility hint instead of exposing clicks to the original UI.
-Screen Recording remains required for pixels. No frozen-screen fallback or synthetic clicks are used.
+Screen Recording remains required for pixels. No synthetic clicks are used.
 
 The overlay and view live in `ScreenshotSelectionView.swift`; the offscreen interaction harness
 exercises focus preservation, intercepted coordinates, drag clamping and right-button release.
@@ -168,8 +173,11 @@ in it reports "No Text Found" as a no-op without touching the clipboard.
 
 Recognition always captures at Retina regardless of the **Resolution** setting: accuracy tracks pixel
 density and no image is kept, so honouring `1x` here would cost accuracy and save nothing. Vision
-runs off the main actor and returns a plain `String`. Language is auto-detected rather than pinned to
-a list, so mixed Latin and CJK text reads correctly with nothing to configure.
+runs off the main actor and returns a plain `String`. Languages are pinned to Simplified Chinese and
+English (owner decision, Nov 2026), in that order. Auto-detection and an English-first list both
+misread the Chinese in lines that mix the two scripts, while Chinese-first reads Latin text correctly
+too. The cost is speed on large regions (about 1 s instead of 0.6 s for a full 1600×900-point
+region). Other scripts (Japanese, Korean, Cyrillic, …) are not recognized.
 
 Unlike every other Spotter clipboard write, recognized text is **not** stamped with the internal
 marker, so it enters clipboard history (owner decision, Aug 2026). It is the user's own text and
@@ -194,7 +202,7 @@ clicks are inert; Escape still cancels. There is no loupe: click-to-copy ships f
 preview would need live screen streaming that the idle-between-invocations architecture deliberately
 avoids.
 
-The sample is one point captured from the live display at `1x` regardless of the
+The sample is one point cropped from the frozen display and downsampled to `1x` regardless of the
 Resolution setting. It never includes the selection overlay and needs no delayed screen read. The pure `ScreenshotColorSampler` converts the pixel to sRGB before
 formatting — a raw byte read off a Display-P3 capture would name a colour every other app renders
 differently — and the pure `ScreenshotGeometry.colorSampleRect` keeps an edge click on the display;
@@ -413,6 +421,8 @@ plugin is idle. The interaction architecture is adapted from Capso revision
 `81c7ce50023b9b56d5b1ab569f0abd4551fcf2b1`; its Business Source License 1.1 is retained in
 `Spotter/Plugins/Screenshot/Capso-BSL-1.1.txt` and embedded in the app bundle.
 
-Selection startup performs no image capture or shareable-window enumeration. On completion, the
-overlay is removed and a 50 ms compositor interval precedes live rectangle capture. Cancellation
-before capture cancels that request; window-only capture keeps its separate shadow-aware path.
+Selection startup captures each display directly with the macOS screenshot rectangle API, using
+Quartz display bounds and native pixel dimensions, concurrently and without enumerating shareable
+windows. Every snapshot must finish before any overlay is shown; cancellation discards them, and the
+startup duration is logged in milliseconds ("Selection ready in … ms") for real-machine latency
+checks. Window-only capture keeps its separate shadow-aware path and its 50 ms compositor interval.
