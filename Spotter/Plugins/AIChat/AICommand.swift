@@ -108,26 +108,41 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     let id: UUID
     var name: String
     var prompt: String
-    // With neither a preset nor an explicit model, Jev chooses the category.
+    /// Nil follows the chat model and effort chosen in Settings.
     var model: String?
-    var preset: AIRoutingCategory?
     var effort: String?
     var symbol: String?
     /// Set for shipped commands, `nil` for user-created ones.
     let builtIn: AIBuiltInCommand?
+    /// Decode-only: the Jev-era category a command pinned, resolved to a concrete pair by `AICommandEngine.normalized`.
+    private(set) var legacyPreset: String?
 
     init(
         id: UUID = UUID(), name: String, prompt: String, model: String? = nil,
-        builtIn: AIBuiltInCommand? = nil, symbol: String? = nil, effort: String? = nil, preset: AIRoutingCategory? = nil
+        builtIn: AIBuiltInCommand? = nil, symbol: String? = nil, effort: String? = nil
     ) {
         self.id = id
         self.name = name
         self.prompt = prompt
-        self.preset = preset
-        self.model = preset == nil ? model : nil
-        self.effort = preset == nil && model != nil ? AIReasoningEffort.normalized(effort) : nil
+        self.model = model
+        self.effort = model != nil ? AIReasoningEffort.normalized(effort) : nil
         self.builtIn = builtIn
         self.symbol = symbol
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, prompt, model, effort, symbol, builtIn }
+    private enum LegacyKeys: String, CodingKey { case preset }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        prompt = try container.decode(String.self, forKey: .prompt)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        effort = try container.decodeIfPresent(String.self, forKey: .effort)
+        symbol = try container.decodeIfPresent(String.self, forKey: .symbol)
+        builtIn = try container.decodeIfPresent(AIBuiltInCommand.self, forKey: .builtIn)
+        legacyPreset = try decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(String.self, forKey: .preset)
     }
 
     /// The shipped record for a built-in, before any customization.
@@ -163,11 +178,10 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
         return UUID(uuidString: String(entryID.dropFirst(entryIDPrefix.count)))
     }
 
-    // Resolve once at invocation so preset edits affect future runs, not an in-flight answer.
-    func resolvedSelection(using preferences: AIRoutingPreferences) -> (model: String, effort: String?)? {
-        if let preset { return (preferences.model(for: preset), preferences.effort(for: preset)) }
-        guard let model = model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else { return nil }
-        return (model, AIReasoningEffort.normalized(effort))
+    /// Resolved at invocation, so a later chat-model edit affects future runs, not an in-flight answer.
+    func resolvedChoice(chat: AIModelChoice) -> AIModelChoice {
+        guard let model = model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else { return chat }
+        return AIModelChoice(model: model, effort: effort)
     }
 
     /// The first user turn this command sends.
@@ -178,7 +192,7 @@ struct AICommand: Codable, Hashable, Identifiable, Sendable {
     var isDefault: Bool {
         guard let builtIn else { return false }
         let shipped = Self.makeBuiltIn(builtIn)
-        return prompt == shipped.prompt && model == shipped.model && preset == shipped.preset && effort == shipped.effort && systemImage == shipped.systemImage
+        return prompt == shipped.prompt && model == shipped.model && effort == shipped.effort && systemImage == shipped.systemImage
     }
 }
 
@@ -246,8 +260,9 @@ enum AICommandEngine {
     /// records are trimmed, and unusable or duplicated ones drop out. A built-in the list doesn't
     /// carry is rebuilt from its defaults, seeded with any prompt or model the user set before AI
     /// Commands existed — which is the whole upgrade path for Define and Grammar.
-    static func normalized(_ commands: [AICommand], seed: AICommandSeed = AICommandSeed())
-        -> [AICommand]
+    /// `legacyRouting` resolves a Jev-era category pin to the pair that category was configured with.
+    static func normalized(_ commands: [AICommand], seed: AICommandSeed = AICommandSeed(),
+        legacyRouting: AILegacyRouting? = nil) -> [AICommand]
     {
         var stored: [UUID: AICommand] = [:]
         var userOrder: [UUID] = []
@@ -255,7 +270,7 @@ enum AICommandEngine {
             // A record claiming a built-in kind is that built-in, whatever id the file gave it.
             let id = command.builtIn?.id ?? command.id
             guard stored[id] == nil else { continue }
-            guard let cleaned = cleaned(command, id: id) else { continue }
+            guard let cleaned = cleaned(command, id: id, legacyRouting: legacyRouting) else { continue }
             stored[id] = cleaned
             if cleaned.builtIn == nil { userOrder.append(id) }
         }
@@ -296,13 +311,20 @@ enum AICommandEngine {
     }
 
     /// Copy-and-clean rather than rebuild, so a field added later can never be dropped on import.
-    private static func cleaned(_ command: AICommand, id: UUID) -> AICommand? {
-        var value = AICommand(
+    private static func cleaned(_ command: AICommand, id: UUID, legacyRouting: AILegacyRouting?) -> AICommand? {
+        var model = command.model?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var effort = command.effort
+        if let preset = command.legacyPreset {
+            // An unset tier followed the chat model, which is what a nil model does now.
+            let choice = legacyRouting?.choice(for: preset)
+            model = choice?.model
+            effort = choice?.effort
+        }
+        if model?.isEmpty == true { model = nil }
+        let value = AICommand(
             id: id, name: command.name.trimmingCharacters(in: .whitespacesAndNewlines),
             prompt: command.prompt.trimmingCharacters(in: .whitespacesAndNewlines),
-            model: command.model?.trimmingCharacters(in: .whitespacesAndNewlines),
-            builtIn: command.builtIn, symbol: command.symbol, effort: command.effort, preset: command.preset)
-        if value.model?.isEmpty == true { value.model = nil }
+            model: model, builtIn: command.builtIn, symbol: command.symbol, effort: effort)
         guard !value.name.isEmpty, !value.prompt.isEmpty, !value.name.contains("\0"),
             !value.prompt.contains("\0")
         else { return nil }

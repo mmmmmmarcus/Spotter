@@ -119,8 +119,8 @@ Restoring one of these *is* the consent act — the file is trusted explicitly b
 | Setting | Field |
 | --- | --- |
 | OpenRouter API key (the gate for AI Chat and every AI command) | `settings.openRouterAPIKey` |
-| Everyday / Professional / Deep Reasoning model mappings (Jev always on) | `settings.aiRouting` (absent legacy fields leave local choices intact) |
-| OpenRouter chat model, web search | `settings.openRouterChatModel`, `.openRouterChatWebSearch` |
+| Chat model, thinking effort, web search | `settings.openRouterChatModel`, `.openRouterChatEffort`, `.openRouterWebSearch` (absent fields leave local choices intact) |
+| Jev-era Everyday / Professional / Deep Reasoning mappings (decode-only) | `settings.aiRouting` — its Everyday pair is applied as the chat model, and category-pinned commands in the same file resolve against it; never written |
 | Google Cloud Translation API key (the gate for Translate) | `settings.googleTranslationAPIKey` |
 | Translate target languages | `settings.googleTranslationTargets` |
 | Daily update check consent | `settings.updateAutoCheckEnabled` |

@@ -65,7 +65,24 @@ struct SettingsSyncTests {
         testRemovedPluginsAreIgnored()
         testEmptyObjectDecodesToAllUnset()
         testPluginShortcutVersions()
+        testChatChoice()
         print("Settings Sync: ALL PASSED")
+    }
+
+    private static func testChatChoice() {
+        var current = populatedSettings()
+        current.aiRouting = nil
+        precondition(current.chatChoice == AIModelChoice(model: "vendor/chat", effort: "high"),
+            "a current snapshot carries its chat model and effort")
+        current.openRouterChatEffort = nil
+        precondition(current.chatChoice == AIModelChoice(model: "vendor/chat"), "a missing effort is the model's default")
+        current.openRouterChatModel = nil
+        precondition(current.chatChoice == nil, "a snapshot without a chat model leaves the local choice alone")
+        current.aiRouting = AILegacyRouting(everydayModel: "", professionalModel: "vendor/work")
+        precondition(current.chatChoice == nil, "an unset Everyday tier carries no chat choice")
+        current.aiRouting = AILegacyRouting(everydayModel: "vendor/fast", everydayEffort: "low")
+        precondition(current.chatChoice == AIModelChoice(model: "vendor/fast", effort: "low"),
+            "a Jev-era snapshot maps its Everyday pair to the chat model")
     }
 
     private static func testPluginShortcutVersions() {
@@ -131,7 +148,9 @@ struct SettingsSyncTests {
             openRouterDefinitionModel: "vendor/define",
             openRouterGrammarModel: "vendor/grammar",
             openRouterChatModel: "vendor/chat",
-            aiRouting: AIRoutingPreferences(everydayModel: "vendor/fast",
+            openRouterChatEffort: "high",
+            openRouterWebSearch: true,
+            aiRouting: AILegacyRouting(everydayModel: "vendor/fast",
                 professionalModel: "vendor/work", reasoningModel: "vendor/deep"),
             googleTranslationAPIKey: "google-test-key",
             googleTranslationEnabled: true,
@@ -225,7 +244,7 @@ struct SettingsSyncTests {
     /// A v3 file written before a field existed must decode, and that field must read as "unset" —
     /// which is what makes the apply path leave this Mac's own value alone rather than resetting it.
     private static func testOlderFileLeavesNewFieldsUnset() {
-        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations", "aiRouting"]
+        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations", "openRouterChatEffort", "openRouterWebSearch"]
         var object = jsonObject(encode(populatedSettings()))
         for field in newFields {
             precondition(object[field] != nil, "\(field) is missing from the fixture")
@@ -235,7 +254,9 @@ struct SettingsSyncTests {
         let decoded = try! decode(SettingsBackupData.self, from: older)
         precondition(decoded.currencyRatesEnabled == nil)
         precondition(decoded.settingsSyncMigrations == nil)
-        precondition(decoded.aiRouting == nil, "old snapshots must leave the receiving Mac's routing choices intact")
+        precondition(decoded.openRouterWebSearch == nil, "old snapshots must leave the receiving Mac's search setting intact")
+        precondition(decoded.chatChoice == AIModelChoice(model: "vendor/fast"),
+            "a Jev-era snapshot's Everyday tier is its chat model")
         // Everything the older file did carry is still there.
         precondition(decoded.openRouterAPIKey == "sk-or-test-key")
         precondition(decoded.googleTranslationTargets == ["ja", "fr", "de"])

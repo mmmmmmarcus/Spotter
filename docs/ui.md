@@ -754,14 +754,12 @@ messages and follow-ups keep their existing text presentation.
 
 AI Chat tool mode adds a collapsible activity list and a Stop control. MCP/Cua settings provide a JSON configuration sheet; configured servers are available without an enable switch. Tool calls use the shared confirmation card with selectable JSON arguments, initially highlighting Cancel; dismissing a tool confirmation cancels that call.
 
-AI Chat Settings has **Model Selection**: title-only Everyday / Professional / Deep Reasoning rows
-with equally wide, right-aligned model menus. Jev is always used for unpinned turns. The model catalog
-reloads each time the pane opens; Chat Model, Reload, toggle and explanatory footer rows are absent.
-While classifying, the transcript says
-**Jev is choosing a model…**. Routed replies show only `arrow.trianglehead.branch` and the model name; category and fallback
-details remain available in the tooltip. Live progress uses text only for model selection,
+AI Chat Settings has a **Chat** section: a right-aligned **Model** menu, the **Thinking effort** row
+when the model reports levels, and a **Web Search** switch (off by default; its tooltip names the
+per-request search charge). The model catalog reloads each time the pane opens. Replies carry no
+model caption. Live progress uses text only for
 waiting for a reply, generating, connecting tools, planning, confirmation and execution. A text
-highlight sweeps left to right; Reduce Motion disables the text sweep. The launcher says **Ask Spotter** when routing is on.
+highlight sweeps left to right; Reduce Motion disables the text sweep. The launcher says **Ask Spotter** while a key exists.
 
 ## SF Symbols
 
@@ -844,11 +842,7 @@ routes the selection without activating a window; no pre-capture desktop bitmap 
 Coffee keep-awake sessions use the existing Background Tasks row in the empty Palette: extension
 name, remaining duration, progress, and Actions → Cancel. No separate window or status UI is added.
 
-AI model settings show a **Thinking effort** row directly below each category's model and each
+AI model settings show a **Thinking effort** row directly below the chat model and each
 command's explicit model, only when its provider reports supported levels. The picker is right-aligned
-with the existing model menu and starts with **Model Default**. Automatic (Jev) commands inherit
-the category pair and show no redundant effort picker. No control is added to Quick AI Chat.
-
-AI command model menus include a Presets section with Everyday, Professional and Deep Reasoning.
-A selected preset shows its current model and effort as secondary text in place of the effort picker.
-The three global model menus accept concrete models only; preset references cannot be recursive.
+with the existing model menu and starts with **Model Default**. Commands on **Chat Model** inherit
+the chat pair and show no redundant effort picker. No control is added to Quick AI Chat.

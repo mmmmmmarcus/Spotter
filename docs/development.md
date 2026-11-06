@@ -257,7 +257,7 @@ swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.sw
     -o /tmp/text-replacement-test && /tmp/text-replacement-test
 swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
     Spotter/Core/Backup/PluginShortcutSync.swift \
-    Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+    Spotter/Plugins/AIChat/AIModelChoice.swift \
     Spotter/Core/Backup/SettingsBackupData.swift Tools/settings-sync-test.swift -o /tmp/settings-sync-test && /tmp/settings-sync-test
 swiftc -swift-version 6 Spotter/Core/UpdateFeed.swift Spotter/Core/UpdatePresentation.swift Tools/update-test.swift \
     -o /tmp/update-test && /tmp/update-test                       # updater feed + semver
@@ -269,7 +269,7 @@ swiftc -swift-version 6 Spotter/Core/BackgroundTaskStore.swift Tools/background-
     -o /tmp/background-task-test && /tmp/background-task-test     # task lifetime + dismissal
 swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
     Spotter/Plugins/AIChat/AISpellingResponse.swift \
-    Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+    Spotter/Plugins/AIChat/AIModelChoice.swift \
     Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
     Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift \
     Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
@@ -377,8 +377,8 @@ expansion to twice the width around the composer center, compact-width restorati
 key and busy gates, session-scoped streaming, follow-up context, cancellation and shared history.
 Two-stage checks cover initial compact expansion, first-reply expansion to the final height,
 follow-up size retention, replies belonging to other sessions and New Chat reset. An offscreen
-window probe checks native header dragging without posting mouse events. Routing fixtures cover
-classification before generation, model pins, metadata ownership, tool-path routing and cancellation.
+window probe checks native header dragging without posting mouse events. Model-selection fixtures cover
+the chat pair, command pins, session retention, the web-search setting on the plain and tool paths.
 It creates only offscreen panels and sends no network requests; appearance remains a user acceptance
 step. It is included in `scripts/test-all.sh`, or run it independently with:
 
@@ -386,11 +386,11 @@ step. It is included in `scripts/test-all.sh`, or run it independently with:
 scripts/test-all.sh --run-case quick-ai-chat /tmp/spotter-tests
 ```
 
-`Tools/ai-routing-test.swift` compiles the real routing types, Jev client and OpenRouter store against
-a private URLProtocol fixture. It checks typed decisions, ambiguous/malformed responses, bounded
-Unicode input, history metadata, persistent preferences, timeouts, response limits, authentication,
-always-on routing, legacy off-flag migration, cancelled decisions and key/configuration changes without network access. Run it with
-`scripts/test-all.sh --run-case ai-routing /tmp/spotter-tests`.
+`Tools/openrouter-store-test.swift` compiles the real OpenRouter store against a private URLProtocol
+fixture. It checks the shipped chat default, persistence of the chat pair and web-search setting, the
+one-time migration of Jev-era Everyday mappings, effort and web-search request bodies, and key
+revocation during catalog discovery, without network access. Run it with
+`scripts/test-all.sh --run-case openrouter-store /tmp/spotter-tests`.
 
 The custom-command harness spawns **real `/bin/zsh`** processes. Its shell-environment cases point
 `ZDOTDIR` at a throwaway fixture directory (and unset `TERM_PROGRAM`), so a run can never read or write
@@ -606,7 +606,7 @@ The full JavaScript suite includes `oauth-fixtures.mjs`, which can also run dire
 generation, native bridge arguments and API 2.8.2 exports. Callback state validation runs against the
 real Swift parser in `test-raycast.sh`; these fixtures do not open a browser or use account secrets.
 
-Local AI CLI path regression: `swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o /tmp/spotter-local-ai-test && /tmp/spotter-local-ai-test`. The harness uses isolated defaults and temporary executable fixtures, and is included in `scripts/test-all.sh`.
+Local AI CLI path regression: `swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/AIModelChoice.swift Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o /tmp/spotter-local-ai-test && /tmp/spotter-local-ai-test`. The harness uses isolated defaults and temporary executable fixtures, and is included in `scripts/test-all.sh`.
 
 `test-raycast-models.sh store catalog` also checks the Palette installation states, consent and
 cancellation rows, action identity separation, reinstall labels, visible search errors, and bounded
@@ -621,7 +621,7 @@ The world-clock harness also checks row metadata across DST, fractional offsets 
 Quick Clipboard regression covers configurable 5–12 item viewport sizes, short-screen bounds, grid rounding and scrolling beyond the configured count.
 
 The quick-ai-chat harness covers sidebar expansion from an empty composer, switching and restoring
-per-session drafts, selected/unselected session deletion and the existing streaming/routing lifecycle.
+per-session drafts, selected/unselected session deletion and the existing streaming lifecycle.
 
 Markdown integration fixtures (no network or model request):
 
@@ -672,7 +672,7 @@ The AI Chat harness covers adding Spelling and Pronunciation to an existing two-
 identity and JSON round trips, preservation of customizations, and built-in reset/delete rules.
 
 Reasoning-effort regression coverage lives in the existing AI harnesses: `ai-chat` validates catalog
-capabilities and backward-compatible command records; `ai-routing` verifies paired routing, streamed
+capabilities and backward-compatible command records; `openrouter-store` verifies the chat pair, streamed
 and MCP request bodies, and revocation during catalog discovery; `quick-ai-chat` checks session
 persistence, follow-ups and direct spelling dispatch; `local-ai` exercises real temporary CLI
 processes, capability discovery and literal arguments with attachments and search; `ai-tools` pins
@@ -692,4 +692,4 @@ unrelated ranges, and diagnostics that never include selected or replacement tex
 
 Fix Text regression coverage includes all three loading frame lengths, Unicode surrounding text,
 focus/edit guards, Undo without progress frames, and cancellation/completion during an in-flight
-loading paste. Command preset tests cover persistence, inherited effort, new runs and session pins.
+loading paste. Command model tests cover Jev-era preset migration, inherited chat effort, new runs and session pins.

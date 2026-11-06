@@ -103,10 +103,10 @@ when Show in Menu Bar is off; everything else visible is driven imperatively fro
   `AIChatTranscriptView`. A native drag area between its header buttons replaces the handle. The controller alone changes the panel frame,
   keeping the bottom composer anchored across first-send and first-reply expansion. Closing retains the draft and chat;
   screenshot cleanup hides it along with other auxiliary surfaces. See [ai-chat.md](ai-chat.md#quick-ai-chat).
-- **Jev model selection** — `OpenRouterStore` owns always-on routing preferences and a cacheless
-  `JevDecisionClient`. `AIChatStore` runs classification inside its one-request gate before streaming
-  or tool execution. Pure `AIRoutingTypes` maps Jev's category to a user-configured model and optional effort; settings
-  sync and optional per-reply metadata preserve configuration and history without new singletons.
+- **Manual model selection** — `OpenRouterStore` owns the user-chosen chat model, effort and web-search
+  setting; each AI command pins its own pair or follows the chat pair. `AIChatStore` resolves the pair
+  before dispatch and records it on the session. Pure `AIModelChoice` holds the pair and the decode-only
+  Jev-era mappings that migrate once; settings sync carries the pair without new singletons.
 - **Plugin palette screens** — `PaletteMode.plugin(PluginID)` keeps list-oriented plugin flows inside
   the command palette. `PluginRegistry` supplies snapshots and actions; `RootPaletteView` and
   `PluginPaletteList` retain sole ownership of the search, selection, rows, scrolling and footer.

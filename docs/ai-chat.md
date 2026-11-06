@@ -8,7 +8,7 @@ punctuation for longer selections. Word boundaries use Foundation's native segme
 CJK text. It preserves meaning, language and tone and returns only replacement text. The existing
 spelling command UUID and shortcut key remain stable. Its unchanged legacy prompt upgrades; custom
 prompts, model and effort pins survive. Fresh or reset Fix Text commands use `google/gemini-3.5-flash-lite`
-with Minimal effort; other built-in defaults are unchanged. Automatic still routes through Jev.
+with Minimal effort; other built-in defaults are unchanged. A Fix Text set to **Chat Model** uses the chat model and effort.
 
 The command cycles `{Fixing.}`, `{Fixing..}` and `{Fixing...}` every 650 ms inside a verifiable editable
 selection, then replaces it with the complete
@@ -64,8 +64,7 @@ plumbing without being presented as an optional plugin.
 | --- | --- |
 | `AIChatTypes.swift` | Foundation-only, pure: portable message/session models, derived session title, the request status vocabulary, system prompt, transcript windowing and ChatGPT web URL. |
 | `AIChatStore.swift` | The conversation, the one in-flight request, and failure state. |
-| `AIRoutingTypes.swift` | Pure Foundation categories, model/effort preferences, supported-effort validation, bounded decision input and strict category mapping. |
-| `JevDecisionClient.swift` | Bounded, cacheless OpenRouter Decisions transport for Jev. |
+| `AIModelChoice.swift` | Pure Foundation model/effort pair, the shipped chat default, supported-effort validation and the decode-only Jev-era mappings used for migration. |
 | `AIToolTypes.swift` | Foundation-only JSON values, MCP configuration validation, tool calls and multimodal result conversion. |
 | `AIMCPConnection.swift` | Per-request MCP client: stdio processes and cacheless Streamable HTTP/SSE. |
 | `AIToolStore.swift` | AppCore-owned configuration, tool discovery, bounded model/tool loop and approval continuations. |
@@ -81,13 +80,13 @@ plumbing without being presented as an optional plugin.
 | `QuickAIChatView.swift` | Compact composer and expanded conversation using the shared `AIChatTranscriptView`. |
 | `QuickAIChatLayout.swift` | Pure Foundation + CoreGraphics placement and bottom-anchored expansion. |
 | `AIChatMarkdownView.swift` | Transparent, self-sizing WebKit Markdown view and explicit link/copy bridge. |
-| `AIChatSettingsView.swift` | Provider configuration, the three model/effort mappings, AI command editors and MCP servers. |
+| `AIChatSettingsView.swift` | Provider configuration, the chat model/effort and web search, AI command editors and MCP servers. |
 
 `Core/OpenRouterModelCatalog.swift` is Foundation-only and pure too: it turns the `/models` payload
 into the brand → model menus.
 
 `Tools/ai-chat-test.swift` compiles `AIChatTypes.swift`,
-`AIRoutingTypes.swift`, `AIChatSelectionPrompts.swift`, `AICommand.swift`, `AICommandStore.swift` and
+`AIModelChoice.swift`, `AIChatSelectionPrompts.swift`, `AICommand.swift`, `AICommandStore.swift` and
 `Core/OpenRouterModelCatalog.swift` standalone, so these stay free of AppKit and SwiftUI. The
 network lives in `OpenRouterStore`, never in any pure source.
 
@@ -143,54 +142,51 @@ conversation afterward. No separate model, connection, permission or automatic t
 
 ## Choosing a model
 
-### Automatic selection with Jev
+Every request uses a model and optional reasoning effort the user chose explicitly; Spotter never
+classifies a prompt to pick one (Jev automatic selection was removed, owner decision, Nov 2026).
 
-Settings → AI Chat & Command → **Model Selection** shows right-aligned model menus for Everyday,
-Professional and Deep Reasoning. Jev classifies the first unpinned turn of each conversation automatically, with no enable
-switch. Entering the pane reloads the model catalog; no Chat Model or Reload row remains. The three
-rows contain titles and model menus only.
+### The chat model
 
-Fresh installations use Codex CLI `gpt-6-luna` for all three categories, with Low, Medium and Extra High
-effort respectively. Each category preserves its saved model and effort on upgrade. Empty legacy mappings are initialized from the previous
-Chat Model (or Spotter's shipped default). Jev is available whenever the OpenRouter key exists;
-legacy disabled flags are ignored. TypeSafe receives the prompt and bounded recent conversation
-through OpenRouter on each classification, adding the decision charge. Model mappings ride trusted
-backup/sync, and a legacy file omitting `aiRouting` leaves the receiving Mac's choices intact.
+Settings → AI Chat & Command → **Chat** holds the chat **Model**, its **Thinking effort** (shown only
+when the catalog offers levels for that model) and **Web Search**. Quick AI Chat turns, the launcher's
+Ask fallback and every AI command set to **Chat Model** use this pair. Fresh installations use Codex
+CLI `gpt-6-luna` with Low effort. Choosing a different model resets the effort to Model Default,
+since supported levels differ per model. `OpenRouterStore` owns the pair (`openrouter.chat-model`,
+`openrouter.chat-effort`, where an empty string records Model Default) and it rides trusted
+backup/sync as `openRouterChatModel` / `openRouterChatEffort`.
 
-`OpenRouterStore` owns this configuration and checks the key and configuration revision
-around the await. `AIChatStore` includes classification within its existing single-request gate;
-both the palette and Quick AI share it. Stop cancels classification, and a late decision cannot
-dispatch or relabel another request. Changes to routing settings cancel an active classification.
+A conversation records the pair its first turn used (`AIChatSession.selectedModel` /
+`selectedEffort`) and keeps it for follow-ups, so changing the chat model affects new conversations,
+not one already under way. Sessions from before that field follow the model their replies recorded.
 
-This calls `typesafe/jev-1.13` through `POST https://openrouter.ai/api/alpha/decisions`, not the
-provider's automatic Jev Router. Jev receives a Choice question over the three categories, the full
-latest user prompt and up to six recent user/assistant turns, capped at 16,000 UTF-8 bytes total.
-System instructions, tool results and screenshots are excluded. An over-limit latest prompt skips
-classification instead of silently truncating it. The request times out after at most eight seconds
-with a 64 KiB response cap and no on-disk URL cache.
+**Upgrading from Jev.** On the first launch after the upgrade, `OpenRouterStore` reads the saved
+Everyday / Professional / Deep Reasoning mappings (`openrouter.ai-routing`) once: the Everyday pair,
+which answered every turn Jev did not classify, becomes the chat model and effort, and the key is
+removed. An install that never saved mappings keeps its saved chat model with the model's default
+effort, or gets the shipped default. The mappings are handed to `AICommandStore` (wired in
+`AppCore.init`), which resolves every command that pinned a category to that category's configured
+model and effort and persists the concrete pair; an unset tier, or a command left on **Automatic
+(Jev)**, follows the chat model. A Jev-era backup or sync file resolves the same way against its own
+`aiRouting`, and its Everyday pair is applied as the chat model; a file without `aiRouting` uses its
+`openRouterChatModel` / `openRouterChatEffort`, and a file without either leaves the local choice
+alone. Old replies' optional `routing` metadata still decodes and is preserved on re-encode, but new
+replies carry none and no model caption is shown.
 
-Spotter accepts only the three configured category keys, a valid probability distribution and a
-choice matching its maximum. The initial conservative routing policy requires top probability at
-least 0.6 and a lead of at least 0.2; these are product thresholds, not a claim of calibrated task
-accuracy. An uncertain, malformed, unavailable or timed-out decision uses the captured Everyday model
-and labels the fallback. Authentication failure, cancellation or withdrawn access never fall back.
-Once an answer or tool call starts, failures are preserved rather than rerunning with another model.
+### Web search
 
-In the full Palette, a branch symbol and requested model name appear above routed assistant replies; Quick AI Chat hides this caption. the chosen
-category and fallback details are available in its tooltip. This metadata remains with the reply
-through streaming, Stop, history and backup. They describe Spotter's selection; choosing
-a provider-side router as a target still delegates its final internal model selection to that provider.
-Old messages without this optional metadata remain readable. Explicit command model pins skip Jev;
-commands set to Default use automatic selection when enabled. Follow-ups reuse the session’s selected model.
-
-API contract: [OpenRouter Jev tutorial](https://openrouter.ai/docs/guides/community/jev-tutorial).
+One Settings switch, **Web Search**, applies to every chat turn — Quick AI conversations and AI
+command conversations alike — and ships off. When on, OpenRouter requests carry the Exa-backed `web`
+plugin (`plugins: [{id: "web", max_results: 5}]`), Codex runs with `web_search="live"` and Claude CLI
+is allowed only its `WebSearch` tool. It rides the same key and the same consented provider — no new
+network surface — but each search adds a per-request charge, which is why it is off by default.
+Fix Text never searches. Stored as `openrouter.web-search`; synced as `openRouterWebSearch`.
 
 ### Manual selection
 
 The chat model and every AI command pick from a two-level menu — brand, then model — rather than a
 typed identifier: OpenRouter publishes hundreds of models across dozens of vendors, which is a list
-to browse, not a string to remember. A command's menu also carries **Default**, which is the command
-following the chat model instead of pinning one of its own; the shipped commands pin
+to browse, not a string to remember. A command's menu also carries **Chat Model**, which is the command
+following the chat model and its effort instead of pinning one of its own; the shipped commands pin
 `anthropic/claude-haiku-4.5`, the fast class their first answer has always used.
 Opening Settings → AI Chat & Command reloads the catalog from
 `https://openrouter.ai/api/v1/models` so the menu is what the provider offers right now; a Reload
@@ -205,13 +201,9 @@ so existing settings, backups and sync are unchanged. A stored model the live ca
 **Current** section at the top of the menu, so nothing is silently rewritten. A command pinned to a
 model the user's key can no longer reach therefore keeps that choice: its editor still names it, the
 request still asks for it, and if OpenRouter refuses, the reply is a status row carrying OpenRouter's
-own message. The command menu also offers **Presets**: Everyday, Professional and Deep Reasoning. A preset stores
-its category and resolves the current model and effort together at invocation, bypassing category
-classification. The editor displays that inherited pair without an editable effort override. Both
-Quick AI Chat commands and inline Fix Text support presets. Changing a preset affects the next run;
-an active request and an existing command conversation retain their captured pair. Presets survive
-relaunch and trusted backup/sync; legacy commands retain their explicit model or Automatic choice.
-**Automatic (Jev)** still asks Jev to choose the category.
+own message. A pinned model offers its own Thinking effort; a command on Chat Model has none of its
+own. The pair is resolved at invocation, so a later edit affects the next run, while an active request
+and an existing command conversation keep their captured pair.
 
 The list is fetched only once a key exists: the key remains the gate, an absent key clears the
 catalog, and the request itself is unauthenticated and carries nothing about this Mac or its
@@ -343,9 +335,9 @@ Capture and missing-key failures render as chat status rows rather than a separa
 
 `AIChatStore.send` appends the user turn, windows the transcript to a character budget
 (`AIChatEngine.transcriptWindow`, newest kept, the latest message always surviving), prefixes the
-system prompt, and calls the multi-turn `OpenRouterStore.chat(messages:model:)` with the dedicated
-`chatModel` (default `anthropic/claude-sonnet-5` — chat carries multi-turn reasoning, so it defaults
-a class up from the fast model the shipped AI commands pin; synced as `openRouterChatModel`). Requests carry a
+system prompt, and calls the multi-turn `OpenRouterStore.chat(messages:model:)` (or the matching
+local CLI) with the conversation's model and effort — the chat pair from Settings, or the command's
+pinned pair (see [Choosing a model](#choosing-a-model)). Requests carry a
 `max_tokens` cap: OpenRouter reserves credits for the whole completion window up front, so an
 uncapped request 402s on a small balance even when the reply would cost cents. The key is re-checked
 on both sides of the await, replies are non-streaming in this version, and a failure renders as a
@@ -359,14 +351,6 @@ and an empty background session explains how to return to it. Replies and failur
 session that asked, so a background failure is still visible when that session is revisited. A stale
 completion cannot clear a newer request, and rejected sends (busy state or missing key) leave the
 composer text intact.
-
-## Web search
-
-An optional per-chat capability, off by default: when enabled (Settings → AI Chat & Command, or the ⌘K
-toggle), requests carry OpenRouter's Exa-backed `web` plugin (`plugins: [{id: "web"}]`, 5 results),
-letting replies cite current information. It rides the same key and the same consented request to
-the same provider — no new network surface — but each search adds a small per-message cost, which is
-why it ships off. Synced as `openRouterChatWebSearch`.
 
 ## Privacy
 
@@ -459,14 +443,14 @@ server ping, pagination, RPC errors, redirects, multimodal conversion, approvals
 configuration/key changes, missing-driver streaming fallback, mixed healthy/unavailable servers, partial
 catalog rollback and revocation during discovery/fallback without contacting a model or reading the desktop.
 
-Live progress reflects actual request stages: choosing a model, waiting for a reply, generating text,
+Live progress reflects actual request stages: waiting for a reply, generating text,
 connecting tools, planning a tool round, waiting for confirmation and running a tool. Each stage has
-a matching SF Symbol and a left-to-right text highlight, disabled with Reduce Motion. Model captions
-show only the branch symbol and selected model name; routing category/fallback details remain in the tooltip.
+a matching SF Symbol and a left-to-right text highlight, disabled with Reduce Motion. Replies carry
+no model caption.
 
 ## Local CLIs, attachments and formulas
 
-The three Jev routing tiers may select `Claude CLI` or `Codex CLI` alongside OpenRouter models.
+The chat model and every AI command may select `Claude CLI` or `Codex CLI` alongside OpenRouter models.
 `LocalAIStore` discovers a usable executable through common package-manager locations and a login
 shell, verifies it with `--version`, and passes the bounded conversation through stdin.
 Settings → AI Chat → Multiple Providers offers Enter Path for each provider; saving an empty path restores automatic detection.
@@ -474,14 +458,14 @@ Explicit paths take precedence without silently falling back when invalid; valid
 visible. Paths are device-local UserDefaults, scoped to the bundle identifier and excluded from
 backup/sync. Validation has a three-second timeout and ignores stale discovery results. Both
 validation and chat prepend the selected executable directory to PATH for npm/nvm dependencies. Claude runs
-in print mode with only WebSearch allowed when Jev selects it; Codex runs `exec --json` in its read-only sandbox. Both use the
+in print mode with only WebSearch allowed when Web Search is on; Codex runs `exec --json` in its read-only sandbox. Both use the
 bundle-scoped `Application Support/<bundle-id>/AIChat/Workspace` directory, created with owner-only
 permissions, rather than the user's home directory. CLI login/configuration locations remain unchanged;
 the working directory is not a new filesystem sandbox. Codex replies come only from completed
 `agent_message` events after `turn.completed`; diagnostic output, reasoning, tools and prompt echoes
 never become the answer. Failed runs display a bounded error, with specific guidance for incompatible
 model caches and model-refresh timeouts. See [Codex non-interactive output](https://learn.chatgpt.com/docs/non-interactive-mode).
-MCP and Cua remain OpenRouter-only. Web Search follows Jev on OpenRouter, Codex and Claude; unavailable Jev decisions leave search off. A missing or broken CLI fails that request without changing provider.
+MCP and Cua remain OpenRouter-only. The Web Search setting applies on OpenRouter, Codex and Claude alike. A missing or broken CLI fails that request without changing provider.
 
 The paperclip in Quick AI Chat and **Attach Files…** in AI Chat Actions accept up to ten local files.
 UTF-8 and BOM-marked UTF-16 documents (including SVG source) and PDF text are read locally; scanned PDFs use Vision. Raster images are downsampled to 1568 pixels and sent as actual PNG images, including images with no text. OpenRouter receives image content blocks; Codex receives temporary image files removed after the request; Claude receives structured image input. Failed files are named explicitly, while accepted files remain attached. A message is limited to 10 files and 20 MB. Inputs and
@@ -502,26 +486,23 @@ text-only with the existing shimmer; failure rows retain their warning symbol.
 
 ### Codex CLI model selection
 
-The existing routing-category menus expand Codex CLI into concrete models read locally from
+The model menus expand Codex CLI into concrete models read locally from
 `codex debug models --bundled` when Settings opens. This bundled catalog does not verify account
 entitlement; Codex checks availability when invoked. Older CLIs that cannot report the catalog
 retain Use CLI Default and any saved selection. Concrete selections are stored as
 `local-cli/codex/<slug>` and passed as a separate `--model` argument; the legacy `local-cli/codex`
 value continues to use CLI configuration. Opening Settings makes no model-inference request.
 
-Jev runs for the first unpinned turn of a conversation. The selected model is retained on the
-session and included in existing history persistence; later turns reuse it. Previously saved
-routing metadata supplies the model for older sessions. Changes to category mappings affect new
-conversations. Explicit command model selections also pin their conversation.
+The first turn of a conversation records its model on the session, included in existing history
+persistence; later turns reuse it. Previously saved per-reply metadata supplies the model for older
+sessions. Changes to the chat model affect new conversations. Explicit command model selections
+also pin their conversation.
 
 
-## AI settings organization and per-turn search
+## AI settings organization
 
-Settings groups are Multiple Providers (OpenRouter key, Claude CLI, Codex CLI), Model Selection
-(the three category mappings), Commands, and MCP. There is no surface toggle or Web Search toggle.
-Jev receives a separate `web_search` choice on every turn, including explicitly pinned commands and
-follow-ups. Follow-ups omit the model-routing question and preserve the session's model. Ambiguous,
-missing or unavailable search decisions leave search off. No OpenRouter key means no Jev call.
+Settings groups are Multiple Providers (OpenRouter key, Claude CLI, Codex CLI), Chat (model,
+Thinking effort and Web Search), Commands, and MCP. There is no surface toggle.
 Quick Chat uses Enter to submit; its paperclip is on the right and the send arrow is removed.
 
 Attachment staging follows Tinycast's approach of named refusals and bounded native images
@@ -579,9 +560,9 @@ applying. Built-in names remain fixed, and Reset Prompt changes only the draft p
 
 ## Thinking effort
 
-Settings → AI Chat & Command pairs each Everyday / Professional / Deep Reasoning model with an
-optional **Thinking effort** row. Command editors show the same row below an explicit model;
-Automatic (Jev) inherits the selected category's model and effort together. **Model Default** omits
+Settings → AI Chat & Command pairs the chat model with an optional **Thinking effort** row.
+Command editors show the same row below an explicit model; a command on Chat Model inherits the
+chat model and effort together. **Model Default** omits
 the override, retaining the provider or CLI configuration. Existing installations and old backup
 records decode without an override. Changing a model resets that selection's effort to Model Default.
 No effort control is added to the Quick AI composer.
@@ -594,13 +575,10 @@ capabilities produce no effort picker. Unknown saved levels are omitted at dispa
 The Claude catalog probe sends no user prompt, disables MCP and hooks, does not persist a session,
 and bounds output and process lifetime. Catalogs remain device-local and in memory.
 
-`AIRoutingPreferences` stores optional effort fields alongside its existing model fields;
-`AICommand.effort`, `AIRoutingSelection.effort` and `AIChatSession.selectedEffort` carry the choice
-through commands, classification and conversation history. They ride the existing trusted backup
-and sync records, with no new preference namespace or migration that changes model choices.
-A conversation retains its first selected pair on follow-ups. Jev still chooses only a category;
-there is no extra classification request for effort. Fallback uses the captured Everyday pair.
-Fix Text uses its explicit pair or the routed pair without creating a session.
+`OpenRouterStore.chatEffort`, `AICommand.effort` and `AIChatSession.selectedEffort` carry the choice
+through Settings, commands and conversation history. They ride the existing trusted backup and sync
+records. A conversation retains its first selected pair on follow-ups. Fix Text uses its explicit
+pair or the chat pair without creating a session.
 
 OpenRouter streaming and every MCP round send `reasoning: {effort: ...}` only when offered by the
 catalog. An explicit override refreshes an absent/expired catalog under the existing API-key gate;

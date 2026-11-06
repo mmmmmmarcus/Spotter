@@ -49,7 +49,7 @@ TESTS=(
     ai-markdown
     ai-attachments
     local-ai
-    ai-routing
+    openrouter-store
     quick-ai-chat
     ai-tools
     dashboard-widgets
@@ -99,7 +99,7 @@ run_harness() {
                 Tools/clipboard-semantic-test.swift -o "$output" && "$output"
             ;;
         local-ai)
-            swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o "$output" && "$output"
+            swiftc -swift-version 6 -parse-as-library Spotter/Plugins/AIChat/AIModelChoice.swift Spotter/Plugins/AIChat/LocalAIStore.swift Tools/local-ai-test.swift -o "$output" && "$output"
             ;;
         apple-shortcuts)
             swiftc -swift-version 6 Spotter/Plugins/AppleShortcuts/AppleShortcutTypes.swift \
@@ -273,7 +273,7 @@ run_harness() {
             ;;
         settings-sync)
             swiftc -swift-version 6 Spotter/Core/Backup/SettingsSyncFile.swift \
-                Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+                Spotter/Plugins/AIChat/AIModelChoice.swift \
                 Spotter/Core/Backup/PluginShortcutSync.swift \
                 Spotter/Core/Backup/SettingsBackupData.swift \
                 Tools/settings-sync-test.swift -o "$output" && "$output"
@@ -321,7 +321,7 @@ run_harness() {
             ;;
         quick-ai-chat)
             swiftc -swift-version 6 Spotter/Core/WindowDragCursor.swift Spotter/Core/PaletteDragHandle.swift Spotter/Core/Theme.swift Spotter/Plugins/Note/NoteEngine.swift \
-                Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+                Spotter/Plugins/AIChat/AIModelChoice.swift \
                 Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AISpellingResponse.swift \
                 Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
@@ -331,7 +331,7 @@ run_harness() {
             ;;
         ai-attachments)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatAttachmentReader.swift \
-                Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+                Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIModelChoice.swift \
                 Tools/ai-attachments-test.swift -o "$output" && "$output"
             ;;
         ai-markdown)
@@ -341,7 +341,7 @@ run_harness() {
         ai-chat)
             swiftc -swift-version 6 Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AISpellingResponse.swift \
-                Spotter/Plugins/AIChat/AIRoutingTypes.swift \
+                Spotter/Plugins/AIChat/AIModelChoice.swift \
                 Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift \
                 Spotter/Plugins/AIChat/AICommand.swift \
                 Spotter/Plugins/AIChat/AICommandStore.swift \
@@ -349,13 +349,13 @@ run_harness() {
                 Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift \
                 -o "$output" && "$output"
             ;;
-        ai-routing)
-            swiftc -swift-version 6 Spotter/Plugins/AIChat/AIRoutingTypes.swift \
-                Spotter/Plugins/AIChat/JevDecisionClient.swift Spotter/Plugins/AIChat/AIChatTypes.swift \
+        openrouter-store)
+            swiftc -swift-version 6 Spotter/Plugins/AIChat/AIModelChoice.swift \
+                Spotter/Plugins/AIChat/AIChatTypes.swift \
                 Spotter/Plugins/AIChat/AIToolTypes.swift Spotter/Plugins/AIChat/AIToolStore.swift \
                 Spotter/Plugins/AIChat/AIMCPConnection.swift Spotter/Core/ProcessPipe.swift \
                 Spotter/Core/OpenRouterStore.swift Spotter/Core/OpenRouterStream.swift \
-                Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-routing-test.swift \
+                Spotter/Core/OpenRouterModelCatalog.swift Tools/openrouter-store-test.swift \
                 -o "$output" && "$output"
             ;;
         weather-refresh)

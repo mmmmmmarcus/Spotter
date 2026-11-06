@@ -25,7 +25,6 @@ struct AIChatTranscriptView: View {
                     ForEach(messages) { message in
                         AIChatRow(message: message, isStreaming: message.id == chat.streamingReply?.id,
                             bubbleInset: isFloating ? Theme.Size.chatBubbleInset / 3 : Theme.Size.chatBubbleInset,
-                            showsRouting: !isFloating,
                             isGrammar: chat.sessions.first(where: { $0.id == sessionID })?.titleOverride == AIBuiltInCommand.grammar.sessionTitle)
                             .anchorPreference(key: QuickAISendAnchors.self, value: .bounds) { anchor in
                                 QuickAISendAnchors.Value(destination: message.id == sendingMessageID ? anchor : nil)
@@ -110,7 +109,6 @@ struct AIChatRow: View {
     let message: AIChatMessage
     let isStreaming: Bool
     let bubbleInset: CGFloat
-    let showsRouting: Bool
     var isGrammar = false
 
     var body: some View {
@@ -154,20 +152,9 @@ struct AIChatRow: View {
             .padding(.horizontal, Theme.Spacing.md)
         } else {
             // Models answer in Markdown whether or not they are asked to; rendered, not raw.
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                if showsRouting, let selection = message.routing {
-                    Label(LocalAIModel.label(selection.model)
-                        ?? OpenRouterModelCatalog.modelName(for: selection.model, in: []) ?? selection.model,
-                        systemImage: "arrow.trianglehead.branch")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .help("\(selection.label) · \(selection.model)")
-                }
-                AIChatMarkdownText(text: message.text, isStreaming: isStreaming, isGrammar: isGrammar)
-            }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.sm)
+            AIChatMarkdownText(text: message.text, isStreaming: isStreaming, isGrammar: isGrammar)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.sm)
         }
     }
 }

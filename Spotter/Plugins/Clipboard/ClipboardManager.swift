@@ -64,7 +64,7 @@ final class ClipboardManager {
             switch snapshot.resolve() {
             case .image(let png): await store.addImage(png, sourceBundleID: sourceBundleID)
             case .text(let text): await store.addText(text, sourceBundleID: sourceBundleID)
-            case .files(let urls): await store.addFiles(urls, sourceBundleID: sourceBundleID)
+            case .files(let urls, let preview): await store.addFiles(urls, preview: preview, sourceBundleID: sourceBundleID)
             case nil: break
             }
         }

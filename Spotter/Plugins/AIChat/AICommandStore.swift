@@ -12,7 +12,8 @@ final class AICommandStore: ObservableObject {
     @Published private(set) var commands: [AICommand]
     var onChange: (([AICommand]) -> Void)?
 
-    init(defaults: UserDefaults = .standard) {
+    /// `legacyRouting` is the Jev-era mapping a stored category pin resolves to, handed over once at launch.
+    init(defaults: UserDefaults = .standard, legacyRouting: AILegacyRouting? = nil) {
         self.defaults = defaults
         let decoded =
             defaults.data(forKey: Self.defaultsKey)
@@ -20,7 +21,7 @@ final class AICommandStore: ObservableObject {
         // The seed is read every launch, not only the first: it only ever fills in a built-in the
         // stored list is missing, so it doubles as the repair path for a truncated file.
         commands = AICommandEngine.normalized(
-            decoded ?? [], seed: Self.legacySeed(from: defaults))
+            decoded ?? [], seed: Self.legacySeed(from: defaults), legacyRouting: legacyRouting)
         if commands != decoded { persist() }
     }
 
@@ -81,15 +82,14 @@ final class AICommandStore: ObservableObject {
         guard var command = command(id: id) else { return }
         if command.model != model { command.effort = nil }
         command.model = model
-        command.preset = nil
         try? update(command)
     }
 
     /// Replaces the complete set during backup import and settings sync, repairing whatever the file
     /// carried rather than trusting it.
     @discardableResult
-    func replace(with newCommands: [AICommand]) -> Int {
-        let updated = AICommandEngine.normalized(newCommands)
+    func replace(with newCommands: [AICommand], legacyRouting: AILegacyRouting? = nil) -> Int {
+        let updated = AICommandEngine.normalized(newCommands, legacyRouting: legacyRouting)
         commit(updated)
         return updated.count
     }
@@ -98,7 +98,7 @@ final class AICommandStore: ObservableObject {
         var value = draft
         value.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         value.prompt = draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        value.model = value.preset == nil ? draft.model?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        value.model = draft.model?.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.model?.isEmpty == true { value.model = nil }
         value.effort = value.model == nil ? nil : AIReasoningEffort.normalized(value.effort)
         // A built-in's name is Spotter's; only its prompt, model and shortcut are the user's.

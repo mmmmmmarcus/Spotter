@@ -43,7 +43,8 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let role: Role
     let text: String
-    let routing: AIRoutingSelection?
+    /// Never written now: Jev-era replies recorded their model here, and older sessions still follow it.
+    let legacyModel: AIModelChoice?
     let commandInput: CommandInput?
     let attachments: [Attachment]
     var displayedText: String { role == .user ? commandInput?.text ?? text : text }
@@ -59,17 +60,20 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
         return text + "\n\n" + documents
     }
 
-    init(id: UUID = UUID(), role: Role, text: String, routing: AIRoutingSelection? = nil,
-        commandInput: CommandInput? = nil, attachments: [Attachment] = []) {
+    init(id: UUID = UUID(), role: Role, text: String, commandInput: CommandInput? = nil,
+        attachments: [Attachment] = [], legacyModel: AIModelChoice? = nil) {
         self.id = id
         self.role = role
         self.text = text
-        self.routing = routing
+        self.legacyModel = legacyModel
         self.commandInput = commandInput
         self.attachments = attachments
     }
 
-    private enum CodingKeys: String, CodingKey { case id, role, text, routing, commandInput, attachments }
+    private enum CodingKeys: String, CodingKey {
+        case id, role, text, commandInput, attachments
+        case legacyModel = "routing"
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -77,7 +81,7 @@ struct AIChatMessage: Identifiable, Equatable, Codable, Sendable {
         role = try container.decode(Role.self, forKey: .role)
         text = try container.decode(String.self, forKey: .text)
         // Unknown metadata from a newer writer must never make an otherwise readable conversation disappear.
-        routing = try? container.decode(AIRoutingSelection.self, forKey: .routing)
+        legacyModel = try? container.decode(AIModelChoice.self, forKey: .legacyModel)
         commandInput = try? container.decode(CommandInput.self, forKey: .commandInput)
         attachments = (try? container.decode([Attachment].self, forKey: .attachments)) ?? []
     }
@@ -109,13 +113,10 @@ struct AIChatSession: Identifiable, Equatable, Codable, Sendable {
         self.systemPrompt = systemPrompt
     }
 
-    var routingModel: String? {
-        selectedModel ?? messages.last(where: { $0.role == .assistant && $0.routing != nil })?.routing?.model
-    }
-
-    var routingEffort: String? {
-        if selectedModel != nil { return selectedEffort }
-        return messages.last(where: { $0.role == .assistant && $0.routing != nil })?.routing?.effort
+    /// The pair this conversation keeps answering with once its first turn chose one.
+    var modelChoice: AIModelChoice? {
+        if let selectedModel { return AIModelChoice(model: selectedModel, effort: selectedEffort) }
+        return messages.last(where: { $0.role == .assistant && $0.legacyModel != nil })?.legacyModel
     }
 
     var title: String { titleOverride ?? AIChatEngine.sessionTitle(for: messages) }
@@ -247,10 +248,6 @@ enum AIChatEngine {
             kept.append(message)
         }
         return kept.reversed()
-    }
-
-    static func routingMessages(_ messages: [AIChatMessage]) -> [(role: String, content: String)] {
-        messages.map { (role: $0.role.rawValue, content: $0.text) }
     }
 
     /// Uses URLComponents because browser handoff prompts may contain spaces, Unicode, newlines and reserved query bytes.

@@ -52,7 +52,10 @@ struct SettingsBackupData: Codable, Sendable {
     var openRouterDefinitionModel: String?
     var openRouterGrammarModel: String?
     var openRouterChatModel: String?
-    var aiRouting: AIRoutingPreferences?
+    var openRouterChatEffort: String?
+    var openRouterWebSearch: Bool?
+    /// Decode-only: a Jev-era writer's category mappings, whose Everyday tier was its chat model in practice.
+    var aiRouting: AILegacyRouting?
     var googleTranslationAPIKey: String?
     /// Decode-only: the separate translation consent toggle is gone, the API key is the gate.
     var googleTranslationEnabled: Bool?
@@ -63,6 +66,12 @@ struct SettingsBackupData: Codable, Sendable {
     var dashboardWidgets: DashboardWidgets?
     /// Protocol markers that distinguish an old writer omitting migrated data from a current writer deliberately clearing it.
     var settingsSyncMigrations: [String]?
+
+    /// The chat pair this file asks for, or nil to leave the receiving Mac's own choice alone.
+    var chatChoice: AIModelChoice? {
+        if let everyday = aiRouting?.choice(for: "everyday") { return everyday }
+        return openRouterChatModel.map { AIModelChoice(model: $0, effort: openRouterChatEffort) }
+    }
 }
 
 /// Per-plugin preferences that live in raw bundle-scoped `UserDefaults`. Gathered as effective values (defaults resolved), so a synced Mac lands on exactly what the source Mac shows.

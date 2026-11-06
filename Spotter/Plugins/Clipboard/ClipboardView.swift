@@ -225,7 +225,7 @@ private struct ClipboardRow: View {
     private var thumbnail: some View {
         switch item.kind {
         case .files:
-            glyphTile(item.fileSymbol)
+            imageTile { glyphTile(item.fileSymbol) }
         case .text:
             if let text = item.text, let color = ClipboardColor.parse(text) {
                 RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)
@@ -237,16 +237,20 @@ private struct ClipboardRow: View {
                 glyphTile(item.textForm?.systemImage ?? "textformat.alt")
             }
         case .image:
-            AsyncThumbnail(url: imageURL, maxPixel: 64) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous))
-            } placeholder: {
-                glyphTile("photo")
-            }
+            imageTile { glyphTile("photo") }
+        }
+    }
+
+    private func imageTile(@ViewBuilder placeholder: @escaping () -> some View) -> some View {
+        AsyncThumbnail(url: imageURL, maxPixel: 64) { image in
+            image
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: Theme.Size.rowIcon, height: Theme.Size.rowIcon)
+                .clipShape(
+                    RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous))
+        } placeholder: {
+            placeholder()
         }
     }
 
@@ -322,6 +326,18 @@ struct ClipboardPreview: View {
         case .files:
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                    if let preview = store.imageURL(for: item) {
+                        AsyncThumbnail(url: preview, maxPixel: Self.previewMaxPixel) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxHeight: 240)
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                        } placeholder: {
+                            EmptyView()
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
                     ForEach(Array(item.fileURLs.enumerated()), id: \.offset) { _, url in
                         HStack(alignment: .top, spacing: Theme.Spacing.md) {
                             Image(systemName: url.hasDirectoryPath ? "folder" : "doc")

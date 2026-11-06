@@ -244,7 +244,7 @@ final class AppCore: ObservableObject {
     let noteSync: NoteSyncManager
     let aiTools = AIToolStore()
     let aiChat: AIChatStore
-    let aiCommands = AICommandStore()
+    let aiCommands: AICommandStore
     var aiCommandCaptureTask: Task<Void, Never>?
     var aiCommandCleanupTask: Task<Bool, Never>?
     var aiCommandRecoveryTasks: [UUID: Task<Void, Never>] = [:]
@@ -281,6 +281,7 @@ final class AppCore: ObservableObject {
         noteFolderSync = NoteFolderSyncManager(store: notes)
         noteSync = NoteSyncManager(store: notes)
         aiChat = AIChatStore(openRouter: openRouter, localAI: localAI, tools: aiTools)
+        aiCommands = AICommandStore(legacyRouting: openRouter.legacyRouting)
         quicklinkManager = QuicklinkManager(store: quicklinks)
         textReplacementManager.expandReplacement = { [weak textReplacements] source in
             guard let textReplacements else { return source }
@@ -398,9 +399,6 @@ final class AppCore: ObservableObject {
         }
 
         openRouter.onCredentialsChanged = { [weak self] in self?.aiChat.stop() }
-        openRouter.onRoutingChanged = { [weak self] in
-            if self?.aiChat.isChoosingModel == true { self?.aiChat.stop() }
-        }
         aiTools.onConfigurationChanged = { [weak self] in self?.aiChat.stop() }
         aiTools.onApproval = { [weak self] approval in
             guard let self else { return }
@@ -897,9 +895,9 @@ final class AppCore: ObservableObject {
     }
 
     @discardableResult
-    func replaceAICommands(_ commands: [AICommand]) -> Int {
+    func replaceAICommands(_ commands: [AICommand], legacyRouting: AILegacyRouting? = nil) -> Int {
         let previous = Dictionary(uniqueKeysWithValues: aiCommands.commands.map { ($0.id, $0) })
-        let count = aiCommands.replace(with: commands)
+        let count = aiCommands.replace(with: commands, legacyRouting: legacyRouting)
         let liveIDs = Set(aiCommands.commands.map(\.id))
         let removed = Set(previous.keys).subtracting(liveIDs)
         let removedEntryIDs = Set(removed.compactMap { previous[$0]?.entryID })

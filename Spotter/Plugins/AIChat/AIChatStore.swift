@@ -13,8 +13,6 @@ final class AIChatStore: ObservableObject {
     private var task: Task<Void, Never>?
     private var cancelSpelling: (() -> Void)?
     @Published private(set) var streamingReply: AIChatMessage?
-    @Published private(set) var isChoosingModel = false
-    @Published private(set) var routingSelection: AIRoutingSelection?
     @Published private(set) var pendingAttachments: [AIChatMessage.Attachment] = []
     private var pendingReply = ""
     private var replyID = UUID()
@@ -58,8 +56,7 @@ final class AIChatStore: ObservableObject {
     var waitingSessionID: UUID? { requests.waitingSessionID }
 
     var waitingStatus: String {
-        if isChoosingModel { return "Jev is choosing a model…" }
-        return streamingReply == nil ? "Waiting for reply…" : "Generating reply…"
+        streamingReply == nil ? "Waiting for reply…" : "Generating reply…"
     }
 
     var lastAssistantReply: String? {
@@ -160,9 +157,10 @@ final class AIChatStore: ObservableObject {
 
     // MARK: - Sending
 
-    /// Appends the turn and asks; a selected-text action may override the model for its first turn.
+    /// Appends the turn and asks. A conversation keeps the pair its first turn used; otherwise an explicit
+    /// `model` (an AI command's) wins over the chat model chosen in Settings.
     @discardableResult
-    func send(_ text: String, model: String? = nil, effort: String? = nil, webSearch: Bool? = nil, allowsTools: Bool = true,
+    func send(_ text: String, model: String? = nil, effort: String? = nil, allowsTools: Bool = true,
         sessionID: UUID? = nil, commandInput: AIChatMessage.CommandInput? = nil,
         attachments suppliedAttachments: [AIChatMessage.Attachment]? = nil) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -179,19 +177,17 @@ final class AIChatStore: ObservableObject {
         backgroundTaskID = onRequestStarted?(sessionID, sessionTitle)
         let window = AIChatEngine.transcriptWindow(messages(in: sessionID))
         let sessionPrompt = session.systemPrompt
-        let pinnedModel = model.flatMap { value -> String? in
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        } ?? session.routingModel
-        let requestModel = pinnedModel ?? openRouter.chatModel
-        let pinnedEffort = model == nil ? session.routingEffort : effort
+        let explicit = model.map { AIModelChoice(model: $0, effort: effort) }.flatMap { $0.model.isEmpty ? nil : $0 }
+        let choice = explicit ?? session.modelChoice ?? openRouter.chatChoice
+        let requestWebSearch = openRouter.webSearch
+        if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
+            sessions[index].selectedModel = choice.model
+            sessions[index].selectedEffort = choice.effort
+        }
         let usesTools = allowsTools && tools.isConfigured
         pendingReply = ""
         streamingReply = nil
-        routingSelection = nil
-        isChoosingModel = pinnedModel == nil
         replyID = UUID()
-        let expectedReply = replyID
         revealTask?.cancel()
         revealTask = nil
         task = Task { [weak self] in
@@ -208,41 +204,19 @@ final class AIChatStore: ObservableObject {
                     let images = message.attachments.compactMap(\.imageData)
                     if !images.isEmpty { imageDataURLs[index + 1] = images.map { "data:image/png;base64," + $0.base64EncodedString() } }
                 }
-                let routingTurns = AIChatEngine.routingMessages(messages(in: sessionID))
-                let selection: AIRoutingSelection?
-                if openRouter.isReady {
-                    selection = try await openRouter.selectChatModel(messages: routingTurns, defaultModel: requestModel, routeModel: pinnedModel == nil)
-                } else if pinnedModel != nil {
-                    selection = nil
-                } else {
-                    let fallback = openRouter.aiRouting.everydayModel
-                    guard LocalAIModel.resolve(fallback) != nil else { throw OpenRouterError.notConfigured }
-                    selection = AIRoutingSelection(model: fallback, category: .everyday, fallback: .unavailable, effort: openRouter.aiRouting.everydayEffort)
-                }
-                try Task.checkCancellation()
-                guard waitingSessionID == sessionID, replyID == expectedReply else { throw CancellationError() }
-                let requestWebSearch = webSearch ?? selection?.webSearch ?? false
-                routingSelection = pinnedModel == nil ? selection : nil
-                isChoosingModel = false
-                let selectedModel = routingSelection?.model ?? requestModel
-                let selectedEffort = pinnedModel == nil ? selection?.effort : pinnedEffort
-                if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
-                    sessions[index].selectedModel = selectedModel
-                    sessions[index].selectedEffort = selectedEffort
-                }
                 let receive: @MainActor @Sendable (String) -> Void = { [weak self] delta in
                     guard !Task.isCancelled, let self, self.waitingSessionID == sessionID else { return }
                     self.pendingReply += delta
                     if self.streamingReply == nil { self.publishReveal() }
                     self.startReveal(for: sessionID)
                 }
-                if LocalAIModel.resolve(selectedModel) != nil {
-                    try await localAI.chat(messages: turns, modelID: selectedModel, webSearch: requestWebSearch, images: window.flatMap { $0.attachments.compactMap(\.imageData) }, effort: selectedEffort, onDelta: receive)
+                if LocalAIModel.resolve(choice.model) != nil {
+                    try await localAI.chat(messages: turns, modelID: choice.model, webSearch: requestWebSearch, images: window.flatMap { $0.attachments.compactMap(\.imageData) }, effort: choice.effort, onDelta: receive)
                 } else if usesTools {
-                    try await tools.run(messages: turns, model: selectedModel, webSearch: requestWebSearch,
-                        sessionID: sessionID, router: openRouter, imageDataURLs: imageDataURLs, effort: selectedEffort, onText: receive)
+                    try await tools.run(messages: turns, model: choice.model, webSearch: requestWebSearch,
+                        sessionID: sessionID, router: openRouter, imageDataURLs: imageDataURLs, effort: choice.effort, onText: receive)
                 } else {
-                    try await openRouter.chat(messages: turns, model: selectedModel, webSearch: requestWebSearch, imageDataURLs: imageDataURLs, effort: selectedEffort, onDelta: receive)
+                    try await openRouter.chat(messages: turns, model: choice.model, webSearch: requestWebSearch, imageDataURLs: imageDataURLs, effort: choice.effort, onDelta: receive)
                 }
                 guard !Task.isCancelled else { return }
                 self.finishRequest(for: sessionID, failure: nil)
@@ -271,23 +245,12 @@ final class AIChatStore: ObservableObject {
             return
         }
         cancelSpelling = onCancel
-        let pinned = command.resolvedSelection(using: openRouter.aiRouting)
-        isChoosingModel = pinned == nil
+        let choice = command.resolvedChoice(chat: openRouter.chatChoice)
         task = Task { [weak self] in
             guard let self else { return }
             do {
                 let turns = [(role: "system", content: AISpellingResponse.instructions(for: selection)),
                     (role: "user", content: command.rendered(selection: selection))]
-                var model = pinned?.model ?? openRouter.aiRouting.everydayModel
-                var effort = pinned == nil ? openRouter.aiRouting.everydayEffort : pinned?.effort
-                if pinned == nil, openRouter.isReady {
-                    let selection = try await openRouter.selectChatModel(messages: turns, defaultModel: model)
-                    model = selection?.model ?? model
-                    effort = selection?.effort
-                }
-                try Task.checkCancellation()
-                guard waitingSessionID == requestID else { return }
-                isChoosingModel = false
                 var response = ""
                 var overflow = false
                 let receive: @MainActor @Sendable (String) -> Void = { delta in
@@ -296,11 +259,11 @@ final class AIChatStore: ObservableObject {
                         response += delta
                     } else { overflow = true }
                 }
-                if LocalAIModel.resolve(model) != nil {
-                    try await localAI.chat(messages: turns, modelID: model, webSearch: false, effort: effort, onDelta: receive)
+                if LocalAIModel.resolve(choice.model) != nil {
+                    try await localAI.chat(messages: turns, modelID: choice.model, webSearch: false, effort: choice.effort, onDelta: receive)
                 } else {
-                    try await openRouter.chat(messages: turns, model: model, webSearch: false,
-                        imageDataURLs: [:], effort: effort, completionLimit: 16_384, requiresCompleteReply: true, onDelta: receive)
+                    try await openRouter.chat(messages: turns, model: choice.model, webSearch: false,
+                        imageDataURLs: [:], effort: choice.effort, completionLimit: 16_384, requiresCompleteReply: true, onDelta: receive)
                 }
                 try Task.checkCancellation()
                 guard waitingSessionID == requestID else { return }
@@ -313,7 +276,6 @@ final class AIChatStore: ObservableObject {
             } catch {
                 guard waitingSessionID == requestID else { return }
                 requests.remove(sessionID: requestID)
-                isChoosingModel = false
                 task = nil
                 let cancellation = cancelSpelling
                 cancelSpelling = nil
@@ -328,10 +290,10 @@ final class AIChatStore: ObservableObject {
     func startCommandConversation(command: AICommand, selection: String, selectSession: Bool = true) -> UUID {
         stop()
         let session = createCommandSession(command, selectSession: selectSession)
-        let selected = command.resolvedSelection(using: openRouter.aiRouting)
+        let choice = command.resolvedChoice(chat: openRouter.chatChoice)
         _ = send(
             command.rendered(selection: selection),
-            model: selected?.model, effort: selected?.effort,
+            model: choice.model, effort: choice.effort,
             allowsTools: false, sessionID: session.id,
             commandInput: .init(name: command.name, text: selection, symbol: command.systemImage))
         return session.id
@@ -355,7 +317,6 @@ final class AIChatStore: ObservableObject {
     /// Stops the in-flight request; the sent turn stays so the user can see what went unanswered.
     func stop() {
         task?.cancel()
-        isChoosingModel = false
         tools.stop()
         if let sessionID = waitingSessionID { commitStream(to: sessionID) }
         task = nil
@@ -373,7 +334,7 @@ final class AIChatStore: ObservableObject {
     }
 
     private func publishReveal() {
-        streamingReply = AIChatMessage(id: replyID, role: .assistant, text: pendingReply, routing: routingSelection)
+        streamingReply = AIChatMessage(id: replyID, role: .assistant, text: pendingReply)
     }
 
     private func startReveal(for sessionID: UUID) {
@@ -394,7 +355,7 @@ final class AIChatStore: ObservableObject {
         revealTask?.cancel()
         revealTask = nil
         if !pendingReply.isEmpty {
-            append(AIChatMessage(id: replyID, role: .assistant, text: pendingReply, routing: routingSelection), to: sessionID)
+            append(AIChatMessage(id: replyID, role: .assistant, text: pendingReply), to: sessionID)
         }
         pendingReply = ""
         streamingReply = nil
@@ -402,7 +363,6 @@ final class AIChatStore: ObservableObject {
 
     private func finishRequest(for sessionID: UUID, failure: String?) {
         guard waitingSessionID == sessionID else { return }
-        isChoosingModel = false
         commitStream(to: sessionID)
         guard requests.finish(sessionID: sessionID, failure: failure) else { return }
         task = nil

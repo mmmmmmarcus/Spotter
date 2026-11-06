@@ -23,8 +23,8 @@ enum OpenRouterError: LocalizedError, Equatable {
     }
 }
 
-/// API key, the chat model and the one chat-completion call for LLM-backed features. Each AI command
-/// carries its own model choice (`Plugins/AIChat/AICommand.swift`) and falls back to this one.
+/// API key, the chat model, effort and web-search choice, and the one chat-completion call for LLM-backed
+/// features. Each AI command carries its own model choice (`Plugins/AIChat/AICommand.swift`) and falls back to this one.
 /// The key is the gate (owner decision, Aug 2026): no key means no request can be made and the
 /// AI features stay inert; entering — or syncing — a key is the consent act. Requests run
 /// on a private cacheless session, re-checked for a key on both sides of every `await`. The key and
@@ -33,7 +33,6 @@ enum OpenRouterError: LocalizedError, Equatable {
 final class OpenRouterStore: ObservableObject, AIToolModel {
     static let provider = "OpenRouter"
     static let providerURL = URL(string: "https://openrouter.ai")!
-    static let defaultChatModel = AIRoutingPreferences.defaultModel
     private nonisolated static let chatEndpoint = URL(
         string: "https://openrouter.ai/api/v1/chat/completions")!
     private nonisolated static let keyEndpoint = URL(
@@ -57,7 +56,9 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
 
     @Published private(set) var apiKey: String
     @Published private(set) var chatModel: String
-    @Published private(set) var aiRouting: AIRoutingPreferences
+    @Published private(set) var chatEffort: String?
+    /// Every chat turn searches the web when on; off by default because each search costs extra.
+    @Published private(set) var webSearch: Bool
     @Published private(set) var validation: Validation = .unknown
     /// The published model list behind the Settings brand → model menus. Session-only: never
     /// persisted, so a stale catalog can't outlive the app.
@@ -66,26 +67,43 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
 
     private static let keyKey = "openrouter.api-key"
     private static let chatModelKey = "openrouter.chat-model"
-    private static let routingKey = "openrouter.ai-routing"
+    private static let chatEffortKey = "openrouter.chat-effort"
+    private static let webSearchKey = "openrouter.web-search"
     private let defaults: UserDefaults
-    private let decisionClient: JevDecisionClient
     private let requestSession: URLSession
-    private var routingRevision = UUID()
     private var catalogTask: Task<Void, Never>?
     private var catalogFetchedAt: Date?
 
-    init(defaults: UserDefaults = .standard, decisionClient: JevDecisionClient = JevDecisionClient(), session: URLSession? = nil) {
+    /// The Jev-era mappings found at launch, which `AppCore` hands to `AICommandStore` so category pins resolve.
+    let legacyRouting: AILegacyRouting?
+
+    init(defaults: UserDefaults = .standard, session: URLSession? = nil) {
         self.defaults = defaults
-        self.decisionClient = decisionClient
         requestSession = session ?? Self.session
         apiKey = defaults.string(forKey: Self.keyKey) ?? ""
+        webSearch = defaults.bool(forKey: Self.webSearchKey)
         let savedModel = defaults.string(forKey: Self.chatModelKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let previousModel = Self.resolve(savedModel ?? "", default: Self.defaultChatModel)
-        chatModel = previousModel
-        let initialRouting = savedModel?.isEmpty == false ? AIRoutingPreferences() : AIRoutingPreferences.defaults
-        aiRouting = (defaults.data(forKey: Self.routingKey)
-            .flatMap { try? JSONDecoder().decode(AIRoutingPreferences.self, from: $0) } ?? initialRouting)
-            .normalized(fallbackModel: previousModel)
+        let hasSavedModel = savedModel?.isEmpty == false
+        chatModel = Self.resolve(savedModel ?? "", default: AIModelChoice.defaultChat.model)
+        // A saved model without a saved effort predates efforts, so it keeps the model's own default.
+        chatEffort = defaults.string(forKey: Self.chatEffortKey).map(AIReasoningEffort.normalized)
+            ?? (hasSavedModel ? nil : AIModelChoice.defaultChat.effort)
+        if let data = defaults.data(forKey: AILegacyRouting.defaultsKey) {
+            let routing = try? JSONDecoder().decode(AILegacyRouting.self, from: data)
+            legacyRouting = routing
+            // The Everyday tier answered every unclassified turn, so it was the chat model in practice.
+            if let everyday = routing?.choice(for: "everyday") {
+                chatModel = everyday.model
+                chatEffort = everyday.effort
+            } else if routing != nil {
+                chatEffort = nil
+            }
+            defaults.set(chatModel, forKey: Self.chatModelKey)
+            defaults.set(chatEffort ?? "", forKey: Self.chatEffortKey)
+            defaults.removeObject(forKey: AILegacyRouting.defaultsKey)
+        } else {
+            legacyRouting = hasSavedModel ? nil : .shipped
+        }
     }
 
     /// A key is present, so LLM-backed features are allowed to make a request.
@@ -94,45 +112,8 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     }
 
     var onCredentialsChanged: (() -> Void)?
-    var onRoutingChanged: (() -> Void)?
 
-    func setAIRouting(_ preferences: AIRoutingPreferences) {
-        let value = preferences.normalized(fallbackModel: aiRouting.everydayModel)
-        guard value != aiRouting, let data = try? JSONEncoder().encode(value) else { return }
-        routingRevision = UUID()
-        aiRouting = value
-        defaults.set(data, forKey: Self.routingKey)
-        onRoutingChanged?()
-    }
-
-    func selectChatModel(messages: [(role: String, content: String)], defaultModel: String, routeModel: Bool = true) async throws -> AIRoutingSelection? {
-        try Task.checkCancellation()
-        guard isReady else { throw OpenRouterError.notConfigured }
-        let key = apiKey
-        let preferences = aiRouting
-        let fallbackModel = !routeModel || preferences.everydayModel.isEmpty ? defaultModel : preferences.everydayModel
-        let revision = routingRevision
-        do {
-            let data = try await decisionClient.decide(messages: messages.map { .init(role: $0.role, content: $0.content) }, key: key, routeModel: routeModel)
-            try validateRoutingRequest(key: key, revision: revision)
-            return try AIRoutingDecision.selection(from: data, preferences: preferences, defaultModel: fallbackModel, routeModel: routeModel)
-        } catch {
-            try validateRoutingRequest(key: key, revision: revision)
-            if error is CancellationError || (error as? URLError)?.code == .cancelled { throw CancellationError() }
-            if case JevDecisionError.http(let status) = error, status == 401 || status == 403 { throw OpenRouterError.unauthorized }
-            let reason: AIRoutingSelection.Fallback
-            if case JevDecisionError.inputTooLong = error { reason = .inputTooLong }
-            else { reason = .unavailable }
-            return AIRoutingSelection(model: fallbackModel, category: nil, fallback: reason,
-                effort: routeModel && fallbackModel == preferences.everydayModel ? preferences.everydayEffort : nil)
-        }
-    }
-
-    private func validateRoutingRequest(key: String, revision: UUID) throws {
-        try Task.checkCancellation()
-        guard acceptsReply(for: key) else { throw OpenRouterError.notConfigured }
-        guard routingRevision == revision else { throw CancellationError() }
-    }
+    var chatChoice: AIModelChoice { AIModelChoice(model: chatModel, effort: chatEffort) }
 
     func setAPIKey(_ key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -152,11 +133,21 @@ final class OpenRouterStore: ObservableObject, AIToolModel {
     }
 
 
-    func setChatModel(_ newModel: String) {
-        let resolved = Self.resolve(newModel, default: Self.defaultChatModel)
-        guard resolved != chatModel else { return }
-        chatModel = resolved
-        defaults.set(resolved, forKey: Self.chatModelKey)
+    func setChatChoice(_ choice: AIModelChoice) {
+        let model = Self.resolve(choice.model, default: AIModelChoice.defaultChat.model)
+        let effort = AIReasoningEffort.normalized(choice.effort)
+        guard model != chatModel || effort != chatEffort else { return }
+        chatModel = model
+        chatEffort = effort
+        defaults.set(model, forKey: Self.chatModelKey)
+        // Stored as "" for Model Default, so it stays distinguishable from a pre-effort install.
+        defaults.set(effort ?? "", forKey: Self.chatEffortKey)
+    }
+
+    func setWebSearch(_ enabled: Bool) {
+        guard enabled != webSearch else { return }
+        webSearch = enabled
+        defaults.set(enabled, forKey: Self.webSearchKey)
     }
 
     private nonisolated static func resolve(_ model: String, default fallback: String) -> String {

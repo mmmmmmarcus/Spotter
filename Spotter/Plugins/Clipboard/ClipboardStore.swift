@@ -9,7 +9,7 @@ struct ClipboardItem: Identifiable, Hashable, Sendable {
     let id: UUID
     let kind: Kind
     let text: String?
-    /// Absolute path to the image on disk. Files under the store's own `imagesDir` are owned (pruned/deleted with the row); external references (e.g. imported from another app's cache) are left untouched on delete.
+    /// Absolute path to the image on disk — a file entry's is its captured preview, never the original. Files under the store's own `imagesDir` are owned (pruned/deleted with the row); external references (e.g. imported from another app's cache) are left untouched on delete.
     let imagePath: String?
     let fileURLs: [URL]
     let createdAt: Date
@@ -33,8 +33,8 @@ struct ClipboardItem: Identifiable, Hashable, Sendable {
             sourceBundleID: sourceBundleID)
     }
 
-    init(fileURLs: [URL], sourceBundleID: String?) {
-        self.init(id: UUID(), kind: .files, text: nil, imagePath: nil, createdAt: Date(),
+    init(fileURLs: [URL], previewPath: String? = nil, sourceBundleID: String?) {
+        self.init(id: UUID(), kind: .files, text: nil, imagePath: previewPath, createdAt: Date(),
             sourceBundleID: sourceBundleID, fileURLs: fileURLs)
     }
 
@@ -256,11 +256,19 @@ final class ClipboardStore: ObservableObject {
         insert(ClipboardItem(text: text, sourceBundleID: sourceBundleID))
     }
 
-    func addFiles(_ urls: [URL], sourceBundleID: String?) {
+    /// `preview` is PNG data captured with the copy, stored as an owned blob so the row's thumbnail never re-reads the original.
+    func addFiles(_ urls: [URL], preview: Data? = nil, sourceBundleID: String?) {
         let item = ClipboardItem(fileURLs: urls, sourceBundleID: sourceBundleID)
         guard !item.fileURLs.isEmpty else { return }
         if items.first?.kind == .files, items.first?.fileURLs == item.fileURLs { return }
-        insert(item)
+        guard let preview else { return insert(item) }
+        let url = imagesDir.appendingPathComponent(uniqueStem(UUID().uuidString) + ".png")
+        let previewed = ClipboardItem(fileURLs: item.fileURLs, previewPath: url.path, sourceBundleID: sourceBundleID)
+        Task.detached(priority: .utility) { [weak self] in
+            // A preview that cannot be written still leaves a file reference worth keeping.
+            let written = (try? preview.write(to: url, options: .atomic)) != nil
+            await self?.insert(written ? previewed : item)
+        }
     }
 
     /// `name` is the file's stem, without an extension. A Spotter screenshot passes its own name

@@ -53,6 +53,10 @@ pasteboard and the poller skips anything carrying it.
 
 `ClipboardCapture` snapshots the advertised representations before any background work. A single
 copied local image file takes priority over its preview. Other local file URLs (including folders and multi-file selections) become one `files` entry before any icon preview or accompanying filename text is considered. Standard file-URL items and legacy Finder filename lists are supported. Otherwise valid PNG, TIFF or other ImageIO image data takes priority over accompanying text. Image decoding and PNG conversion run off-main.
+A copied image file Spotter cannot read — Desktop, Documents and Downloads without their privacy grant, Universal Clipboard's
+protected `group.com.apple.coreservices.useractivityd` container, or a grant macOS dropped — stays a `files` entry instead of
+silently becoming a preview-less row: the largest decodable pasteboard image (Finder's icon preview) is downsampled to
+`ClipboardCapture.filePreviewMaxPixel` and stored as that entry's owned preview. Paste still restores the file reference.
 Only when no usable image exists does capture fall back to text or a URL string. Copying an image URL
 alone stays a link and never fetches it. Mixed representations produce one history item, not both an
 image and its filename. Secret/internal markers and excluded source apps still skip the entire copy.
@@ -71,7 +75,7 @@ FTS search reaches older rows.
 A database that won't open is deleted and recreated (worst case the store degrades to session-only
 in-memory history).
 
-File selections persist an ordered JSON URL list in `items.file_urls`, added in place for existing databases. Their paths feed the existing FTS index, but `ClipboardItem.text` stays nil so a local text editor never receives a filename disguised as the original payload. Files are referenced, not read or duplicated; retention, deletion and Clear History never remove the originals. Standard file URLs are restored on paste, with an internal marker on every item. Missing originals refuse the whole paste before clearing the pasteboard. Both history surfaces show filenames and file/folder symbols; the full preview lists paths and reports unavailable originals.
+File selections persist an ordered JSON URL list in `items.file_urls`, added in place for existing databases. Their paths feed the existing FTS index, but `ClipboardItem.text` stays nil so a local text editor never receives a filename disguised as the original payload. Files are referenced, not read or duplicated; retention, deletion and Clear History never remove the originals. A captured preview lives in `items.image_path` as an owned blob in the same `images` directory, so every thumbnail Spotter draws is read from its own cache and needs no privacy grant; it is deleted with the row, stays device-local like the reference, and survives the original's removal. Standard file URLs are restored on paste, with an internal marker on every item. Missing originals refuse the whole paste before clearing the pasteboard. Both history surfaces show filenames and file/folder symbols; the full preview lists paths and reports unavailable originals.
 
 Image capture (TIFF→PNG re-encode + blob write) runs off the main actor via detached tasks; row
 inserts, search, and pruning stay on the main actor.

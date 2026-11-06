@@ -132,7 +132,8 @@ extension SettingsBackup {
             openRouterDefinitionModel: core.aiCommands.command(.define)?.model,
             openRouterGrammarModel: core.aiCommands.command(.grammar)?.model,
             openRouterChatModel: core.openRouter.chatModel,
-            aiRouting: core.openRouter.aiRouting,
+            openRouterChatEffort: core.openRouter.chatEffort,
+            openRouterWebSearch: core.openRouter.webSearch,
             googleTranslationAPIKey: core.translate.apiKey,
             googleTranslationTargets: core.translate.targetCodes,
             updateAutoCheckEnabled: core.updates.autoCheckEnabled,
@@ -269,7 +270,7 @@ extension SettingsBackup {
         // Before `hotkeys` for the same reason as custom commands: a per-command binding only
         // applies to a command that already exists.
         if let aiCommands {
-            core.replaceAICommands(aiCommands)
+            core.replaceAICommands(aiCommands, legacyRouting: settings?.aiRouting)
             summary.settingsFields += 1
         } else if let selection = pluginPrefs?.selectionTools {
             // A file written before AI Commands: its prompts belong to the two built-in records.
@@ -515,13 +516,12 @@ extension SettingsBackup {
                 count += 1
             }
         }
-        if let model = s.openRouterChatModel {
-            core.openRouter.setChatModel(model)
+        if let choice = s.chatChoice {
+            core.openRouter.setChatChoice(choice)
             count += 1
         }
-
-        if let preferences = s.aiRouting {
-            core.openRouter.setAIRouting(preferences)
+        if let flag = s.openRouterWebSearch {
+            core.openRouter.setWebSearch(flag)
             count += 1
         }
 

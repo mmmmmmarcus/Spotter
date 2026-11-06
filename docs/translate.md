@@ -122,7 +122,7 @@ The Settings API-key field has a hidden label and an in-field example prompt; th
 Opening comparison sends the original and translated word arrays once to
 `google/gemini-2.5-flash-lite` using the existing OpenRouter key. This owner-requested AI feature uses
 the OpenRouter key gate, with the provider/data disclosure in Translate settings and the comparison
-tooltip. It does not use Jev, tools or web search, and does not alter the translation or chat history.
+tooltip. It does not use tools or web search, and does not alter the translation or chat history.
 The Google translation alone never triggers alignment. No OpenRouter key means comparison still
 works and its status explains how to enable word matching.
 

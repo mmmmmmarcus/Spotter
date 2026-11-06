@@ -290,7 +290,7 @@ private struct QuickAISendingBubble: View {
 
     var body: some View {
         AIChatRow(message: message, isStreaming: false,
-            bubbleInset: Theme.Size.chatBubbleInset / 3, showsRouting: false)
+            bubbleInset: Theme.Size.chatBubbleInset / 3)
             .frame(width: destination.width, height: destination.height)
             .scaleEffect(reduceMotion ? 1 : 0.94 + 0.06 * progress, anchor: .bottomTrailing)
             .opacity(0.35 + 0.65 * progress)

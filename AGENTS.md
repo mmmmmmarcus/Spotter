@@ -316,15 +316,17 @@ Never break these without an explicit task to do so.
   direct detached caffeinate children observed in the extension bridge. Its device-local recovery
   records never sync; restore and cancellation validate the executable, user and kernel start time,
   never a saved PID alone. Closing an extension view does not end its keep-awake session.
-- **Jev classifies tasks; Spotter chooses the configured model and optional reasoning effort.** `OpenRouterStore` owns always-on
-  `AIRoutingPreferences` (owner decision, Oct 2026), with Everyday / Professional / Deep Reasoning model/effort mappings. Fresh installations use Codex CLI gpt-6-luna with Low / Medium / Extra High effort; existing choices are preserved. Commands may pin a category preset, resolving its current model and effort together at invocation and retaining that pair for the session. Effort defaults to the provider setting, only catalogued levels may be sent, and the selected pair persists with the session; command overrides and trusted backup/sync carry both. One Jev
-  Decisions request precedes the first unpinned chat turn, using only its prompt and bounded recent
-  conversation. The session persists the selected model and reuses it for later turns (owner decision, Oct 2026). Cancellation and key/configuration changes must never turn into a fallback. Unavailable
-  or uncertain classification falls back to the captured Everyday model with a visible label; failures
-  after answer/tool execution starts remain failures. Explicit command model pins bypass model routing. Jev separately decides web search for every turn, including pinned models; no user search toggle remains.
-  Configuration rides trusted settings backup/sync, and missing legacy fields leave local choices
-  intact. `AIRoutingTypes.swift` stays pure Foundation; `JevDecisionClient.swift` uses a bounded,
-  cacheless request. Reply routing metadata is optional so old history remains readable.
+- **The user chooses every model; nothing classifies a prompt** (owner decision, Nov 2026, retiring
+  Jev). `OpenRouterStore` owns the chat model, its optional reasoning effort and the Web Search setting
+  (off by default; applies to every chat turn, never Fix Text). Fresh installations use Codex CLI
+  gpt-6-luna with Low effort. Each AI command pins its own model and effort or follows the chat pair
+  (**Chat Model**), resolved once at invocation; a conversation records its first pair and reuses it on
+  follow-ups. Only catalogued effort levels may be sent. The pair and Web Search ride trusted
+  backup/sync, and absent fields leave local choices intact. Jev-era `openrouter.ai-routing` mappings
+  and a backup's `aiRouting` are decode-only: read once, the Everyday pair becomes the chat pair and
+  category-pinned commands resolve to that category's configured pair. Old replies' optional `routing`
+  metadata still decodes so history stays readable. `AIModelChoice.swift` stays pure Foundation. Do not
+  reintroduce automatic model or search classification without an explicit owner decision.
 - **Quick AI Chat is an owner-requested floating-window exception.** ⌥Space opens an independent
   Liquid Glass composer above the Dock, expanding to twice its compact width after the first send, then directly to the palette height on the first nonempty AI reply. Later replies scroll without resizing. `AppCore`
   solely owns `QuickAIChatController`; it owns the frame, draft and session reference. Quick AI is the only chat surface (owner decision, Oct 2026); the Palette has no AI Chat mode.
@@ -386,6 +388,10 @@ Never break these without an explicit task to do so.
   references or folders. Exact matches stay immediate, related matches retain SQLite deletion checks,
   and late results preserve selection identity. Clear History cancels work and deletes vectors;
   disabling also deletes models. `ClipboardSemanticEngine.swift` stays Foundation-only and pure.
+- **Clipboard previews never depend on a privacy grant.** Every thumbnail is read from the store's own
+  `images` directory. A copied image file Spotter cannot read (a protected folder, Universal Clipboard's
+  container) stays a `files` entry with an owned preview taken from the pasteboard at capture time.
+  Never draw a thumbnail from a referenced original.
 - **Clipboard writes stamp a private `internalType` marker** so the poller skips Spotter's own writes.
   Screenshot has the two deliberate exceptions. Its text recognition writes *unmarked* (owner
   decision, Aug 2026): the output is the user's own text and belongs in history. An image capture

@@ -38,8 +38,16 @@ struct ClipboardCaptureTests {
             return CGImageSourceGetType(source) as String? == UTType.png.identifier
         }
         func isFiles(_ payload: ClipboardCapture.Payload?, _ expected: [URL]) -> Bool {
-            if case .files(let urls) = payload { return urls == expected }
+            if case .files(let urls, nil) = payload { return urls == expected }
             return false
+        }
+        func previewWidth(_ payload: ClipboardCapture.Payload?, _ expected: [URL]) -> Int? {
+            guard case .files(let urls, let preview?) = payload, urls == expected,
+                  let source = CGImageSourceCreateWithData(preview as CFData, nil),
+                  CGImageSourceGetType(source) as String? == UTType.png.identifier,
+                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+            else { return nil }
+            return properties[kCGImagePropertyPixelWidth] as? Int
         }
         func isText(_ payload: ClipboardCapture.Payload?, _ expected: String) -> Bool {
             if case .text(let text) = payload { return text == expected }
@@ -68,6 +76,24 @@ struct ClipboardCaptureTests {
         check(isImage(await capture()), "the copied image file wins over a Finder preview")
         set([(.fileURL, Data(folder.appendingPathComponent("gone.png").absoluteString.utf8)), (.string, label)])
         check(isFiles(await capture(), [folder.appendingPathComponent("gone.png")]), "missing image files retain their file reference instead of a misleading filename string")
+        let denied = folder.appendingPathComponent("protected-screenshot.png")
+        try png.write(to: denied)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: denied.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: denied.path) }
+        let small = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 16, pixelsHigh: 16,
+            bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        let large = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2048, pixelsHigh: 1024,
+            bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        let iconFamily = NSBitmapImageRep.tiffRepresentationOfImageReps(in: [small, large], using: .none, factor: 0)!
+        set([(.fileURL, Data(denied.absoluteString.utf8)), (.tiff, iconFamily), (.string, label)])
+        check(previewWidth(await capture(), [denied]) == ClipboardCapture.filePreviewMaxPixel,
+            "an unreadable image file keeps its reference and stores the largest pasteboard preview, bounded")
+        set([(.fileURL, Data(denied.absoluteString.utf8)), (.string, label)])
+        check(isFiles(await capture(), [denied]), "an unreadable image file without a pasteboard preview degrades to a plain file reference")
+        set([(.fileURL, Data(denied.absoluteString.utf8)), (.png, Data("broken".utf8)), (.tiff, tiff)])
+        check(previewWidth(await capture(), [denied]) == 8, "an undecodable preview falls back to the next pasteboard representation")
         let certificate = folder.appendingPathComponent("测试 certificate.p12")
         let document = folder.appendingPathComponent("report.pdf")
         try Data("synthetic certificate fixture".utf8).write(to: certificate)

@@ -30,6 +30,7 @@ struct ClipboardTests {
         migrationFromShippedDatabase()
         await portableSnapshot()
         await fileReferences()
+        await filePreviewsAreOwned()
         await incrementalSync()
         await imageSnapshotCache()
         await mappedImageLifetime()
@@ -697,6 +698,41 @@ struct ClipboardTests {
         expect(ClipboardItem(fileURLs: [folder], sourceBundleID: nil).fileSymbol == "folder", "directories have a folder symbol")
         expect(sqlite(dir.appendingPathComponent("clipboard.sqlite3"), "SELECT name FROM pragma_table_info('items')").contains("file_urls"),
             "file URLs have an explicit persisted column")
+    }
+
+    /// A copied image Spotter could not read keeps the preview captured with it, so its thumbnail never depends on a privacy grant.
+    static func filePreviewsAreOwned() async {
+        let dir = scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let original = dir.appendingPathComponent("Desktop screenshot.png")
+        try? Data("original bytes".utf8).write(to: original)
+        let preview = Data([0x89, 0x50, 0x4E, 0x47, 0x01])
+        let store = ClipboardStore(directory: dir.appendingPathComponent("store"))
+        store.addFiles([original], preview: preview, sourceBundleID: "com.apple.finder")
+        try? await Task.sleep(for: .milliseconds(300))
+        guard let entry = store.items.first, entry.kind == .files, let path = entry.imagePath else {
+            return fail("a file entry captured with a preview is recorded with it")
+        }
+        expect(path.hasPrefix(dir.appendingPathComponent("store/images").path + "/") && path != original.path
+            && FileManager.default.contents(atPath: path) == preview,
+            "the preview is an owned blob in the store's images directory, never the original")
+        expect(entry.fileURLs == [original] && store.search("", filter: .files).map(\.id) == [entry.id]
+            && store.search("", filter: .image).isEmpty && !entry.isScreenshot,
+            "a previewed file entry stays a file entry for filters and paste")
+        try? FileManager.default.removeItem(at: original)
+        let reopened = ClipboardStore(directory: dir.appendingPathComponent("store"))
+        reopened.load()
+        expect(reopened.items.first?.imagePath == path && reopened.imageURL(for: reopened.items[0])?.path == path,
+            "the preview survives a relaunch even after the original is gone")
+        let snapshot = await reopened.syncSnapshot()
+        expect(snapshot.isEmpty, "file previews never travel in backups or sync")
+        await reopened.replace(with: [])
+        expect(reopened.items.first?.imagePath == path && FileManager.default.fileExists(atPath: path),
+            "applying a sync snapshot keeps local file previews")
+        reopened.remove(reopened.items[0])
+        expect(!FileManager.default.fileExists(atPath: path), "deleting the entry deletes its owned preview")
+        reopened.addFiles([original], sourceBundleID: nil)
+        expect(reopened.items.first?.imagePath == nil, "a file entry without a preview stores none")
     }
 
     // MARK: - Harness

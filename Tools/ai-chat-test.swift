@@ -1,4 +1,4 @@
-// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIRoutingTypes.swift Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
+// Compile: swiftc -swift-version 6 Spotter/Plugins/AIChat/AIModelChoice.swift Spotter/Plugins/AIChat/AIChatTypes.swift Spotter/Plugins/AIChat/AIChatSelectionPrompts.swift Spotter/Plugins/AIChat/AICommand.swift Spotter/Plugins/AIChat/AICommandStore.swift Spotter/Core/OpenRouterStream.swift Spotter/Core/OpenRouterModelCatalog.swift Tools/ai-chat-test.swift -o /tmp/ai-chat-test && /tmp/ai-chat-test
 import Foundation
 import CoreGraphics
 
@@ -17,16 +17,30 @@ struct AIChatTests {
         }
 
         var routedSession = AIChatSession()
-        check("new sessions require initial routing", routedSession.routingModel == nil)
+        check("new sessions have no model until their first turn", routedSession.modelChoice == nil)
         routedSession.selectedModel = "local-cli/codex/test-fast"
-        check("session pins its first selected model", routedSession.routingModel == "local-cli/codex/test-fast")
+        routedSession.selectedEffort = "high"
+        check("session pins its first selected pair", routedSession.modelChoice == AIModelChoice(model: "local-cli/codex/test-fast", effort: "high"))
         let savedSession = try! JSONEncoder().encode(routedSession)
         let restoredSession = try! JSONDecoder().decode(AIChatSession.self, from: savedSession)
-        check("session model survives persistence", restoredSession.routingModel == routedSession.routingModel)
+        check("session model survives persistence", restoredSession.modelChoice == routedSession.modelChoice)
         var legacyJSON = try! JSONSerialization.jsonObject(with: savedSession) as! [String: Any]
         legacyJSON.removeValue(forKey: "selectedModel")
+        legacyJSON.removeValue(forKey: "selectedEffort")
         let legacyData = try! JSONSerialization.data(withJSONObject: legacyJSON)
-        check("older sessions decode without a model", (try! JSONDecoder().decode(AIChatSession.self, from: legacyData)).routingModel == nil)
+        check("older sessions decode without a model", (try! JSONDecoder().decode(AIChatSession.self, from: legacyData)).modelChoice == nil)
+        let jevReply = "{\"id\":\"\(UUID())\",\"role\":\"assistant\",\"text\":\"Old reply\",\"routing\":{\"model\":\"vendor/work\",\"category\":\"professional\",\"fallback\":\"uncertain\",\"webSearch\":true,\"effort\":\"medium\"}}"
+        let jevMessage = try! JSONDecoder().decode(AIChatMessage.self, from: Data(jevReply.utf8))
+        check("Jev-era reply metadata still decodes", jevMessage.text == "Old reply" && jevMessage.legacyModel == AIModelChoice(model: "vendor/work", effort: "medium"))
+        check("an older session follows the model its replies recorded",
+            AIChatSession(messages: [jevMessage]).modelChoice == AIModelChoice(model: "vendor/work", effort: "medium"))
+        let reencoded = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(jevMessage)) as! [String: Any]
+        check("re-encoded Jev-era metadata keeps the shape older builds decode",
+            (reencoded["routing"] as? [String: Any])?["model"] as? String == "vendor/work")
+        let unknownReply = jevReply.replacingOccurrences(of: "\"model\":\"vendor/work\",", with: "")
+        check("unreadable reply metadata cannot erase a conversation",
+            (try? JSONDecoder().decode(AIChatMessage.self, from: Data(unknownReply.utf8)))?.legacyModel == nil)
+        check("new replies record no per-message model", AIChatMessage(role: .assistant, text: "New").legacyModel == nil)
 
         func stream(_ input: String) throws -> String {
             var parser = OpenRouterStream()
@@ -121,9 +135,6 @@ struct AIChatTests {
             AIChatMessage(role: .user, text: "Analyze this", attachments: [attachment])]
         check("attachment content counts toward the transcript budget",
             AIChatEngine.transcriptWindow(attached, budget: 100).count == 1)
-        let routing = AIChatEngine.routingMessages(attached)
-        check("model routing sees the prompt but not attachment contents",
-            routing.last?.content == "Analyze this" && !routing.last!.content.contains("document"))
 
         // Session titles derive from the first user turn, like Notes titles.
         check("empty session titles as New Session", AIChatEngine.sessionTitle(for: []) == "New Session")
@@ -417,22 +428,25 @@ struct AIChatTests {
 
         // A command follows the chat model unless it pins one, and a pinned id is never rewritten —
         // a model the key can no longer reach stays the command's choice.
+        let chatChoice = AIModelChoice(model: "vendor/chat", effort: "low")
         check(
-            "no pinned model delegates to Jev",
-            userCommand.resolvedSelection(using: .defaults)?.model == nil)
+            "no pinned model follows the chat model and effort",
+            userCommand.resolvedChoice(chat: chatChoice) == chatChoice)
         check(
-            "a blank pinned model delegates to Jev",
-            AICommand(name: "Blank", prompt: "p", model: "   ")
-                .resolvedSelection(using: .defaults)?.model == nil)
+            "a blank pinned model follows the chat model",
+            AICommand(name: "Blank", prompt: "p", model: "   ").resolvedChoice(chat: chatChoice) == chatChoice)
         check(
             "a withdrawn model stays the command's choice",
             AICommand(name: "Pinned", prompt: "p", model: "vendor/retired-model")
-                .resolvedSelection(using: .defaults)?.model == "vendor/retired-model")
-        check("an unpinned command delegates to Jev when automatic selection is enabled",
-            userCommand.resolvedSelection(using: .defaults)?.model == nil)
-        check("a command pin wins over automatic selection",
+                .resolvedChoice(chat: chatChoice).model == "vendor/retired-model")
+        check("a command pin carries its own effort, not the chat effort",
+            AICommand(name: "Pinned", prompt: "p", model: "vendor/pinned", effort: "high")
+                .resolvedChoice(chat: chatChoice) == AIModelChoice(model: "vendor/pinned", effort: "high"))
+        check("a pinned model with no effort uses the model default",
             AICommand(name: "Pinned", prompt: "p", model: "vendor/pinned")
-                .resolvedSelection(using: .defaults)?.model == "vendor/pinned")
+                .resolvedChoice(chat: chatChoice).effort == nil)
+        check("an effort without a pinned model is dropped",
+            AICommand(name: "Loose", prompt: "p", effort: "high").effort == nil)
         check(
             "a withdrawn model still has a name to show",
             OpenRouterModelCatalog.modelName(for: "vendor/retired-model", in: [])
@@ -615,33 +629,47 @@ struct AIChatTests {
         check("new sync can deliberately clear shipped default shortcuts", knownShortcutIDs.contains(AIBuiltInCommand.spelling.id) && knownShortcutIDs.contains(AIBuiltInCommand.pronunciation.id))
         check("old sync can supply a new command binding", AICommandEngine.shortcutReplacementIDs(knownIDs: nil, boundIDs: [AIBuiltInCommand.spelling.id], localCommands: []).contains(AIBuiltInCommand.spelling.id))
 
-        var presetPreferences = AIRoutingPreferences.defaults
+        let routing = AILegacyRouting(everydayModel: "vendor/fast", professionalModel: "vendor/work",
+            reasoningModel: "", everydayEffort: "low", professionalEffort: "medium", reasoningEffort: "xhigh")
+        func presetCommand(_ category: String, id: UUID = UUID(), builtIn: AIBuiltInCommand? = nil) -> AICommand {
+            var json: [String: Any] = ["id": id.uuidString, "name": builtIn?.name ?? "Preset \(category)",
+                "prompt": "Fix {selection}", "preset": category]
+            if let builtIn { json["builtIn"] = builtIn.rawValue }
+            return try! JSONDecoder().decode(AICommand.self, from: JSONSerialization.data(withJSONObject: json))
+        }
+        let professional = AICommandEngine.normalized([presetCommand("professional")], legacyRouting: routing).last!
+        check("a category pin resolves once to that category's pair",
+            professional.model == "vendor/work" && professional.effort == "medium" && professional.legacyPreset == nil)
+        let unsetTier = AICommandEngine.normalized([presetCommand("reasoning")], legacyRouting: routing).last!
+        check("an unset tier falls back to following the chat model", unsetTier.model == nil && unsetTier.effort == nil)
+        let noRouting = AICommandEngine.normalized([presetCommand("everyday")]).last!
+        check("a category pin without mappings follows the chat model", noRouting.model == nil && noRouting.legacyPreset == nil)
+        let shippedReasoning = AICommandEngine.normalized([presetCommand("reasoning")], legacyRouting: .shipped).last!
+        check("an install that never saved mappings resolves the shipped tier",
+            shippedReasoning.model == AIModelChoice.defaultChat.model && shippedReasoning.effort == "xhigh")
+        let fixPreset = AICommandEngine.normalized([presetCommand("everyday", id: AIBuiltInCommand.spelling.id, builtIn: .spelling)], legacyRouting: routing)
+        check("a built-in's category pin resolves too", fixPreset.first { $0.builtIn == .spelling }?.model == "vendor/fast")
+        let encodedPreset = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(presetCommand("everyday"))) as! [String: Any]
+        check("the category pin is never written back", encodedPreset["preset"] == nil)
+
         let presetSuite = "spotter-command-presets-" + UUID().uuidString
         let presetDefaults = UserDefaults(suiteName: presetSuite)!
         defer { presetDefaults.removePersistentDomain(forName: presetSuite) }
-        let presetStore = AICommandStore(defaults: presetDefaults)
-        for category in AIRoutingCategory.allCases {
-            let command = AICommand(name: category.title, prompt: "Fix {selection}", model: "ignored", effort: "max", preset: category)
-            check("preset owns the complete pair: \(category)", command.model == nil && command.effort == nil)
-            let selected = command.resolvedSelection(using: presetPreferences)
-            check("preset resolves configured model and effort: \(category)", selected?.model == presetPreferences.model(for: category) && selected?.effort == presetPreferences.effort(for: category))
-            let roundtrip = try! JSONDecoder().decode(AICommand.self, from: JSONEncoder().encode(command))
-            check("preset survives backup encoding: \(category)", roundtrip == command)
-            let saved = try! presetStore.add(command)
-            check("preset survives store restart: \(category)", AICommandStore(defaults: presetDefaults).command(id: saved.id)?.preset == category)
-            check("preset survives import normalization: \(category)", AICommandEngine.normalized([roundtrip]).last?.preset == category)
-        }
-        let followsPreset = AICommand(name: "Follow", prompt: "p", preset: .professional)
-        presetPreferences.setModel("vendor/new-professional", for: .professional)
-        presetPreferences.setEffort("high", for: .professional)
-        check("commands follow later preset edits", followsPreset.resolvedSelection(using: presetPreferences)?.model == "vendor/new-professional" && followsPreset.resolvedSelection(using: presetPreferences)?.effort == "high")
-        let savedPreset = try! presetStore.add(followsPreset)
-        presetStore.setModel("vendor/pinned", for: savedPreset.id)
-        check("choosing a model clears the preset", presetStore.command(id: savedPreset.id)?.preset == nil && presetStore.command(id: savedPreset.id)?.model == "vendor/pinned")
-        var legacyCommandJSON = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(userCommand)) as! [String: Any]
-        legacyCommandJSON.removeValue(forKey: "preset")
-        let legacyWithoutPreset = try! JSONDecoder().decode(AICommand.self, from: JSONSerialization.data(withJSONObject: legacyCommandJSON))
-        check("legacy commands need no preset migration", legacyWithoutPreset == userCommand && legacyWithoutPreset.preset == nil)
+        let storedPreset = presetCommand("professional")
+        presetDefaults.set(try! JSONEncoder().encode([storedPreset]).replacingPreset(storedPreset.id, "professional"), forKey: "ai-commands")
+        let migratedStore = AICommandStore(defaults: presetDefaults, legacyRouting: routing)
+        check("the store migrates a stored category pin at launch",
+            migratedStore.command(id: storedPreset.id)?.model == "vendor/work" && migratedStore.command(id: storedPreset.id)?.effort == "medium")
+        check("the migrated pair is persisted, so a later launch needs no mappings",
+            AICommandStore(defaults: presetDefaults).command(id: storedPreset.id)?.model == "vendor/work")
+        let replaced = AICommandStore(defaults: UserDefaults(suiteName: presetSuite + ".import")!)
+        replaced.replace(with: [presetCommand("everyday", id: storedPreset.id)], legacyRouting: routing)
+        check("an imported Jev-era command resolves against the file's mappings", replaced.command(id: storedPreset.id)?.model == "vendor/fast")
+        UserDefaults().removePersistentDomain(forName: presetSuite + ".import")
+        let savedPinned = try! migratedStore.add(AICommand(name: "Follow", prompt: "p", model: "vendor/x", effort: "high"))
+        migratedStore.setModel("vendor/pinned", for: savedPinned.id)
+        check("choosing another model resets the command's effort",
+            migratedStore.command(id: savedPinned.id)?.model == "vendor/pinned" && migratedStore.command(id: savedPinned.id)?.effort == nil)
 
         for reason in ["stop", "length", "content_filter", "tool_calls", ""] {
             var parser = OpenRouterStream(requiresCompleteReply: true)
@@ -682,5 +710,14 @@ struct AIChatTests {
 
         print(failures == 0 ? "\nAI Chat: ALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
+    }
+}
+
+private extension Data {
+    // JSONEncoder never writes `preset` now, so the fixture adds it back the way a Jev-era build stored it.
+    func replacingPreset(_ id: UUID, _ category: String) -> Data {
+        var array = try! JSONSerialization.jsonObject(with: self) as! [[String: Any]]
+        for index in array.indices where array[index]["id"] as? String == id.uuidString { array[index]["preset"] = category }
+        return try! JSONSerialization.data(withJSONObject: array)
     }
 }

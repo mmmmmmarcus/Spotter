@@ -7,29 +7,15 @@ import WebKit
 final class OpenRouterStore: ObservableObject {
     var isReady = true
     var chatModel = "fixture-model"
-    var chatWebSearch = false
-    var aiRouting = AIRoutingPreferences()
-    var route = AIRoutingSelection(model: "chosen-model", category: .professional)
-    var decisionRequests: [[(role: String, content: String)]] = []
-    var waitsForDecision = false
-    var ignoresDecisionCancellation = false
-    private var decisions: [CheckedContinuation<Void, Error>] = []
+    var chatEffort: String?
+    var webSearch = false
+    var chatChoice: AIModelChoice { AIModelChoice(model: chatModel, effort: chatEffort) }
     var models: [String] = []
     var efforts: [String?] = []
     var searchFlags: [Bool] = []
     var completeReplyFlags: [Bool] = []
     var requests: [[(role: String, content: String)]] = []
     private var completions: [CheckedContinuation<Void, Error>] = []
-
-    func selectChatModel(messages: [(role: String, content: String)], defaultModel: String, routeModel: Bool = true) async throws -> AIRoutingSelection? {
-        if !routeModel { return AIRoutingSelection(model: defaultModel, category: nil, webSearch: false) }
-        decisionRequests.append(messages)
-        if waitsForDecision { try await withCheckedThrowingContinuation { decisions.append($0) } }
-        if !ignoresDecisionCancellation { try Task.checkCancellation() }
-        return route
-    }
-
-    func completeDecision() { decisions.removeFirst().resume() }
 
     func chat(messages: [(role: String, content: String)], model: String, webSearch: Bool, imageDataURLs: [Int: [String]] = [:], effort: String? = nil,
               completionLimit: Int = 4096, requiresCompleteReply: Bool = false,
@@ -113,8 +99,8 @@ struct QuickAIChatTests {
     }
 
     static func main() async {
-        await effortRouting()
-        await commandPresets()
+        await effortSelection()
+        await commandModels()
         await spellingReplacement()
         layout()
         await nativePanel()
@@ -123,37 +109,45 @@ struct QuickAIChatTests {
         detachedWindow()
         await conversations()
         await historyPills()
-        await routing()
+        await modelSelection()
         await commandConversations()
         print("\(passes)/\(passes + failures) passed")
         if failures > 0 { exit(1) }
     }
 
-    private static func effortRouting() async {
+    private static func effortSelection() async {
         let router = OpenRouterStore()
+        router.chatEffort = "high"
         let local = LocalAIStore()
         let tools = AIToolStore()
         tools.isConfigured = true
         let chat = AIChatStore(openRouter: router, localAI: local, tools: tools)
-        router.route.effort = "high"
-        expect(chat.send("Analyze"), "effort routing accepts first turn")
+        expect(chat.send("Analyze"), "effort selection accepts first turn")
         await waitUntil { router.requests.count == 1 }
-        expect(router.efforts == ["high"], "Jev route effort reaches the tools path")
+        expect(router.models == ["fixture-model"] && router.efforts == ["high"], "the chat model and effort reach the tools path")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
         let saved = try! JSONDecoder().decode([AIChatSession].self, from: JSONEncoder().encode(chat.sessions))
-        router.route.effort = "low"
+        router.chatModel = "changed-model"
+        router.chatEffort = "low"
         chat.replace(sessions: saved, currentID: chat.currentID)
         expect(chat.send("Continue"), "restored session accepts follow-up")
         await waitUntil { router.requests.count == 2 }
-        expect(router.efforts == ["high", "high"], "restored conversation retains its effort despite routing changes")
+        expect(router.models.last == "fixture-model" && router.efforts == ["high", "high"],
+            "a restored conversation keeps its pair despite a later chat-model change")
+        router.completeNext()
+        await waitUntil { !chat.isWaiting }
+        chat.startNewSession()
+        expect(chat.send("Fresh"), "a new conversation accepts its first turn")
+        await waitUntil { router.requests.count == 3 }
+        expect(router.models.last == "changed-model" && router.efforts.last! == "low", "a new conversation uses the current chat pair")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
         var command = AICommand.makeBuiltIn(.grammar)
         command.effort = "low"
         chat.startCommandConversation(command: command, selection: "hello")
-        await waitUntil { router.requests.count == 3 }
-        expect(router.efforts.last! == "low", "command effort overrides routing and reaches plain chat")
+        await waitUntil { router.requests.count == 4 }
+        expect(router.models.last == AICommand.defaultBuiltInModel && router.efforts.last! == "low", "command model and effort reach plain chat")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
         local.isAvailable = true
@@ -165,50 +159,48 @@ struct QuickAIChatTests {
         expect(local.efforts == ["medium"], "direct spelling forwards pinned effort to local CLI")
         await waitUntil { !chat.isWaiting }
         command.model = nil
-        command.effort = "high"
-        router.route.effort = "low"
+        command.effort = nil
         chat.replaceSpelling(command: command, selection: "teh") { _ in }
-        await waitUntil { router.requests.count == 4 }
-        expect(router.efforts.last! == "low", "automatic spelling uses route effort instead of a stale pin")
+        await waitUntil { router.requests.count == 5 }
+        expect(router.models.last == "changed-model" && router.efforts.last! == "low", "an unpinned Fix Text follows the chat pair")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
     }
 
-    private static func commandPresets() async {
+    private static func commandModels() async {
         let router = OpenRouterStore()
-        router.aiRouting = AIRoutingPreferences(everydayModel: "vendor/fast", professionalModel: "vendor/work",
-            reasoningModel: "local-cli/codex/gpt-6-luna", everydayEffort: "low", professionalEffort: "medium", reasoningEffort: "xhigh")
+        router.chatModel = "vendor/chat"
+        router.chatEffort = "low"
         let local = LocalAIStore()
         local.isAvailable = true
         let chat = AIChatStore(openRouter: router, localAI: local, tools: AIToolStore())
-        let command = AICommand(name: "Explain", prompt: "Explain {selection}", preset: .professional)
+        let command = AICommand(name: "Explain", prompt: "Explain {selection}")
         let sessionID = chat.startCommandConversation(command: command, selection: "test")
         await waitUntil { router.requests.count == 1 }
-        expect(router.models.last == "vendor/work" && router.efforts.last! == "medium" && router.decisionRequests.isEmpty,
-            "preset chat bypasses category routing and uses its complete pair")
-        router.aiRouting.professionalModel = "vendor/new"
-        router.aiRouting.professionalEffort = "high"
-        expect(router.models.last == "vendor/work" && router.efforts.last! == "medium", "preset edits cannot change a running command")
+        expect(router.models.last == "vendor/chat" && router.efforts.last! == "low", "an unpinned command follows the chat pair")
+        router.chatModel = "vendor/new"
+        router.chatEffort = "high"
         router.completeNext()
         await waitUntil { !chat.isWaiting }
         _ = chat.send("follow up", sessionID: sessionID)
         await waitUntil { router.requests.count == 2 }
-        expect(router.models.last == "vendor/work" && router.efforts.last! == "medium", "existing command sessions retain their selected pair")
+        expect(router.models.last == "vendor/chat" && router.efforts.last! == "low", "existing command sessions retain their selected pair")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
         _ = chat.startCommandConversation(command: command, selection: "new invocation")
         await waitUntil { router.requests.count == 3 }
-        expect(router.models.last == "vendor/new" && router.efforts.last! == "high", "new command runs follow updated presets")
+        expect(router.models.last == "vendor/new" && router.efforts.last! == "high", "new command runs follow the updated chat pair")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
         var fix = AICommand.makeBuiltIn(.spelling)
-        fix.preset = .reasoning
+        expect(fix.model == AICommand.defaultFixTextModel && fix.effort == "minimal", "Fix Text ships Gemini Flash Lite with Minimal effort")
+        fix.model = "local-cli/codex/gpt-6-luna"
+        fix.effort = "xhigh"
         var corrected: String?
         chat.replaceSpelling(command: fix, selection: "teh") { corrected = try? $0.get() }
         await waitUntil { !chat.isWaiting }
         expect(corrected == "the" && local.models.last == "local-cli/codex/gpt-6-luna" && local.efforts.last! == "xhigh",
-            "Fix Text supports CLI preset model and effort")
-        expect(router.decisionRequests.isEmpty, "pinned presets never ask Jev to choose a category")
+            "Fix Text supports a CLI model and effort")
     }
 
     private static func spellingReplacement() async {
@@ -235,7 +227,7 @@ struct QuickAIChatTests {
         await waitUntil { router.requests.count == 1 }
         expect(replies.isEmpty && chat.streamingReply == nil, "spelling never delivers or presents partial output")
         expect(chat.sessions == originalSessions && backgroundRows == 0, "spelling creates no conversation or chat task row")
-        expect(router.models == ["spelling-model"] && router.decisionRequests.isEmpty, "spelling preserves the command model pin")
+        expect(router.models == ["spelling-model"], "spelling preserves the command model pin")
         expect(router.requests[0].first?.content == AISpellingResponse.instructions(for: "teh") && router.searchFlags == [false], "spelling uses its plain replacement contract without web search")
         expect(router.completeReplyFlags == [true], "spelling requires a confirmed complete provider response")
         router.completeNext()
@@ -264,7 +256,7 @@ struct QuickAIChatTests {
         command.model = nil
         chat.replaceSpelling(command: command, selection: "route", completion: completion)
         await waitUntil { router.requests.count == 5 }
-        expect(router.models.last == "chosen-model" && router.decisionRequests.count == 1, "automatic spelling preserves Jev model routing")
+        expect(router.models.last == "fixture-model", "an unpinned spelling command uses the chat model")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
         router.isReady = false
@@ -551,7 +543,7 @@ struct QuickAIChatTests {
         let initialHeight = quick.bodyHeight
         expect(initialHeight < Theme.Size.panelHeight / 2, "the first send opens a compact conversation rather than maximum height")
         expect(!quick.hasReceivedReply, "sending alone does not trigger the second expansion")
-        expect(chat.messages(in: quickID).first?.text == "Quick question" && chat.waitingStatus == "Jev is choosing a model…",
+        expect(chat.messages(in: quickID).first?.text == "Quick question" && chat.waitingStatus == "Waiting for reply…",
             "the first expansion already has the submitted prompt and an accurate waiting status")
         expect(chat.currentID == quickID && chat.messages(in: palette.id) == palette.messages,
             "Quick Chat selects its session without changing historical messages")
@@ -683,60 +675,36 @@ struct QuickAIChatTests {
             "closing history on an empty composer returns to compact size")
     }
 
-    private static func routing() async {
+    private static func modelSelection() async {
         let router = OpenRouterStore()
-        router.waitsForDecision = true
         let tools = AIToolStore()
         let chat = AIChatStore(openRouter: router, localAI: LocalAIStore(), tools: tools)
         let quick = QuickAIChatController(chat: chat, tools: tools, router: router, showSettings: {})
         quick.draft = "Analyze this design"
         quick.submit()
-        await waitUntil { router.decisionRequests.count == 1 }
-        expect(chat.isChoosingModel && router.requests.isEmpty && !quick.hasReceivedReply,
-            "routing holds the shared request gate without triggering reply expansion or a model call")
-        expect(!chat.send("Competing prompt"), "routing is part of the one-request gate")
-        router.completeDecision()
         await waitUntil { router.requests.count == 1 }
-        expect(router.models == ["chosen-model"] && !chat.isChoosingModel && quick.hasReceivedReply,
-            "the configured model answers only after Jev's decision")
-        expect(chat.streamingReply?.routing == router.route, "streaming carries the selected category and model")
+        expect(router.models == ["fixture-model"] && router.searchFlags == [false] && quick.hasReceivedReply,
+            "the chosen chat model answers at once, without web search by default")
+        expect(!chat.send("Competing prompt"), "one request at a time")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
-        expect(chat.sessions.first { $0.id == quick.sessionID }?.messages.last?.routing == router.route,
-            "routing metadata persists on the owning floating conversation")
+        let session = chat.sessions.first { $0.id == quick.sessionID }
+        expect(session?.selectedModel == "fixture-model" && session?.messages.last?.legacyModel == nil,
+            "the conversation records its pair once instead of labelling replies")
 
-        router.waitsForDecision = false
+        router.webSearch = true
         chat.send("Pinned", model: "pinned-model")
         await waitUntil { router.requests.count == 2 }
-        expect(router.decisionRequests.count == 1 && router.models.last == "pinned-model" && chat.streamingReply?.routing == nil,
-            "explicit model choices bypass Jev and do not inherit previous routing metadata")
+        expect(router.models.last == "pinned-model" && router.searchFlags.last == true,
+            "an explicit model wins and the web search setting applies to every chat turn")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
 
         chat.startNewSession()
         tools.isConfigured = true
-        router.route = AIRoutingSelection(model: "fallback-model", category: nil, fallback: .unavailable)
-        chat.send("Follow up through tools")
+        chat.send("Through tools")
         await waitUntil { router.requests.count == 3 }
-        expect(router.models.last == "fallback-model" && chat.streamingReply?.routing?.fallback == .unavailable,
-            "the selected fallback also reaches the existing tool path and is labelled")
-        router.completeNext()
-        await waitUntil { !chat.isWaiting }
-        expect(router.decisionRequests.last?.map(\.content).contains("Follow up through tools") == true,
-            "new session routing uses its own prompt")
-
-        chat.startNewSession()
-        router.waitsForDecision = true
-        router.ignoresDecisionCancellation = true
-        chat.send("Cancel while deciding")
-        await waitUntil { router.decisionRequests.count == 3 }
-        chat.stop()
-        chat.send("Replacement request", model: router.chatModel)
-        await waitUntil { router.requests.count == 4 }
-        router.completeDecision()
-        try? await Task.sleep(for: .milliseconds(20))
-        expect(router.requests.count == 4 && router.models.last == router.chatModel && chat.streamingReply?.routing == nil,
-            "a late cancelled decision cannot send another request or relabel a replacement reply")
+        expect(router.models.last == "fixture-model" && router.searchFlags.last == true, "the chat pair and search setting reach the tool path")
         router.completeNext()
         await waitUntil { !chat.isWaiting }
     }

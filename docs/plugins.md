@@ -285,9 +285,9 @@ shell-command feature; do not use shell commands as an internal plugin API.
   to 35% opacity while compact and retains an opaque reading area when expanded. It is black in
   light mode and white in dark mode, with inverse text and native Regular glass. The first send
   shows the prompt at the top; live status uses stage-specific symbols and a moving text highlight.
-  Jev selection classifies each unpinned turn as Everyday, Professional or Deep Reasoning
-  and calls the user's configured model. The three mappings live in OpenRouterStore
-  and trusted settings sync; routed replies carry their selected category/model and fallback label.
+  Every turn uses the model and effort the user chose: the chat pair in Settings, or an AI
+  command's own pin. The pair and the Web Search setting live in OpenRouterStore and trusted
+  settings sync; replies carry no model label.
 - **Widgets** (`Spotter/Plugins/DashboardWidgets/`) — an always-available system feature that owns
   the launcher dashboard and is configured on one System page. It adds five square cards above the
   empty launcher — Clock, Uptime, Device Battery, Calendar and File Info — switched on or off in that
@@ -436,7 +436,7 @@ RaycastExtensions installs through its Palette screen. Each installed extension 
 dynamic Settings destination in the Raycast Extension sidebar group; these are adapter-owned pages,
 not additional native plugin registrations. Global adapter options are embedded in General.
 
-AI Chat settings expose Multiple Providers, Model Selection, Commands and individually editable MCP servers. AI commands always open Quick AI Chat and retain their custom SF Symbol in synced records. Cua is a one-time default server preset, removable like other servers; its external driver is not bundled.
+AI Chat settings expose Multiple Providers, Chat (model, effort, Web Search), Commands and individually editable MCP servers. AI commands always open Quick AI Chat and retain their custom SF Symbol in synced records. Cua is a one-time default server preset, removable like other servers; its external driver is not bundled.
 
 Translate's floating selection result supports original/translation comparison and on-demand AI word alignment. This reuses the OpenRouter key gate only when comparison is opened, without changing the Google translation request/memo policy.
 
@@ -469,6 +469,6 @@ while Define and Grammar retain their historical launcher and shortcut keys.
 AI Command editing keeps identity, prompt and execution options in separate groups. Its icon picker
 is local to the AI Chat settings editor and adds no catalog service or persistence format.
 
-AI commands can select a routing preset (Everyday, Professional or Deep Reasoning) instead of an
-explicit model or Automatic. A preset is persisted as a category reference and resolves both the
-model and effort once per invocation, including inline Fix Text; existing sessions retain their pair.
+AI commands pin an explicit model and effort or follow the chat pair (**Chat Model**). The pair is
+resolved once per invocation, including inline Fix Text; existing sessions retain their pair. A
+Jev-era category preset is migrated once to that category's configured model and effort.

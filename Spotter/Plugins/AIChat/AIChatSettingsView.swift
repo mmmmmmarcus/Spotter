@@ -35,26 +35,26 @@ struct AIChatSettingsView: View {
                 }
             }
 
-            Section("Model Selection") {
-                ForEach(AIRoutingCategory.allCases) { category in
-                    VStack(spacing: Theme.Spacing.md) {
-                        SettingsRow(title: category.title) {
-                            AIChatModelMenu(brands: openRouter.catalog,
-                                selected: openRouter.aiRouting.model(for: category),
-                                chatModel: nil, set: { model in
-                                    guard let model else { return }
-                                    var preferences = openRouter.aiRouting
-                                    preferences.setModel(model, for: category)
-                                    openRouter.setAIRouting(preferences)
-                                })
-                        }
-                        AIEffortSettingsRow(model: openRouter.aiRouting.model(for: category),
-                            effort: Binding(get: { openRouter.aiRouting.effort(for: category) }, set: { effort in
-                                var preferences = openRouter.aiRouting
-                                preferences.setEffort(effort, for: category)
-                                openRouter.setAIRouting(preferences)
-                            }))
+            Section("Chat") {
+                SettingsRow(title: "Model") {
+                    AIChatModelMenu(brands: openRouter.catalog, selected: openRouter.chatModel, chatModel: nil) { model in
+                        guard let model else { return }
+                        // A different model resets effort, since its supported levels differ.
+                        openRouter.setChatChoice(AIModelChoice(model: model,
+                            effort: model == openRouter.chatModel ? openRouter.chatEffort : nil))
                     }
+                    .accessibilityLabel("Chat model")
+                }
+                AIEffortSettingsRow(model: openRouter.chatModel, effort: Binding(
+                    get: { openRouter.chatEffort },
+                    set: { openRouter.setChatChoice(AIModelChoice(model: openRouter.chatModel, effort: $0)) }))
+                SettingsRow(title: "Web Search") {
+                    Toggle("", isOn: Binding(get: { openRouter.webSearch }, set: { openRouter.setWebSearch($0) }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .help("Every chat turn searches the web, which adds a per-request search charge")
+                        .accessibilityLabel("Web Search")
                 }
             }
 
@@ -136,28 +136,17 @@ private struct AICommandSettingsRow: View {
 /// Brand → model, two levels deep: OpenRouter publishes hundreds of models, which is a menu rather
 /// than a typed identifier. A stored model the live catalog doesn't carry stays selectable at the
 /// top, so an older or withdrawn choice is never silently rewritten. Passing a `chatModel` adds the
-/// Default row, which is what an AI command holds when it pins nothing.
+/// Chat Model row, which is what an AI command holds when it pins nothing.
 private struct AIChatModelMenu: View {
     @ObservedObject private var localAI = AppCore.shared.localAI
     let brands: [OpenRouterModelBrand]
     let selected: String?
     /// The model a nil selection resolves to, or nil for the chat model's own row (which has no default).
     let chatModel: String?
-    var defaultLabel: String? = nil
-    var preset: AIRoutingCategory? = nil
-    var choosePreset: ((AIRoutingCategory) -> Void)? = nil
     let set: (String?) -> Void
 
     var body: some View {
         Menu {
-            if let choosePreset {
-                Section("Presets") {
-                    ForEach(AIRoutingCategory.allCases) { category in
-                        Toggle(category.title, isOn: Binding(get: { preset == category },
-                            set: { picked in if picked { choosePreset(category) } }))
-                    }
-                }
-            }
             Section("On This Mac") {
                 Menu("Claude CLI") {
                     item(id: LocalAIModel.claude.id, name: "Use CLI Default")
@@ -181,9 +170,8 @@ private struct AIChatModelMenu: View {
             if let chatModel {
                 Section("Default") {
                     Toggle(
-                        defaultLabel ?? "Chat Model · \(OpenRouterModelCatalog.modelName(for: chatModel, in: brands) ?? chatModel)",
-                        isOn: Binding(
-                            get: { selected == nil && preset == nil }, set: { picked in if picked { set(nil) } }))
+                        "Chat Model · \(chatModelName(chatModel))",
+                        isOn: Binding(get: { selected == nil }, set: { picked in if picked { set(nil) } }))
                 }
             }
             if let selected, catalogLabel == nil {
@@ -217,18 +205,21 @@ private struct AIChatModelMenu: View {
     }
 
     private var label: String {
-        if let preset { return preset.title }
-        guard let selected else { return defaultLabel ?? "Default" }
+        guard let selected else { return chatModel.map { "Chat Model · \(chatModelName($0))" } ?? "Default" }
         return catalogLabel ?? selected
     }
 
-    private var usesMonospacedLabel: Bool { preset == nil && selected != nil && catalogLabel == nil }
+    private var usesMonospacedLabel: Bool { selected != nil && catalogLabel == nil }
+
+    private func chatModelName(_ model: String) -> String {
+        LocalAIModel.label(model) ?? OpenRouterModelCatalog.modelName(for: model, in: brands) ?? model
+    }
 
     private func item(id: String, name: String) -> some View {
         Toggle(
             name,
             isOn: Binding(
-                get: { preset == nil && selected == id },
+                get: { selected == id },
                 set: { picked in if picked { set(id) } }))
     }
 }
@@ -243,7 +234,6 @@ private struct AICommandEditorSheet: View {
     @State private var prompt: String
     @State private var model: String?
     @State private var effort: String?
-    @State private var preset: AIRoutingCategory?
     @State private var errorMessage: String?
 
     init(command: AICommand?) {
@@ -253,7 +243,6 @@ private struct AICommandEditorSheet: View {
         _prompt = State(initialValue: command?.prompt ?? "")
         _model = State(initialValue: command?.model)
         _effort = State(initialValue: command?.effort)
-        _preset = State(initialValue: command?.preset)
     }
 
     @State private var showsIconPicker = false
@@ -388,29 +377,14 @@ private struct AICommandEditorSheet: View {
             SettingsRow(title: "Model") {
                 AIChatModelMenu(
                     brands: openRouter.catalog, selected: model,
-                    chatModel: openRouter.chatModel,
-                    defaultLabel: "Automatic (Jev)", preset: preset, choosePreset: { category in
-                        preset = category
-                        model = nil
-                        effort = nil
-                    }, set: { selection in
-                        if model != selection || preset != nil { effort = nil }
-                        preset = nil
+                    chatModel: openRouter.chatModel) { selection in
+                        if model != selection { effort = nil }
                         model = selection
-                    })
+                    }
                     .accessibilityLabel("Command model")
             }
-            if let preset {
-                let model = openRouter.aiRouting.model(for: preset)
-                let label = LocalAIModel.label(model) ?? OpenRouterModelCatalog.label(for: model, in: openRouter.catalog) ?? model
-                let effort = openRouter.aiRouting.effort(for: preset).map(AIReasoningEffort.title) ?? "Model Default"
-                Text("\(label) · \(effort)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                AIEffortSettingsRow(model: model, effort: $effort)
-            }
+            // Following the chat model follows its effort too, so only a pinned model offers one.
+            AIEffortSettingsRow(model: model, effort: $effort)
             if let command {
                 Divider()
                 SettingsRow(title: "Shortcut") {
@@ -436,7 +410,7 @@ private struct AICommandEditorSheet: View {
         // Editing keeps the UUID, and with it the command's shortcut, favorite and ranking references.
         let draft = AICommand(
             id: command?.id ?? UUID(), name: name, prompt: prompt,
-            model: model, builtIn: command?.builtIn, symbol: symbol, effort: effort, preset: preset)
+            model: model, builtIn: command?.builtIn, symbol: symbol, effort: effort)
         do {
             if command == nil {
                 try AppCore.shared.addAICommand(draft)
