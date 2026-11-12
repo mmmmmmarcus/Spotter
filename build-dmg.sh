@@ -8,8 +8,7 @@ if [ "$#" -ne 0 ]; then
     exit 1
 fi
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-IDENTITY="Developer ID Application: Round Technology (Shanghai) Co.,Ltd (SM96W8VVK9)"
-TEAM_ID="SM96W8VVK9"
+TEAM_ID="HRG32XJ29R"
 NOTARY_PROFILE="${NOTARY_KEYCHAIN_PROFILE:-spotter-notary}"
 DERIVED="build/DerivedData"
 SCRATCH="$(mktemp -d)"
@@ -18,9 +17,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-IDENTITIES="$(security find-identity -p codesigning)"
-if ! grep -Fq "$IDENTITY" <<< "$IDENTITIES"; then
-    echo "✗ '$IDENTITY' code-signing identity not found — import it first (docs/signing.md)." >&2
+# Resolve by team id, not certificate name: the CN changes with the account name and on reissue.
+IDENTITY="$(security find-identity -v -p codesigning \
+    | sed -nE "s/.*\"(Developer ID Application: .*\(${TEAM_ID}\))\".*/\1/p" | head -1)"
+if [ -z "$IDENTITY" ]; then
+    echo "✗ No 'Developer ID Application: … ($TEAM_ID)' identity found — import it first (docs/signing.md)." >&2
     exit 1
 fi
 

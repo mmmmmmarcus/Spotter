@@ -19,6 +19,15 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
    prepare-only request remains limited to that scope.
 4. Publish only `stable`. Never ask which channel to use and never dispatch `beta`. Stable versions
    remain plain numeric `x.y.z` values; the Debug-only `SPOTTER_VERSION_SUFFIX` is never published.
+5. Signing uses Developer ID team `HRG32XJ29R`. Before dispatching, confirm `scripts/release.sh
+   context` lists `DEVELOPER_ID_P12_BASE64`, `DEVELOPER_ID_P12_PASSWORD`, `APPLE_NOTARY_APPLE_ID`
+   and `APPLE_NOTARY_PASSWORD`, and that the stored certificate and notary account belong to that
+   team. The workflow asserts the built app's `TeamIdentifier`, so a certificate from another team
+   fails the build rather than publishing something unexpected. Never print secret values. Treat a
+   certificate or notary account that does not match as a blocker; it cannot be worked around here.
+6. `DEVELOPER_ID_PROFILE_BASE64_STABLE` and `_BETA` are obsolete. Releases carry no restricted
+   entitlements and embed no provisioning profile, so delete those secrets rather than refreshing
+   them, and do not reintroduce profile handling into the workflow.
 
 ## Manage the version
 
@@ -48,6 +57,11 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
    workflow publishes through `--notes-file` and verifies the uploaded body before leaving draft.
 5. After publication, verify the public release body matches the committed notes as part of the
    release audit. A release is incomplete if its notes are missing or describe the wrong version.
+6. The first stable release signed by `HRG32XJ29R` changes the designated requirement, so the in-app
+   updater correctly refuses it. Its notes must tell existing users to install that version from the
+   DMG once and to re-grant Accessibility, Input Monitoring, Screen Recording and Full Disk Access,
+   which macOS keys to the signing identity. See *Migrating from the former signing team* in
+   `docs/signing.md`. Later releases from the same team update in place normally.
 
 ## Validate
 
@@ -61,7 +75,8 @@ this phase is the only gate.
 3. Run `scripts/release.sh prepare <version>`. It executes every standalone harness with four bounded
    workers, validates version mirrors and runs website lint/build only for website changes beyond the
    checked version fallback. Do not replace this full gate with change-selected tests.
-4. Complete a Debug `xcodebuild` build into a scratch `-derivedDataPath`. `prepare` compiles the
+4. Complete a Debug `xcodebuild` build with `-derivedDataPath build/LocalInstallDerivedData`, the
+   shared install folder, never a new per-release path (`AGENTS.md`). `prepare` compiles the
    standalone harnesses but never the app itself, so this is the only check that catches a broken
    build before it is published.
 5. Review the final diff after preparation and before committing.
@@ -80,9 +95,13 @@ this phase is the only gate.
 
 Only for an explicitly requested local Developer ID artifact, read `docs/development.md` and
 `docs/signing.md` completely, verify the Developer ID identity and `spotter-notary` keychain profile,
-then run `./build-dmg.sh`. Confirm version, Team ID `SM96W8VVK9`, Hardened Runtime, timestamp,
-stapled tickets, Gatekeeper, filenames and SHA-256. Install only when explicitly requested or required
+then run `./build-dmg.sh`, which takes no arguments and resolves the Developer ID from the keychain
+by Team ID. Confirm version, Team ID `HRG32XJ29R`, Hardened Runtime, timestamp, stapled tickets,
+Gatekeeper, filenames and SHA-256. A Release build embeds no provisioning profile, so do not look
+for one. Install only when explicitly requested or required
 by project instructions, replacing exactly `/Applications/Spotter.app` after checks pass.
+`./build-dmg.sh` reuses `build/DerivedData` and writes the DMG to `build/`; once the artifact is
+handed over, run `scripts/clean-build.sh` so superseded DMGs and any stray build folders don't pile up.
 
 ## Audit an existing release
 

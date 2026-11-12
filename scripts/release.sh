@@ -216,7 +216,7 @@ verify_signature() {
     codesign --verify --deep --strict --verbose=2 "$app"
     signature="$(codesign -dv --verbose=4 "$app" 2>&1)"
     team="$(sed -n 's/^TeamIdentifier=//p' <<< "$signature")"
-    [ "$team" = "SM96W8VVK9" ] \
+    [ "$team" = "HRG32XJ29R" ] \
         || { echo "✗ $app has unexpected TeamIdentifier ${team:-none}." >&2; return 1; }
     grep -q 'flags=.*runtime' <<< "$signature" \
         || { echo "✗ $app is missing Hardened Runtime." >&2; return 1; }
@@ -320,7 +320,7 @@ run_audit() {
     codesign --verify --strict --verbose=2 "$dmg"
     signature="$(codesign -dv --verbose=4 "$dmg" 2>&1)"
     team="$(sed -n 's/^TeamIdentifier=//p' <<< "$signature")"
-    [ "$team" = "SM96W8VVK9" ] || { echo "✗ DMG has unexpected TeamIdentifier." >&2; exit 1; }
+    [ "$team" = "HRG32XJ29R" ] || { echo "✗ DMG has unexpected TeamIdentifier." >&2; exit 1; }
     grep -q '^Timestamp=' <<< "$signature" || { echo "✗ DMG is missing a secure timestamp." >&2; exit 1; }
     xcrun stapler validate "$dmg"
     spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"

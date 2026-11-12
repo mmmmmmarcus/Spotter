@@ -118,7 +118,7 @@ jobs:
           xcodebuild -project Spotter.xcodeproj -scheme Spotter -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="SM96W8VVK9" ENABLE_HARDENED_RUNTIME=YES \
+            DEVELOPMENT_TEAM="HRG32XJ29R" ENABLE_HARDENED_RUNTIME=YES \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             PRODUCT_NAME="$DISPLAY_NAME" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
@@ -134,8 +134,8 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           SIGNATURE_INFO="$(codesign -dv --verbose=4 "$APP" 2>&1)"
           TEAM="$(sed -n 's/^TeamIdentifier=//p' <<< "$SIGNATURE_INFO")"
-          if [ "$TEAM" != "SM96W8VVK9" ]; then
-            echo "::error::Expected TeamIdentifier SM96W8VVK9, found ${TEAM:-none}."
+          if [ "$TEAM" != "HRG32XJ29R" ]; then
+            echo "::error::Expected TeamIdentifier HRG32XJ29R, found ${TEAM:-none}."
             exit 1
           fi
           if ! grep -q 'flags=.*runtime' <<< "$SIGNATURE_INFO"; then
@@ -144,7 +144,7 @@ jobs:
           fi
           ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/app-notarization.zip"
           xcrun notarytool submit "$RUNNER_TEMP/app-notarization.zip" \
-            --apple-id "$APPLE_ID" --team-id "SM96W8VVK9" --password "$APP_PASSWORD" --wait
+            --apple-id "$APPLE_ID" --team-id "HRG32XJ29R" --password "$APP_PASSWORD" --wait
           xcrun stapler staple "$APP"
           xcrun stapler validate "$APP"
           spctl --assess --type execute --verbose=2 "$APP"
@@ -169,7 +169,7 @@ jobs:
           APP_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
         run: |
           xcrun notarytool submit "dist/${DMG_FILE}" \
-            --apple-id "$APPLE_ID" --team-id "SM96W8VVK9" --password "$APP_PASSWORD" --wait
+            --apple-id "$APPLE_ID" --team-id "HRG32XJ29R" --password "$APP_PASSWORD" --wait
           xcrun stapler staple "dist/${DMG_FILE}"
           xcrun stapler validate "dist/${DMG_FILE}"
           spctl --assess --type open --context context:primary-signature --verbose=2 "dist/${DMG_FILE}"
