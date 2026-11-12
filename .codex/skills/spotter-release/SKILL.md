@@ -19,7 +19,7 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
    prepare-only request remains limited to that scope.
 4. Publish only `stable`. Never ask which channel to use and never dispatch `beta`. Stable versions
    remain plain numeric `x.y.z` values; the Debug-only `SPOTTER_VERSION_SUFFIX` is never published.
-5. Signing uses Developer ID team `HRG32XJ29R`. Before dispatching, confirm `scripts/release.sh
+5. Signing uses Developer ID team `Q9MD524YL5`. Before dispatching, confirm `scripts/release.sh
    context` lists `DEVELOPER_ID_P12_BASE64`, `DEVELOPER_ID_P12_PASSWORD`, `APPLE_NOTARY_APPLE_ID`
    and `APPLE_NOTARY_PASSWORD`, and that the stored certificate and notary account belong to that
    team. The workflow asserts the built app's `TeamIdentifier`, so a certificate from another team
@@ -57,7 +57,7 @@ website fallback synchronized, and never pass an ad hoc version to the build or 
    workflow publishes through `--notes-file` and verifies the uploaded body before leaving draft.
 5. After publication, verify the public release body matches the committed notes as part of the
    release audit. A release is incomplete if its notes are missing or describe the wrong version.
-6. The first stable release signed by `HRG32XJ29R` changes the designated requirement, so the in-app
+6. The first stable release signed by `Q9MD524YL5` changes the designated requirement, so the in-app
    updater correctly refuses it. Its notes must tell existing users to install that version from the
    DMG once and to re-grant Accessibility, Input Monitoring, Screen Recording and Full Disk Access,
    which macOS keys to the signing identity. See *Migrating from the former signing team* in
@@ -96,7 +96,7 @@ this phase is the only gate.
 Only for an explicitly requested local Developer ID artifact, read `docs/development.md` and
 `docs/signing.md` completely, verify the Developer ID identity and `spotter-notary` keychain profile,
 then run `./build-dmg.sh`, which takes no arguments and resolves the Developer ID from the keychain
-by Team ID. Confirm version, Team ID `HRG32XJ29R`, Hardened Runtime, timestamp, stapled tickets,
+by Team ID. Confirm version, Team ID `Q9MD524YL5`, Hardened Runtime, timestamp, stapled tickets,
 Gatekeeper, filenames and SHA-256. A Release build embeds no provisioning profile, so do not look
 for one. Install only when explicitly requested or required
 by project instructions, replacing exactly `/Applications/Spotter.app` after checks pass.

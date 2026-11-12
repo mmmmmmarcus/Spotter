@@ -8,7 +8,7 @@ if [ "$#" -ne 0 ]; then
     exit 1
 fi
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-TEAM_ID="HRG32XJ29R"
+TEAM_ID="Q9MD524YL5"
 NOTARY_PROFILE="${NOTARY_KEYCHAIN_PROFILE:-spotter-notary}"
 DERIVED="build/DerivedData"
 SCRATCH="$(mktemp -d)"

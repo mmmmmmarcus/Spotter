@@ -11,11 +11,11 @@ settings:
     MARKETING_VERSION: "1.7.36"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
-    DEVELOPMENT_TEAM: HRG32XJ29R
+    DEVELOPMENT_TEAM: Q9MD524YL5
     CODE_SIGN_STYLE: Manual
     # Debug signs with the same Developer ID as releases, so TCC grants (Full Disk Access,
     # Accessibility, Input Monitoring) survive dev↔stable swaps — macOS keys them to the signing
-    # identity, and flipping identities resets every grant. On a machine without the company
+    # identity, and flipping identities resets every grant. On a machine without the Developer ID
     # certificate, fall back to the self-signed identity — see docs/signing.md.
     CODE_SIGN_IDENTITY: "Developer ID Application"
     ENABLE_HARDENED_RUNTIME: NO
@@ -25,8 +25,8 @@ settings:
       # Dev and stable share one base version; only the locally installed build gets the suffix.
       SPOTTER_VERSION_SUFFIX: "-dev"
     Release:
-      # Public releases use the company Developer ID so Gatekeeper and notarization accept them.
-      DEVELOPMENT_TEAM: HRG32XJ29R
+      # Public releases use the personal Developer ID so Gatekeeper and notarization accept them.
+      DEVELOPMENT_TEAM: Q9MD524YL5
       CODE_SIGN_IDENTITY: "Developer ID Application"
       ENABLE_HARDENED_RUNTIME: YES
       OTHER_CODE_SIGN_FLAGS: "--timestamp"

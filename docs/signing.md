@@ -3,7 +3,7 @@
 Spotter signs everything with one identity where possible:
 
 - Ordinary Debug builds are local `-dev` versions signed with the same
-  `Developer ID Application: … (HRG32XJ29R)` identity releases
+  `Developer ID Application: … (Q9MD524YL5)` identity releases
   use. macOS keys TCC grants (Full Disk Access, Accessibility, Input Monitoring) to the signing
   requirements, so sharing a compatible designated requirement avoids identity changes during
   rebuilds and dev↔stable swaps of `/Applications/Spotter.app`. This is not a guarantee of TCC
@@ -50,7 +50,7 @@ Developer ID certificate and its private key. Import it into the login keychain,
 
 ```sh
 security find-identity -v -p codesigning \
-  | grep "Developer ID Application" | grep "(HRG32XJ29R)"
+  | grep "Developer ID Application" | grep "(Q9MD524YL5)"
 ```
 
 Do not import a `.cer` alone: it has no private key and cannot sign builds. The certificate is a
@@ -77,13 +77,13 @@ Accessibility and Input Monitoring, because macOS keys TCC grants to the signing
 ## 4. Configure local notarization
 
 Create a dedicated app-specific password named `Spotter Notarization` for an Apple Account that can
-notarize software for team `HRG32XJ29R`. Store it in the login keychain under the profile name used
+notarize software for team `Q9MD524YL5`. Store it in the login keychain under the profile name used
 by `build-dmg.sh`:
 
 ```sh
 xcrun notarytool store-credentials "spotter-notary" \
   --apple-id "<APPLE_ACCOUNT_EMAIL>" \
-  --team-id "HRG32XJ29R"
+  --team-id "Q9MD524YL5"
 ```
 
 Enter the app-specific password at the secure prompt. Do not pass it as a command-line argument,
@@ -116,7 +116,7 @@ openssl pkcs12 -in DeveloperID.p12 -passin stdin -nokeys -legacy \
   | openssl x509 -noout -subject
 ```
 
-The subject must contain `UID=HRG32XJ29R`. Configure these repository secrets under
+The subject must contain `UID=Q9MD524YL5`. Configure these repository secrets under
 **Settings → Secrets and variables → Actions**:
 
 | Secret | Value |
@@ -150,7 +150,7 @@ spctl --assess --type execute --verbose=2 "/Applications/Spotter.app"
 xcrun stapler validate "/Applications/Spotter.app"
 ```
 
-The detailed signature must show `TeamIdentifier=HRG32XJ29R` and the `runtime` flag. A Release build
+The detailed signature must show `TeamIdentifier=Q9MD524YL5` and the `runtime` flag. A Release build
 embeds no provisioning profile, so `Contents/embedded.provisionprofile` must be absent and the
 entitlements must not mention iCloud. Gatekeeper must report an accepted Developer ID origin, and
 `stapler` must validate the attached ticket.
@@ -178,13 +178,13 @@ the new identity. Later `com.spotter.app1` releases update in place normally.
 ## Migrating from the former signing team
 
 Releases through 1.7.36 were signed by `Developer ID Application: Round Technology (Shanghai)
-Co.,Ltd (SM96W8VVK9)`. Signing moved to team `HRG32XJ29R`, which changes the designated requirement,
+Co.,Ltd (SM96W8VVK9)`. Signing moved to team `Q9MD524YL5`, which changes the designated requirement,
 so the first release from the new team requires a manual DMG installation: `UpdateStore` correctly
 refuses a bundle that no longer satisfies the running app's requirement. Announce it the way 1.4.0
 and the `com.spotter.app1` rename were announced. The bundle identifier does not change, so
 preferences, clipboard history and Notes are untouched; macOS keys TCC grants to the signing
 identity, so Accessibility, Input Monitoring, Screen Recording and Full Disk Access must be granted
-once more. Later releases from `HRG32XJ29R` update in place normally.
+once more. Later releases from `Q9MD524YL5` update in place normally.
 
 The same break applies to the local dev install, once. `scripts/install-dev.sh` compares the new
 build against the installed bundle's designated requirement and refuses a mismatch, which is exactly
