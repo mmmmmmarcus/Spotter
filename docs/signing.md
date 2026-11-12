@@ -137,6 +137,11 @@ into an ephemeral keychain and fails before publishing if signing or notarizatio
 not pass. Changing or resetting the Apple Account's primary password revokes all app-specific
 passwords, so `APPLE_NOTARY_PASSWORD` must then be replaced before the next release.
 
+If you build the `.p12` with OpenSSL instead of exporting it from Keychain Access, pass
+`-keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1`. OpenSSL 3 otherwise writes a
+SHA-256 MAC that `security import` cannot verify, and both macOS and the CI runner report that
+as a wrong password rather than an unsupported algorithm.
+
 ## 6. Verify a release manually
 
 The build scripts run these checks automatically; they are also useful when inspecting a downloaded
