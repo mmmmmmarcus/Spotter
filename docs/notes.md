@@ -362,11 +362,22 @@ toggle without ever touching the user's file.
 product cannot reach them (owner decision, Sep 2026). Settings has no switch and no consent sheet,
 `AppCore` constructs the manager and never calls `start()`, and a trusted v3 backup carrying the old
 `iCloudSyncEnabled: true` no longer does anything: the field is neither written nor read, so the key
-is ignored on decode and cannot start CloudKit. Reconnecting the feature means restoring an entry
-point — a Settings switch and a `start()` call — not rewriting the engine. The CloudKit
-entitlement/provisioning arrangement (Developer ID profiles for `iCloud.com.spotter.app`, the
-self-signed Debug build's lack of an entitlement, `scripts/install-cloud-dev.sh`) is release plumbing
-and is left alone.
+is ignored on decode and cannot start CloudKit.
+
+The entitlements went with it (owner decision, Nov 2026). `Spotter.Release.entitlements` no longer
+declares the `iCloud.com.spotter.app` container, the CloudKit service or `aps-environment`, so a
+Release build signs with the Developer ID certificate alone and embeds no provisioning profile;
+`build-dmg.sh` and `.github/workflows/release.yml` dropped their profile handling with it. Removing
+them is runtime-inert because `NoteSyncManager.init` creates no `CKContainer` — the engine is
+allocated only inside the `start()` that nothing calls — and the sole observable effect is that
+`NoteCloudCapability.stateFileName` loses its environment infix for a file the retired engine never
+writes.
+
+So reconnecting the feature is no longer just an entry point. It means re-registering an explicit
+App ID and iCloud container, issuing Developer ID and Apple Development profiles for them,
+restoring the entitlements, and restoring the profile verification in both the local script and the
+CI workflow. No surface in the repository carries that arrangement any more: the Apple Development
+CloudKit installer and its entitlements file were removed alongside the Release entitlements.
 
 ## Editor
 

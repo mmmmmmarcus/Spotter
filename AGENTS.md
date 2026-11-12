@@ -28,6 +28,11 @@ builds with the **Xcode 26** toolchain.
   exact reason; dev installs get no exemption. Waiting for a real quit is part of the contract too:
   a killed process can lose preferences it has just written. Never delete the working installed copy
   before a new build succeeds, and never target anything broader than the exact Spotter app bundle.
+- **Reuse the shared build folders; don't mint new ones.** Local builds go to
+  `build/LocalInstallDerivedData` (install) or `build/DerivedData` (editor/F5); `build/SemanticHelper`
+  belongs to its script. Each new `-derivedDataPath` is a full 260–750 MB
+  cold build that nothing reclaims. A session that genuinely needs its own path (a parallel build) must
+  delete it when it finishes. `scripts/clean-build.sh` removes everything else under `build/`.
 - **Release is the only exception.** When the user explicitly requests a Release build, follow the
   documented release/signing/DMG workflow and preserve its requested channel, product name, bundle
   identifier, output location, and launch behavior.
@@ -288,8 +293,16 @@ Never break these without an explicit task to do so.
   `NoteCloudSyncEngine`) is retired but kept whole and compiling (owner decision, Sep 2026): it has
   no Settings switch, `AppCore` constructs it and never calls `start()`, and its consent flag no
   longer rides the backup — a v3 file carrying `iCloudSyncEnabled: true` is ignored on decode and can
-  never start it. Restoring it means restoring an entry point, not rewriting the engine, so leave
-  both files and the CloudKit entitlement/provisioning arrangement alone.
+  never start it. **Its entitlements left the Release build (owner decision, Nov 2026):**
+  `Spotter.Release.entitlements` declares no iCloud container, CloudKit service or
+  `aps-environment`, so a Release build signs with the Developer ID certificate alone, embeds no
+  provisioning profile, and needs no registered App ID — which is why `build-dmg.sh` takes no
+  profile argument and the release workflow stores no profile secret. Leave both engine files whole
+  and compiling, but reconnecting the feature is no longer just an entry point: it means
+  re-registering an explicit App ID and iCloud container, issuing Developer ID and Apple
+  Development profiles, and restoring both the entitlements and the pipeline's profile
+  verification. The Apple Development CloudKit installer that exercised it went at the same time,
+  so no surface in the repository carries that arrangement.
 - **Plugins are native compile-time modules, and every one of them is always on.** Every built-in
   plugin owns one `Spotter/Plugins/<Name>/` directory and one registration factory. Do not add
   runtime-loaded bundles, reflection-based discovery or a second built-in plugin registry.

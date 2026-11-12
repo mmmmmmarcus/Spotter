@@ -57,44 +57,23 @@ Do not import a `.cer` alone: it has no private key and cannot sign builds. The 
 company credential; transfer it only through an approved secure channel and keep an encrypted
 backup under the certificate owner's control.
 
-## 3. Configure CloudKit and Developer ID profiles
+## 3. Release builds carry no restricted entitlements
 
-Notes sync uses the production private database in `iCloud.com.spotter.app`. In Certificates,
-Identifiers & Profiles:
+A Release build signs with the Developer ID certificate alone: no App ID registration, no iCloud
+container and no provisioning profile. `Spotter/Spotter.Release.entitlements` declares only
+`allow-jit`, sandbox-off and the calendars entitlement, and Apple gates none of those behind a
+profile. So `./build-dmg.sh` takes no profile argument, the CI workflow stores no profile secret, and
+the signed app embeds no `embedded.provisionprofile`.
 
-1. Create that iCloud container and enable CloudKit.
-2. Enable iCloud/CloudKit and Push Notifications for both `com.spotter.app1` and
-   `com.spotter.app1.beta`, associating both App IDs with the shared container.
-3. Create one Developer ID provisioning profile for each App ID with those capabilities, then
-   download both profiles. A certificate alone cannot authorize these restricted entitlements.
-4. Exercise the development environment with an Apple Development-signed scratch build, then deploy
-   the `SpotterNote` record schema to Production in CloudKit Console before publishing. The record
-   uses encrypted `content`, `createdAt`, `updatedAt` and `deletedAt` fields in the `SpotterNotes`
-   custom zone.
+Notes' CloudKit pipeline is retired and its entitlements left the Release build with it (owner
+decision, Nov 2026). The Apple Development CloudKit installer that exercised it went at the same
+time, so nothing in the repository registers an App ID or an iCloud container any more, and no build
+embeds a provisioning profile. Reconnecting the feature would mean registering all of that again and
+restoring both the entitlements and the pipeline's profile verification. See AGENTS.md and
+[`notes.md`](notes.md).
 
-For a local stable release, pass the downloaded stable profile to the release script:
-
-```sh
-SPOTTER_DEVELOPER_ID_PROFILE=/secure/path/Spotter.provisionprofile ./build-dmg.sh
-```
-
-The script verifies the team, stable App ID and shared container before temporarily installing the
-profile for `xcodebuild`; it then verifies that the finished app embeds both the profile and CloudKit
-entitlement. The self-signed Debug configuration intentionally continues using
-`Spotter/Spotter.entitlements` without CloudKit so its stable local TCC identity is unchanged.
-
-An installed development-environment build uses the checked-in
-`Spotter/Spotter.Development.entitlements` through:
-
-```sh
-scripts/install-cloud-dev.sh
-```
-
-The installer selects a matching development profile from Xcode's provisioning-profile directory,
-builds with the current team's Apple Development identity, verifies the Development CloudKit and push
-entitlements, then replaces only `/Applications/Spotter.app`. Development and Production CloudKit
-engine state files are separate. Switching between Apple Development, self-signed Debug and Developer
-ID signatures may require re-granting Accessibility and Input Monitoring.
+Switching between Developer ID, Apple Development and self-signed signatures may require re-granting
+Accessibility and Input Monitoring, because macOS keys TCC grants to the signing identity.
 
 ## 4. Configure local notarization
 
@@ -116,7 +95,7 @@ Runtime verification, app notarization and stapling, DMG signing, DMG notarizati
 Gatekeeper checks.
 
 ```sh
-SPOTTER_DEVELOPER_ID_PROFILE=/secure/path/Spotter.provisionprofile ./build-dmg.sh
+./build-dmg.sh
 ```
 
 Set the release version in `project.yml`; the script deliberately rejects command-line version
@@ -145,17 +124,13 @@ The subject must contain `UID=SM96W8VVK9`. Configure these repository secrets un
 | --- | --- |
 | `DEVELOPER_ID_P12_BASE64` | Base64 of the selected `.p12` |
 | `DEVELOPER_ID_P12_PASSWORD` | Password used when exporting the `.p12` |
-| `DEVELOPER_ID_PROFILE_BASE64_STABLE` | Base64 of the Developer ID profile for `com.spotter.app1` |
-| `DEVELOPER_ID_PROFILE_BASE64_BETA` | Base64 of the Developer ID profile for `com.spotter.app1.beta` |
 | `APPLE_NOTARY_APPLE_ID` | Apple Account email used for notarization |
 | `APPLE_NOTARY_PASSWORD` | Dedicated app-specific password |
 
-Base64-encode the `.p12` and both provisioning profiles without line wrapping before pasting them:
+Base64-encode the `.p12` without line wrapping before pasting it:
 
 ```sh
 base64 -i DeveloperID.p12 | tr -d '\n' > DeveloperID.p12.base64
-base64 -i Spotter.provisionprofile | tr -d '\n' > Spotter.provisionprofile.base64
-base64 -i SpotterBeta.provisionprofile | tr -d '\n' > SpotterBeta.provisionprofile.base64
 ```
 
 Delete the temporary base64 file after the secrets are saved. GitHub Actions imports the certificate
@@ -176,9 +151,10 @@ spctl --assess --type execute --verbose=2 "/Applications/Spotter.app"
 xcrun stapler validate "/Applications/Spotter.app"
 ```
 
-The detailed signature must show `TeamIdentifier=SM96W8VVK9` and the `runtime` flag; entitlements must
-contain `iCloud.com.spotter.app`, and `Contents/embedded.provisionprofile` must exist. Gatekeeper must
-report an accepted Developer ID origin, and `stapler` must validate the attached ticket.
+The detailed signature must show `TeamIdentifier=SM96W8VVK9` and the `runtime` flag. A Release build
+embeds no provisioning profile, so `Contents/embedded.provisionprofile` must be absent and the
+entitlements must not mention iCloud. Gatekeeper must report an accepted Developer ID origin, and
+`stapler` must validate the attached ticket.
 
 ## Migrating installations older than 1.4.0
 

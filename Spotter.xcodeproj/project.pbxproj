@@ -401,7 +401,6 @@
 
 /* Begin PBXFileReference section */
 		00102833B5166EE72E545325 /* CalcUnits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcUnits.swift; sourceTree = "<group>"; };
-		007082D30D0354BCC8624DD7 /* Spotter.Development.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Spotter.Development.entitlements; sourceTree = "<group>"; };
 		0079A10D327A9D88CB8A377B /* ExtensionFormField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionFormField.swift; sourceTree = "<group>"; };
 		00CD47AF9FA506021B7FBDD4 /* SFSymbolBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFSymbolBrowserView.swift; sourceTree = "<group>"; };
 		0177398BAB230AE2E9BACDAE /* PaletteWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteWindowController.swift; sourceTree = "<group>"; };
@@ -808,7 +807,6 @@
 				A3D38D12477944D6BC5711D8 /* Resources */,
 				183A61AFFD4D20BA651DBEDF /* Assets.xcassets */,
 				1248EC2C08BF2B00A8C27E0A /* Info.plist */,
-				007082D30D0354BCC8624DD7 /* Spotter.Development.entitlements */,
 				802A2F4849B13621F7B9FCCD /* Spotter.entitlements */,
 				8ACF532BE2B264ADE83FCBBC /* spotter.icon */,
 				3690B9946BB7EF706ADFF846 /* Spotter.Release.entitlements */,
