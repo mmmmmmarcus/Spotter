@@ -37,6 +37,15 @@ builds with the **Xcode 26** toolchain.
   documented release/signing/DMG workflow and preserve its requested channel, product name, bundle
   identifier, output location, and launch behavior.
 - Anything newly persisted must stay keyed by `Bundle.main.bundleIdentifier`.
+- **The iOS app is a second target, and it is Notes only.** `SpotterNotes` (bundle id
+  `com.spotter.app1.ios`, iOS 26+, iPhone and iPad) lives in `SpotterNotes/` and compiles the *same*
+  Foundation-only Notes sources as the Mac target — never a copy or a fork of sync logic. It joins
+  the Mac's Notes folder through the system folder picker and a security-scoped bookmark: no
+  CloudKit, no iCloud entitlement, no network code, nothing else from Spotter. It signs automatically
+  with Apple Development (the project's Developer ID settings cannot sign an iOS app), carries its
+  own `CURRENT_PROJECT_VERSION`, and is not part of the Mac install contract above — an iOS build is
+  never installed anywhere by a script. The `Spotter` scheme and `release.yml` build only the Mac
+  app. See [`docs/ios-notes.md`](docs/ios-notes.md).
 - **Tests:** no XCTest target — standalone `swiftc` harnesses in `Tools/` (see Critical Invariants and
   `docs/development.md`).
 
@@ -123,7 +132,13 @@ Never break these without an explicit task to do so.
   `Plugins/Note/NoteFolderIO.swift` stays Foundation with no app source, all for
   `Tools/note-test.swift` — the Notes folder's front-matter format, naming scheme, collision rule and
   whole reconciliation live in `NoteFolderDocument.swift` so the harness can exercise them, including
-  the hostile files, against real temporary directories,
+  the hostile files, against real temporary directories. Those five files, `NoteFolderSyncManager.swift`,
+  `Core/AppLog.swift` and `Core/Backup/SettingsSyncFile.swift` are also compiled into the iOS target,
+  so none of them may import AppKit, UIKit or SwiftUI, and a platform difference goes in as an
+  injected dependency whose default is the Mac's behaviour — `NoteFolderLocation` (path on the Mac,
+  security-scoped bookmark on iOS), `NoteFolderIO`'s `trash`, and the status wording's `device` are
+  the three that exist — never as a second code path. `SpotterNotes/NoteInputRules.swift` stays
+  Foundation-only and pure for `Tools/note-ios-test.swift`,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for
   `Tools/quicklink-test.swift`, `Plugins/AIChat/AIChatTypes.swift`,
@@ -445,7 +460,10 @@ Never break these without an explicit task to do so.
   title state — do not restore either. Reads, writes, moves and deletions all go through `NSFileCoordinator`, writes are
   atomic, and a write pass revalidates its scan before changing files. Explicit deletions go to the
   Trash and a Trash failure never falls back to permanent deletion; verified redundant copies are
-  removed directly. Empty H1 drafts never create sync files. **The first reconcile after a folder is adopted is
+  removed directly. A folder whose volume has no Trash at all — iOS outside a file provider, signalled
+  only by the iOS `trash` throwing `NoteFolderIO.TrashUnavailable` — is not a failed Trash: the
+  tombstone is already in the ledger, the file is left untouched and reported, and the pass
+  completes; it is still never deleted outright, and the Mac's `trash` never throws it. Empty H1 drafts never create sync files. **The first reconcile after a folder is adopted is
   deliberately not that merge**, and the asymmetry is an owner decision (Sep 2026): that pass keeps
   *both* texts when one id diverges, forking the loser to a fresh id, because it runs once per Mac
   over timestamps that were never comparable across machines and a silent winner there is an
@@ -488,6 +506,8 @@ Never break these without an explicit task to do so.
 - `Spotter/Features/` — shared/system SwiftUI views: `RootPaletteView`, `Launcher/`, `Calculator/`,
   `Settings/`, `About/`, `Onboarding/`, plus shared `PopoverMenu`.
 - `Spotter/App/` — `@main` app + delegate.
+- `SpotterNotes/` — the iOS Notes app: its SwiftUI screens, the `UITextView` editor, its pure input
+  rules and `NotesTheme.swift`, the one place iOS colours live (`Core/Theme.swift` is AppKit-bound).
 - `Tools/` — standalone test harnesses and the emoji generator.
 - `scripts/release-preflight.sh` — version-mirror and publication prerequisite validation.
 - `.claude/skills/` and `.codex/skills/` — the tracked `spotter-plugin` (all built-in plugin
@@ -520,6 +540,8 @@ Never break these without an explicit task to do so.
 - [`docs/development.md`](docs/development.md) — build, test, package, release.
 - [`docs/signing.md`](docs/signing.md) — signing model and Gatekeeper.
 - [`docs/updates.md`](docs/updates.md) — updater channels, consent, trust and installation flow.
+- [`docs/ios-notes.md`](docs/ios-notes.md) — the iOS Notes target: shared sources, the bookmark and
+  lifecycle seam, deletion and download behaviour, build and signing.
 
 - **Quick Translate word matching (owner decision, Oct 2026):** opening original/translation comparison may send bounded word arrays to Gemini 2.5 Flash-Lite through the existing OpenRouter key gate, with no additional toggle. Ordinary translation and hovering do not request alignment. Successful mappings are panel-local, dismissal cancels work, and malformed/unavailable matches never become positional guesses. `TranslationWordAlignment.swift` uses Foundation + NaturalLanguage and is tested with real Unicode offsets.
 

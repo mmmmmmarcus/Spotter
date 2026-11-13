@@ -93,6 +93,37 @@ single `type: file` entry in the resources phase — without that XcodeGen regis
 loose resources, `actool` never compiles the icon, and the app ships with the generic placeholder
 (no `CFBundleIconName` at all). `ASSETCATALOG_COMPILER_APPICON_NAME: spotter` resolves it.
 
+### iOS Notes app
+
+`SpotterNotes` is a second target in the same project: the Notes feature alone, for iPhone and iPad,
+compiled from the same Foundation-only Notes sources as the Mac. Everything about it is in
+[ios-notes.md](ios-notes.md).
+
+```sh
+# Simulator build; the named device needs an installed iOS 26+ simulator runtime.
+xcodebuild -project Spotter.xcodeproj -scheme SpotterNotes -configuration Debug \
+    -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+    -derivedDataPath build/DerivedData build
+
+# Compile for any simulator when no matching runtime is installed.
+xcodebuild -project Spotter.xcodeproj -scheme SpotterNotes -configuration Debug \
+    -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData build
+
+# Unsigned Release, to prove the archive configuration compiles.
+xcodebuild -project Spotter.xcodeproj -scheme SpotterNotes -configuration Release \
+    -destination 'generic/platform=iOS' -derivedDataPath build/DerivedData \
+    CODE_SIGNING_ALLOWED=NO build
+```
+
+`xcodebuild` checks a simulator against the target's iOS 26.0 deployment target before it reads
+command-line overrides, so an older runtime is refused by name; `generic/platform=iOS Simulator`
+still compiles. The target overrides the project's manual Developer ID signing in both
+configurations with automatic **Apple Development** signing for team `Q9MD524YL5`, so a device build
+or an archive needs that team signed in to Xcode — which registers the `com.spotter.app1.ios` App ID
+on first use, with no capabilities and no iCloud container. It has its own `CURRENT_PROJECT_VERSION`
+for TestFlight build numbers and inherits `MARKETING_VERSION`. Nothing installs an iOS build, the
+`Spotter` scheme builds only the Mac app, and the release workflow is untouched.
+
 ### Local dev builds install as the one Spotter.app
 
 Debug builds are the **dev** channel and report the release base version with a `-dev` suffix (for
@@ -249,6 +280,11 @@ swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Core/LocalTextPasteTarg
     Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
     Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
     Tools/note-editor-test.swift -o /tmp/note-editor-test && /tmp/note-editor-test
+swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift SpotterNotes/NoteInputRules.swift \
+    Spotter/Core/Calculator/*.swift \
+    Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
+    Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
+    Tools/note-ios-test.swift -o /tmp/note-ios-test && /tmp/note-ios-test # iOS editor input rules
 swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \
     Spotter/Plugins/TextReplacement/TextReplacementStore.swift Tools/text-replacement-test.swift \
     -o /tmp/text-replacement-test && /tmp/text-replacement-test
@@ -334,6 +370,9 @@ Kill Process tests parse a fixed `ps` fixture and never signal a real process. S
 Translate pins its result ordering, its blocked-without-a-key page and the memo that keeps the same
 text from being billed twice — without making a Google request; AI Chat tests transcript windowing, its ChatGPT web-query URL, and the selected-text
 target-language and prompt logic without sending text over the network or opening a browser.
+
+The `note-ios` harness runs the iOS editor's pure input rules and accessory-bar commands on macOS,
+with the real engine and calculator and without UIKit or a simulator.
 
 The Notes harness compiles the real Foundation-only model, store, merge rules and Markdown transformer.
 It validates derived titles/previews, UTF-16 selections, formatting toggles and replacements,

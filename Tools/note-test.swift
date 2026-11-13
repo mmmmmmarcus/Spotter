@@ -1,5 +1,9 @@
 import Foundation
 
+private final class TrashAttempts: @unchecked Sendable {
+    var count = 0
+}
+
 @main
 struct NoteTests {
     @MainActor
@@ -1416,6 +1420,116 @@ struct NoteTests {
         check(
             "the cleared flag survives a relaunch too", NoteFolderPass.steady,
             NoteFolderAdoption(defaults: UserDefaults(suiteName: adoptionSuite)!).pass)
+
+        // A folder whose volume has no Trash keeps a deleted Note's file; the ledger is the deletion.
+        let noTrashFolder = directory.appendingPathComponent("no-trash", isDirectory: true)
+        try! FileManager.default.createDirectory(at: noTrashFolder, withIntermediateDirectories: true)
+        let keptNote = SpotterNote(id: nextID(), content: "# Kept\nbody", createdAt: fixedDate)
+        let goneNote = SpotterNote(id: nextID(), content: "# Gone\nbody", createdAt: fixedDate)
+        let goneName = NoteFileName.name(for: goneNote.id)
+        let goneURL = noTrashFolder.appendingPathComponent(goneName)
+        try! NoteFolderDocument.serialize(goneNote).write(to: goneURL, atomically: true, encoding: .utf8)
+        let attempts = TrashAttempts()
+        let noTrash = NoteFolderIO(trash: { _ in
+            attempts.count += 1
+            throw NoteFolderIO.TrashUnavailable()
+        })
+        let goneTombstone = NoteTombstone(id: goneNote.id, deletedAt: folderClock)
+        let noTrashLocal = NoteSyncSnapshot(notes: [keptNote], tombstones: [goneTombstone])
+        let firstNoTrash = await planFor(noTrashLocal, in: noTrashFolder)
+        check("a deletion is planned whether or not a Trash exists", NoteFolderRemoval.deleted(goneNote.id), firstNoTrash.removals[goneName])
+        var retainedNames: [String]? = nil
+        do { retainedNames = try await noTrash.apply(firstNoTrash, in: noTrashFolder) }
+        catch { failures += 1; print("FAIL a missing Trash failed the pass: \(error)") }
+        check("a missing Trash is reported, not thrown", [goneName], retainedNames)
+        check("a missing Trash never deletes the file", NoteFolderDocument.serialize(goneNote), try! String(contentsOf: goneURL, encoding: .utf8))
+        check("the tombstone still reaches the ledger", .readable([goneTombstone]), try! await io.scan(folder: noTrashFolder).ledger)
+        check("the rest of the pass is still written", NoteFolderDocument.serialize(keptNote),
+            try? String(contentsOf: noTrashFolder.appendingPathComponent(NoteFileName.name(for: keptNote.id)), encoding: .utf8))
+        let settledNoTrash = await planFor(noTrashLocal, in: noTrashFolder)
+        check("the reconciler keeps planning the removal", true, settledNoTrash.hasFileWork)
+        check("a retained file stays reported", [goneName], try! await noTrash.apply(settledNoTrash, in: noTrashFolder))
+        check("a settled deletion is not attempted again", 1, attempts.count)
+        var editedGone = goneNote
+        editedGone.content = "# Gone\nedited on a Mac that was offline"
+        editedGone.updatedAt = folderClock.addingTimeInterval(60)
+        try! NoteFolderDocument.serialize(editedGone).write(to: goneURL, atomically: true, encoding: .utf8)
+        let editedNoTrash = await planFor(noTrashLocal, in: noTrashFolder)
+        check("an edit after the deletion does not revive it", 1, editedNoTrash.snapshot.notes.count)
+        check("a changed retained file is tried again", [goneName], try! await noTrash.apply(editedNoTrash, in: noTrashFolder))
+        check("a changed retained file costs one more attempt", 2, attempts.count)
+        check("a changed retained file keeps its new bytes", NoteFolderDocument.serialize(editedGone), try! String(contentsOf: goneURL, encoding: .utf8))
+        let hardTrashFailure = NoteFolderIO(trash: { _ in throw CocoaError(.featureUnsupported) })
+        var hardFailureThrew = false
+        do { try await hardTrashFailure.apply(editedNoTrash, in: noTrashFolder) } catch { hardFailureThrew = true }
+        check("only the explicit signal relaxes a Trash failure", true, hardFailureThrew)
+        try! await io.apply(await planFor(noTrashLocal, in: noTrashFolder), in: noTrashFolder)
+        check("a device with a Trash finishes the deletion", false, FileManager.default.fileExists(atPath: goneURL.path))
+        check("nothing stays retained once the file is gone", [], try! await noTrash.apply(await planFor(noTrashLocal, in: noTrashFolder), in: noTrashFolder))
+
+        // The Mac remembers the folder as a path, iOS as a bookmark; both persist through one seam.
+        let locationSuite = "spotter-note-location-\(UUID().uuidString)"
+        let locationDefaults = UserDefaults(suiteName: locationSuite)!
+        let chosenFolder = directory.appendingPathComponent("chosen folder", isDirectory: true)
+        try! FileManager.default.createDirectory(at: chosenFolder, withIntermediateDirectories: true)
+        let unstandardized = directory.appendingPathComponent("elsewhere/../chosen folder", isDirectory: true)
+        let pathLocation = NoteFolderLocation.path(defaults: locationDefaults)
+        check("no folder is remembered at first", NoteFolderLocation.Saved.none, pathLocation.load())
+        let savedPath = try! pathLocation.save(unstandardized)
+        check("the Mac syncs with the standardized folder", unstandardized.standardizedFileURL, savedPath)
+        check("the Mac persists a path under its existing key", unstandardized.standardizedFileURL.path, locationDefaults.string(forKey: "note.folder-sync.path"))
+        check("the Mac stores no bookmark", nil, locationDefaults.data(forKey: "note.folder-sync.bookmark"))
+        check("a saved path loads back", .folder(URL(fileURLWithPath: unstandardized.standardizedFileURL.path)), pathLocation.load())
+        pathLocation.access(savedPath)()
+        pathLocation.clear()
+        check("clearing forgets the path", NoteFolderLocation.Saved.none, pathLocation.load())
+
+        func realPath(_ url: URL) -> String { url.resolvingSymlinksInPath().path }
+        func loadedPath(_ location: NoteFolderLocation) -> String? {
+            if case .folder(let url) = location.load() { return realPath(url) }
+            return nil
+        }
+        let bookmarkLocation = NoteFolderLocation.bookmark(defaults: locationDefaults)
+        check("no bookmark is remembered at first", NoteFolderLocation.Saved.none, bookmarkLocation.load())
+        let savedBookmark = try! bookmarkLocation.save(chosenFolder)
+        check("a bookmark resolves to the chosen folder", realPath(chosenFolder), realPath(savedBookmark))
+        check("iOS never writes the Mac's path key", nil, locationDefaults.string(forKey: "note.folder-sync.path"))
+        check("iOS persists a bookmark", true, locationDefaults.data(forKey: "note.folder-sync.bookmark") != nil)
+        check("a saved bookmark loads back", realPath(chosenFolder), loadedPath(bookmarkLocation))
+        check("a second reader resolves the same bookmark", realPath(chosenFolder),
+            loadedPath(.bookmark(defaults: UserDefaults(suiteName: locationSuite)!)))
+        bookmarkLocation.access(savedBookmark)()
+        let renamedFolder = directory.appendingPathComponent("renamed folder", isDirectory: true)
+        try! FileManager.default.moveItem(at: chosenFolder, to: renamedFolder)
+        check("a bookmark follows a renamed folder", realPath(renamedFolder), loadedPath(bookmarkLocation))
+        try! FileManager.default.removeItem(at: renamedFolder)
+        check("a folder that is gone is unresolvable, never no folder", .unresolvable, bookmarkLocation.load())
+        check("an unresolvable bookmark is kept for a later start", true, locationDefaults.data(forKey: "note.folder-sync.bookmark") != nil)
+        locationDefaults.set(Data("not a bookmark".utf8), forKey: "note.folder-sync.bookmark")
+        check("a corrupt bookmark is unresolvable", .unresolvable, bookmarkLocation.load())
+        var refusedMissingFolder = false
+        do { _ = try bookmarkLocation.save(renamedFolder) } catch { refusedMissingFolder = true }
+        check("a folder that cannot be bookmarked is refused", true, refusedMissingFolder)
+        bookmarkLocation.clear()
+        check("clearing forgets the bookmark", NoteFolderLocation.Saved.none, bookmarkLocation.load())
+        locationDefaults.removePersistentDomain(forName: locationSuite)
+
+        func status(error: String? = nil, connected: Bool = true, unavailable: Bool = false, working: Bool = false,
+            pending: Int = 0, synced: Date? = nil, device: String = "this Mac") -> String {
+            NoteFolderStatus.text(error: error, isConnected: connected, isUnavailable: unavailable, isWorking: working,
+                pendingDownloads: pending, lastSyncedAt: synced, device: device)
+        }
+        check("the Mac's off wording is unchanged", "Off · Notes stay on this Mac", status(connected: false))
+        check("iOS names its own device", "Off · Notes stay on this iPhone", status(connected: false, device: "this iPhone"))
+        check("a lost folder never reads as off",
+            "The Notes folder can’t be found · Notes stay on this iPad until you choose it again",
+            status(connected: false, unavailable: true, device: "this iPad"))
+        check("an error outranks every other status", "Couldn’t sync", status(error: "Couldn’t sync", working: true, pending: 2))
+        check("a running pass says so", "Syncing…", status(working: true, pending: 2))
+        check("one pending file is singular", "Waiting for 1 file to become available…", status(pending: 1))
+        check("pending files are plural", "Waiting for 3 files to become available…", status(pending: 3))
+        check("a folder not yet read is waiting", "Waiting for the folder…", status())
+        check("a finished pass is up to date", "Up to date · " + fixedDate.formatted(date: .omitted, time: .shortened), status(synced: fixedDate))
 
         // The whole folder disappearing is an error, never a set of deletions.
         try! FileManager.default.removeItem(at: folder)

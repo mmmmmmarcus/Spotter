@@ -3,9 +3,10 @@
 Notes is a native, local note-taking workspace modeled on the core experience described before the
 “Frictionless integrations” section of Raycast Notes: quick floating access, Markdown formatting,
 todos and multiple notes. It deliberately does not implement Raycast AI, snippets, quicklinks, cloud
-services, export/share targets, a separate preview mode or deleted-note recovery. Optional cross-Mac
-sync writes each Note as one Markdown file into a folder the user chooses — normally inside iCloud
-Drive, which is what carries the folder between Macs.
+services, export/share targets, a separate preview mode or deleted-note recovery. Optional
+cross-device sync writes each Note as one Markdown file into a folder the user chooses — normally
+inside iCloud Drive, which is what carries the folder between Macs and to the iOS app
+([ios-notes.md](ios-notes.md)), which joins the same folder with the same code.
 
 ## Entry points
 
@@ -163,6 +164,11 @@ a place for it, Spotter opens no network connection of its own, and the folder's
 state that never travels in a settings snapshot. Disconnecting leaves every local Note and every file
 in the folder exactly as they are.
 
+How the folder is remembered is the one thing that differs by platform, and it is injected:
+`NoteFolderLocation.path` keeps the Mac's standardized path under `note.folder-sync.path`, and
+`.bookmark` keeps iOS's security-scoped bookmark and holds its access open while the manager runs.
+A saved location that no longer resolves is its own state — `isFolderUnavailable` — never "off".
+
 CloudKit is gone from the product but not from the repo: see *Retired CloudKit pipeline* below.
 
 ### File format
@@ -243,7 +249,10 @@ Only two removals exist, and both provably keep the content: a file whose id has
 and a duplicate whose complete file bytes match the copy that stays. Explicitly deleted
 Notes go to the **Trash**. Redundant copies are removed directly after the coordinated recheck;
 ordinary edits and duplicate cleanup do not fill the Trash. If trashing fails, the file is retained
-and sync reports an error rather than falling back to permanent deletion. The tombstone ledger is
+and sync reports an error rather than falling back to permanent deletion. A folder with no Trash at
+all is a different case, and only iOS reports it: its `trash` throws `NoteFolderIO.TrashUnavailable`,
+the file is retained and counted in `retainedDeletions`, and the pass completes instead of failing
+on every attempt — see [ios-notes.md](ios-notes.md) → *Deletion*. The Mac's `trash` never throws it. The tombstone ledger is
 written before file removal so an interrupted deletion retains its intent. The whole folder being unreachable is an error that leaves both the
 Notes and the files untouched; it is never read as a folder full of deletions.
 
@@ -299,8 +308,8 @@ One Note diverged under one id — this Mac's copy and the folder's — is the s
 whenever it is found, and it has opposite right answers depending on *when*. The asymmetry is
 deliberate, and a reader who finds only the rules will read it as a bug, so here is the reasoning.
 
-**The first pass is the upgrade.** It runs exactly once per Mac, at the moment Notes that have never
-been reconciled meet a folder for the first time. Someone arriving with Notes already on two Macs —
+**The first pass is the upgrade.** It runs exactly once per device — each Mac, each iPhone or iPad —
+at the moment Notes that have never been reconciled meet a folder for the first time. Someone arriving with Notes already on two Macs —
 from the retired CloudKit pipeline, from the older JSON file, or simply from two independent
 installs — can hold one Note diverged under a single id, carrying `updatedAt` stamps that were never
 comparable across machines to begin with. Picking a winner there discards a version of the user's
@@ -333,7 +342,7 @@ it — *every* choice is an adoption, including re-picking a folder this Mac has
 picking the folder and the first pass that finished, still gets the adoption treatment on the next
 attempt. Disconnecting clears it. Nothing here consults whether the user ever had CloudKit on: that
 is unknowable on a fresh install and irrelevant to the risk, which is only ever "two copies, one id,
-timestamps you cannot trust". The flag is per-Mac and never travels in a snapshot, like the folder
+timestamps you cannot trust". The flag is per-device and never travels in a snapshot, like the folder
 path itself.
 
 ### Pipeline
@@ -582,6 +591,11 @@ relaunch) still sees the adoption, a pass whose `io.apply` throws because the fo
 it pending, and the retry — which must not fork the same divergence a second time — clears it for
 good. It never opens the floating window, contacts CloudKit, or reads real application data
 or a real iCloud Drive folder.
+
+The harness also pins the iOS seams on macOS: both `NoteFolderLocation` shapes over a real defaults
+suite and temporary folders, the status wording per device, and a folder with no Trash.
+`Tools/note-ios-test.swift` covers the iOS editor's pure input rules; see
+[ios-notes.md](ios-notes.md).
 
 `Tools/note-editor-test.swift` exercises the real AppKit editor and TextKit stack without opening a
 window or reading user data. It updates marked pinyin between model refreshes in prose, lists and

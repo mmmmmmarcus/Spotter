@@ -16,7 +16,12 @@ actor NoteFolderIO {
         }
     }
 
+    /// Thrown by an injected `trash` when the volume has no Trash at all (not when one failed): the file stays untouched and the pass continues, since the ledger's tombstone is the deletion.
+    struct TrashUnavailable: Error {}
+
     private let trash: @Sendable (URL) throws -> Void
+    /// Deleted Notes' files this folder could not trash, by name, with the bytes they held.
+    private var retained: [String: String] = [:]
 
     init(trash: @escaping @Sendable (URL) throws -> Void = { url in
         try FileManager.default.trashItem(at: url, resultingItemURL: nil)
@@ -47,11 +52,27 @@ actor NoteFolderIO {
         return try result.get()
     }
 
-    func apply(_ plan: NoteFolderPlan, in folder: URL) throws {
-        try performApply(plan, in: folder)
+    /// Returns the names of deleted Notes' files left in place because the folder has no Trash.
+    @discardableResult
+    func apply(_ plan: NoteFolderPlan, in folder: URL) throws -> [String] {
+        retained = retained.filter { name, contents in
+            guard case .deleted = plan.removals[name] else { return false }
+            return plan.observed.files.first { $0.name == name }?.contents == contents
+        }
+        let settled = Set(retained.keys)
+        // Coordinating a deletion that removes nothing still notifies the folder's watcher, so a pass with no other work stops here or it would never reach a fixpoint.
+        guard plan.ledger != nil || plan.placements.contains(where: { $0.needsMove || $0.needsWrite })
+            || plan.removals.keys.contains(where: { !settled.contains($0) })
+        else { return settled.sorted() }
+        for name in try performApply(plan, in: folder, skipping: settled) {
+            retained[name] = plan.observed.files.first { $0.name == name }?.contents
+        }
+        return retained.keys.sorted()
     }
 
-    private nonisolated func performApply(_ plan: NoteFolderPlan, in folder: URL) throws {
+    private nonisolated func performApply(
+        _ plan: NoteFolderPlan, in folder: URL, skipping settled: Set<String>
+    ) throws -> [String] {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory),
             isDirectory.boolValue
@@ -59,7 +80,7 @@ actor NoteFolderIO {
 
         let coordinator = NSFileCoordinator()
         var coordinationError: NSError?
-        var result: Result<Void, Error>?
+        var result: Result<[String], Error>?
         coordinator.prepare(forReadingItemsAt: [], options: [], writingItemsAt: [folder], options: [],
             error: &coordinationError) { finished in
             defer { finished() }
@@ -69,15 +90,20 @@ actor NoteFolderIO {
                 guard current.files.sorted(by: { $0.name < $1.name }) == expected,
                     current.ledger == plan.observed.ledger
                 else { throw Failure.changedDuringSync }
-                try applyCoordinated(plan, in: folder, coordinator: coordinator)
+                return try applyCoordinated(
+                    plan, in: folder, skipping: settled, coordinator: coordinator)
             }
         }
         if let coordinationError { throw coordinationError }
         guard let result else { throw CocoaError(.fileWriteUnknown) }
-        try result.get()
+        return try result.get()
     }
 
-    private nonisolated func applyCoordinated(_ plan: NoteFolderPlan, in folder: URL, coordinator: NSFileCoordinator) throws {
+    private nonisolated func applyCoordinated(
+        _ plan: NoteFolderPlan, in folder: URL, skipping settled: Set<String>,
+        coordinator: NSFileCoordinator
+    ) throws -> [String] {
+        var untrashable: [String] = []
         // Publish deletion intent before removing bytes, so an interrupted pass cannot resurrect them.
         if let tombstones = plan.ledger {
             let data = try NoteFolderLedger(tombstones: tombstones).encoded()
@@ -96,9 +122,14 @@ actor NoteFolderIO {
             }
             switch plan.removals[name] {
             case .deleted:
-                try coordinateWrite(url, options: .forDeleting, coordinator: coordinator) { target in
-                    try requireContents(original, at: target)
-                    try trash(target)
+                guard !settled.contains(name) else { continue }
+                do {
+                    try coordinateWrite(url, options: .forDeleting, coordinator: coordinator) { target in
+                        try requireContents(original, at: target)
+                        try trash(target)
+                    }
+                } catch is TrashUnavailable {
+                    untrashable.append(name)
                 }
             case .redundantDuplicate:
                 guard let survivor = plan.observed.files.first(where: {
@@ -122,6 +153,7 @@ actor NoteFolderIO {
             try write(placement.contents, replacing: placement.currentContents,
                 at: folder.appendingPathComponent(placement.desiredName), coordinator: coordinator)
         }
+        return untrashable
     }
 
     private nonisolated func moveFiles(_ placements: [NoteFolderPlacement], in folder: URL, coordinator: NSFileCoordinator) throws {
@@ -305,5 +337,95 @@ struct NoteFolderAdoption {
     /// leave the flag set, so the next one still keeps both sides of a divergence.
     func finish() {
         defaults.removeObject(forKey: Self.key)
+    }
+}
+
+/// How the chosen folder is remembered and its access held open: the Mac keeps a path and needs no token, iOS a security-scoped bookmark whose access stays open while the folder is in use.
+struct NoteFolderLocation {
+    enum Saved: Equatable {
+        case none
+        case folder(URL)
+        /// A folder was chosen and what was saved no longer leads to it; never read as "no folder".
+        case unresolvable
+    }
+
+    static let pathKey = "note.folder-sync.path"
+    static let bookmarkKey = "note.folder-sync.bookmark"
+
+    let load: () -> Saved
+    /// Remembers the folder and returns the URL to use for it from now on.
+    let save: (URL) throws -> URL
+    let clear: () -> Void
+    /// Opens access to the folder; the closure it returns closes that access again.
+    let access: (URL) -> () -> Void
+
+    static func path(defaults: UserDefaults) -> Self {
+        Self(
+            load: {
+                defaults.string(forKey: pathKey).map { .folder(URL(fileURLWithPath: $0)) } ?? .none
+            },
+            save: { url in
+                let folder = url.standardizedFileURL
+                defaults.set(folder.path, forKey: pathKey)
+                return folder
+            },
+            clear: { defaults.removeObject(forKey: pathKey) },
+            access: { _ in {} })
+    }
+
+    /// A bookmark that stops resolving is kept, so a provider that is not ready yet can resolve on a later start; only a new choice or a disconnect forgets it.
+    static func bookmark(defaults: UserDefaults) -> Self {
+        Self(
+            load: {
+                guard let data = defaults.data(forKey: bookmarkKey) else { return .none }
+                var isStale = false
+                guard let url = try? URL(resolvingBookmarkData: data, bookmarkDataIsStale: &isStale)
+                else { return .unresolvable }
+                if isStale {
+                    let close = scopedAccess(to: url)
+                    defer { close() }
+                    if let fresh = try? url.bookmarkData() { defaults.set(fresh, forKey: bookmarkKey) }
+                }
+                return .folder(url)
+            },
+            save: { url in
+                // A picked URL carries its grant only while accessed, and the bookmark must be made then.
+                let close = scopedAccess(to: url)
+                defer { close() }
+                let data = try url.bookmarkData()
+                var isStale = false
+                let resolved = try URL(resolvingBookmarkData: data, bookmarkDataIsStale: &isStale)
+                defaults.set(data, forKey: bookmarkKey)
+                return resolved
+            },
+            clear: { defaults.removeObject(forKey: bookmarkKey) },
+            access: scopedAccess)
+    }
+
+    /// `false` only means the URL carries no scope of its own, so it is balanced rather than failed.
+    private static func scopedAccess(to url: URL) -> () -> Void {
+        let isScoped = url.startAccessingSecurityScopedResource()
+        return { if isScoped { url.stopAccessingSecurityScopedResource() } }
+    }
+}
+
+/// The folder's one-line status. `device` is the only wording that differs between platforms.
+enum NoteFolderStatus {
+    static func text(
+        error: String?, isConnected: Bool, isUnavailable: Bool, isWorking: Bool,
+        pendingDownloads: Int, lastSyncedAt: Date?, device: String
+    ) -> String {
+        if let error { return error }
+        guard isConnected else {
+            return isUnavailable
+                ? "The Notes folder can’t be found · Notes stay on \(device) until you choose it again"
+                : "Off · Notes stay on \(device)"
+        }
+        if isWorking { return "Syncing…" }
+        if pendingDownloads > 0 {
+            return "Waiting for \(pendingDownloads) file\(pendingDownloads == 1 ? "" : "s") to become available…"
+        }
+        guard let lastSyncedAt else { return "Waiting for the folder…" }
+        return "Up to date · " + lastSyncedAt.formatted(date: .omitted, time: .shortened)
     }
 }

@@ -6,10 +6,6 @@ import Foundation
 /// exactly as choosing a file is for Settings Sync.
 @MainActor
 final class NoteFolderSyncManager: ObservableObject {
-    private enum Key {
-        static let folderPath = "note.folder-sync.path"
-    }
-
     /// Decode-only migration from the even older user-selected Notes JSON pipeline. It never grants
     /// folder sync and never deletes the user's file; it only makes sure those Notes reached the
     /// local archive before that path is forgotten.
@@ -31,12 +27,19 @@ final class NoteFolderSyncManager: ObservableObject {
     @Published private(set) var errorMessage: String?
     /// Files present but not yet downloaded. They are never treated as deletions, only as pending.
     @Published private(set) var pendingDownloads = 0
+    /// A folder was chosen but its saved location no longer resolves; never shown as plain "off".
+    @Published private(set) var isFolderUnavailable = false
+    /// Deleted Notes whose files stay in a folder that has no Trash, until another device removes them.
+    @Published private(set) var retainedDeletions = 0
 
     private let store: NoteStore
     private let defaults: UserDefaults
     private let legacyKeys: LegacyKeys
     private let adoption: NoteFolderAdoption
-    private let io = NoteFolderIO()
+    private let location: NoteFolderLocation
+    private let device: String
+    private let io: NoteFolderIO
+    private var closeAccess: (() -> Void)?
     private let legacyIO = CoordinatedFileIO()
     private var watcher: CoordinatedFileWatcher?
     private var syncTask: Task<Void, Never>?
@@ -48,13 +51,21 @@ final class NoteFolderSyncManager: ObservableObject {
 
     init(
         store: NoteStore, defaults: UserDefaults = .standard,
-        bundleID: String = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
+        bundleID: String = Bundle.main.bundleIdentifier ?? "com.spotter.app1",
+        location: NoteFolderLocation? = nil, io: NoteFolderIO = NoteFolderIO(),
+        device: String = "this Mac"
     ) {
         self.store = store
         self.defaults = defaults
+        self.io = io
+        self.device = device
         legacyKeys = LegacyKeys(bundleID: bundleID)
         adoption = NoteFolderAdoption(defaults: defaults)
-        folderURL = defaults.string(forKey: Key.folderPath).map(URL.init(fileURLWithPath:))
+        let location = location ?? .path(defaults: defaults)
+        self.location = location
+        let saved = location.load()
+        if case .folder(let url) = saved { folderURL = url }
+        isFolderUnavailable = saved == .unresolvable
     }
 
     var isEnabled: Bool { folderURL != nil }
@@ -64,19 +75,16 @@ final class NoteFolderSyncManager: ObservableObject {
     }
 
     var statusText: String {
-        if let errorMessage { return errorMessage }
-        guard folderURL != nil else { return "Off · Notes stay on this Mac" }
-        if isWorking { return "Syncing…" }
-        if pendingDownloads > 0 {
-            return "Waiting for \(pendingDownloads) file\(pendingDownloads == 1 ? "" : "s") to become available…"
-        }
-        guard let lastSyncedAt else { return "Waiting for the folder…" }
-        return "Up to date · " + lastSyncedAt.formatted(date: .omitted, time: .shortened)
+        NoteFolderStatus.text(
+            error: errorMessage, isConnected: folderURL != nil, isUnavailable: isFolderUnavailable,
+            isWorking: isWorking, pendingDownloads: pendingDownloads, lastSyncedAt: lastSyncedAt,
+            device: device)
     }
 
     func start() {
         guard !isRunning else { return }
         isRunning = true
+        restoreLocation()
         store.onSyncSnapshotChanged = { [weak self] _ in self?.scheduleSync() }
         Task { [weak self] in
             await self?.migrateLegacyJSONIfNeeded()
@@ -93,12 +101,22 @@ final class NoteFolderSyncManager: ObservableObject {
         downloadRetryTask?.cancel()
         downloadRetryTask = nil
         stopWatching()
+        endAccess()
     }
 
     func connect(to url: URL) {
-        let folder = url.standardizedFileURL
+        let folder: URL
+        do {
+            folder = try location.save(url)
+        } catch {
+            errorMessage = "Couldn’t remember the Notes folder: " + error.localizedDescription
+            AppLog.error("note-folder-sync", errorMessage ?? error.localizedDescription)
+            return
+        }
+        endAccess()
+        if isRunning { closeAccess = location.access(folder) }
         folderURL = folder
-        defaults.set(folder.path, forKey: Key.folderPath)
+        isFolderUnavailable = false
         adoption.begin()
         errorMessage = nil
         lastSyncedAt = nil
@@ -114,15 +132,22 @@ final class NoteFolderSyncManager: ObservableObject {
         syncTask = nil
         downloadRetryTask?.cancel()
         downloadRetryTask = nil
+        endAccess()
         folderURL = nil
+        isFolderUnavailable = false
         lastSyncedAt = nil
         errorMessage = nil
         pendingDownloads = 0
-        defaults.removeObject(forKey: Key.folderPath)
+        retainedDeletions = 0
+        location.clear()
         adoption.finish()
     }
 
     func syncNow() async {
+        if isRunning, isFolderUnavailable {
+            restoreLocation()
+            startWatching()
+        }
         scheduleSync(immediately: true)
         await syncTask?.value
     }
@@ -158,7 +183,7 @@ final class NoteFolderSyncManager: ObservableObject {
                 store.applyRemoteSnapshot(plan.snapshot)
                 isApplyingRemote = false
             }
-            if plan.hasFileWork { try await io.apply(plan, in: folder) }
+            let retained = plan.hasFileWork ? try await io.apply(plan, in: folder) : []
             if !plan.adopted.isEmpty || !plan.forked.isEmpty {
                 AppLog.info(
                     "note-folder-sync",
@@ -166,6 +191,7 @@ final class NoteFolderSyncManager: ObservableObject {
             }
             // Only here, past every write: a pass that threw leaves the adoption pending.
             adoption.finish()
+            retainedDeletions = retained.count
             pendingDownloads = plan.deferred.count
             errorMessage = nil
             lastSyncedAt = Date()
@@ -202,6 +228,22 @@ final class NoteFolderSyncManager: ObservableObject {
             self.downloadRetryTask = nil
             self.scheduleSync(immediately: true)
         }
+    }
+
+    /// Resolved afresh on every start: a saved bookmark follows a folder moved while the app was away, and one that stopped resolving must be reported rather than synced past.
+    private func restoreLocation() {
+        endAccess()
+        let saved = location.load()
+        var resolved: URL?
+        if case .folder(let url) = saved { resolved = url }
+        if folderURL?.path != resolved?.path { folderURL = resolved }
+        if isFolderUnavailable != (saved == .unresolvable) { isFolderUnavailable.toggle() }
+        closeAccess = resolved.map(location.access)
+    }
+
+    private func endAccess() {
+        closeAccess?()
+        closeAccess = nil
     }
 
     private func startWatching() {

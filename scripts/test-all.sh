@@ -37,6 +37,7 @@ TESTS=(
     translation-alignment
     note
     note-editor
+    note-ios
     text-replacement
     settings-sync
     update
@@ -265,6 +266,13 @@ run_harness() {
                 Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
                 Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
                 Tools/note-editor-test.swift -o "$output" && "$output"
+            ;;
+        note-ios)
+            swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift \
+                SpotterNotes/NoteInputRules.swift Spotter/Core/Calculator/*.swift \
+                Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
+                Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
+                Tools/note-ios-test.swift -o "$output" && "$output"
             ;;
         text-replacement)
             swiftc -swift-version 6 Spotter/Plugins/TextReplacement/TextReplacementEngine.swift \
