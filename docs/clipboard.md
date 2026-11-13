@@ -234,7 +234,9 @@ the opening animation invalidates glyph rendering once it reaches full size. Tex
 whitespace and wrap inside their square; pastes retain the full payload. File tiles show a symbol above
 their wrapping name. Image tiles use 4-point inner padding and centered square cropping, without filenames.
 Loading is asynchronous and reuses the bounded 512-pixel cache in `ImageThumbnail`, with a photo symbol
-for cold or unreadable previews. All tiles have a subtle semantic fill to define their square area.
+for cold or unreadable previews. The menu holds its own copy of each visible tile's thumbnail, so a purge
+or eviction of that shared cache never blanks a tile on screen, and reloads any visible tile it lacks.
+All tiles have a subtle semantic fill to define their square area.
 The original clipboard image remains unchanged. Only visible tiles load thumbnails, and keyboard
 selection reveals each entry in row-major order. Images retain their original colors, with full opacity
 when selected and 50% when unselected. Outer containers leave native glass edges unclipped.

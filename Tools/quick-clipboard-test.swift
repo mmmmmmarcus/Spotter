@@ -371,7 +371,7 @@ struct QuickClipboardTests {
         bitmap.bitmapData!.initialize(repeating: 255, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
         try! bitmap.representation(using: .png, properties: [:])!.write(to: url)
         let item = ClipboardItem(imagePath: url.path, sourceBundleID: nil)
-        await QuickClipboardMenuView.prepareThumbnails(for: [item])
+        _ = await ImageThumbnail.loadAsync(url, maxPixel: 512)
         let other = ClipboardItem(text: "Other entry", sourceBundleID: nil)
         let menu = QuickClipboardMenuView(items: [item, other])
         let glass = menu.rowButtons[0]
@@ -417,6 +417,9 @@ struct QuickClipboardTests {
             "wide image previews fill the square tile without letterboxing")
         let cached = ImageThumbnail.cached(url, maxPixel: 512)
         expect(cached?.size == CGSize(width: 320, height: 160), "display sizing does not mutate the shared cached image")
+        ImageThumbnail.purgePreviews()
+        gridMenu.update([item], selection: 0, filter: .image)
+        expect(gridMenu.rowButtons[0].content.image?.isTemplate == false, "a visible tile keeps its preview after the shared cache is purged")
         menu.update([ClipboardItem(text: "Text after image", sourceBundleID: nil), other], selection: 0)
         expect(button.imagePosition == .imageLeading && button.title.contains("Text after image"),
             "live replacement restores normal text presentation")

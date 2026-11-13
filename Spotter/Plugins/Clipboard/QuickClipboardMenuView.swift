@@ -16,7 +16,9 @@ final class QuickClipboardMenuView: NSView {
     private let groupShadow = CALayer()
     private let shadowMask = CAShapeLayer()
     private var thumbnailPreparation: Task<Void, Never>?
-    private var requestedImagePaths: [String] = []
+    private var thumbnails: [String: NSImage] = [:]
+    private var loadingImagePaths: Set<String> = []
+    private var unreadableImagePaths: Set<String> = []
     private var displayedItems: [ClipboardItem] = []
     var rowButtons: [QuickClipboardButton] { visibleButtons.keys.sorted().compactMap { visibleButtons[$0] } }
     private(set) var filterButtons: [QuickClipboardButton] = []
@@ -146,6 +148,8 @@ final class QuickClipboardMenuView: NSView {
         let visible = scrollView.contentView.bounds
         let indices = frames.indices.filter { frames[$0].intersects(visible) }
         let wanted = Set(indices)
+        let paths = Set(indices.compactMap { displayedItems[$0].kind == .image ? displayedItems[$0].imagePath : nil })
+        thumbnails = thumbnails.filter { paths.contains($0.key) }
         for index in Array(visibleButtons.keys) where !wanted.contains(index) {
             visibleButtons.removeValue(forKey: index)?.removeFromSuperview()
         }
@@ -157,19 +161,26 @@ final class QuickClipboardMenuView: NSView {
             button.hoverHandler = { [weak self] in self?.onHighlight?(index) }
             button.frame = frames[index]
             button.content.frame = button.bounds.insetBy(dx: 4, dy: 4)
-            Self.configure(button, for: displayedItems[index])
+            configure(button, for: displayedItems[index])
             button.isSelected = index == selection
             button.setAccessibilityValue(button.isSelected ? "Selected" : "")
         }
-        let visibleItems = indices.map { displayedItems[$0] }
-        let paths = visibleItems.compactMap(\.imagePath)
-        if paths != requestedImagePaths {
-            requestedImagePaths = paths
+        let missing = paths.subtracting(thumbnails.keys).subtracting(unreadableImagePaths)
+        if !missing.isSubset(of: loadingImagePaths) {
+            loadingImagePaths = missing
             thumbnailPreparation?.cancel()
             thumbnailPreparation = Task { [weak self] in
-                await Self.prepareThumbnails(for: visibleItems)
-                guard !Task.isCancelled, let self, requestedImagePaths == paths else { return }
-                for (index, button) in visibleButtons { Self.configure(button, for: displayedItems[index]) }
+                for path in missing {
+                    let url = URL(fileURLWithPath: path)
+                    var image = await ImageThumbnail.loadAsync(url, maxPixel: 512)
+                    // A purge can land between the decode and its read-back, so one nil does not prove the file unreadable.
+                    if image == nil { image = await ImageThumbnail.loadAsync(url, maxPixel: 512) }
+                    guard !Task.isCancelled, let self else { return }
+                    if let image { hold(image, at: path) } else { unreadableImagePaths.insert(path) }
+                }
+                guard let self else { return }
+                loadingImagePaths = []
+                for (index, button) in visibleButtons { configure(button, for: displayedItems[index]) }
             }
         }
         if !displayedItems.isEmpty, visible.minY <= QuickClipboardPresentation.gridSide, pagingTask == nil {
@@ -243,14 +254,19 @@ final class QuickClipboardMenuView: NSView {
         QuickClipboardPresentation.signedDistance(point, to: glassView.frame) <= 0
     }
 
-    static func prepareThumbnails(for items: [ClipboardItem]) async {
-        for path in Set(items.compactMap(\.imagePath)) {
-            guard !Task.isCancelled else { return }
-            _ = await ImageThumbnail.loadAsync(URL(fileURLWithPath: path), maxPixel: 512)
-        }
+    // The menu keeps its own copies because the shared preview cache is purged and evicted while tiles are still on screen.
+    private func hold(_ image: NSImage, at path: String) {
+        guard visibleButtons.keys.contains(where: { displayedItems[$0].imagePath == path }) else { return }
+        thumbnails[path] = image.copy() as? NSImage
     }
 
-    private static func configure(_ button: QuickClipboardButton, for item: ClipboardItem) {
+    private func thumbnail(at path: String) -> NSImage? {
+        if let held = thumbnails[path] { return held }
+        if let warm = ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 512) { hold(warm, at: path) }
+        return thumbnails[path]
+    }
+
+    private func configure(_ button: QuickClipboardButton, for item: ClipboardItem) {
         button.setAccessibilityLabel("Paste \(QuickClipboardPresentation.title(for: item))")
         let content = button.content
         content.squareImage = true
@@ -260,17 +276,11 @@ final class QuickClipboardMenuView: NSView {
         if item.kind == .image {
             content.title = ""
             content.imagePosition = .imageOnly
-            if let path = item.imagePath,
-               let cached = ImageThumbnail.cached(URL(fileURLWithPath: path), maxPixel: 512),
-               let preview = cached.copy() as? NSImage {
-                content.image = preview
-            } else {
-                content.image = symbol("photo")
-            }
+            content.image = item.imagePath.flatMap(thumbnail(at:)) ?? Self.symbol("photo")
         } else {
             content.title = QuickClipboardPresentation.title(for: item)
             content.imagePosition = .imageLeading
-            content.image = item.kind == .text ? nil : symbol(QuickClipboardPresentation.symbol(for: item))
+            content.image = item.kind == .text ? nil : Self.symbol(QuickClipboardPresentation.symbol(for: item))
         }
     }
 
