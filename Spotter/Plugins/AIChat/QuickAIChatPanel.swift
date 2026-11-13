@@ -4,7 +4,6 @@ import WebKit
 
 final class QuickAIChatPanel: NSPanel {
     let glassView: QuickAIChatGlassView
-    private var appearanceObservation: NSKeyValueObservation?
     var onDismiss: (() -> Void)?
     var onHistoryKey: ((UInt16) -> Bool)?
     var onDragBegan: (() -> Void)?
@@ -20,7 +19,7 @@ final class QuickAIChatPanel: NSPanel {
         super.init(contentRect: CGRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         title = "Quick AI Chat"
-        appearance = Theme.QuickAI.appearance(for: NSApp.effectiveAppearance)
+        appearance = Theme.QuickAI.appearance
         isFloatingPanel = true
         level = .floating
         collectionBehavior = [.managed, .participatesInCycle, .canJoinAllSpaces, .fullScreenAuxiliary]
@@ -43,12 +42,6 @@ final class QuickAIChatPanel: NSPanel {
         container.addSubview(host)
         container.glass = glassView
         contentView = container
-        appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
-            Task { @MainActor [weak self] in
-                self?.appearance = Theme.QuickAI.appearance(for: NSApp.effectiveAppearance)
-                self?.invalidateShadow()
-            }
-        }
     }
 
     override var canBecomeKey: Bool { true }

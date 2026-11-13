@@ -112,11 +112,11 @@ circular ends; expanded corners use a 26-point continuous radius. The native Win
 invalidated as the glass resizes. The panel has no extra handle strip. Its Siri-inspired backdrop
 fades evenly from black to 35% black opacity from top to bottom while compact; after expansion it
 keeps the reading area dark and fades to the same 35% opacity near the bottom. Regular glass gives
-the background stronger native blur. `Theme.QuickAI`
-maps light system appearance to a black surface with light text, and dark system appearance to a
-white surface with dark text, updating an open panel when the system changes. In dark mode the
-white gradient ends at 18% opacity, with its expanded 90% stop at 40%; light mode retains the
-black gradient’s 35% bottom opacity.
+the background stronger native blur. The surface is always dark (owner decision, Nov 2026):
+`Theme.QuickAI` pins the panel to the dark appearance, so the compact box and the expanded sheet are
+black with light text in both system appearances and a system change does not restyle an open
+panel. There is no light variant; replies inherit the panel's appearance, so their Markdown always
+renders with the dark palette.
 
 The expanded view uses `AIChatTranscriptView`: user bubbles, Markdown,
 streaming line reveal, tool activity, errors and follow-to-bottom behavior. Before the first reply,
@@ -517,9 +517,9 @@ clears the transient message identity. Reduce Motion uses a brief fade without d
 
 History capsules use the solid Quick AI backdrop token. Selecting a capsule shares its background geometry with the conversation during a short spring, fading in the transcript. Reduce Motion uses only a fade.
 
-Keyboard-selected history capsules use a contrasting fill and a 2.5-point bright outline, with a 120 ms color transition and no change in size or position. The inverse light surface uses a darker fill and outline; Reduce Motion disables the selection transition.
+Keyboard-selected history capsules use a contrasting fill and a 2.5-point bright outline, with a 120 ms color transition and no change in size or position. Reduce Motion disables the selection transition.
 
-Quick AI user bubbles use opaque white with dark text in system Light Mode (the panel’s inverse darkAqua appearance), and opaque black with light text in system Dark Mode. Command symbols and attachment labels follow the same bubble contrast with secondary emphasis. History, New Chat and Close retain their active native glass appearance when the window loses focus; this appearance override does not claim keyboard focus.
+Quick AI user bubbles use opaque white with dark text against the black surface, in both system appearances. Command symbols and attachment labels use the same dark text with secondary emphasis. History, New Chat and Close retain their active native glass appearance when the window loses focus; this appearance override does not claim keyboard focus.
 
 Every normal summon starts with the compact, non-resizable composer. More than 60 seconds after closing, Quick AI starts a fresh conversation; within 60 seconds it retains the current session context and draft until the next send or history selection. Old conversations and their drafts remain accessible through history; explicit session or AI-command opens bypass this timeout and expand their selected session. Elapsed time alone never resets a visible conversation or cancels a reply.
 
@@ -531,7 +531,7 @@ Grammar Check also renders legacy JSON replies with `corrected` and `issues`, or
 
 The compact composer has no History button. Up opens all history sessions above it; Up/Down selects a pill and Enter opens it without submitting the draft. Escape closes the picker. The viewport shows at most ten pills and scrolls to the keyboard selection. In expanded chat, History collapses the current conversation into the bottom pill and displays the other conversations above it, sharing the same surface transition as opening a pill. IME composition and modified text-navigation keys retain their native handling.
 
-AI Command user bubbles place a symbol-and-name capsule on their first line, above the selected text. Shipped command display names are Grammar Check, Definition, Fix Text and Pronunciation; custom commands retain their full names. The capsule follows the inverse bubble appearance, and stored prompts remain unchanged.
+AI Command user bubbles place a symbol-and-name capsule on their first line, above the selected text. Shipped command display names are Grammar Check, Definition, Fix Text and Pronunciation; custom commands retain their full names. The capsule uses the bubble's dark text, and stored prompts remain unchanged.
 
 ## Built-in text correction and pronunciation commands
 

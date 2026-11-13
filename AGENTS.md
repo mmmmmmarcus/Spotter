@@ -99,9 +99,10 @@ Never break these without an explicit task to do so.
   stops are the original design and must not drift — `Tools/theme-test.swift` pins both stops of
   every token. Rasterized art is the one exception: an `IconCache` symbol tile bakes its colors, so
   the appearance is part of its cache key and the view re-decodes on a flip. Quick AI Chat's
-  owner-requested Siri-style surface contrasts with the system: black in light mode and white in
-  dark mode, with inverse native text and glass. Its appearance mapping and translucent backdrop
-  live in `Theme.QuickAI`.
+  owner-requested Siri-style surface is always dark (owner decision, Nov 2026): a black box and a
+  black sheet with light native text and glass in both system appearances, with no light variant.
+  Its pinned appearance and translucent backdrop live in `Theme.QuickAI`, and its `quickAI*` tokens
+  carry the same value on both stops.
 - **The flat `selection` index must match the visible selectable-row order exactly.** The empty-query
   dashboard is non-selectable; visually, background tasks sit below it and above Favorites. Among
   selectable rows, tasks come first, then the inline calculator/plugin card, then normal results.
@@ -360,7 +361,7 @@ Never break these without an explicit task to do so.
   solely owns `QuickAIChatController`; it owns the frame, draft and session reference. Quick AI is the only chat surface (owner decision, Oct 2026); the Palette has no AI Chat mode.
   `AIChatStore` retains one in-flight request gate and session-scoped results. The pill history picker shows
   historical conversations; switching preserves per-session drafts and attachments in memory. Closing preserves the chat and
-  unsent draft in memory. Drag the header to the left of History, New Chat and Close through native window dragging; there is no handle or extra strip. Native Regular glass carries a black-to-translucent vertical backdrop with light content, retaining 35% black opacity at the bottom in both sizes; the expanded composer is a native glass capsule with no custom border.
+  unsent draft in memory. Drag the header to the left of History, New Chat and Close through native window dragging; there is no handle or extra strip. Native Regular glass carries a black-to-translucent vertical backdrop with light content in both system appearances, retaining 35% black opacity at the bottom in both sizes; the expanded composer is a native glass capsule with no custom border.
   `QuickAIChatLayout.swift` stays pure Foundation + CoreGraphics. MCP/Cua still uses the Cancel-first
   palette confirmation and restores focus before dispatch. Screenshot cleanup hides the floating panel.
 - **SF Symbols uses Apple's separately installed CLI.** `AppCore` owns `SFSymbolStore`. Search and

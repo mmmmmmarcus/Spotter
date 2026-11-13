@@ -283,7 +283,7 @@ shell-command feature; do not use shell commands as an internal plugin API.
   shadow follows the compact capsule and expanded rounded glass. Expansion occurs on the first send
   and first AI reply; its blank header is draggable. A Siri-inspired backdrop fades evenly
   to 35% opacity while compact and retains an opaque reading area when expanded. It is black in
-  light mode and white in dark mode, with inverse text and native Regular glass. The first send
+  both system appearances, with light text and native Regular glass. The first send
   shows the prompt at the top; live status uses stage-specific symbols and a moving text highlight.
   Every turn uses the model and effort the user chose: the chat pair in Settings, or an AI
   command's own pin. The pair and the Web Search setting live in OpenRouterStore and trusted

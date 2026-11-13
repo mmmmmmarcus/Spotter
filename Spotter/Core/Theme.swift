@@ -67,10 +67,8 @@ enum Theme {
         static let revealDuration: TimeInterval = 0.22
         static let dismissDuration: TimeInterval = 0.14
         static let expandDuration: TimeInterval = 0.30
-        // The floating surface contrasts with the desktop; native text and glass follow its inverse appearance.
-        static func appearance(for system: NSAppearance) -> NSAppearance? {
-            NSAppearance(named: system.isDark ? .aqua : .darkAqua)
-        }
+        // The floating surface is dark whatever the system is; native text and glass follow this, not the desktop.
+        static var appearance: NSAppearance? { NSAppearance(named: .darkAqua) }
 
         static func backdrop(isExpanded: Bool) -> LinearGradient {
             let stops: [Gradient.Stop] = isExpanded ? [
@@ -288,17 +286,16 @@ enum Theme {
         /// glass reads frosted rather than clear. White in both appearances — it brightens the glass,
         /// and a dark tint over light glass would read as a shadow instead of frost.
         static let glassFrost = adaptive(dark: .white.opacity(0.05), light: .white.opacity(0.30))
-        // Quick AI reverses the system appearance, so darkAqua is system Light Mode.
-        static let quickAIUserBubble = adaptive(dark: .white, light: .black)
-        static let quickAIUserText = adaptive(dark: .black, light: .white)
-        static let quickAIUserSecondaryText = adaptive(dark: .black.opacity(0.62), light: .white.opacity(0.60))
-        static let quickAIControlTint = adaptive(dark: .white.opacity(0.16), light: .black.opacity(0.08))
-        static let quickAIHistorySelectionFill = adaptive(dark: .white.opacity(0.22), light: .black.opacity(0.12))
-        static let quickAIHistorySelectionBorder = adaptive(dark: .white.opacity(0.70), light: .black.opacity(0.50))
-        static let quickAIBackdrop = adaptive(dark: .black, light: .white)
-        // Quick AI uses inverse appearance, so the white stops apply when the system is dark.
-        static let quickAIBackdropLower = adaptive(dark: .black.opacity(0.55), light: .white.opacity(0.40))
-        static let quickAIBackdropBottom = adaptive(dark: .black.opacity(0.35), light: .white.opacity(0.18))
+        // Quick AI is pinned to its dark surface, so each of its tokens carries one stop for both appearances.
+        static let quickAIUserBubble = adaptive(dark: .white, light: .white)
+        static let quickAIUserText = adaptive(dark: .black, light: .black)
+        static let quickAIUserSecondaryText = adaptive(dark: .black.opacity(0.62), light: .black.opacity(0.62))
+        static let quickAIControlTint = adaptive(dark: .white.opacity(0.16), light: .white.opacity(0.16))
+        static let quickAIHistorySelectionFill = adaptive(dark: .white.opacity(0.22), light: .white.opacity(0.22))
+        static let quickAIHistorySelectionBorder = adaptive(dark: .white.opacity(0.70), light: .white.opacity(0.70))
+        static let quickAIBackdrop = adaptive(dark: .black, light: .black)
+        static let quickAIBackdropLower = adaptive(dark: .black.opacity(0.55), light: .black.opacity(0.55))
+        static let quickAIBackdropBottom = adaptive(dark: .black.opacity(0.35), light: .black.opacity(0.35))
         // Opaque neutral gray keeps the capture boundary visible against black in either appearance.
         static let screenshotSelectionBorder = adaptive(
             dark: Color(white: 0.72), light: Color(white: 0.42))

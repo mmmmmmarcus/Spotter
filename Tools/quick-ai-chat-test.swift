@@ -432,11 +432,11 @@ struct QuickAIChatTests {
             && panel.effectiveAppearance.isDark,
             "light system appearance gives the floating glass a dark backdrop")
         NSApp.appearance = NSAppearance(named: .darkAqua)
-        await waitUntil { !panel.effectiveAppearance.isDark }
-        expect(!panel.effectiveAppearance.isDark, "an open floating panel switches to white glass and dark text in dark mode")
+        expect(panel.appearance?.name == .darkAqua && panel.effectiveAppearance.isDark,
+            "dark system appearance keeps the same dark floating surface")
         NSApp.appearance = NSAppearance(named: .aqua)
-        await waitUntil { panel.effectiveAppearance.isDark }
-        expect(panel.effectiveAppearance.isDark, "switching back to light mode restores the dark floating surface")
+        expect(panel.glassView.effectiveAppearance.isDark && panel.contentView?.effectiveAppearance.isDark == true,
+            "the glass and hosted content inherit the pinned dark appearance, not the system's")
         for symbol in ["arrow.trianglehead.branch", "ellipsis.bubble", "text.line.first.and.arrowtriangle.forward",
                        "network", "brain", "hand.raised", "wrench.and.screwdriver"] {
             expect(NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil,

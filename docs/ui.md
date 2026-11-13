@@ -726,11 +726,10 @@ one-third of the palette width (about 209 points), a 32-point height and body ty
 native Regular Liquid Glass surface for stronger background blur. The compact backdrop fades evenly
 from black at the top to 35% black opacity at the bottom. Once expanded, black stays deep through
 the reading area before fading to the same 35% opacity near the composer. The bottom retains
-some desktop visibility without becoming fully transparent. In dark mode the surface switches to a white gradient with dark text and controls, with a more
-transparent bottom (18% white opacity in both compact and expanded states, 40% at the expanded
-90% stop); in light mode
-it stays black with light text. `Theme.QuickAI` owns the inverse appearance mapping and gradient,
-and an open panel responds to system appearance changes. Its corners are circular with a half-height radius (16 points);
+some desktop visibility without becoming fully transparent. The surface is always dark (owner
+decision, Nov 2026): black with light text and controls in both system appearances, with no light
+variant. `Theme.QuickAI` owns the pinned dark appearance and the gradient, the `quickAI*` tokens
+carry one value on both stops, and a system appearance change leaves an open panel as it is. Its corners are circular with a half-height radius (16 points);
 expanded corners use the 26-point continuous radius. The native glass and backing share one clip.
 The main palette's native WindowServer shadow separates it from the background and updates on resize.
 
@@ -832,7 +831,7 @@ Quick AI Chat and floating Notes explicitly use AppKit managed collection behavi
 in window cycling, so their floating level does not default to hiding them in Mission Control.
 They retain their existing all-Spaces and full-screen auxiliary behavior. History selection preserves the expanded width and bottom edge when screen space allows.
 
-History capsules have solid inverse-appearance backgrounds; the bottom input retains its gradient. History stays in the right control group after opening a session. A selected capsule shares its background geometry with the chat surface during the transition, with opacity-only motion reduction.
+History capsules have solid black backgrounds; the bottom input retains its gradient. History stays in the right control group after opening a session. A selected capsule shares its background geometry with the chat surface during the transition, with opacity-only motion reduction.
 
 Current-application menu commands appear directly in typed Palette results with application and menu path labels. Their Actions menu offers execution only; no extra Search Menu Bar Items screen is required.
 

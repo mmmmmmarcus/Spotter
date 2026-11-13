@@ -44,16 +44,14 @@ struct ThemeTests {
                 light.r == (lightWhite ? 1 : 0) && abs(light.a - lightAlpha) < 0.001)
         }
 
-        check("Quick AI maps system dark to a light surface",
-              Theme.QuickAI.appearance(for: NSAppearance(named: .darkAqua)!)?.name == .aqua)
-        check("Quick AI maps system light to a dark surface",
-              Theme.QuickAI.appearance(for: NSAppearance(named: .aqua)!)?.name == .darkAqua)
+        // Quick AI is the dark surface under either system appearance, so its tokens pin one stop twice.
+        check("Quick AI is pinned to the dark surface", Theme.QuickAI.appearance?.name == .darkAqua)
         check("quickAIUserBubble", Theme.Colors.quickAIUserBubble,
-              darkWhite: true, darkAlpha: 1, lightWhite: false, lightAlpha: 1)
+              darkWhite: true, darkAlpha: 1, lightWhite: true, lightAlpha: 1)
         check("quickAIUserText", Theme.Colors.quickAIUserText,
-              darkWhite: false, darkAlpha: 1, lightWhite: true, lightAlpha: 1)
+              darkWhite: false, darkAlpha: 1, lightWhite: false, lightAlpha: 1)
         check("quickAIUserSecondaryText", Theme.Colors.quickAIUserSecondaryText,
-              darkWhite: false, darkAlpha: 0.62, lightWhite: true, lightAlpha: 0.60)
+              darkWhite: false, darkAlpha: 0.62, lightWhite: false, lightAlpha: 0.62)
         check("worldClockOcean", Theme.Colors.worldClockOcean,
               darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.45)
         check("worldClockLand", Theme.Colors.worldClockLand,
@@ -95,17 +93,17 @@ struct ThemeTests {
             "surfaceGlow", Theme.Colors.surfaceGlow,
             darkWhite: true, darkAlpha: 0.06, lightWhite: false, lightAlpha: 0.05)
         check("quickAIBackdrop", Theme.Colors.quickAIBackdrop,
-              darkWhite: false, darkAlpha: 1, lightWhite: true, lightAlpha: 1)
+              darkWhite: false, darkAlpha: 1, lightWhite: false, lightAlpha: 1)
         check("quickAIBackdropLower", Theme.Colors.quickAIBackdropLower,
-              darkWhite: false, darkAlpha: 0.55, lightWhite: true, lightAlpha: 0.40)
+              darkWhite: false, darkAlpha: 0.55, lightWhite: false, lightAlpha: 0.55)
         check("quickAIBackdropBottom", Theme.Colors.quickAIBackdropBottom,
-              darkWhite: false, darkAlpha: 0.35, lightWhite: true, lightAlpha: 0.18)
+              darkWhite: false, darkAlpha: 0.35, lightWhite: false, lightAlpha: 0.35)
         check("quickAIControlTint", Theme.Colors.quickAIControlTint,
-              darkWhite: true, darkAlpha: 0.16, lightWhite: false, lightAlpha: 0.08)
+              darkWhite: true, darkAlpha: 0.16, lightWhite: true, lightAlpha: 0.16)
         check("quickAIHistorySelectionFill", Theme.Colors.quickAIHistorySelectionFill,
-              darkWhite: true, darkAlpha: 0.22, lightWhite: false, lightAlpha: 0.12)
+              darkWhite: true, darkAlpha: 0.22, lightWhite: true, lightAlpha: 0.22)
         check("quickAIHistorySelectionBorder", Theme.Colors.quickAIHistorySelectionBorder,
-              darkWhite: true, darkAlpha: 0.70, lightWhite: false, lightAlpha: 0.50)
+              darkWhite: true, darkAlpha: 0.70, lightWhite: true, lightAlpha: 0.70)
         // Frost brightens glass; a dark tint would shadow it.
         check(
             "glassFrost", Theme.Colors.glassFrost,
