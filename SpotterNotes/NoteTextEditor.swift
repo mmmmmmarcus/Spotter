@@ -7,6 +7,7 @@ struct NoteTextEditor: UIViewRepresentable {
     let noteID: UUID
     let tint: NoteTint?
     var focusRequest = 0
+    var onNavigate: (NoteNavigationDirection) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -42,6 +43,7 @@ struct NoteTextEditor: UIViewRepresentable {
             textView.delegate = self
             textView.commandHandler = { [weak self] in self?.apply($0) ?? false }
             textView.restyleHandler = { [weak self] in self?.restyle() }
+            textView.navigationHandler = { [weak self] in self?.parent.onNavigate($0) }
             textView.inputAccessoryView = NoteAccessoryBar(
                 handler: { [weak self] in _ = self?.apply($0) },
                 dismiss: { [weak textView] in textView?.resignFirstResponder() })
@@ -63,7 +65,12 @@ struct NoteTextEditor: UIViewRepresentable {
             // A composition's marked text is not in the binding yet; only a switch of Note may discard it.
             if noteChanged || (textView.markedTextRange == nil && textView.text != incoming.text) {
                 let caret = textView.selectedRange.location
-                if textView.markedTextRange != nil { textView.unmarkText() }
+                if textView.markedTextRange != nil {
+                    // Committing the abandoned composition must not publish the old document into the Note that replaces it.
+                    isApplyingEdit = true
+                    textView.unmarkText()
+                    isApplyingEdit = false
+                }
                 textView.text = incoming.text
                 if noteChanged {
                     textView.undoManager?.removeAllActions()
@@ -256,6 +263,7 @@ final class NoteTextView: UITextView {
     /// Returns whether the command changed the Note.
     var commandHandler: ((NoteTouchCommand) -> Bool)?
     var restyleHandler: (() -> Void)?
+    var navigationHandler: ((NoteNavigationDirection) -> Void)?
     var showsTitlePlaceholder = false {
         didSet { placeholder.isHidden = !showsTitlePlaceholder }
     }
@@ -305,6 +313,9 @@ final class NoteTextView: UITextView {
             UIKeyCommand(
                 title: "Italic", action: #selector(formatItalic), input: "i", modifierFlags: .command),
             UIKeyCommand(title: "Link", action: #selector(formatLink), input: "k", modifierFlags: .command),
+            UIKeyCommand(
+                title: "Previous Note", action: #selector(previousNote), input: "[", modifierFlags: .command),
+            UIKeyCommand(title: "Next Note", action: #selector(nextNote), input: "]", modifierFlags: .command),
             UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(indent)),
             UIKeyCommand(input: "\t", modifierFlags: .shift, action: #selector(outdent)),
         ]
@@ -353,6 +364,14 @@ final class NoteTextView: UITextView {
 
     @objc private func formatLink() {
         _ = commandHandler?(.inline(.link))
+    }
+
+    @objc private func previousNote() {
+        navigationHandler?(.previous)
+    }
+
+    @objc private func nextNote() {
+        navigationHandler?(.next)
     }
 
     @objc private func indent() {

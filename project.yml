@@ -108,7 +108,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.spotter.app1.ios
         INFOPLIST_FILE: SpotterNotes/Info.plist
         # TestFlight build numbers move on their own; the marketing version stays the project's.
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "2"
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: spotter
         # The project signs manually with Developer ID, which cannot sign an iOS app; none of the

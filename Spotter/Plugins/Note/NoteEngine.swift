@@ -89,6 +89,7 @@ struct SpotterNote: Codable, Equatable, Identifiable, Sendable {
     }
 
     var title: String { NoteEngine.title(in: content) }
+    var displayTitle: String { NoteEngine.displayTitle(in: content) }
     var titleEmoji: String? { NoteEngine.titleEmoji(in: content) }
     var titleWithoutEmoji: String { NoteEngine.titleWithoutEmoji(in: content) }
     var excerpt: String { NoteEngine.excerpt(in: content) }
@@ -213,8 +214,17 @@ enum NoteEngine {
     static func title(in markdown: String) -> String {
         let firstLine = markdown.components(separatedBy: .newlines).first ?? ""
         let cleaned = stripMarkup(firstLine)
-        return cleaned.isEmpty ? "Untitled Note" : String(cleaned.prefix(80))
+        return cleaned.isEmpty ? untitled : String(cleaned.prefix(80))
     }
+
+    /// A heading that is still only its marker has no name yet; `title` would call such a draft `#`.
+    static func displayTitle(in markdown: String) -> String {
+        let firstLine = markdown.components(separatedBy: .newlines).first ?? ""
+        let isBareHeading = firstLine.hasPrefix("#") && firstLine.allSatisfy { $0 == "#" || $0.isWhitespace }
+        return isBareHeading ? untitled : title(in: markdown)
+    }
+
+    private static let untitled = "Untitled Note"
 
     static func titleEmoji(in markdown: String) -> String? {
         title(in: markdown).first(where: isEmoji).map(String.init)

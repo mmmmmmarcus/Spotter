@@ -145,7 +145,6 @@
 		4B889F3FDAE183A780ABFBED /* TranslateSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D773D1212FE193DEE458D271 /* TranslateSettingsView.swift */; };
 		4B8CF7658F4FA1DDA49CA0CB /* AppleShortcutsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32B61637BE1A4AF48758BD90 /* AppleShortcutsPlugin.swift */; };
 		4B9A141BD0E6B6B6AE7729EC /* VisibilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB3757FA662D508E113F837 /* VisibilityStore.swift */; };
-		4C8632A7F3015EA68612EB89 /* NoteListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBED3E7F93FBACC640FD245 /* NoteListView.swift */; };
 		4D1F78D76EC512982B3906AD /* AIChatTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7971131E57C987389453EA18 /* AIChatTypes.swift */; };
 		4D654E29FFC2F29F48B6304F /* ExtensionOAuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9763A614816C7A79FC3BF4E7 /* ExtensionOAuthSession.swift */; };
 		4D893C74BF3716AD2A9FEC20 /* FrequentEmojiStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F8D9F0596067673B16F9B3 /* FrequentEmojiStore.swift */; };
@@ -278,6 +277,7 @@
 		A323FAFF85A8D051F7CCD9B9 /* SFSymbolCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 257C9B250642CD8E13B274B3 /* SFSymbolCatalog.swift */; };
 		A39D05C2AD356E8C909F2FCF /* NotePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0585A83889766AB5682CD10C /* NotePlugin.swift */; };
 		A4335E03E8348FBE0873B90A /* SearchScopesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF791D9740CBFE37A39760E /* SearchScopesCard.swift */; };
+		A442FE291D0663DB92613424 /* NoteTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF183CBA69B26F1E9D584836 /* NoteTopBar.swift */; };
 		A612A1A1ED5D021387F6F198 /* SelectionToolsTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10E544C780380D882E6910C /* SelectionToolsTypes.swift */; };
 		A6E3BEEE25A03DCF006AD20D /* ExtensionStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316160CD69BBAD8867E46CED /* ExtensionStorage.swift */; };
 		A75A9D091512A4CD78D0E8B5 /* WindowCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B954546DFCF752D02810A5 /* WindowCommand.swift */; };
@@ -343,7 +343,6 @@
 		C996616C520623984C9B7C74 /* LocalAIStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13D39F34BB601AC61A46E6D /* LocalAIStore.swift */; };
 		CA4761943167D017165DF6FD /* SettingsBackupData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA4845247A6E5ADB97F3BB /* SettingsBackupData.swift */; };
 		CAB28684B11E838CBAAE63D0 /* ThinScrollbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D58C310CD39C89001E71E53 /* ThinScrollbar.swift */; };
-		CAFEBF71248F2D5960FADA95 /* NoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88225E8FBE36829045888359 /* NoteEditorView.swift */; };
 		CCABD6167A76CCEF94E4933B /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = F364AEE12AC3DB425ADE19EA /* UpdateInstaller.swift */; };
 		CD19662436AFA250E2156D01 /* SFSymbolPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DF520440038E3771BAAF928 /* SFSymbolPlugin.swift */; };
 		CD573B8B058505054766182C /* ExtensionRefreshIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4538B78D945DC060B7CBA8CD /* ExtensionRefreshIndicator.swift */; };
@@ -404,6 +403,7 @@
 		F0127B64ADE122ED02259959 /* ExtensionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FCA9F362BFA8FBBE60E98A7 /* ExtensionCoordinator.swift */; };
 		F05C6743A85356D6A3848C3E /* AIChatSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F25605AACCC0A309AD18087A /* AIChatSettingsView.swift */; };
 		F22C8981A2A1B0BDE8F1C7F6 /* WindowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57366E92C0F281C3E8C74812 /* WindowLayout.swift */; };
+		F2591BE5389D5D707D9083EB /* NoteSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7891580C3B4606EC79EE06F /* NoteSearchView.swift */; };
 		F3C07430920858A914B1A55F /* BackupSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8587FC279B3EC00C5EC444B /* BackupSettingsView.swift */; };
 		F3D5493C94FB81724EC40AA1 /* QuickClipboardAnchor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1917CF0BF533C78B0873DAF /* QuickClipboardAnchor.swift */; };
 		F5C38F4C474A3BEEDF304A6A /* QuickClipboardController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B3786D0A20949D1FF123F1A /* QuickClipboardController.swift */; };
@@ -646,7 +646,6 @@
 		846B6650ED0FBA7F55192BF0 /* ExtensionLaunchType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionLaunchType.swift; sourceTree = "<group>"; };
 		85927C817E199488DB61F16D /* DashboardWidgetsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWidgetsPlugin.swift; sourceTree = "<group>"; };
 		86F5EA0524992ACF852075FC /* Scrypt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scrypt.swift; sourceTree = "<group>"; };
-		88225E8FBE36829045888359 /* NoteEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditorView.swift; sourceTree = "<group>"; };
 		88B0E432F06D75F2A7DDD93E /* ExtensionNameResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionNameResolver.swift; sourceTree = "<group>"; };
 		8AAB33AC76DFFB890A064BCC /* ExtensionFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionFormView.swift; sourceTree = "<group>"; };
 		8ACF532BE2B264ADE83FCBBC /* spotter.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = spotter.icon; sourceTree = "<group>"; };
@@ -703,7 +702,6 @@
 		ABB7BF860CAACDAD1C293902 /* SyncViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncViews.swift; sourceTree = "<group>"; };
 		ABD954DBB8EB3EFBF0FFDA1D /* ScheduleLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleLayout.swift; sourceTree = "<group>"; };
 		AC3727A5B43FAFBC7DF3DC8E /* ScreenshotAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotAnnotation.swift; sourceTree = "<group>"; };
-		ACBED3E7F93FBACC640FD245 /* NoteListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteListView.swift; sourceTree = "<group>"; };
 		AED7227A23155DB3DDD75388 /* NoteSyncDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSyncDocument.swift; sourceTree = "<group>"; };
 		AEEFD435C7B7DF8F17C14A10 /* RenderNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderNode.swift; sourceTree = "<group>"; };
 		AF366EEDD4B4DD2E328355AE /* ExtensionRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionRuntime.swift; sourceTree = "<group>"; };
@@ -771,6 +769,7 @@
 		D631CB4C4F8916F09D0A15AE /* ExtensionCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionCatalog.swift; sourceTree = "<group>"; };
 		D755502295AD5E25F7F536AB /* NoteCloudSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCloudSyncEngine.swift; sourceTree = "<group>"; };
 		D773D1212FE193DEE458D271 /* TranslateSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateSettingsView.swift; sourceTree = "<group>"; };
+		D7891580C3B4606EC79EE06F /* NoteSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSearchView.swift; sourceTree = "<group>"; };
 		D8587FC279B3EC00C5EC444B /* BackupSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupSettingsView.swift; sourceTree = "<group>"; };
 		D86BA65B8DEE192723E55849 /* ScrollIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollIntent.swift; sourceTree = "<group>"; };
 		D8FBDA865BD673459C9FCA1C /* TextReplacementManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementManager.swift; sourceTree = "<group>"; };
@@ -779,6 +778,7 @@
 		DCF4C093AEE85B4955299C15 /* AICommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommand.swift; sourceTree = "<group>"; };
 		DD725F842018073AC76884EF /* QuickAIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAIChatView.swift; sourceTree = "<group>"; };
 		DD9306785717C268A6070B6E /* ExtensionStoreClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionStoreClient.swift; sourceTree = "<group>"; };
+		DF183CBA69B26F1E9D584836 /* NoteTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteTopBar.swift; sourceTree = "<group>"; };
 		DFAC4D0FC19A482120A5D91E /* AIMCPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMCPConnection.swift; sourceTree = "<group>"; };
 		DFCE81AD6B420F77EC60DAAB /* ExtensionMenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionMenuBarManager.swift; sourceTree = "<group>"; };
 		E0D8017FF4F6F4F2F3C541DD /* DashboardMusicStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardMusicStore.swift; sourceTree = "<group>"; };
@@ -1101,14 +1101,14 @@
 				7609A42707371092E64B56B6 /* Info.plist */,
 				E67F23B15C932BC952934FC7 /* NoteAccessoryBar.swift */,
 				C58C7BDDD0E99F97E62E0141 /* NoteEditorStyler.swift */,
-				88225E8FBE36829045888359 /* NoteEditorView.swift */,
 				3FAAF0C396CEB2A8C86245C8 /* NoteInputRules.swift */,
 				B095C046B30669E44D9828E6 /* NoteLayoutManager.swift */,
-				ACBED3E7F93FBACC640FD245 /* NoteListView.swift */,
+				D7891580C3B4606EC79EE06F /* NoteSearchView.swift */,
 				46758E98A810D41F8F95D933 /* NotesModel.swift */,
 				5488D050F6114539E965C211 /* NotesRootView.swift */,
 				4544E74EA9FC9AB07917D8F0 /* NotesTheme.swift */,
 				010BF9A04FE9940A3C81144F /* NoteTextEditor.swift */,
+				DF183CBA69B26F1E9D584836 /* NoteTopBar.swift */,
 				8CE1E107ECEE4A5714777DCC /* PrivacyInfo.xcprivacy */,
 				35323AFEFF5502397BB76EFE /* SpotterNotesApp.swift */,
 				ABB7BF860CAACDAD1C293902 /* SyncViews.swift */,
@@ -2144,17 +2144,17 @@
 				2EAD0F6AC8701834CB6EFDDF /* CurrencyData.generated.swift in Sources */,
 				4EEE425952E8716E070F7D7F /* NoteAccessoryBar.swift in Sources */,
 				C586F8E7B1E6E87835F24615 /* NoteEditorStyler.swift in Sources */,
-				CAFEBF71248F2D5960FADA95 /* NoteEditorView.swift in Sources */,
 				345A5D117CFA000CCFFFB233 /* NoteEngine.swift in Sources */,
 				6C727F9B631927A7B015378B /* NoteFolderDocument.swift in Sources */,
 				6950C76B4DC1DCAE2F7396C5 /* NoteFolderIO.swift in Sources */,
 				26EFA028DF145960FCDB935E /* NoteFolderSyncManager.swift in Sources */,
 				55301B6A90CC68790222AAC9 /* NoteInputRules.swift in Sources */,
 				0B4DA0DA8F55FDEC6C9D733D /* NoteLayoutManager.swift in Sources */,
-				4C8632A7F3015EA68612EB89 /* NoteListView.swift in Sources */,
+				F2591BE5389D5D707D9083EB /* NoteSearchView.swift in Sources */,
 				6497C54EFFCB375046530A3A /* NoteStore.swift in Sources */,
 				B7D71A7031837B0F64845ABF /* NoteSyncDocument.swift in Sources */,
 				A16AFD3141244EE4CC1997AA /* NoteTextEditor.swift in Sources */,
+				A442FE291D0663DB92613424 /* NoteTopBar.swift in Sources */,
 				E219B48797F20C3CFCFF20E9 /* NotesModel.swift in Sources */,
 				1B1484E1D3A0DEBAF1DEB90E /* NotesRootView.swift in Sources */,
 				3C9644A248AFC91E497E687D /* NotesTheme.swift in Sources */,
@@ -2173,7 +2173,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotter;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = Q9MD524YL5;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = SpotterNotes/Info.plist;
@@ -2332,7 +2332,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotter;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = Q9MD524YL5;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = SpotterNotes/Info.plist;

@@ -40,7 +40,8 @@ All of them compiled for iOS as they were. The only edits are the three seams be
 
 - `SpotterNotesApp.swift`, `NotesModel.swift` — the app and its single owner (the store, the sync
   manager, the lifecycle), the role `AppCore` plays on the Mac.
-- `NotesRootView.swift`, `NoteListView.swift`, `NoteEditorView.swift`, `SyncViews.swift` — SwiftUI.
+- `NotesRootView.swift`, `NoteTopBar.swift`, `NoteSearchView.swift`, `SyncViews.swift` — SwiftUI: the
+  one screen, its marker strip and options menu, the search sheet, and the sync banner and sheet.
 - `NoteTextEditor.swift`, `NoteEditorStyler.swift`, `NoteLayoutManager.swift`,
   `NoteAccessoryBar.swift` — the `UITextView` editor.
 - `NoteInputRules.swift` — the editor's input rules and accessory commands, Foundation-only and
@@ -60,7 +61,7 @@ keys and on-disk formats are unchanged. `Tools/note-test.swift` pins all three.
    `startAccessingSecurityScopedResource()` held from `start()` to `stop()`. Its `load()` has three
    answers — none, a folder, or **unresolvable** — and the third is never read as "no folder":
    `NoteFolderSyncManager.isFolderUnavailable` is set, the status says the folder can't be found,
-   and the list shows a notice offering to choose it again. The bookmark is *kept* while it does not
+   and a banner under the top bar offers to choose it again. The bookmark is *kept* while it does not
    resolve, so an iCloud Drive that is not ready at launch resolves on a later activation; only a
    new choice or Disconnect forgets it. A stale bookmark is refreshed in place.
 2. **`NoteFolderIO.TrashUnavailable`** — see *Deletion* below.
@@ -82,6 +83,41 @@ pass after a folder is chosen is the same **adoption** pass.
 
 Whitespace-only Notes are deleted (as ordinary tombstoned deletions, as the Mac does when the Notes
 window closes) once nothing is showing them: at launch and whenever the open Note changes.
+
+## Navigation
+
+There is no Notes list (owner decision, Nov 2026). The app opens straight into the editor, on the
+Note that was open last — the shared store's `note.selected-id`, which on iOS is this app's own
+defaults domain — or the most recent one, and iPhone and iPad share the one single-column layout.
+
+The top bar carries the Mac's marker strip ([notes.md](notes.md)), from the same shared sources: one
+marker per Note in `NoteStore.notes` order, newest first, drawn from `SpotterNote.titleEmoji` — a
+title's first complete Emoji — or a tint-aware dot. Selection changes opacity only on an Emoji; a dot
+also grows, as on the Mac. A marker's glyph is 22 points in a 40 × 44-point tap target, labelled for
+VoiceOver with `SpotterNote.displayTitle` (the title, or "Untitled Note" while the heading is empty).
+A strip that fits is centred in the bar; one that does not takes the width left of the buttons,
+scrolls, and brings the open Note's marker into view after a switch, a new Note, a deletion or the
+reorder an edit causes. Tapping a marker switches the one editor to that Note in place. It leaves the
+keyboard as it was: up if it was up, down if it was down.
+
+Right of the strip sit **New Note**, which selects the new draft and focuses its title, and the
+**options menu**: Note Color and Delete Note for the open Note, Search Notes, and Sync, whose row
+carries the manager's status line. Delete asks first, and afterwards the store selects the Note that takes the
+deleted one's place — the last one when there is none — or nothing.
+
+Sync that needs the user is not left inside a menu. While no folder is chosen, the folder cannot be
+found, or a pass has failed, a banner sits between the bar and the editor with the same
+`NoteFolderStatus.text` line, a Choose Folder button in the first two cases, and the Sync sheet a
+tap away. The sheet is unchanged: folder, status, files not downloaded yet, retained deletions, Sync
+Now, choosing another folder, looking again for a lost one, and Disconnect.
+
+With no Notes the strip is empty and the editor's place is taken by an empty state with a New Note
+button. A fresh install is that state under the "no folder chosen" banner.
+
+A marker cannot say what a Note contains, so the list's search was kept: **Search Notes** opens a
+sheet with the same case-insensitive match over every Note's text. It shows results only for a
+query — it is a search, never a second way to browse — and choosing one opens that Note. The list's
+swipe-to-delete went with the list: deleting always goes through the open Note's menu.
 
 ## Deletion
 
@@ -152,12 +188,18 @@ Touch-specific choices:
   (Text, Heading 1–3), an inline-format menu (Bold, Italic, Strikethrough, Code, Link) and
   Decrease / Increase Indent. A blank line is where a list or heading starts; tapping the list a line
   already belongs to takes the marker off; the title line refuses block formats.
-- A hardware keyboard gets Tab / Shift-Tab and ⌘B / ⌘I / ⌘K.
+- A hardware keyboard gets Tab / Shift-Tab, ⌘B / ⌘I / ⌘K, and ⌘[ / ⌘] for the previous and next
+  Note in strip order, wrapping at either end through the shared `NoteStore.selectAdjacent`.
 - Headings use `title1` / `title2` / `title3` in bold rather than the Mac's sizes.
 
-Mac-only and deliberately absent: the Note window's transparency, tint popover and frame, the marker
-strip, ⌘[ / ⌘] navigation and the Palette paste target. A Note's tint is kept — it syncs in the front
-matter — as a wash behind the editor, the caret and selection colour, and the dot in the list.
+Switching replaces the document of the one text view rather than building another editor. Every
+committed edit has already reached the store by then, so there is nothing to flush; an uncommitted
+composition is the one thing a switch discards, and it is committed with publishing stood down so it
+cannot be written into the Note that replaces it.
+
+Mac-only and deliberately absent: the Note window's transparency, tint popover and frame, the
+160 ms switch animation and the Palette paste target. A Note's tint is kept — it syncs in the front
+matter — as a wash behind the whole screen, the caret and selection colour, and its marker's dot.
 
 ## Appearance
 
@@ -207,7 +249,11 @@ of files the user granted access to (3B52.1).
 scripts/test-all.sh --jobs 4
 ```
 
-- `note` (`Tools/note-test.swift`) pins the seams: both `NoteFolderLocation` shapes over a real
+- `note` (`Tools/note-test.swift`) pins what the strip draws — the marker rule (a leading or trailing
+  Emoji, a joined sequence, a flag, a skin tone and a keycap each as one marker, none without an
+  Emoji), the label of an untitled draft, newest-first order, an edit moving its Note to the front,
+  wrap-around navigation, the open Note remembered across launches and which Note is selected after
+  a deletion — and the seams: both `NoteFolderLocation` shapes over a real
   defaults suite and temporary folders (what each persists, a bookmark following a renamed folder, a
   deleted folder reading as unresolvable with its bookmark kept), the status wording for the Mac and
   for iOS, and a folder with no Trash (the file kept byte for byte, the tombstone in the ledger, the

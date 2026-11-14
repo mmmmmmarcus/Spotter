@@ -19,10 +19,19 @@ enum NotesTheme {
     enum Size {
         static let accessoryBar: CGFloat = 46
         static let accessoryButton: CGFloat = 44
-        static let listMarker: CGFloat = 28
-        static let tintDot: CGFloat = 10
+        /// A marker's glyph is small; its tap target is a full fingertip tall.
+        static let markerWidth: CGFloat = 40
+        static let markerHeight: CGFloat = 44
+        static let markerEmoji: CGFloat = 22
+        static let markerDot: CGFloat = 7
+        static let markerDotSelected: CGFloat = 11
         /// A todo box is body-text sized, far under a fingertip; the tap target grows by this much on every side.
         static let checkboxTapSlop: CGFloat = 12
+    }
+
+    enum Opacity {
+        /// An unselected Emoji marker, at the Mac strip's strength.
+        static let markerDimmed = 0.48
     }
 
     enum Colors {
@@ -34,6 +43,14 @@ enum NotesTheme {
 
         static func tintAccent(_ tint: NoteTint) -> UIColor {
             adaptive(dark: darkTint(tint), light: lightTint(tint))
+        }
+
+        /// A Note with no title Emoji is marked by a dot: its tint, or a label grey when it has none.
+        static func markerDot(_ tint: NoteTint?, isSelected: Bool) -> UIColor {
+            guard let tint else { return isSelected ? .secondaryLabel : .tertiaryLabel }
+            guard !isSelected else { return tintAccent(tint) }
+            return adaptive(
+                dark: darkTint(tint).withAlphaComponent(0.45), light: lightTint(tint).withAlphaComponent(0.45))
         }
 
         /// The film a tint lays over the editor, at the Mac's two strengths.

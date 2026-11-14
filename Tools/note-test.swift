@@ -38,6 +38,22 @@ struct NoteTests {
         check("a family stays one Emoji icon", "👨‍👩‍👧‍👦", NoteEngine.titleEmoji(in: "# 👨‍👩‍👧‍👦 Family"))
         check("a digit is not an Emoji icon", nil, NoteEngine.titleEmoji(in: "# Sprint 1"))
         check("a flag stays one Emoji icon", "🇨🇳", NoteEngine.titleEmoji(in: "# 🇨🇳 行程"))
+        check("a leading Emoji is the marker", "🛒", NoteEngine.titleEmoji(in: "# 🛒 Groceries"))
+        check("an Emoji after text is the marker", "📝", NoteEngine.titleEmoji(in: "# Meeting notes 📝"))
+        check("a skin tone stays one Emoji marker", "👍🏽", NoteEngine.titleEmoji(in: "# 👍🏽 Done"))
+        check("a keycap stays one Emoji marker", "1️⃣", NoteEngine.titleEmoji(in: "# 1️⃣ First"))
+        check("a joined profession stays one Emoji marker", "🧑‍💻", NoteEngine.titleEmoji(in: "# Work 🧑‍💻 log"))
+        check("a variation-selector Emoji is a marker", "❤️", NoteEngine.titleEmoji(in: "# ❤️ Favourites"))
+        check("title markup does not hide the marker", "🎯", NoteEngine.titleEmoji(in: "# **🎯 Goals**"))
+        check("a title without an Emoji has no marker", nil, NoteEngine.titleEmoji(in: "# Plain title"))
+        check("an empty title has no marker", nil, NoteEngine.titleEmoji(in: "# "))
+        check("only the title supplies the marker", nil, NoteEngine.titleEmoji(in: "# Plain\n🎉 body"))
+        check("a marker is labelled by its title", "🛒 Groceries", NoteEngine.displayTitle(in: "# 🛒 Groceries\n- [ ] Milk"))
+        check("an empty draft is labelled untitled", "Untitled Note", NoteEngine.displayTitle(in: "# "))
+        check("an empty heading over a body is labelled untitled", "Untitled Note", NoteEngine.displayTitle(in: "# \nBody"))
+        check("a bare marker is labelled untitled", "Untitled Note", NoteEngine.displayTitle(in: "#"))
+        check("a tag-like title is not a bare heading", "#inbox", NoteEngine.displayTitle(in: "# #inbox"))
+        check("an empty document is labelled untitled", "Untitled Note", NoteEngine.displayTitle(in: ""))
         check("todo title", "Ship the plugin", NoteEngine.title(in: "- [ ] Ship the plugin"))
         check("empty title", "Untitled Note", NoteEngine.title(in: " \n\t"))
         check(
@@ -449,6 +465,49 @@ struct NoteTests {
             NoteEngine.adjusting(
                 NSRange(location: 2, length: 10), forEdit: NSRange(location: 5, length: 3),
                 changeInLength: -3, documentLength: 17))
+
+        // The marker strip, on the Mac and on iOS, draws this store's order and selection and nothing else.
+        let stripFile = directory.appendingPathComponent("strip.json")
+        let stripSuite = "spotter.note.strip.tests.\(UUID().uuidString)"
+        let stripDefaults = UserDefaults(suiteName: stripSuite)!
+        defer { stripDefaults.removePersistentDomain(forName: stripSuite) }
+        var stripClock = fixedDate
+        let strip = NoteStore(fileURL: stripFile, defaults: stripDefaults, now: { stripClock })
+        strip.updateSelectedContent("# Oldest")
+        let oldestID = strip.selectedID!
+        stripClock = fixedDate.addingTimeInterval(10)
+        let middleID = strip.createNote(content: "# 🧭 Middle")
+        stripClock = fixedDate.addingTimeInterval(20)
+        let newestID = strip.createNote(content: "# Newest 🆕")
+        check("markers run newest first", [newestID, middleID, oldestID], strip.notes.map(\.id))
+        check("each marker comes from its own title", ["🆕", "🧭", nil], strip.notes.map(\.titleEmoji))
+        check("a new Note is the one selected", newestID, strip.selectedID)
+        strip.select(strip.notes[2])
+        stripClock = fixedDate.addingTimeInterval(30)
+        strip.updateSelectedContent("# Oldest\nedited")
+        check("an edit moves its marker to the front", [oldestID, newestID, middleID], strip.notes.map(\.id))
+        check("an edit keeps its Note selected", oldestID, strip.selectedID)
+        check("previous wraps from the first marker to the last", middleID, strip.selectAdjacent(.previous)?.id)
+        check("next wraps from the last marker to the first", oldestID, strip.selectAdjacent(.next)?.id)
+        check("next steps to the following marker", newestID, strip.selectAdjacent(.next)?.id)
+        await strip.flush()
+        let stripReopened = NoteStore(fileURL: stripFile, defaults: stripDefaults, now: { stripClock })
+        check("the open Note is remembered across launches", newestID, stripReopened.selectedID)
+        check("the order is remembered across launches", [oldestID, newestID, middleID], stripReopened.notes.map(\.id))
+        let spareID = strip.createNote(content: "# Spare")
+        strip.select(strip.notes[2])
+        strip.delete(strip.notes[0])
+        check("deleting another Note leaves the selection alone", newestID, strip.selectedID)
+        check("the deleted Note leaves the strip", [oldestID, newestID, middleID], strip.notes.map(\.id))
+        check("the deleted Note is tombstoned", true, strip.syncSnapshot.tombstones.contains { $0.id == spareID })
+        strip.delete(strip.notes[1])
+        check("deleting the open Note selects the one that takes its place", middleID, strip.selectedID)
+        strip.delete(strip.notes[1])
+        check("deleting the last marker selects the one before it", oldestID, strip.selectedID)
+        strip.delete(strip.notes[0])
+        check("deleting the only Note leaves nothing selected", nil, strip.selectedID)
+        check("an empty strip has nowhere to navigate", nil, strip.selectAdjacent(.next)?.id)
+        check("an empty store still creates and selects", strip.createNote(), strip.selectedID)
 
         // Tints: a color is a user modification that syncs, but never one that reorders the list.
         let tintFile = directory.appendingPathComponent("tints.json")

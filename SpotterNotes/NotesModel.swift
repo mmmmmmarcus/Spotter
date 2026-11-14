@@ -46,10 +46,10 @@ final class NotesModel: ObservableObject {
         }
     }
 
-    func createNote() -> UUID {
-        let id = store.createNote()
+    /// The store selects what it creates, which is what puts a new Note on screen.
+    func createNote() {
+        store.createNote()
         store.requestEditorFocus()
-        return id
     }
 
     /// The store edits its selected Note, so the Note on screen is selected before its text is written.

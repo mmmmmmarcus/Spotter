@@ -15,45 +15,62 @@ private enum SyncCopy {
         "Notes sync through a folder of Markdown files. Choose the same folder Spotter uses on your Mac — for example iCloud Drive ▸ Spotter ▸ Note."
     static let chooseFolder = "Choose Notes Folder"
 
-    static func lostFolder(device: String) -> String {
-        "The Notes folder can’t be found, so Notes are staying on \(device). Choose it again to keep syncing."
-    }
-
     static func retained(_ count: Int) -> String {
         let files = count == 1 ? "1 deleted Note’s file is" : "\(count) deleted Notes’ files are"
         return "\(files) still in this folder, because it has no Recently Deleted to move them to. Spotter on your Mac removes them when it next syncs."
     }
 }
 
-/// What the list says about sync when there is something to say: not connected, folder lost, or an error.
-struct SyncNotice: View {
+/// What sits under the top bar while sync needs the user: no folder yet, the folder lost, or a failed pass. The wording is the shared manager's status.
+struct SyncBanner: View {
     @ObservedObject var sync: NoteFolderSyncManager
     let chooseFolder: () -> Void
+    let showSync: () -> Void
 
     var body: some View {
         if sync.isFolderUnavailable {
-            notice(SyncCopy.lostFolder(device: NotesModel.device), symbol: "exclamationmark.triangle", offersFolder: true)
+            banner(symbol: "exclamationmark.triangle", offersFolder: true)
         } else if !sync.isEnabled {
-            notice(SyncCopy.explanation, symbol: "folder.badge.plus", offersFolder: true)
-        } else if let error = sync.errorMessage {
-            notice(error, symbol: "exclamationmark.triangle", offersFolder: false)
+            banner(symbol: "folder.badge.plus", offersFolder: true)
+        } else if sync.errorMessage != nil {
+            banner(symbol: "exclamationmark.triangle", offersFolder: false)
         }
     }
 
-    private func notice(_ text: String, symbol: String, offersFolder: Bool) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: NotesTheme.Spacing.lg) {
-                Label(text, systemImage: symbol)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                if offersFolder {
-                    Button(SyncCopy.chooseFolder, action: chooseFolder)
-                        .buttonStyle(.borderedProminent)
+    private func banner(symbol: String, offersFolder: Bool) -> some View {
+        HStack(spacing: NotesTheme.Spacing.lg) {
+            Button(action: showSync) {
+                Label {
+                    VStack(alignment: .leading) {
+                        Text("Sync")
+                            .fontWeight(.semibold)
+                        Text(sync.statusText)
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.leading)
+                } icon: {
+                    Image(systemName: symbol)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, NotesTheme.Spacing.xs)
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Sync")
+            if offersFolder {
+                Button("Choose Folder", action: chooseFolder)
+                    .buttonStyle(.bordered)
+            }
         }
-        .selectionDisabled()
+        .font(.footnote)
+        .padding(NotesTheme.Spacing.lg)
+        .frame(minHeight: NotesTheme.Size.markerHeight)
+        .background(
+            Color(uiColor: NotesTheme.Colors.controlSurface),
+            in: RoundedRectangle(cornerRadius: NotesTheme.Radius.card, style: .continuous)
+        )
+        .padding(.horizontal, NotesTheme.Spacing.xl)
+        .padding(.vertical, NotesTheme.Spacing.sm)
     }
 }
 
