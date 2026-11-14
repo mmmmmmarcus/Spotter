@@ -272,11 +272,11 @@ swiftc -swift-version 6 \
     -o /tmp/translate-test && /tmp/translate-test
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
     Spotter/Plugins/Note/NoteSyncDocument.swift Spotter/Plugins/Note/NoteFolderDocument.swift \
-    Spotter/Plugins/Note/NoteFolderIO.swift \
+    Spotter/Plugins/Note/NoteFolderIO.swift Spotter/Plugins/Note/NoteSwipeNavigation.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 swiftc -swift-version 6 Spotter/Core/Theme.swift Spotter/Core/LocalTextPasteTarget.swift \
     Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteMarkdownEditor.swift \
-    Spotter/Core/Calculator/*.swift \
+    Spotter/Plugins/Note/NoteSwipeNavigation.swift Spotter/Core/Calculator/*.swift \
     Spotter/Plugins/CurrencyConversion/CalcCurrency.swift \
     Spotter/Plugins/CurrencyConversion/CurrencyData.generated.swift \
     Tools/note-editor-test.swift -o /tmp/note-editor-test && /tmp/note-editor-test

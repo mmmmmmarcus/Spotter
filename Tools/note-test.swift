@@ -1595,6 +1595,62 @@ struct NoteTests {
         var scanFailed = false
         do { _ = try await io.scan(folder: folder) } catch { scanFailed = true }
         check("an unreachable folder fails loudly", true, scanFailed)
+
+        // One sideways scroll gesture over the editor changes the Note at most once.
+        typealias SwipeEvent = (phase: NoteSwipePhase, x: Double, y: Double)
+        func swipe(_ events: [SwipeEvent], inverted: Bool = true, tracker: NoteSwipeTracker = NoteSwipeTracker())
+            -> (fired: [NoteNavigationDirection], consumed: [Bool], tracker: NoteSwipeTracker) {
+            var tracker = tracker
+            let outcomes = events.map {
+                tracker.handle(phase: $0.phase, deltaX: $0.x, deltaY: $0.y, isDirectionInverted: inverted)
+            }
+            return (outcomes.compactMap(\.navigation), outcomes.map(\.consumesEvent), tracker)
+        }
+        let leftSwipe: [SwipeEvent] = [(.began, -2, 0), (.changed, -18, 1), (.changed, -25, -1), (.changed, -30, 0), (.ended, 0, 0)]
+        let rightSwipe: [SwipeEvent] = leftSwipe.map { ($0.phase, -$0.x, $0.y) }
+        let leftMomentum: [SwipeEvent] = [(.momentum, -40, 0), (.momentum, -30, 0), (.momentum, -90, 0)]
+        let swipedLeft = swipe(leftSwipe)
+        check("a swipe left selects the next Note once", [NoteNavigationDirection.next], swipedLeft.fired)
+        check("a sideways swipe is kept from the scroll view between its ends",
+            [false, true, true, true, false], swipedLeft.consumed)
+        check("a swipe right selects the previous Note once", [NoteNavigationDirection.previous], swipe(rightSwipe).fired)
+        check("classic scrolling still reads a finger moving left as next",
+            [NoteNavigationDirection.next], swipe(rightSwipe, inverted: false).fired)
+        check("classic scrolling still reads a finger moving right as previous",
+            [NoteNavigationDirection.previous], swipe(leftSwipe, inverted: false).fired)
+        check("travel after the change never changes the Note again", [NoteNavigationDirection.next],
+            swipe([(.began, -3, 0), (.changed, -60, 0), (.changed, -200, 0), (.changed, -400, 0), (.ended, 0, 0)]).fired)
+        check("the change fires on the event that crosses the threshold", [NoteNavigationDirection.next],
+            swipe([(.began, -4, 0), (.changed, -(NoteSwipeTracker.fireDistance - 4), 0)]).fired)
+        check("a nudge short of the threshold changes nothing", [NoteNavigationDirection](),
+            swipe([(.began, -4, 0), (.changed, -(NoteSwipeTracker.fireDistance - 5), 0), (.ended, 0, 0)]).fired)
+        check("a swipe that returns to where it began changes nothing", [NoteNavigationDirection](),
+            swipe([(.began, -5, 0), (.changed, -25, 0), (.changed, 25, 0), (.changed, -8, 0), (.ended, 0, 0)]).fired)
+        let flick = swipe(leftMomentum, tracker: swipe([(.began, -6, 0), (.changed, -20, 0), (.ended, 0, 0)]).tracker)
+        check("momentum never completes a short flick", [NoteNavigationDirection](), flick.fired)
+        check("momentum after a sideways swipe never scrolls the page", [true, true, true], flick.consumed)
+        check("momentum after a completed swipe never skips a second Note", [NoteNavigationDirection](),
+            swipe(leftMomentum, tracker: swipedLeft.tracker).fired)
+        let verticalDrift = swipe([(.began, 0, -3), (.changed, -1, -6), (.changed, -90, -2), (.changed, -200, 0), (.ended, 0, 0)])
+        check("a scroll that began vertical never changes the Note", [NoteNavigationDirection](), verticalDrift.fired)
+        check("a scroll that began vertical stays an ordinary scroll throughout",
+            [false, false, false, false, false], verticalDrift.consumed)
+        check("momentum after a vertical scroll still scrolls the page", [false, false, false],
+            swipe(leftMomentum, tracker: verticalDrift.tracker).consumed)
+        check("a diagonal start is a vertical scroll", [NoteNavigationDirection](),
+            swipe([(.began, -4, -3), (.changed, -120, 0), (.ended, 0, 0)]).fired)
+        check("a new gesture after an ended one can change the Note again", [NoteNavigationDirection.next],
+            swipe(leftSwipe, tracker: swipedLeft.tracker).fired)
+        check("a new gesture after a cancelled one can change the Note again", [NoteNavigationDirection.previous],
+            swipe(rightSwipe, tracker: swipe([(.began, -5, 0), (.changed, -20, 0), (.cancelled, 0, 0)]).tracker).fired)
+        check("a vertical scroll does not disarm the next sideways swipe", [NoteNavigationDirection.next],
+            swipe(leftSwipe, tracker: verticalDrift.tracker).fired)
+        let adopted = swipe([(.changed, -50, 0), (.changed, -80, 0), (.ended, 0, 0)])
+        check("a gesture that began over another view is never adopted", [NoteNavigationDirection](), adopted.fired)
+        check("a gesture that began over another view scrolls as before", [false, false, false], adopted.consumed)
+        let resting = swipe([(.idle, 0, 0), (.idle, -300, 0), (.cancelled, 0, 0)])
+        check("phaseless events change nothing", [NoteNavigationDirection](), resting.fired)
+        check("phaseless events reach the scroll view", [false, false, false], resting.consumed)
         print(failures == 0 ? "\nALL PASSED" : "\n\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }

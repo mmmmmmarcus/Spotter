@@ -67,6 +67,7 @@
 		20D18880BCAA1BC96BDCC45B /* ClipboardCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F754B7FDFC8250E51AC3102 /* ClipboardCapture.swift */; };
 		2262F2F21DF6412745958426 /* FileSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16D1CFCA44302443C1C68D56 /* FileSearchService.swift */; };
 		22D4E6AFD5327BA75AD9C5D8 /* QuickAIChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8C9DFADE6DD86CEAE563F7 /* QuickAIChatPanel.swift */; };
+		231D1A09B3EF7723D12623DE /* NoteSwipeNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BDAD22E6B420108C50C0599 /* NoteSwipeNavigation.swift */; };
 		23796C34023E0DCAC3096D3B /* PopoverMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2821459ECF8A3EB12E1D0D5 /* PopoverMenu.swift */; };
 		23D88A95358AF8E68B1428E8 /* QuicklinkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C8ACF3052CC0B630FA4B2AF /* QuicklinkStore.swift */; };
 		241CB5E964B391FAEF748B83 /* SearchURLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF93553A01C5315C277F8A5 /* SearchURLBuilder.swift */; };
@@ -600,6 +601,7 @@
 		6AC7A287D22028FC616E9A44 /* VisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectView.swift; sourceTree = "<group>"; };
 		6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotterApp.swift; sourceTree = "<group>"; };
 		6B668D681EAB308B71465312 /* ExtensionRefreshPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionRefreshPolicy.swift; sourceTree = "<group>"; };
+		6BDAD22E6B420108C50C0599 /* NoteSwipeNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSwipeNavigation.swift; sourceTree = "<group>"; };
 		6CC5F2AA5E4C20EC212A2749 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		6D1D9D54DE74E22588D6C5AE /* OpenRouterStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterStream.swift; sourceTree = "<group>"; };
 		6E1241E789327FB92E2BFAF4 /* ExtensionColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionColors.swift; sourceTree = "<group>"; };
@@ -1031,6 +1033,7 @@
 				0585A83889766AB5682CD10C /* NotePlugin.swift */,
 				6132946DCF8B0D3F85FF34D0 /* NoteSettingsView.swift */,
 				A26C52121BB6D0B805E6ABE9 /* NoteStore.swift */,
+				6BDAD22E6B420108C50C0599 /* NoteSwipeNavigation.swift */,
 				AED7227A23155DB3DDD75388 /* NoteSyncDocument.swift */,
 				0CA6658947F332E55343E683 /* NoteSyncManager.swift */,
 				EDEAB73174BFB5B5DF0189F0 /* NoteToolbar.swift */,
@@ -1976,6 +1979,7 @@
 				A39D05C2AD356E8C909F2FCF /* NotePlugin.swift in Sources */,
 				2989EB81DD3426F15AA0711A /* NoteSettingsView.swift in Sources */,
 				E4E95F5EB55D1C47857A1727 /* NoteStore.swift in Sources */,
+				231D1A09B3EF7723D12623DE /* NoteSwipeNavigation.swift in Sources */,
 				136771A2A33514E98CB0B211 /* NoteSyncDocument.swift in Sources */,
 				B3E1B073D04A69B1C80330E1 /* NoteSyncManager.swift in Sources */,
 				BEE110AAEF5D344F13049AA7 /* NoteToolbar.swift in Sources */,

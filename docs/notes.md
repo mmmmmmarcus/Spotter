@@ -77,6 +77,35 @@ Closing the window flushes the latest in-memory snapshot.
 
 While the editor is focused, **Command-[** selects the previous Note and **Command-]** selects the
 next one. Navigation follows the same newest-first order as the toolbar markers and wraps at either end.
+
+A sideways scroll gesture over the editor does the same — one finger on a Magic Mouse, two on a
+trackpad, which are one event stream. The page follows the finger as it does in Safari: swiping left
+selects the next Note and swiping right the previous one, whichever way the system's scroll direction
+is set. `NoteScrollView.scrollWheel` translates each event for the pure `NoteSwipeTracker`
+(`NoteSwipeNavigation.swift`), and a change goes through the same `Coordinator.navigate` as the
+keys, so wrapping, focus, the caret and the fade are the keyboard's. The rules that keep it from
+firing by accident:
+
+- Only gesture scrolls count — precise deltas carrying a real phase. A notched wheel, Shift-wheel
+  included, scrolls exactly as before.
+- The axis is settled once, on the first `axisLockDistance` (4) points of travel, and holds for the
+  gesture's whole life. It locks horizontal only when the sideways travel is at least
+  `horizontalDominance` (2) times the vertical; anything else is an ordinary vertical scroll that no
+  later drift can turn into a Note change. A gesture must also begin over the editor: one that
+  started on the marker strip keeps scrolling the strip.
+- A gesture changes the Note at most once, when its net sideways travel reaches
+  `NoteSwipeTracker.fireDistance` (40 points — the one constant to retune). The rest of the gesture
+  and all of its momentum are ignored, so a fast flick cannot skip several Notes.
+- A horizontal gesture's travel and momentum never reach the scroll view, so the page does not
+  jiggle; only its opening and closing events are forwarded, to keep AppKit's own gesture
+  bookkeeping paired.
+
+It is deliberately not tied to the system's "Swipe between pages" preference
+(`NSEvent.isSwipeTrackingFromScrollEventsEnabled`): that setting belongs to browsers' history, and a
+Notes gesture that silently depended on it would read as a bug. Reading every event of a gesture
+means `NoteScrollView` opts out of AppKit's responsive scrolling, which delivers only the first; do
+not opt back in without moving the gesture elsewhere.
+
 The new editor content fades in over 160 ms while moving eight points from the navigation side to
 its resting position once. It never moves away and returns; Reduce Motion makes the switch immediate.
 The toolbar stays fixed. A presentation-layer transform leaves layout and the window frame untouched.
@@ -542,7 +571,7 @@ Run the pure harness independently:
 ```sh
 swiftc -swift-version 6 Spotter/Plugins/Note/NoteEngine.swift Spotter/Plugins/Note/NoteStore.swift \
     Spotter/Plugins/Note/NoteSyncDocument.swift Spotter/Plugins/Note/NoteFolderDocument.swift \
-    Spotter/Plugins/Note/NoteFolderIO.swift \
+    Spotter/Plugins/Note/NoteFolderIO.swift Spotter/Plugins/Note/NoteSwipeNavigation.swift \
     Tools/note-test.swift -o /tmp/note-test && /tmp/note-test
 ```
 
@@ -552,7 +581,10 @@ deterministic Note/deletion merges, the whole-marker Delete rule (every marker k
 not, an empty item, a caret elsewhere on the line, at the line's start, inside the marker, holding a
 selection and inside a fence) and the former sync
 document's decode bridge; it never opens the floating window, contacts CloudKit or reads real
-application data.
+application data. It also drives `NoteSwipeTracker` with plain numbers: one change per gesture in
+each direction and under either scroll-direction setting, no second change from further travel or
+momentum, no change from a vertical-first, diagonal, sub-threshold or returning gesture, and a
+fresh gesture after an ended or cancelled one.
 deterministic Note/deletion merges and the former sync document's decode bridge.
 
 Folder sync is covered twice over. Purely, through `NoteFolderDocument`/`NoteFolderReconciler`:

@@ -138,7 +138,9 @@ Never break these without an explicit task to do so.
   so none of them may import AppKit, UIKit or SwiftUI, and a platform difference goes in as an
   injected dependency whose default is the Mac's behaviour — `NoteFolderLocation` (path on the Mac,
   security-scoped bookmark on iOS), `NoteFolderIO`'s `trash`, and the status wording's `device` are
-  the three that exist — never as a second code path. `SpotterNotes/NoteInputRules.swift` stays
+  the three that exist — never as a second code path. The Mac-only
+  `Plugins/Note/NoteSwipeNavigation.swift` stays Foundation-only and pure for `Tools/note-test.swift` too, its
+  caller translating the scroll event to plain numbers. `SpotterNotes/NoteInputRules.swift` stays
   Foundation-only and pure for `Tools/note-ios-test.swift`,
   `Plugins/Quicklinks/QuicklinkTypes.swift` stays Foundation-only and pure while
   `Plugins/Quicklinks/QuicklinkStore.swift` stays Foundation + Combine for

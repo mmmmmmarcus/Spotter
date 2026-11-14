@@ -127,6 +127,10 @@ struct NoteMarkdownEditor: NSViewRepresentable {
         scrollView.documentView = textView
         coordinator.textView = textView
         scrollView.layoutHandler = { [weak coordinator] in coordinator?.refreshScroller() }
+        // A sideways swipe takes the ⌘[ / ⌘] path, so focus and the caret land the same way.
+        scrollView.navigationHandler = { [weak coordinator] direction in
+            coordinator?.navigate(direction)
+        }
         coordinator.applyTint()
         coordinator.highlight()
 
@@ -1145,10 +1149,35 @@ private final class NoteLayoutManager: NSLayoutManager {
 @MainActor
 private final class NoteScrollView: NSScrollView {
     var layoutHandler: (() -> Void)?
+    var navigationHandler: ((NoteNavigationDirection) -> Void)?
+    private var swipe = NoteSwipeTracker()
+
+    // Responsive scrolling hands this method only a gesture's first event; the swipe needs them all.
+    override class var isCompatibleWithResponsiveScrolling: Bool { false }
 
     override func layout() {
         super.layout()
         layoutHandler?()
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        // A notched wheel has no gesture to read, so it stays the ordinary scroll it always was.
+        guard event.hasPreciseScrollingDeltas else { return super.scrollWheel(with: event) }
+        let outcome = swipe.handle(
+            phase: Self.swipePhase(of: event), deltaX: event.scrollingDeltaX,
+            deltaY: event.scrollingDeltaY, isDirectionInverted: event.isDirectionInvertedFromDevice)
+        if !outcome.consumesEvent { super.scrollWheel(with: event) }
+        if let direction = outcome.navigation { navigationHandler?(direction) }
+    }
+
+    private static func swipePhase(of event: NSEvent) -> NoteSwipePhase {
+        if event.momentumPhase != [] { return .momentum }
+        let phase = event.phase
+        if phase.contains(.began) { return .began }
+        if phase.contains(.ended) { return .ended }
+        if phase.contains(.cancelled) { return .cancelled }
+        if phase.contains(.changed) || phase.contains(.stationary) { return .changed }
+        return .idle
     }
 }
 
