@@ -16,6 +16,7 @@ final class QuickClipboardMenuView: NSView {
     private let groupShadow = CALayer()
     private let shadowMask = CAShapeLayer()
     private var thumbnailPreparation: Task<Void, Never>?
+    private var thumbnailGeneration = 0
     private var thumbnails: [String: NSImage] = [:]
     private var loadingImagePaths: Set<String> = []
     private var unreadableImagePaths: Set<String> = []
@@ -167,20 +168,23 @@ final class QuickClipboardMenuView: NSView {
         }
         let missing = paths.subtracting(thumbnails.keys).subtracting(unreadableImagePaths)
         if !missing.isSubset(of: loadingImagePaths) {
+            thumbnailGeneration &+= 1
+            let generation = thumbnailGeneration
             loadingImagePaths = missing
             thumbnailPreparation?.cancel()
             thumbnailPreparation = Task { [weak self] in
                 for path in missing {
-                    let url = URL(fileURLWithPath: path)
-                    var image = await ImageThumbnail.loadAsync(url, maxPixel: 512)
-                    // A purge can land between the decode and its read-back, so one nil does not prove the file unreadable.
-                    if image == nil { image = await ImageThumbnail.loadAsync(url, maxPixel: 512) }
-                    guard !Task.isCancelled, let self else { return }
+                    let image = await ImageThumbnail.loadAsync(URL(fileURLWithPath: path), maxPixel: 512)
+                    // A superseded load owns none of this state any more; the load that replaced it does.
+                    guard let self, generation == thumbnailGeneration else { return }
+                    // Claimed paths are released as they finish, so a later refresh never waits on work this load has already passed.
+                    loadingImagePaths.remove(path)
+                    // `loadAsync` only returns nil for a decode it reported as failed, so this cannot file a readable image away as unreadable.
                     if let image { hold(image, at: path) } else { unreadableImagePaths.insert(path) }
                 }
-                guard let self else { return }
-                loadingImagePaths = []
-                for (index, button) in visibleButtons { configure(button, for: displayedItems[index]) }
+                guard let self, generation == thumbnailGeneration else { return }
+                // Re-derive rather than just redraw: a tile that scrolled away mid-load was never held and has to be asked for again.
+                refreshVisibleRows()
             }
         }
         if !displayedItems.isEmpty, visible.minY <= QuickClipboardPresentation.gridSide, pagingTask == nil {

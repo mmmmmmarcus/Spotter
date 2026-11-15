@@ -76,21 +76,31 @@ enum ImageThumbnail {
         pick(maxPixel).object(forKey: cacheKey(url, maxPixel))
     }
 
-    /// Decodes off the main thread and reads the result back from the thread-safe cache; the `NSImage` never crosses the actor boundary, keeping it clean under strict concurrency.
+    /// A finished decode on its way back to the caller's actor. `CGImage` is immutable once created, so carrying one across is safe even though CoreGraphics types carry no `Sendable` conformance.
+    private struct Decoded: @unchecked Sendable {
+        let cgImage: CGImage
+    }
+
+    /// Decodes off the main thread and hands the bitmap itself back. The cache is a cache: a purge or an eviction between the decode and the caller must not turn a success into a `nil` that nothing reported, which is what made a whole grid of readable thumbnails look unreadable.
     static func loadAsync(_ url: URL, maxPixel: CGFloat) async -> NSImage? {
         if let cached = cached(url, maxPixel: maxPixel) { return cached }
-        await Task.detached(priority: .userInitiated) {
-            _ = load(url, maxPixel: maxPixel)
+        let decoded = await Task.detached(priority: .userInitiated) {
+            decode(url, maxPixel: maxPixel)
         }.value
-        return cached(url, maxPixel: maxPixel)
+        guard let decoded else { return nil }
+        // Another decode of the same thumbnail may have landed first; either copy is the same bitmap.
+        return cached(url, maxPixel: maxPixel) ?? store(decoded, url: url, maxPixel: maxPixel)
     }
 
     /// A thumbnail no larger than `maxPixel` on its longest edge, cached per (path, size); decodes synchronously, so call off the main thread for anything user-facing.
     static func load(_ url: URL, maxPixel: CGFloat) -> NSImage? {
-        let cache = pick(maxPixel)
-        let key = cacheKey(url, maxPixel)
-        if let cached = cache.object(forKey: key) { return cached }
+        if let cached = cached(url, maxPixel: maxPixel) { return cached }
+        guard let decoded = decode(url, maxPixel: maxPixel) else { return nil }
+        return store(decoded, url: url, maxPixel: maxPixel)
+    }
 
+    /// The decode itself: the only place pixels are read, and the only place a failure is diagnosed. A `nil` here always means the file could not be opened or decoded, and always reported why.
+    private static func decode(_ url: URL, maxPixel: CGFloat) -> Decoded? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             reportFailure(url, stage: "open")
             return nil
@@ -107,11 +117,16 @@ enum ImageThumbnail {
             return nil
         }
         failures.removeObject(forKey: url.path as NSString)
+        return Decoded(cgImage: cgImage)
+    }
 
+    private static func store(_ decoded: Decoded, url: URL, maxPixel: CGFloat) -> NSImage {
+        let cgImage = decoded.cgImage
         let image = NSImage(
             cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
         // Cost = the decoded bitmap's real byte footprint, so `totalCostLimit` bounds actual RAM.
-        cache.setObject(image, forKey: key, cost: cgImage.bytesPerRow * cgImage.height)
+        pick(maxPixel).setObject(
+            image, forKey: cacheKey(url, maxPixel), cost: cgImage.bytesPerRow * cgImage.height)
         return image
     }
 

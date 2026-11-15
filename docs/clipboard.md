@@ -236,6 +236,12 @@ their wrapping name. Image tiles use 4-point inner padding and centered square c
 Loading is asynchronous and reuses the bounded 512-pixel cache in `ImageThumbnail`, with a photo symbol
 for cold or unreadable previews. The menu holds its own copy of each visible tile's thumbnail, so a purge
 or eviction of that shared cache never blanks a tile on screen, and reloads any visible tile it lacks.
+`ImageThumbnail.loadAsync` hands the decoded bitmap straight back instead of reading it out of the cache
+again, because a palette hide, the cost limit or memory pressure can empty that cache between the two —
+which used to report a perfectly readable image as an unreadable one, silently, since nothing had failed.
+Only a decode the loader reports as failed marks a path unreadable, a load releases each path as it
+finishes rather than claiming the whole batch until the end, and a superseded load touches no state at
+all, so a tile can never be left waiting on work that has already gone by.
 All tiles have a subtle semantic fill to define their square area.
 The original clipboard image remains unchanged. Only visible tiles load thumbnails, and keyboard
 selection reveals each entry in row-major order. Images retain their original colors, with full opacity

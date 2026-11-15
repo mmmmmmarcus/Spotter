@@ -21,6 +21,7 @@ struct QuickClipboardTests {
         webCaretBounds()
         emptyWebEditorAnchor()
         await imagePreviews()
+        await evictedThumbnails()
         await nativeSurface()
         scrolling()
         imageGrid()
@@ -425,6 +426,69 @@ struct QuickClipboardTests {
             "live replacement restores normal text presentation")
         menu.update([ClipboardItem(imagePath: directory.appendingPathComponent("missing.png").path, sourceBundleID: nil), other], selection: 0)
         expect(button.title.isEmpty && button.image != nil, "unreadable images keep an icon fallback without leaking a path")
+    }
+
+    /// The shared preview cache is emptied by a palette hide, by its cost limit and by the system
+    /// under memory pressure — including while a tile is decoding. A decode that survives all the
+    /// way to a cache the loader can no longer read used to come back as a plain `nil`, with nothing
+    /// failing and nothing logged, and the grid filed every readable image away as unreadable.
+    static func evictedThumbnails() async {
+        _ = NSApplication.shared
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("quick-clipboard-evicted-" + UUID().uuidString)
+        try! FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var urls: [URL] = []
+        for index in 0..<16 {
+            let url = directory.appendingPathComponent("tile-\(index).png")
+            let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 600, pixelsHigh: 400,
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+            bitmap.bitmapData!.initialize(repeating: UInt8(16 * index + 15), count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+            try! bitmap.representation(using: .png, properties: [:])!.write(to: url)
+            urls.append(url)
+        }
+        ImageThumbnail.purgePreviews()
+        // Empties the cache at every scheduling point, so it lands inside the loader's window.
+        let evicting = Task { @MainActor in
+            while !Task.isCancelled {
+                ImageThumbnail.purgePreviews()
+                await Task.yield()
+            }
+        }
+        var decoded = 0
+        for url in urls where await ImageThumbnail.loadAsync(url, maxPixel: 512) != nil { decoded += 1 }
+        expect(decoded == urls.count,
+            "a decode reaches the caller even when the shared cache is emptied before it could be read back")
+        let items = urls.map { ClipboardItem(imagePath: $0.path, sourceBundleID: nil) }
+        ImageThumbnail.purgePreviews()
+        let menu = QuickClipboardMenuView(items: [])
+        menu.update(items, selection: 0, filter: .image)
+        await settle(0.8)
+        evicting.cancel()
+        await settle(0.4)
+        expect(menu.rowButtons.allSatisfy { $0.content.image?.isTemplate == false },
+            "every visible tile loads its preview through the eviction")
+        // Nothing may be remembered as unreadable on that evidence: scrolling and refiltering must not expose a blank grid.
+        menu.select(4)
+        menu.update(items, selection: 0, filter: .image)
+        await settle(0.6)
+        expect(menu.rowButtons.allSatisfy { $0.content.image?.isTemplate == false },
+            "a readable image is never recorded unreadable, so the grid stays loaded afterwards")
+        let unreadable = directory.appendingPathComponent("not-an-image.png")
+        try! Data("plain text, not a PNG".utf8).write(to: unreadable)
+        menu.update([ClipboardItem(imagePath: unreadable.path, sourceBundleID: nil)], selection: 0, filter: .image)
+        await settle(0.6)
+        expect(menu.rowButtons[0].content.image?.isTemplate == true,
+            "a file that genuinely cannot be decoded still falls back to the placeholder symbol")
+    }
+
+    /// Lets the menu's thumbnail task and its detached decodes run to completion.
+    static func settle(_ seconds: Double) async {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+            await Task.yield()
+        }
     }
 
     static func groupShadow(_ menu: QuickClipboardMenuView) {
