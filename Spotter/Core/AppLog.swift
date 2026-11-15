@@ -50,17 +50,21 @@ final class AppLog: ObservableObject {
     private static let fileLimit = 512 * 1024
 
     let fileURL: URL
+    private let writesToFile: Bool
     private var handle: FileHandle?
     private var bytesWritten: UInt64 = 0
 
     private init() {
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.spotter.app1"
+        let bundleID = Bundle.main.bundleIdentifier
         let directory = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent(bundleID ?? "com.spotter.app1", isDirectory: true)
             .appendingPathComponent("Logs", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         fileURL = directory.appendingPathComponent("spotter.log")
+        // A standalone harness has no bundle identifier, and must never write to - or rotate away - the installed app's log.
+        writesToFile = bundleID != nil
+        guard writesToFile else { return }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         openFile()
     }
 
@@ -110,7 +114,7 @@ final class AppLog: ObservableObject {
     }
 
     private func write(_ line: String) {
-        guard let data = line.data(using: .utf8) else { return }
+        guard writesToFile, let data = line.data(using: .utf8) else { return }
         if bytesWritten + UInt64(data.count) > UInt64(Self.fileLimit) { rotate() }
         handle?.write(data)
         bytesWritten += UInt64(data.count)
