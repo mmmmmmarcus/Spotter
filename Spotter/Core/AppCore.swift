@@ -233,10 +233,15 @@ final class AppCore: ObservableObject {
     lazy var extensionCoordinator = ExtensionCoordinator(core: self)
     let translate = TranslateManager()
     lazy var raycastStore = RaycastStoreController(core: self)
-    lazy var quickTranslate = QuickTranslateController(manager: translate, hotKeys: hotKeys) { [weak self] source, target in
-        guard let self else { throw CancellationError() }
-        return try await TranslationAlignmentClient.align(source: source, target: target, router: self.openRouter)
-    }
+    lazy var quickTranslate = QuickTranslateController(
+        manager: translate, hotKeys: hotKeys,
+        align: { [weak self] source, target in
+            guard let self else { throw CancellationError() }
+            return try await TranslationAlignmentClient.align(source: source, target: target, router: self.openRouter)
+        },
+        replaceSelection: { [weak self] original, pid, text in
+            self?.replaceSelection(original: original, pid: pid, with: text)
+        })
     let notes: NoteStore
     let noteFolderSync: NoteFolderSyncManager
     /// Deliberately unstarted: the CloudKit engine is kept whole but has no entry point since Notes
@@ -1062,6 +1067,32 @@ final class AppCore: ObservableObject {
         calcHistory.record(expression: result.expression, result: display)
         hidePalette(restoreFocus: false)
         Paster.copyPlainText(copyText)
+    }
+
+    /// ⌘↵ in the Quick Translate bubble: write the translation over the selection it came from.
+    /// `AppCore` owns both surfaces, which is why the orchestration lives here rather than letting
+    /// Translate reach into AI Chat's replacement machinery. The target is captured synchronously,
+    /// on the keypress, because its paste-only path invalidates itself on any later key or click.
+    func replaceSelection(original: String, pid: pid_t, with text: String) {
+        let target: AISelectionReplacement
+        do { target = try AISelectionReplacement.capture(text: original, pid: pid) }
+        catch {
+            AppLog.error("translate", "Selection replacement refused: \(error.localizedDescription)")
+            hud.show(title: error.localizedDescription, symbol: "exclamationmark.triangle", isNoOp: true)
+            return
+        }
+        Task { @MainActor [weak self] in
+            do {
+                try await target.replaceDirectly(with: text) { [weak self] in
+                    guard let self, case .success(let current) = await selectedTextCapture.capture(),
+                          current.source.processIdentifier == pid else { return nil }
+                    return current.text
+                }
+            } catch {
+                AppLog.error("translate", "Selection replacement failed: \(target.diagnosticSummary)")
+                self?.hud.show(title: error.localizedDescription, symbol: "exclamationmark.triangle", isNoOp: true)
+            }
+        }
     }
 
     /// Plugin inline answers are copied but never added to calculator history.

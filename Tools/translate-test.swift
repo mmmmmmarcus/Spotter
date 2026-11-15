@@ -22,6 +22,89 @@ struct TranslateTests {
             TranslationRow(code: "ja", name: "Japanese", text: "こんにちは")])
         check("quick panel replaces source with target text only", TranslateState.translated(quickResult).quickPanelText == "你好\n\nこんにちは")
 
+        // Carbon consumes a held key from the frontmost app, so a claim that outlives its action
+        // eats the user's own Return or arrows.
+        check(
+            "a bubble with no translation claims nothing but Escape",
+            QuickTranslateKeyAction.active(hasResult: false, canReplace: true, showsOriginal: false)
+                == [.dismiss])
+        check(
+            "a failed or loading bubble never claims the comparison arrows",
+            QuickTranslateKeyAction.active(hasResult: false, canReplace: false, showsOriginal: true)
+                == [.dismiss])
+        check(
+            "a translation with no capturable selection cannot be written back",
+            QuickTranslateKeyAction.active(hasResult: true, canReplace: false, showsOriginal: false)
+                == [.dismiss, .copy, .openComparison])
+        check(
+            "a translation from a selection claims the replace key too",
+            QuickTranslateKeyAction.active(hasResult: true, canReplace: true, showsOriginal: false)
+                == [.dismiss, .copy, .replaceSelection, .openComparison])
+        check(
+            "comparison on screen claims only the arrow that closes it",
+            QuickTranslateKeyAction.active(hasResult: true, canReplace: true, showsOriginal: true)
+                == [.dismiss, .copy, .replaceSelection, .closeComparison])
+        check(
+            "no state claims both comparison arrows",
+            [true, false].allSatisfy { shown in
+                let active = QuickTranslateKeyAction.active(
+                    hasResult: true, canReplace: true, showsOriginal: shown)
+                return !active.isSuperset(of: [.openComparison, .closeComparison])
+            })
+
+        // The footer is the same availability rule rendered as buttons, so it can never offer an
+        // action the bubble has not claimed a key for — or omit one it has.
+        check(
+            "a bubble with no translation shows no footer button",
+            QuickTranslateKeyAction.footerActions(
+                hasResult: false, canReplace: true, showsOriginal: false).isEmpty)
+        check(
+            "Escape never becomes a footer button",
+            !QuickTranslateKeyAction.footerOrder.contains(.dismiss)
+                && [true, false].allSatisfy { replace in
+                    [true, false].allSatisfy { shown in
+                        !QuickTranslateKeyAction.footerActions(
+                            hasResult: true, canReplace: replace, showsOriginal: shown)
+                            .contains(.dismiss)
+                    }
+                })
+        check(
+            "Copy precedes Replace Selection precedes the comparison toggle",
+            QuickTranslateKeyAction.footerActions(
+                hasResult: true, canReplace: true, showsOriginal: false)
+                == [.copy, .replaceSelection, .openComparison])
+        check(
+            "the comparison slot follows Replace Selection once comparison is open",
+            QuickTranslateKeyAction.footerActions(
+                hasResult: true, canReplace: true, showsOriginal: true)
+                == [.copy, .replaceSelection, .closeComparison])
+        check(
+            "no capturable selection drops the Replace button and closes the gap",
+            QuickTranslateKeyAction.footerActions(
+                hasResult: true, canReplace: false, showsOriginal: false)
+                == [.copy, .openComparison])
+        check(
+            "the footer order is deterministic across repeated builds",
+            (0..<64).allSatisfy { _ in
+                QuickTranslateKeyAction.footerActions(
+                    hasResult: true, canReplace: true, showsOriginal: false)
+                    == [.copy, .replaceSelection, .openComparison]
+            })
+        check(
+            "every footer button is a claimed key, and every claimed key but Escape has one",
+            [true, false].allSatisfy { result in
+                [true, false].allSatisfy { replace in
+                    [true, false].allSatisfy { shown in
+                        let keys = QuickTranslateKeyAction.active(
+                            hasResult: result, canReplace: replace, showsOriginal: shown)
+                        let footer = QuickTranslateKeyAction.footerActions(
+                            hasResult: result, canReplace: replace, showsOriginal: shown)
+                        return Set(footer) == keys.subtracting([.dismiss])
+                            && footer.count == Set(footer).count
+                    }
+                }
+            })
+
         do {
             let request = GoogleTranslationRequest(q: "你好 & hello", target: "en")
             let data = try JSONEncoder().encode(request)

@@ -215,6 +215,33 @@ final class AISelectionReplacement {
         }
     }
 
+    /// One guarded write for a caller that already holds the final text, so no placeholder ever
+    /// appears in the user's document. The captured app, control, window, range and text are
+    /// revalidated first; a failure throws with the document untouched rather than half-written.
+    func replaceDirectly(with text: String, readSelection: () async -> String?) async throws {
+        guard pending == nil else { throw AISpellingResponse.Failure.selectionChanged }
+        if let pasteFallback {
+            if let progress = pasteFallback.nativeProgress {
+                defer { pasteFallback.cancel() }
+                try await progress.replaceDirectly(with: text)
+                return
+            }
+            try await pasteFallback.replace(with: text, readSelection: readSelection)
+            return
+        }
+        try Task.checkCancellation()
+        guard isFocused(), let current = read(), current == original else {
+            throw AISpellingResponse.Failure.selectionChanged
+        }
+        guard text != originalText.string else { return }
+        // Carry the captured run's attributes and record undo, so ⌘Z returns the original text.
+        let attributes = originalText.length > 0 ? originalText.attributes(at: 0, effectiveRange: nil) : [:]
+        let replacement = NSAttributedString(string: text, attributes: attributes)
+        guard write(current, original.selection, replacement,
+            NSRange(location: original.selection.location + replacement.length, length: 0), true)
+        else { throw AISpellingResponse.Failure.selectionChanged }
+    }
+
     static func captureLocal(_ view: NSTextView, isFocused: (() -> Bool)? = nil) -> AISelectionReplacement {
         let range = view.selectedRange()
         let text = view.attributedString().attributedSubstring(from: range)
@@ -468,6 +495,18 @@ final class AISelectionNativeProgress {
         settling = write(current, pending.selection, replacement, end)
         guard await settling?.value == true else { throw AISpellingResponse.Failure.selectionChanged }
         self.pending = nil
+    }
+
+    /// The no-placeholder counterpart of `begin()` + `finish(with:)`: one write over the captured
+    /// range, awaited so an editor that only acknowledges the AX call fails instead of half-applying.
+    func replaceDirectly(with replacement: String) async throws {
+        try Task.checkCancellation()
+        guard pending == nil, isCurrent, let current = read(), current == original else {
+            throw AISpellingResponse.Failure.selectionChanged
+        }
+        let end = NSRange(location: original.selection.location + (replacement as NSString).length, length: 0)
+        settling = write(current, original.selection, replacement, end)
+        guard await settling?.value == true else { throw AISpellingResponse.Failure.selectionChanged }
     }
 
     func restore() {

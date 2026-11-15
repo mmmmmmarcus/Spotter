@@ -108,12 +108,14 @@ struct SelectedTextCaptureTests {
         var focused = true
         var acceptsWrites = true
         var writes = 0
+        var placeholderWrites = 0
         let original = state
         func transaction() -> AISelectionReplacement {
             AISelectionReplacement(original: state, text: NSAttributedString(string: "teh"), read: { state },
                 write: { expected, range, text, selection, _ in
                     guard acceptsWrites, state == expected else { return false }
                     writes += 1
+                    if AISelectionReplacement.progressFrames.contains(text.string) { placeholderWrites += 1 }
                     state = .init(value: (state.value as NSString).replacingCharacters(in: range, with: text.string), selection: selection)
                     return true
                 }, isFocused: { focused })
@@ -350,6 +352,140 @@ struct SelectedTextCaptureTests {
             await completion.value
             check("loading and completion cannot race: cancel=\(cancel)", state.value == (cancel ? original.value : "🧭 the word") && nativeWrites == 3)
         }
+        // Quick Translate's ⌘↵ already holds the final text, so the user's document must go
+        // straight from their selection to the translation with no placeholder in between.
+        state = original
+        focused = true
+        acceptsWrites = true
+        let framesBeforeDirect = placeholderWrites
+        let directLocal = transaction()
+        try! await directLocal.replaceDirectly(with: "the", readSelection: {
+            fatalError("A writable control must never be asked to re-copy the selection")
+        })
+        check("a direct replacement writes the final text with no placeholder",
+            state.value == "🧭 the word" && placeholderWrites == framesBeforeDirect)
+        check("a direct replacement leaves the caret after the result", state.selection == NSRange(location: 6, length: 0))
+        directLocal.restoreOriginal()
+        check("a completed direct replacement cannot be rolled back", state.value == "🧭 the word")
+
+        state = original
+        let directStale = transaction()
+        state = .init(value: "user's newer text", selection: NSRange(location: 17, length: 0))
+        let directStaleDocument = state
+        do {
+            try await directStale.replaceDirectly(with: "the", readSelection: { nil })
+            check("a direct replacement refuses an edited document", false)
+        } catch { check("a direct replacement refuses an edited document", state == directStaleDocument) }
+
+        state = original
+        let directMoved = transaction()
+        state = .init(value: original.value, selection: NSRange(location: 0, length: 3))
+        let directMovedDocument = state
+        do {
+            try await directMoved.replaceDirectly(with: "the", readSelection: { nil })
+            check("a direct replacement refuses a moved selection", false)
+        } catch { check("a direct replacement refuses a moved selection", state == directMovedDocument) }
+
+        state = original
+        let directUnfocused = transaction()
+        focused = false
+        do {
+            try await directUnfocused.replaceDirectly(with: "the", readSelection: { nil })
+            check("a direct replacement refuses an unfocused control", false)
+        } catch { check("a direct replacement refuses an unfocused control", state == original) }
+        focused = true
+
+        state = original
+        let directPrepared = transaction()
+        try! directPrepared.showProgress()
+        do {
+            try await directPrepared.replaceDirectly(with: "the", readSelection: { nil })
+            check("a placeholder already on screen rejects a direct replacement", false)
+        } catch { check("a placeholder already on screen rejects a direct replacement", true) }
+        directPrepared.restoreOriginal()
+
+        editor.isRichText = true
+        editor.string = "teh word"
+        editor.setSelectedRange(NSRange(location: 0, length: 3))
+        editor.textStorage?.addAttribute(.font, value: font, range: editor.selectedRange())
+        editor.allowsUndo = true
+        editor.testUndo.removeAllActions()
+        editor.testUndo.groupsByEvent = false
+        editor.testUndo.beginUndoGrouping()
+        let directEditor = AISelectionReplacement.captureLocal(editor, isFocused: { true })
+        try! await directEditor.replaceDirectly(with: "好 the", readSelection: { nil })
+        check("a native editor receives the translation with the captured run's formatting",
+            editor.string == "好 the word"
+                && editor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont == font)
+        editor.testUndo.endUndoGrouping()
+        editor.testUndo.undo()
+        check("Undo returns the user to their original text after a direct replacement", editor.string == "teh word")
+
+        currentTarget = true
+        let directPasteOnly = fallback()
+        do { try await directPasteOnly.replace(with: "好 the", readSelection: { "teh" }) }
+        catch { check("a copy-only editor accepts a direct replacement", false) }
+        check("a copy-only direct replacement pastes only the final text",
+            pasted.last == "好 the" && !pasted.contains { AISelectionReplacement.progressFrames.contains($0) })
+
+        state = original
+        focused = true
+        var nativeDirectFrames = 0
+        func directNative() -> AISelectionNativeProgress {
+            AISelectionNativeProgress(original: original, text: "teh", read: { state }, isFocused: { focused },
+                write: { expected, range, text, selection in
+                    guard state == expected else { return nil }
+                    if AISelectionReplacement.progressFrames.contains(text) { nativeDirectFrames += 1 }
+                    return Task { @MainActor in
+                        state = .init(value: (state.value as NSString).replacingCharacters(in: range, with: text), selection: selection)
+                        return true
+                    }
+                })
+        }
+        let nativeDirect = directNative()
+        try! await nativeDirect.replaceDirectly(with: "the")
+        check("a native direct replacement writes the final text with no placeholder",
+            state.value == "🧭 the word" && nativeDirectFrames == 0)
+        check("a native direct replacement leaves the caret after the result",
+            state.selection == NSRange(location: 6, length: 0))
+        nativeDirect.restore()
+        check("a completed native direct replacement cannot be rolled back", state.value == "🧭 the word")
+
+        state = original
+        let nativeDirectStale = directNative()
+        state = .init(value: "User's new text", selection: NSRange(location: 15, length: 0))
+        let nativeDirectDocument = state
+        do {
+            try await nativeDirectStale.replaceDirectly(with: "the")
+            check("a native direct replacement refuses an edited document", false)
+        } catch { check("a native direct replacement refuses an edited document", state == nativeDirectDocument) }
+
+        state = original
+        let nativeDirectMoved = directNative()
+        state = .init(value: original.value, selection: NSRange(location: 0, length: 3))
+        let nativeDirectMovedDocument = state
+        do {
+            try await nativeDirectMoved.replaceDirectly(with: "the")
+            check("a native direct replacement refuses a moved selection", false)
+        } catch { check("a native direct replacement refuses a moved selection", state == nativeDirectMovedDocument) }
+
+        state = original
+        let nativeDirectUnfocused = directNative()
+        focused = false
+        do {
+            try await nativeDirectUnfocused.replaceDirectly(with: "the")
+            check("a native direct replacement refuses an unfocused control", false)
+        } catch { check("a native direct replacement refuses an unfocused control", state == original) }
+        focused = true
+
+        state = original
+        let nativeDirectRefused = AISelectionNativeProgress(original: original, text: "teh",
+            read: { state }, isFocused: { true }, write: { _, _, _, _ in Task { false } })
+        do {
+            try await nativeDirectRefused.replaceDirectly(with: "the")
+            check("an unconfirmed native direct write is a failure", false)
+        } catch { check("an unconfirmed native direct write is a failure", state == original) }
+
         print("Selected text capture: \(failures) failure(s)")
         exit(failures == 0 ? 0 : 1)
     }

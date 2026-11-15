@@ -130,13 +130,13 @@ extension AppCore {
         switch capture {
         case .failure(let error):
             translate.showFailure(error.message)
+            quickTranslate.show(at: point)
         case .success(let snapshot):
             translate.translate(snapshot.text)
+            // The source app's pid rides along so ⌘↵ can write the translation back into it.
+            quickTranslate.show(at: point, original: snapshot.text,
+                pid: snapshot.source.processIdentifier)
         }
-        let original: String?
-        if case .success(let snapshot) = capture { original = snapshot.text }
-        else { original = nil }
-        quickTranslate.show(at: point, original: original)
     }
 
     private func showTranslationFailure(_ message: String) {

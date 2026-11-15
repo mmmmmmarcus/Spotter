@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import QuartzCore
 import NaturalLanguage
@@ -8,6 +9,11 @@ final class QuickTranslateController: NSObject {
     private let manager: TranslateManager
     private let hotKeys: HotKeyManager
     private let align: @MainActor ([TranslationWord], [TranslationWord]) async throws -> [TranslationWordLink]
+    /// Injected by `AppCore`, which owns both this bubble and the replacement machinery, so
+    /// Translate carries only the plain selection data and never reaches into AI Chat.
+    private let replaceSelection: @MainActor (String, pid_t, String) -> Void
+    private var replacementSource: (text: String, pid: pid_t)?
+    private var heldKeys: Set<QuickTranslateKeyAction> = []
     private var alignmentTask: Task<Void, Never>?
     private var alignmentReady = false
     private var alignmentLabel: NSTextField?
@@ -27,8 +33,10 @@ final class QuickTranslateController: NSObject {
     private var wordLinks: [TranslationWordLink] = []
 
     init(manager: TranslateManager, hotKeys: HotKeyManager,
-        align: @escaping @MainActor ([TranslationWord], [TranslationWord]) async throws -> [TranslationWordLink]) {
+        align: @escaping @MainActor ([TranslationWord], [TranslationWord]) async throws -> [TranslationWordLink],
+        replaceSelection: @escaping @MainActor (String, pid_t, String) -> Void) {
         self.align = align
+        self.replaceSelection = replaceSelection
         self.manager = manager
         self.hotKeys = hotKeys
         super.init()
@@ -37,12 +45,13 @@ final class QuickTranslateController: NSObject {
     isolated deinit {
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
-        hotKeys.releaseTransientKey(id: "quick-translate.escape")
+        releaseKeys()
     }
 
-    func show(at point: CGPoint, original: String? = nil) {
+    func show(at point: CGPoint, original: String? = nil, pid: pid_t? = nil) {
         dismiss()
         anchor = point
+        if let original, let pid { replacementSource = (original, pid) }
         let panel = QuickTranslatePanel(contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
@@ -71,9 +80,7 @@ final class QuickTranslateController: NSObject {
             if self.revealTask != nil { self.pendingState = state }
             else { self.render(state) }
         }
-        hotKeys.holdTransientKey(id: "quick-translate.escape", shortcut: KeyShortcut(carbonKeyCode: 53, carbonModifiers: 0)) { [weak self] in
-            self?.dismiss(cancelWork: true)
-        }
+        syncKeys()
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
             MainActor.assumeIsolated {
                 if event.window !== self?.panel { self?.dismiss(cancelWork: true) }
@@ -93,6 +100,7 @@ final class QuickTranslateController: NSObject {
         pendingState = nil
         displayedText = nil
         result = nil
+        replacementSource = nil
         showsOriginal = false
         textViews = []
         wordLinks = []
@@ -106,8 +114,80 @@ final class QuickTranslateController: NSObject {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         localMonitor = nil
         globalMonitor = nil
-        hotKeys.releaseTransientKey(id: "quick-translate.escape")
+        releaseKeys()
         if cancelWork, wasVisible { manager.reset() }
+    }
+
+    /// Claims exactly the keys whose action is live right now, and gives back the rest. Carbon
+    /// consumes a held key from the frontmost app, so an outlived claim would eat the user's own
+    /// Return or arrows — every entry and exit of the bubble's states runs through here.
+    private func syncKeys() {
+        let wanted = QuickTranslateKeyAction.active(hasResult: result != nil,
+            canReplace: replacementSource != nil, showsOriginal: showsOriginal)
+        for action in heldKeys.subtracting(wanted) {
+            hotKeys.releaseTransientKey(id: Self.keyID(action))
+        }
+        for action in wanted.subtracting(heldKeys) {
+            hotKeys.holdTransientKey(id: Self.keyID(action), shortcut: Self.shortcut(for: action)) { [weak self] in
+                self?.perform(action)
+            }
+        }
+        heldKeys = wanted
+    }
+
+    private func releaseKeys() {
+        for action in heldKeys { hotKeys.releaseTransientKey(id: Self.keyID(action)) }
+        heldKeys = []
+    }
+
+    private static func keyID(_ action: QuickTranslateKeyAction) -> String {
+        "quick-translate." + action.rawValue
+    }
+
+    private static func shortcut(for action: QuickTranslateKeyAction) -> KeyShortcut {
+        switch action {
+        case .dismiss: KeyShortcut(carbonKeyCode: kVK_Escape, carbonModifiers: 0)
+        case .copy: KeyShortcut(carbonKeyCode: kVK_Return, carbonModifiers: 0)
+        case .replaceSelection: KeyShortcut(carbonKeyCode: kVK_Return, carbonModifiers: Int(cmdKey))
+        case .openComparison: KeyShortcut(carbonKeyCode: kVK_DownArrow, carbonModifiers: 0)
+        case .closeComparison: KeyShortcut(carbonKeyCode: kVK_UpArrow, carbonModifiers: 0)
+        }
+    }
+
+    /// The footer's symbol, label, keycap and click target for one action. `text.insert` is already
+    /// Spotter's icon for Paste Snippet, the nearest action of the same kind.
+    private static func footerButton(for action: QuickTranslateKeyAction)
+        -> (symbol: String, title: String, keycap: String, selector: Selector)?
+    {
+        switch action {
+        case .dismiss: nil
+        case .copy: ("doc.on.doc", "Copy Translation", "↵", #selector(copyResult))
+        case .replaceSelection: ("text.insert", "Replace Selection", "⌘↵", #selector(replaceOriginalSelection))
+        case .openComparison: ("rectangle.split.1x2", "Show Original", "↓", #selector(toggleOriginal))
+        case .closeComparison: ("rectangle.split.1x2", "Hide Original", "↑", #selector(toggleOriginal))
+        }
+    }
+
+    private func perform(_ action: QuickTranslateKeyAction) {
+        switch action {
+        case .dismiss: dismiss(cancelWork: true)
+        case .copy:
+            copyResult()
+            dismiss(cancelWork: true)
+        case .replaceSelection: replaceOriginalSelection()
+        case .openComparison: if !showsOriginal { toggleOriginal() }
+        case .closeComparison: if showsOriginal { toggleOriginal() }
+        }
+    }
+
+    /// The target is built inside `replaceSelection`, synchronously on this keypress rather than
+    /// when the bubble opened: the paste-only path watches for any key or click and would have
+    /// invalidated itself on this very ⌘↵.
+    @objc private func replaceOriginalSelection() {
+        guard let result, let source = replacementSource else { return }
+        let translation = result.rows.map(\.text).joined(separator: "\n\n")
+        dismiss(cancelWork: true)
+        replaceSelection(source.text, source.pid, translation)
     }
 
     private func render(_ state: TranslateState) {
@@ -129,6 +209,7 @@ final class QuickTranslateController: NSObject {
         if case .loading = state { loading = true } else { loading = false }
         renderText(text, loading: loading)
         if showsOriginal { startAlignment() }
+        syncKeys()
     }
 
     @objc private func copyResult() {
@@ -141,6 +222,7 @@ final class QuickTranslateController: NSObject {
         showsOriginal.toggle()
         renderText(result.rows.map(\.text).joined(separator: "\n\n"), loading: false)
         if showsOriginal { startAlignment() }
+        syncKeys()
     }
 
     private func startAlignment() {
@@ -223,7 +305,10 @@ final class QuickTranslateController: NSObject {
         }
         appendText(text, source: false, muted: loading)
         document.frame = NSRect(x: 0, y: 0, width: contentWidth, height: offset)
-        let footer: CGFloat = result == nil ? 0 : 30
+        // Same availability rule as `syncKeys`, so a button and a held key can never disagree.
+        let footerActions = QuickTranslateKeyAction.footerActions(hasResult: result != nil,
+            canReplace: replacementSource != nil, showsOriginal: showsOriginal)
+        let footer: CGFloat = footerActions.isEmpty ? 0 : 30
         let height = min(offset + inset * 2 + footer, min(Theme.QuickTranslate.maxHeight, screen.height - inset * 2))
         let scroll = NSScrollView(frame: NSRect(x: inset, y: inset + footer, width: contentWidth, height: max(1, height - inset * 2 - footer)))
         scroll.drawsBackground = false
@@ -234,16 +319,15 @@ final class QuickTranslateController: NSObject {
         let content = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
         content.wantsLayer = true
         content.addSubview(scroll)
-        if result != nil {
-            for (index, item) in [("doc.on.doc", "Copy Translation", #selector(copyResult)),
-                ("rectangle.split.1x2", showsOriginal ? "Hide Original" : "Show Original", #selector(toggleOriginal))].enumerated() {
-                let button = NSButton(image: NSImage(systemSymbolName: item.0, accessibilityDescription: item.1)!, target: self, action: item.2)
-                button.frame = NSRect(x: inset + CGFloat(index) * 32, y: inset - 4, width: 26, height: 26)
-                button.isBordered = false
-                button.toolTip = index == 1 && !showsOriginal ? "Show Original · AI word matching via OpenRouter / Gemini 2.5 Flash-Lite" : item.1
-                button.setAccessibilityLabel(item.1)
-                content.addSubview(button)
-            }
+        for (index, action) in footerActions.enumerated() {
+            guard let item = Self.footerButton(for: action) else { continue }
+            let button = NSButton(image: NSImage(systemSymbolName: item.symbol, accessibilityDescription: item.title)!, target: self, action: item.selector)
+            button.frame = NSRect(x: inset + CGFloat(index) * 32, y: inset - 4, width: 26, height: 26)
+            button.isBordered = false
+            button.toolTip = "\(item.title) · \(item.keycap)"
+                + (action == .openComparison ? " · AI word matching via OpenRouter / Gemini 2.5 Flash-Lite" : "")
+            button.setAccessibilityLabel(item.title)
+            content.addSubview(button)
         }
         alignmentLabel = nil
         if showsOriginal {
@@ -251,7 +335,9 @@ final class QuickTranslateController: NSObject {
             label.isHidden = alignmentReady && !wordLinks.isEmpty
             label.font = .systemFont(ofSize: 10)
             label.textColor = .secondaryLabelColor
-            label.frame = NSRect(x: inset + 68, y: inset + 2, width: max(1, contentWidth - 68), height: 18)
+            // Starts past the last occupied slot, so a new footer button never lands under the status.
+            let leading = CGFloat(footerActions.count) * 32 + 4
+            label.frame = NSRect(x: inset + leading, y: inset + 2, width: max(1, contentWidth - leading), height: 18)
             label.lineBreakMode = .byTruncatingTail
             content.addSubview(label)
             alignmentLabel = label

@@ -250,6 +250,49 @@ enum GoogleTranslationError: LocalizedError, Equatable, Sendable {
     }
 }
 
+/// The keys the Quick Translate bubble claims while it is on screen. Each claim is a Carbon-held
+/// key taken from the frontmost app, so a claim may exist only while its action can actually run:
+/// `active` is that whole rule, and the controller holds exactly the set it returns and nothing
+/// else. Key codes stay in the controller — this file is Foundation-only.
+enum QuickTranslateKeyAction: String, CaseIterable, Sendable {
+    case dismiss
+    case copy
+    case replaceSelection = "replace-selection"
+    case openComparison = "open-comparison"
+    case closeComparison = "close-comparison"
+
+    static func active(hasResult: Bool, canReplace: Bool, showsOriginal: Bool)
+        -> Set<QuickTranslateKeyAction>
+    {
+        // A loading or failed bubble earns Escape alone: there is no translation to act on yet.
+        guard hasResult else { return [.dismiss] }
+        var actions: Set<QuickTranslateKeyAction> = [.dismiss, .copy]
+        // Nothing to replace unless the text came out of someone's selection.
+        if canReplace { actions.insert(.replaceSelection) }
+        // Only the arrow that would change something is claimed; the other stays with the app.
+        actions.insert(showsOriginal ? .closeComparison : .openComparison)
+        return actions
+    }
+
+    /// The footer's slots, left to right. A `Set` has no order and the slots are positional, so the
+    /// presentation order lives here rather than in whatever sequence the set happens to iterate.
+    /// Copy is the primary action and leads; the two comparison arrows share the last slot, since
+    /// `active` never makes both live at once.
+    static let footerOrder: [QuickTranslateKeyAction] = [
+        .copy, .replaceSelection, .openComparison, .closeComparison,
+    ]
+
+    /// The footer's buttons, derived from the same `active` set the key claims use so a visible
+    /// button and a claimed key can never disagree about what the bubble can do. Escape has no
+    /// button — clicking outside already does it.
+    static func footerActions(hasResult: Bool, canReplace: Bool, showsOriginal: Bool)
+        -> [QuickTranslateKeyAction]
+    {
+        let live = active(hasResult: hasResult, canReplace: canReplace, showsOriginal: showsOriginal)
+        return footerOrder.filter(live.contains)
+    }
+}
+
 extension TranslateState {
     var quickPanelText: String? {
         switch self {

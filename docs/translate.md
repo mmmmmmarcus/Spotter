@@ -87,13 +87,42 @@ The selected-text experiment uses the result bubble described below.
 
 **Selection.** Translate Selected Text presents a non-activating native Clear Liquid Glass bubble
 near the pointer, an owner-requested experiment matching Quick Clipboard History. Completed content
-starts with translated text, with blank lines between configured target languages. A symbol-only footer copies the full translation or toggles original/translation comparison. Comparison puts the original above a divider and the translation below; Copy always copies only the complete translated text. The 320-point-wide bubble fits short results and
+starts with translated text, with blank lines between configured target languages. A symbol-only
+footer carries up to three buttons — Copy Translation, Replace Selection and the Show/Hide Original
+comparison toggle, in that order — and Replace Selection appears only when the text came from a
+captured selection there is something to write back to. Comparison puts the original above a divider and the translation below; Copy always copies only the complete translated text. The 320-point-wide bubble fits short results and
 scrolls longer ones within a 320-point height. The bubble fades in over 200 ms with a 6-point upward settle and shows the original in secondary text during loading.
 Results replace the original with a 180 ms overlapping crossfade and frame resize; cached replies also wait until
 the entry finishes. Reduce Motion removes movement and animated resizing. Errors appear in the same bubble. Escape
 or clicking outside dismisses it and cancels pending work. Opening the palette or taking a screenshot
 also closes it. `AppCore` owns `QuickTranslateController`; requests still use the same manager,
 source detection, key gate and memo as the typed page.
+
+Four keys act on the bubble: **↵** copies the full translation and dismisses, **⌘↵** writes the
+translation over the selection in the app it came from and dismisses, **↓** opens the
+original/translation comparison and **↑** closes it. Each is a Carbon claim taken from the frontmost
+app, so each is held only while its own action is live — Escape for the bubble's whole life, ↵ and
+one of ↓/↑ only once a translation is on screen, and ⌘↵ only when the text came from a captured
+selection, never on the compose path or a failure bubble. Comparison claims only the arrow that
+would change something: ↓ while it is hidden, ↑ while it is shown. Every claim is released when the
+bubble closes and re-evaluated on every state change, including a result that disappears. The footer
+is built from that same `QuickTranslateKeyAction.active` set through `footerActions`, which filters a
+fixed presentation order, so a visible button and a claimed key can never disagree about what is
+available; Escape alone has no button, since clicking outside already does it. Each button names its
+key in the tooltip and runs the same handler as the key — Replace Selection clicks go through
+`replaceOriginalSelection()`, replacing and dismissing exactly as ⌘↵ does, while Copy leaves the
+bubble up. The word-matching status line starts past the last occupied footer slot, so its offset
+follows the button count rather than a fixed width.
+
+⌘↵ reuses AI Chat's `AISelectionReplacement`, orchestrated from `AppCore` — which owns both — so
+Translate carries only the original text and the source pid and never reaches into the AI Chat
+plugin. The replacement target is captured on the keypress rather than when the bubble opens,
+because its paste-only path invalidates itself on any key or click. It revalidates the frontmost
+app, the focused control, the window, the range and the original text before writing, then performs
+a single direct write with no `{Fixing.}`-style placeholder: in a local `NSTextView` the translation
+carries the captured run's attributes and is recorded for Undo, and in another app it goes through
+the guarded AX write or the paste fallback. Any validation failure leaves the user's text completely
+untouched and shows an error HUD.
 
 **Compose.** The Translate page shows no `Original` row — the text is already on screen in the search
 field — and the query is the input, never a filter. While the pause has not elapsed, or while a
