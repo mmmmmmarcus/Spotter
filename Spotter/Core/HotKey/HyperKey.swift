@@ -58,6 +58,17 @@ enum HyperKeyPhysicalKey: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The `NX_DEVICE…KEYMASK` bit this physical key sets while it is held — the ground truth `HyperKeyHoldMachine` reads press-versus-release from. Caps Lock has none and needs none: its remapped F18 arrives as keyDown/keyUp.
+    var deviceBit: UInt64? {
+        switch self {
+        case .none, .capsLock: return nil
+        case .rightControl: return HyperKeyDeviceFlag.rightControl
+        case .rightShift: return HyperKeyDeviceFlag.rightShift
+        case .rightOption: return HyperKeyDeviceFlag.rightOption
+        case .rightCommand: return HyperKeyDeviceFlag.rightCommand
+        }
+    }
+
     /// Quick Press label for triggering the key's original function.
     var quickPressOriginalTitle: String? {
         self == .capsLock ? "Trigger Caps Lock (⇪)" : nil

@@ -12,11 +12,11 @@ Persistence keys are rename-stable by design: a plugin's display name may change
 - `DoubleTapDetector` / `DoubleTapModifier` — pure, clock-injected recognition of "tap a lone
   modifier twice" (both compile into `Tools/hotkey-test.swift`).
 - `DoubleTapMonitor` — the listen-only event tap that feeds it, installed only while something is bound.
-- `HyperKey` / `HyperKeyTap` — the Hyper Key: an HID-level Caps Lock remap owned by
-  `AppCore.hyperKeyTap`, released in `applicationWillTerminate`, configured in General Settings and
-  synced as four settings fields (`hyperKey`, `hyperKeyIncludesShift`, `hyperKeyQuickPress`,
-  `hyperKeyReplacesGlyph`). It deliberately keeps running while the recorder pauses Carbon, because
-  the recorder relies on the tap's rewritten flags to capture Hyper shortcuts.
+- `HyperKey` / `HyperKeyTap` / `HyperKeyHoldMachine` — the Hyper Key: an HID-level Caps Lock remap
+  owned by `AppCore.hyperKeyTap`, released in `applicationWillTerminate`, configured in General
+  Settings and synced as four settings fields (`hyperKey`, `hyperKeyIncludesShift`,
+  `hyperKeyQuickPress`, `hyperKeyReplacesGlyph`). It deliberately keeps running while the recorder
+  pauses Carbon, because the recorder relies on the tap's rewritten flags to capture Hyper shortcuts.
 
 `HotKeyManager` owns them all: persistence, conflict lookup, and dispatch.
 
@@ -32,6 +32,45 @@ A tap fires on the second *release*, so the modifier is already up when the acti
 never opens with a phantom ⌘ held. A press longer than 0.25 s, a gap over 0.30 s, a second modifier
 joining, or any key/click in between all cancel it. Caps Lock is deliberately excluded (it belongs to
 the Hyper Key) and so is `fn`, which isn't a real modifier on every keyboard.
+
+## The Hyper Key reads press and release from the event, never by toggling
+
+`HyperKeyTap` owns the `CGEventTap`, the Caps Lock HID remap and the IOKit connection.
+Every decision it makes — is the chord held, does this release fire Quick Press, which flags get
+OR'd in and which scrubbed — lives in the pure, Foundation-only `HyperKeyHoldMachine`, driven by
+`Tools/hotkey-test.swift` with a virtual clock.
+
+A `flagsChanged` does not say in its *type* whether the key went down or up, so the tap used to
+infer direction by flipping a bool on each transition. That has no ground truth: one missed or
+duplicated event inverts the machine, and nothing re-synchronises it for the rest of the session —
+every later press reads as a release, the chord is never applied, and no Hyper shortcut fires. A
+`.tapDisabledByTimeout` mid-hold guaranteed exactly that, because re-enabling the tap dropped the
+half-tracked hold while the key was still physically down, so the following release was read as a
+press.
+
+A `flagsChanged` *does* say it in its flags. Alongside the generic ⌃⌥⇧⌘ masks, a real modifier
+press carries the `NX_DEVICE…KEYMASK` device bit of the one physical key involved
+(`HyperKeyDeviceFlag`), and that bit stays set for exactly as long as the key is down. Each of the
+four selectable keys is a right-side modifier with its own bit, so the direction is read straight
+out of the event the tap is already holding — unlike `CGEventSource.keyState`, which races the
+release. Caps Lock is unaffected: its F18 remap arrives as `keyDown`/`keyUp`, which self-describe.
+
+Two fallbacks keep that from becoming a new failure mode. A key with no bit to read, and a keyboard
+whose bit has never once been seen set, both keep the old toggle semantics — a bit that is always
+clear is no evidence of a release. The first press that *does* carry the bit switches that key to
+ground truth permanently.
+
+A tap interruption no longer cancels the hold; it marks it unverified, and the next event re-derives
+it from that event's own flags, so a release delivered into the blackout is noticed by the next
+keystroke rather than leaving the chord stuck on. Only a session switch (another session owns the
+keyboard) and a key change drop the hold outright. A hold adopted mid-press this way can never fire
+Quick Press, since nothing is known about what happened while the tap was off.
+
+The subsystem logs to Diagnostics under `hyper-key`: tap installed, tap creation refused for a
+missing Accessibility grant, the grant being revoked under a live tap, either kind of system
+disable, each re-enable, and a hold corrected from ground truth. Those are lifecycle transitions
+only — this tap sees every keystroke on the Mac, so no key code, character, modifier or anything
+else about what was typed is ever written, and nothing is logged on the passthrough path.
 
 ## Transient keys
 

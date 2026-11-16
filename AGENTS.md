@@ -484,7 +484,12 @@ Never break these without an explicit task to do so.
 - **Hotkeys persist under legacy `KeyboardShortcuts_<name>` UserDefaults keys** (from the removed
   KeyboardShortcuts package) so old bindings survive — and a `.combo` binding must keep encoding as
   the bare `KeyShortcut` record, or every existing binding and backup reads as unbound.
-  `Core/HotKey/DoubleTapDetector.swift` stays Foundation-only and pure for `Tools/hotkey-test.swift`,
+  `Core/HotKey/DoubleTapDetector.swift` and `Core/HotKey/HyperKeyHoldMachine.swift` stay
+  Foundation-only and pure for `Tools/hotkey-test.swift` (which compiles `Core/HotKey/HyperKey.swift`
+  beside them to pin each selectable key's device bit) — the Hyper key's hold state machine, its
+  press/release derivation and its chord composition live in the machine so the harness can drive
+  them, with the clock injected as a `TimeInterval` and the generic `CGEventFlags` masks passed in
+  by `HyperKeyTap`; the tap keeps every CGEvent, AppKit and IOKit concern,
   and `Core/CommandID.swift` stays Foundation-only for `Tools/commands-test.swift` — a built-in
   command's `slug` keys its persisted shortcut, so the harness pins both uniqueness and the
   `command:` prefix. Every launcher row that can carry a shortcut must resolve one through

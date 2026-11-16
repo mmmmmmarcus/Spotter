@@ -398,7 +398,9 @@ run_harness() {
             ;;
         hotkey)
             swiftc -swift-version 6 Spotter/Core/HotKey/DoubleTapDetector.swift \
-                Spotter/Core/HotKey/DoubleTapModifier.swift Tools/hotkey-test.swift \
+                Spotter/Core/HotKey/DoubleTapModifier.swift \
+                Spotter/Core/HotKey/HyperKeyHoldMachine.swift \
+                Spotter/Core/HotKey/HyperKey.swift Tools/hotkey-test.swift \
                 -o "$output" && "$output"
             ;;
         menu-typeahead)

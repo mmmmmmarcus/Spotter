@@ -15,12 +15,15 @@ private func hyperKeyEventTapCallback(
     let tap = Unmanaged<HyperKeyTap>.fromOpaque(userInfo).takeUnretainedValue()
 
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-        MainActor.assumeIsolated { tap.reenable() }
+        let timedOut = type == .tapDisabledByTimeout
+        MainActor.assumeIsolated { tap.reenable(timedOut: timedOut) }
         return Unmanaged.passUnretained(event)
     }
 
     let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
-    let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+    // Only a keyDown can repeat, so the other event types are spared the field read on the hot path.
+    let isAutorepeat =
+        type == .keyDown && event.getIntegerValueField(.keyboardEventAutorepeat) != 0
     let isSynthetic = event.getIntegerValueField(.eventSourceUserData) == HyperKeyTap.syntheticTag
     let flags = event.flags.rawValue
 
@@ -101,17 +104,8 @@ final class HyperKeyTap: ObservableObject {
     /// Marker in `.eventSourceUserData` on events this tap posts, so it never reacts to its own synthetics (FourCC "TYCT", same as `HotKeyCenter`).
     nonisolated static let syntheticTag: Int64 = 0x5459_4354
 
-    /// `NX_DEVICE…KEYMASK` bits (IOLLEvent.h): device-level flags a real modifier press carries alongside its generic mask; the Hyper chord posts the *left* set since some consumers distinguish sides and generic-only flags don't always read as fully pressed.
-    private enum DeviceFlag {
-        static let leftControl: UInt64 = 0x0000_0001
-        static let leftShift: UInt64 = 0x0000_0002
-        static let rightShift: UInt64 = 0x0000_0004
-        static let leftCommand: UInt64 = 0x0000_0008
-        static let rightCommand: UInt64 = 0x0000_0010
-        static let leftOption: UInt64 = 0x0000_0020
-        static let rightOption: UInt64 = 0x0000_0040
-        static let rightControl: UInt64 = 0x0000_2000
-    }
+    /// The `AppLog` subsystem for this tap's lifecycle; it sees every keystroke on the Mac, so nothing about what was typed is ever written to it.
+    private static let logSubsystem = "hyper-key"
 
     @Published private(set) var status: Status = .off
 
@@ -126,12 +120,11 @@ final class HyperKeyTap: ObservableObject {
     /// Mirror of `settings.hyperKey`, updated only by its publisher; the toggles (`Include Shift`, `Quick Press`) are read live from `settings` so the tap never acts on a stale copy.
     private var key: HyperKeyPhysicalKey = .none
 
-    // Hold state machine.
-    private var hyperActive = false
-    private var hyperDownAt: ContinuousClock.Instant?
-    private var otherKeyPressed = false
-    private let clock = ContinuousClock()
-    private static let quickPressWindow: Duration = .milliseconds(250)
+    /// The pure hold state machine; this class contributes only the clock and the CGEvent plumbing.
+    private var hold = HyperKeyHoldMachine(deviceBit: nil)
+
+    /// `systemUptime` is monotonic, so a wall-clock adjustment can't turn a hold into a Quick Press.
+    private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
     // Isolated so teardown can release the main-actor IOKit connection; the tap is an AppCore-owned singleton released on main. The kernel reclaims this at process exit anyway, so this only matters if it's ever recreated.
     isolated deinit {
@@ -167,32 +160,24 @@ final class HyperKeyTap: ObservableObject {
 
     // MARK: - Hyper chord flags
 
-    /// The flags OR'd into every event while Hyper is held: the generic ⌃⌥(⇧)⌘ masks plus the left-side device bits.
+    /// The real `CGEventFlags` values handed to the pure chord composer, which stays Foundation-only.
+    private static let masks = HyperKeyModifierMasks(
+        control: CGEventFlags.maskControl.rawValue,
+        option: CGEventFlags.maskAlternate.rawValue,
+        shift: CGEventFlags.maskShift.rawValue,
+        command: CGEventFlags.maskCommand.rawValue,
+        alphaShift: CGEventFlags.maskAlphaShift.rawValue)
+
+    private var includesShift: Bool { settings?.hyperKeyIncludesShift ?? true }
+
     private var hyperFlagsRaw: UInt64 {
-        var raw =
-            CGEventFlags([.maskControl, .maskAlternate, .maskCommand]).rawValue
-            | DeviceFlag.leftControl | DeviceFlag.leftOption | DeviceFlag.leftCommand
-        if settings?.hyperKeyIncludesShift ?? true {
-            raw |= CGEventFlags.maskShift.rawValue | DeviceFlag.leftShift
-        }
-        return raw
+        HyperKeyChord.heldFlags(masks: Self.masks, includesShift: includesShift)
     }
 
-    /// The Hyper key's own flag residue scrubbed from rewritten events: Caps Lock's alpha-shift bit, or (key modifier outside the Hyper set) its generic mask plus both device bits.
     private var strippedFlagsRaw: UInt64 {
-        if key == .capsLock { return CGEventFlags.maskAlphaShift.rawValue }
-        guard let own = key.ownFlag, hyperFlagsRaw & own.rawValue == 0 else { return 0 }
-        return own.rawValue | Self.deviceBits(for: own)
-    }
-
-    private static func deviceBits(for flag: CGEventFlags) -> UInt64 {
-        switch flag {
-        case .maskControl: return DeviceFlag.leftControl | DeviceFlag.rightControl
-        case .maskShift: return DeviceFlag.leftShift | DeviceFlag.rightShift
-        case .maskAlternate: return DeviceFlag.leftOption | DeviceFlag.rightOption
-        case .maskCommand: return DeviceFlag.leftCommand | DeviceFlag.rightCommand
-        default: return 0
-        }
+        HyperKeyChord.strippedFlags(
+            ownMask: key.ownFlag?.rawValue, isCapsLock: key == .capsLock,
+            masks: Self.masks, includesShift: includesShift)
     }
 
     private func hyperized(_ flagsRaw: UInt64) -> UInt64 {
@@ -213,9 +198,11 @@ final class HyperKeyTap: ObservableObject {
         if key == .capsLock, keyCode == kVK_CapsLock, type == .flagsChanged {
             return decideModifierTransition(flagsRaw: flagsRaw, swapKeyCode: true)
         }
-        guard hyperActive else { return .pass }
+        // One bit test, and only while a tap interruption left the hold unverified; ordinary passthrough stays untouched.
+        if hold.needsResync { applyHold(hold.resync(flagsRaw: flagsRaw, at: now)) }
+        guard hold.isHeld else { return .pass }
         // Any other key or modifier going down while Hyper is held makes this a combo, not a tap.
-        if type == .keyDown || type == .flagsChanged { otherKeyPressed = true }
+        if type == .keyDown || type == .flagsChanged { hold.noteOtherKeyPressed() }
         return .rewrite(flags: hyperized(flagsRaw))
     }
 
@@ -227,11 +214,11 @@ final class HyperKeyTap: ObservableObject {
             switch type {
             case .keyDown:
                 if isAutorepeat { return .suppress }
-                if !hyperActive { beginHold() }
+                applyHold(hold.keyTransition(isDown: true, at: now))
                 return .rewrite(
                     flags: hyperized(flagsRaw), keyCode: Int64(kVK_Control), asFlagsChanged: true)
             case .keyUp:
-                if hyperActive { endHold() }
+                applyHold(hold.keyTransition(isDown: false, at: now))
                 return .rewrite(
                     flags: flagsRaw & ~strippedFlagsRaw, keyCode: Int64(kVK_Control),
                     asFlagsChanged: true)
@@ -243,31 +230,29 @@ final class HyperKeyTap: ObservableObject {
         return decideModifierTransition(flagsRaw: flagsRaw, swapKeyCode: false)
     }
 
-    /// Press/release of a modifier-style Hyper key: flagsChanged doesn't self-describe direction, so use toggle semantics (querying session key state races the release, inverting the state machine and breaking Quick Press); a missed release lingers only until the watchdog or next press.
+    /// Press/release of a modifier-style Hyper key. The event's own device bit says which it is (a `flagsChanged` carries the bit for as long as the key is physically down), so direction is ground truth rather than a toggled guess — querying session key state would race the release, and toggling inverted the machine permanently after a single missed event.
     private func decideModifierTransition(flagsRaw: UInt64, swapKeyCode: Bool) -> Decision {
         let keyCode: Int64? = swapKeyCode ? Int64(kVK_Control) : nil
-        if !hyperActive {
-            beginHold()
+        let outcome = hold.modifierTransition(flagsRaw: flagsRaw, at: now)
+        applyHold(outcome)
+        if outcome.isHeld {
             return .rewrite(flags: hyperized(flagsRaw), keyCode: keyCode)
         }
-        endHold()
         return .rewrite(flags: flagsRaw & ~strippedFlagsRaw, keyCode: keyCode)
     }
 
     // MARK: - Hold state machine
 
-    private func beginHold() {
-        hyperActive = true
-        hyperDownAt = clock.now
-        otherKeyPressed = false
-    }
-
-    private func endHold() {
-        let isQuick =
-            !otherKeyPressed && hyperDownAt.map { clock.now - $0 < Self.quickPressWindow } ?? false
-        hyperActive = false
-        hyperDownAt = nil
-        guard isQuick else { return }
+    /// The side effects of a pure outcome: the one diagnostic line a corrected hold earns, and Quick Press.
+    private func applyHold(_ outcome: HyperKeyHoldMachine.Outcome?) {
+        guard let outcome else { return }
+        if outcome.corrected {
+            AppLog.info(
+                Self.logSubsystem,
+                "Hold state re-derived from the event's own device bit: the Hyper key is "
+                    + (outcome.isHeld ? "held" : "released"))
+        }
+        guard outcome.firesQuickPress else { return }
         let action = settings?.hyperKeyQuickPress ?? .none
         let key = key
         // Posting events or touching IOKit from inside the tap callback risks re-entrancy; finish the press on the next runloop turn.
@@ -285,17 +270,11 @@ final class HyperKeyTap: ObservableObject {
         }
     }
 
-    private func cancelHold() {
-        hyperActive = false
-        hyperDownAt = nil
-        otherKeyPressed = false
-    }
-
     // MARK: - Configuration
 
     private func applyKey(_ newKey: HyperKeyPhysicalKey) {
         guard newKey != key else { return }
-        cancelHold()
+        hold = HyperKeyHoldMachine(deviceBit: newKey.deviceBit)
         let wasCapsLock = key == .capsLock
         key = newKey
         if newKey == .capsLock {
@@ -342,6 +321,12 @@ final class HyperKeyTap: ObservableObject {
                 userInfo: Unmanaged.passUnretained(self).toOpaque())
         else {
             // A modifying keyboard tap needs the Accessibility grant; the health timer retries so the dot flips green the moment the user grants it.
+            if status != .needsAccessibility {
+                AppLog.error(
+                    Self.logSubsystem,
+                    "Event tap could not be created — the Accessibility permission is missing, so the Hyper key does nothing"
+                )
+            }
             status = .needsAccessibility
             return
         }
@@ -350,10 +335,11 @@ final class HyperKeyTap: ObservableObject {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         status = .active
+        AppLog.info(Self.logSubsystem, "Event tap installed")
     }
 
     private func tearDownTap() {
-        cancelHold()
+        hold.cancel()
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
             self.runLoopSource = nil
@@ -365,9 +351,14 @@ final class HyperKeyTap: ObservableObject {
         }
     }
 
-    /// Called from the callback when the system disables the tap (timeout / user input); any half-tracked hold is stale by then.
-    fileprivate func reenable() {
-        cancelHold()
+    /// Called from the callback when the system disables the tap (timeout / user input). The hold is kept rather than dropped — the key is most likely still physically down, and dropping it mid-press is what used to strand the state machine — but it is marked unverified, so the next event re-derives it from that event's own flags.
+    fileprivate func reenable(timedOut: Bool) {
+        AppLog.info(
+            Self.logSubsystem,
+            timedOut
+                ? "The system disabled the event tap (callback timed out); re-enabling"
+                : "The system disabled the event tap (user input); re-enabling")
+        hold.tapInterrupted()
         if let tapPort { CGEvent.tapEnable(tap: tapPort, enable: true) }
     }
 
@@ -389,16 +380,23 @@ final class HyperKeyTap: ObservableObject {
         if tapPort == nil {
             installTapIfNeeded()
         } else if !Permissions.isAccessibilityTrusted() {
+            if status != .needsAccessibility {
+                AppLog.error(
+                    Self.logSubsystem,
+                    "The Accessibility permission was revoked; the event tap has been torn down")
+            }
             tearDownTap()
             status = .needsAccessibility
         } else if let tapPort, !CGEvent.tapIsEnabled(tap: tapPort) {
+            AppLog.info(Self.logSubsystem, "Event tap found disabled; re-enabling")
+            hold.tapInterrupted()
             CGEvent.tapEnable(tap: tapPort, enable: true)
         }
 
     }
 
     private func sessionDidResign() {
-        cancelHold()
+        hold.cancel()
         if let tapPort { CGEvent.tapEnable(tap: tapPort, enable: false) }
     }
 
