@@ -182,6 +182,7 @@
 		6497C54EFFCB375046530A3A /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26C52121BB6D0B805E6ABE9 /* NoteStore.swift */; };
 		649F6584A45212A126308B36 /* ExtensionRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF366EEDD4B4DD2E328355AE /* ExtensionRuntime.swift */; };
 		64A87B728C1C3CBC0DD2C6C4 /* WindowDragCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18C0250A9C13E46D9BDF017F /* WindowDragCursor.swift */; };
+		654FFA9B467E5C7493A764CA /* PermissionsMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C323C7D19441245F0C4DFFD /* PermissionsMonitor.swift */; };
 		664C9CDBBF95582D9E154306 /* ExtensionDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F09D1776C18F91ABB6FBF74 /* ExtensionDeepLink.swift */; };
 		66CA042B0023C65E8705E1FC /* UpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 307535C846A5B39643CCB935 /* UpdateViews.swift */; };
 		676C22F07FA3A485D7213DE2 /* AIToolTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E8093CE9AE05A09FE0238F2 /* AIToolTypes.swift */; };
@@ -278,6 +279,7 @@
 		A30C03F46F48A8B8166342B7 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE3950697A477B010E4C3F0 /* AppLog.swift */; };
 		A323FAFF85A8D051F7CCD9B9 /* SFSymbolCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 257C9B250642CD8E13B274B3 /* SFSymbolCatalog.swift */; };
 		A39D05C2AD356E8C909F2FCF /* NotePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0585A83889766AB5682CD10C /* NotePlugin.swift */; };
+		A3AE5E1CDA1E4A5AFFE69066 /* PermissionsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8C9DF96863987683A8271F /* PermissionsProbe.swift */; };
 		A4335E03E8348FBE0873B90A /* SearchScopesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF791D9740CBFE37A39760E /* SearchScopesCard.swift */; };
 		A442FE291D0663DB92613424 /* NoteTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF183CBA69B26F1E9D584836 /* NoteTopBar.swift */; };
 		A612A1A1ED5D021387F6F198 /* SelectionToolsTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10E544C780380D882E6910C /* SelectionToolsTypes.swift */; };
@@ -505,6 +507,7 @@
 		2634729A27D74B41874C7CCC /* ExtensionPickerItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPickerItem.swift; sourceTree = "<group>"; };
 		285F564EAE1C2E7706B5C84E /* ScreenshotColorSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotColorSampler.swift; sourceTree = "<group>"; };
 		29606EC2B43A6002BAF7DDD4 /* AIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatView.swift; sourceTree = "<group>"; };
+		2A8C9DF96863987683A8271F /* PermissionsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsProbe.swift; sourceTree = "<group>"; };
 		2A9988EBCD980E10E6145673 /* ExtensionSearchAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSearchAccessory.swift; sourceTree = "<group>"; };
 		2BDC91A2C3936D3AAF107AC3 /* ExtensionPaletteState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPaletteState.swift; sourceTree = "<group>"; };
 		2C2B6E0210EE0AAE0B9CB19D /* ShortcutsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsView.swift; sourceTree = "<group>"; };
@@ -603,6 +606,7 @@
 		6AD11755A74EA8C1B6A2BFEB /* SpotterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotterApp.swift; sourceTree = "<group>"; };
 		6B668D681EAB308B71465312 /* ExtensionRefreshPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionRefreshPolicy.swift; sourceTree = "<group>"; };
 		6BDAD22E6B420108C50C0599 /* NoteSwipeNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSwipeNavigation.swift; sourceTree = "<group>"; };
+		6C323C7D19441245F0C4DFFD /* PermissionsMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsMonitor.swift; sourceTree = "<group>"; };
 		6CC5F2AA5E4C20EC212A2749 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		6D1D9D54DE74E22588D6C5AE /* OpenRouterStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterStream.swift; sourceTree = "<group>"; };
 		6E1241E789327FB92E2BFAF4 /* ExtensionColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionColors.swift; sourceTree = "<group>"; };
@@ -1419,6 +1423,8 @@
 				412E1AB968D25513BCF543AA /* PanelHosting.swift */,
 				14AC6BD1CAA98BDDEA059A5A /* Paster.swift */,
 				E9A0C1A043D1F093E46AA103 /* Permissions.swift */,
+				6C323C7D19441245F0C4DFFD /* PermissionsMonitor.swift */,
+				2A8C9DF96863987683A8271F /* PermissionsProbe.swift */,
 				D0364E646B12285D250E32E5 /* ProcessPipe.swift */,
 				95A910A72680B85A7291F2AB /* RightClick.swift */,
 				91DFC1BD2FC739DA6D944DF0 /* RunningApps.swift */,
@@ -2002,6 +2008,8 @@
 				A29E8F13A7572E2BA55592F0 /* PanelHosting.swift in Sources */,
 				B4BF4401E903EDB2AF48CA5C /* Paster.swift in Sources */,
 				71E3F659347380D0A3ABF809 /* Permissions.swift in Sources */,
+				654FFA9B467E5C7493A764CA /* PermissionsMonitor.swift in Sources */,
+				A3AE5E1CDA1E4A5AFFE69066 /* PermissionsProbe.swift in Sources */,
 				A8850E043438F18D2B964144 /* PermissionsSettingsView.swift in Sources */,
 				C11037CDEEE54C54A355A6DE /* PluginCommandSnapshot.swift in Sources */,
 				EDC4675DB0C64B520EBEFD8E /* PluginPaletteList.swift in Sources */,
@@ -2181,7 +2189,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotter;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = Q9MD524YL5;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = SpotterNotes/Info.plist;
@@ -2250,7 +2258,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.41;
+				MARKETING_VERSION = 1.7.42;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -2321,7 +2329,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.41;
+				MARKETING_VERSION = 1.7.42;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -2340,7 +2348,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotter;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = Q9MD524YL5;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = SpotterNotes/Info.plist;

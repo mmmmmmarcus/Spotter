@@ -185,11 +185,15 @@ final class ScreenshotManager: ObservableObject {
 
     func begin(completion: @escaping (ScreenshotCaptureResult) -> Void) {
         cancel(notifying: false)
-        let alreadyAllowed = Permissions.isScreenRecordingAllowed()
+        // The preflight caches a `false` for the life of the process, so a grant made while Spotter
+        // ran would refuse every capture from here on. The window probe is the live second opinion;
+        // it can only ever say yes when the preflight is stale, never the reverse.
+        let alreadyAllowed =
+            Permissions.isScreenRecordingAllowed() || Permissions.screenRecordingWindowProbe()
         AppLog.info("screenshot", "Beginning capture; screen recording allowed: \(alreadyAllowed).")
         if !alreadyAllowed {
             let granted = Permissions.requestScreenRecording()
-            guard granted || Permissions.isScreenRecordingAllowed() else {
+            guard granted || Permissions.screenRecordingWindowProbe() else {
                 AppLog.info("screenshot", "Capture stopped because Screen Recording access is unavailable.")
                 completion(.permissionRequired)
                 return

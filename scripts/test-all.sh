@@ -24,6 +24,7 @@ TESTS=(
     raycast-import
     quick-clipboard
     scopes
+    permissions
     file-search
     emoji
     sf-symbols
@@ -196,6 +197,10 @@ run_harness() {
         scopes)
             swiftc -swift-version 6 Spotter/Core/SearchScopes.swift \
                 Tools/scopes-test.swift -o "$output" && "$output"
+            ;;
+        permissions)
+            swiftc -swift-version 6 -parse-as-library Spotter/Core/PermissionsProbe.swift \
+                Tools/permissions-test.swift -o "$output" && "$output"
             ;;
         emoji)
             swiftc Spotter/Plugins/EmojiSymbols/EmojiCatalog.swift \

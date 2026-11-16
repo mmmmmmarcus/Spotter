@@ -161,7 +161,7 @@ final class DoubleTapMonitor: ObservableObject {
         else {
             // Even a listen-only keyboard tap needs the Accessibility grant; the health timer retries so a binding starts working the moment the user grants it.
             if !loggedTapFailure {
-                NSLog("Tinycast: Failed to create double-tap event tap")
+                AppLog.error("hotkeys", "Failed to create the double-tap event tap")
                 loggedTapFailure = true
             }
             needsAccessibility = true

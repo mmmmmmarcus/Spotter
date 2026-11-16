@@ -18,7 +18,11 @@ enum NotesTheme {
 
     enum Size {
         static let accessoryBar: CGFloat = 46
+        /// Each accessory control is its own touch target, and the glyph centres inside it.
         static let accessoryButton: CGFloat = 44
+        /// The rule that sets the hide-keyboard button apart from the scrolling group.
+        static let accessoryHairlineWidth: CGFloat = 1
+        static let accessoryHairlineHeight: CGFloat = 20
         /// A marker's glyph is small; its tap target is a full fingertip tall.
         static let markerWidth: CGFloat = 40
         static let markerHeight: CGFloat = 44
@@ -40,6 +44,10 @@ enum NotesTheme {
         static let border = adaptive(dark: UIColor(white: 1, alpha: 0.20), light: UIColor(white: 0, alpha: 0.18))
         /// The tick inside a filled todo box, which sits on an accent fill in either appearance.
         static let checkmark = adaptive(dark: UIColor(white: 1, alpha: 1), light: UIColor(white: 1, alpha: 1))
+        /// The accessory bar lives in the text view, whose tint is the open Note's; its glyphs state their own monochrome instead.
+        static let accessoryGlyph = UIColor.label
+        /// The bar's one rule, at the system's strength so it matches the keyboard beneath it.
+        static let accessoryHairline = UIColor.separator
 
         static func tintAccent(_ tint: NoteTint) -> UIColor {
             adaptive(dark: darkTint(tint), light: lightTint(tint))
@@ -104,6 +112,9 @@ enum NotesTheme {
 
         /// Collapses hidden Markdown syntax to no visible width.
         static let concealed = UIFont.systemFont(ofSize: 0.1)
+
+        /// One size and weight for every accessory-bar glyph, so no control reads larger or heavier than its neighbours.
+        static let accessorySymbol = UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
 
         static func body(_ traits: UIFontDescriptor.SymbolicTraits) -> UIFont {
             styled(body, traits)

@@ -197,6 +197,7 @@ final class AppCore: ObservableObject {
     let textReplacementManager: TextReplacementManager
     let hotKeys = HotKeyManager()
     let hyperKeyTap = HyperKeyTap()
+    let permissions = PermissionsMonitor()
     let settings = AppSettings()
     let favorites = FavoritesStore()
     let visibility = VisibilityStore()
@@ -466,6 +467,7 @@ final class AppCore: ObservableObject {
         // A no-op until the weather question has been answered with a yes.
         dashboardWeather.start()
         uptime.start()
+        permissions.start()
 
         hotKeys.onTogglePalette = { [weak self] in self?.togglePalette() }
         hotKeys.onRunPluginAction = { [weak self] action in self?.plugins.perform(action) }

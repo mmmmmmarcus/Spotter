@@ -100,6 +100,12 @@ scrolls, and brings the open Note's marker into view after a switch, a new Note,
 reorder an edit causes. Tapping a marker switches the one editor to that Note in place. It leaves the
 keyboard as it was: up if it was up, down if it was down.
 
+A one-finger swipe across the editor turns the page: left for the next Note, right for the previous,
+in the strip's order and wrapping at either end, through the same `NoteStore.selectAdjacent` as
+⌘] / ⌘[. It leaves the keyboard as it was too, and the Mac's 160 ms switch animation stays absent.
+The swipes are horizontal recognizers beside the todo box's tap, so a vertical scroll, a long-press
+selection drag and the interactive keyboard dismissal are untouched.
+
 Right of the strip sit **New Note**, which selects the new draft and focuses its title, and the
 **options menu**: Note Color and Delete Note for the open Note, Search Notes, and Sync, whose row
 carries the manager's status line. Delete asks first, and afterwards the store selects the Note that takes the
@@ -184,10 +190,14 @@ every rule, the publish and the restyle down.
 Touch-specific choices:
 
 - A todo box toggles on tap, with a tap target grown past its drawn size.
-- The keyboard accessory bar offers Checklist, Bulleted List, Numbered List, a paragraph-style menu
-  (Text, Heading 1–3), an inline-format menu (Bold, Italic, Strikethrough, Code, Link) and
-  Decrease / Increase Indent. A blank line is where a list or heading starts; tapping the list a line
-  already belongs to takes the marker off; the title line refuses block formats.
+- The keyboard accessory bar is one calm row on a `.keyboard` input view: a paragraph-style menu
+  (Text, Heading 1–3), Checklist, Bulleted List, Numbered List, an inline-format menu (Bold, Italic,
+  Strikethrough, Code, Link) and Decrease / Increase Indent, then a hairline and the hide-keyboard
+  button at the trailing edge. Every glyph takes one symbol configuration and an explicit `.label`
+  foreground — the bar hangs off the text view, whose tint is the open Note's accent, so a colour
+  left to inherit comes out in it — and each keeps a 44-point target; the group scrolls rather than
+  squeezes. A blank line is where a list or heading starts; tapping the list a line already belongs
+  to takes the marker off; the title line refuses block formats.
 - A hardware keyboard gets Tab / Shift-Tab, ⌘B / ⌘I / ⌘K, and ⌘[ / ⌘] for the previous and next
   Note in strip order, wrapping at either end through the shared `NoteStore.selectAdjacent`.
 - Headings use `title1` / `title2` / `title3` in bold rather than the Mac's sizes.

@@ -3,6 +3,7 @@ import SwiftUI
 struct GeneralSettingsView: View {
     @ObservedObject private var settings = AppCore.shared.settings
     @ObservedObject private var hyperTap = AppCore.shared.hyperKeyTap
+    @ObservedObject private var doubleTap = AppCore.shared.hotKeys.doubleTapMonitor
     @ObservedObject private var launcherRanking = AppCore.shared.launcherRanking
     // Same UserDefaults key the `App` binds its `MenuBarExtra(isInserted:)` to — toggling here updates the menu-bar icon live, with no shared observable between them.
     @AppStorage(SettingsKey.showInMenuBar) private var showInMenuBar = true
@@ -143,6 +144,18 @@ struct GeneralSettingsView: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .controlSize(.small)
+                }
+                // Only while a double-tap binding exists and its listen-only tap can't be created:
+                // the binding would otherwise do nothing, forever, with nothing on screen saying so.
+                if doubleTap.needsAccessibility {
+                    SettingsRow(
+                        title: "Double-Tap Shortcuts",
+                        subtitle: "Spotter needs Accessibility access to watch for a double-tapped modifier.",
+                        statusDot: .orange
+                    ) {
+                        Button("Allow…") { Permissions.ensureAccessibility() }
+                            .controlSize(.small)
+                    }
                 }
             }
 

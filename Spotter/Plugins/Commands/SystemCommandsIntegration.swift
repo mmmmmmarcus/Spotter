@@ -19,7 +19,10 @@ enum SystemCommandPresenter {
         case .accessibility:
             alert.addButton(withTitle: "Open Accessibility Settings…")
             if alert.runModal() == .alertSecondButtonReturn { Permissions.openAccessibilitySettings() }
-        case .bluetooth, .none:
+        case .bluetooth:
+            alert.addButton(withTitle: "Open Bluetooth Settings…")
+            if alert.runModal() == .alertSecondButtonReturn { Permissions.openBluetoothSettings() }
+        case .none:
             alert.runModal()
         }
     }

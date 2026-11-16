@@ -337,7 +337,7 @@ enum SystemCommandRunner {
     private static func postKey(keyCode: CGKeyCode, flags: CGEventFlags) throws {
         guard Permissions.ensureAccessibility() else {
             throw SystemCommandFailure(
-                "Allow Tinycast to control your Mac in Accessibility settings, then try again.",
+                "Allow Spotter to control your Mac in Accessibility settings, then try again.",
                 settings: .accessibility)
         }
         let source = CGEventSource(stateID: .combinedSessionState)
@@ -353,7 +353,7 @@ enum SystemCommandRunner {
     private static func postMediaKey(_ key: Int32) throws {
         guard Permissions.ensureAccessibility() else {
             throw SystemCommandFailure(
-                "Allow Tinycast to control your Mac in Accessibility settings, then try again.",
+                "Allow Spotter to control your Mac in Accessibility settings, then try again.",
                 settings: .accessibility)
         }
         // Auxiliary-key events are the same route as the keyboard's media keys; 0xA/0xB are their down/up states.
@@ -459,7 +459,7 @@ enum SystemCommandRunner {
     private static func dismissNotifications() async throws -> Int {
         guard Permissions.ensureAccessibility() else {
             throw SystemCommandFailure(
-                "Allow Tinycast to control your Mac in Accessibility settings, then try again.",
+                "Allow Spotter to control your Mac in Accessibility settings, then try again.",
                 settings: .accessibility)
         }
         guard let app = NSRunningApplication.runningApplications(
@@ -474,7 +474,7 @@ enum SystemCommandRunner {
             guard let button = notifications.compactMap({ dismissControl(in: $0, depth: 0) }).first
             else {
                 throw SystemCommandFailure(
-                    "This version of Notification Center exposes no dismiss control Tinycast can use.")
+                    "This version of Notification Center exposes no dismiss control Spotter can use.")
             }
             let result = AXUIElementPerformAction(button, kAXPressAction as CFString)
             guard result == .success || result == .invalidUIElement else {
@@ -563,7 +563,7 @@ enum SystemCommandRunner {
             if getPower() == requested { return requested == 1 }
         }
         throw SystemCommandFailure(
-            "Bluetooth did not change state. Check Tinycast’s Bluetooth permission.",
+            "Bluetooth did not change state. Check Spotter’s Bluetooth permission.",
             settings: .bluetooth)
     }
 
@@ -579,7 +579,7 @@ enum SystemCommandRunner {
         let detail = errorInfo[NSAppleScript.errorMessage] as? String ?? "Unknown automation error."
         if number == -1743 {
             throw SystemCommandFailure(
-                "Allow Tinycast to control the requested app in Automation settings, then try again.",
+                "Allow Spotter to control the requested app in Automation settings, then try again.",
                 settings: .automation)
         }
         throw SystemCommandFailure(detail)

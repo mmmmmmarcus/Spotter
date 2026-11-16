@@ -436,11 +436,20 @@ shares the palette's `Theme` vocabulary. It reads as macOS System Settings, not 
 - **One row per permission, with a matching leading SF Symbol.** The Permissions pane renders each
   permission as a single row whose trailing control is either the way to grant it or the word
   *Granted* in green text without an icon or capsule. An authorized Location row has no Open Settings
-  button; a one-second poll re-reads the real system state, so a grant revoked in System Settings
-  drops back to its button. Calendar is the one permission with more than two states, so its single
+  button; `PermissionsMonitor` re-reads the real system state while the pane is on screen, so a
+  grant revoked in System Settings drops back to its button. Calendar is the one permission with
+  more than two states, so its single
   control carries all of them. The rows name **no features** (owner decision, Sep 2026): a generated
   "Used by X, Y…" line reads the same on every install, which is the copy rule below, and the grant
   itself lives in macOS's own pane rather than in the sentence.
+- **Automation is a second group, one row per target.** The grant is per target, so a single
+  "App Automation" row could only ever offer the pane. The group lists the apps Spotter sends Apple
+  Events to that are installed on this Mac, each reading *Granted*, *Denied* (with Open Settings),
+  *Not yet asked* or *Not running*. **"Not running" is a resting state, not a fault** — macOS reports
+  no stored grant for a stopped app, Spotter sends it nothing either, and launching one to find out
+  is forbidden. The Screen Recording row, once it has raised the system prompt, says that macOS
+  applies the new grant at Spotter's next launch, because the button genuinely cannot change the row
+  now.
 
 Shortcut group headings remain clickable to fold their rows, with no hover background.
 General includes a Weather section with Location and Update Now on one row, plus Units. The former

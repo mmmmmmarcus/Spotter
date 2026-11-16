@@ -50,6 +50,12 @@ struct NoteTextEditor: UIViewRepresentable {
             let tap = UITapGestureRecognizer(target: self, action: #selector(toggleCheckbox(_:)))
             tap.delegate = self
             textView.addGestureRecognizer(tap)
+            // No delegate: the checkbox tap's `shouldReceive` would confine these to a todo box too.
+            for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+                let swipe = UISwipeGestureRecognizer(target: self, action: #selector(switchNote(_:)))
+                swipe.direction = direction
+                textView.addGestureRecognizer(swipe)
+            }
             applyTint()
             restyle()
             placeCaretInDraft()
@@ -149,12 +155,12 @@ struct NoteTextEditor: UIViewRepresentable {
             return checkbox(at: touch.location(in: textView)) != nil
         }
 
-        /// A tap on a todo box toggles it and nothing else: the text view's own taps wait for this one, so the caret does not jump and the keyboard does not rise.
+        /// A tap on a todo box toggles it and nothing else: the text view's own gestures wait for this one, so the caret does not jump and the keyboard does not rise. A swipe is the exception — it cannot be the same touch as a tap, and waiting would delay the Note it turns to.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            true
+            !(otherGestureRecognizer is UISwipeGestureRecognizer)
         }
 
         /// Returns whether the command changed the Note, so a hardware Tab can fall through to a plain tab.
@@ -168,6 +174,11 @@ struct NoteTextEditor: UIViewRepresentable {
             let change = NoteInputRules.difference(from: textView.text, to: result.text)
             replace(change.range, with: change.replacement, selecting: result.selection)
             return true
+        }
+
+        /// A page turn, reading as the marker strip does: left for the next Note, right for the previous, the way ⌘] and ⌘[ go.
+        @objc private func switchNote(_ recognizer: UISwipeGestureRecognizer) {
+            parent.onNavigate(recognizer.direction == .left ? .next : .previous)
         }
 
         @objc private func toggleCheckbox(_ recognizer: UITapGestureRecognizer) {
