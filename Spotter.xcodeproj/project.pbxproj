@@ -225,6 +225,7 @@
 		7AFC6FF3611D15C25C4D8758 /* ScheduleNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26126A979E821FABCD27988D /* ScheduleNotes.swift */; };
 		7B34D35607D84EB48CB8FC64 /* ExtensionInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 564927E3ECA104CAFEDC22B6 /* ExtensionInstaller.swift */; };
 		7B5F7B5B5C4C987947ECE477 /* CalculatorCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34AC17A52D175DC67680CADF /* CalculatorCardView.swift */; };
+		7B6CCADA18D51B8B5D3EFDFC /* HyperKeyHoldMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E74D79BF417EB34B5EE12E36 /* HyperKeyHoldMachine.swift */; };
 		7C94EC693A6B6378E8425BE1 /* ExtensionGridLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 404AB40D2249AF522067F2C0 /* ExtensionGridLayout.swift */; };
 		7E637433B5F15BB1A7BF784C /* QuickClipboardMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = F83CD97A519C6974AAFC1633 /* QuickClipboardMotion.swift */; };
 		7F64A9B9794E31A20180A6C1 /* NoteMarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D14FFB0DE3F5834EF5C48BBD /* NoteMarkdownEditor.swift */; };
@@ -801,6 +802,7 @@
 		E687AFBA052BBAE7483FC15E /* ExtensionActionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionActionsPanel.swift; sourceTree = "<group>"; };
 		E6BCD53FEC24E0276B722CEB /* EmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiCatalog.swift; sourceTree = "<group>"; };
 		E72ACEB329C570B413A7A395 /* EmojiGridGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiGridGeometry.swift; sourceTree = "<group>"; };
+		E74D79BF417EB34B5EE12E36 /* HyperKeyHoldMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperKeyHoldMachine.swift; sourceTree = "<group>"; };
 		E9A0C1A043D1F093E46AA103 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
 		E9B6EECF92F4DE89914475EF /* WorldClockSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldClockSettingsView.swift; sourceTree = "<group>"; };
 		E9EE7BC397DDC8371D8A5D4C /* ClipboardFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFilter.swift; sourceTree = "<group>"; };
@@ -1361,6 +1363,7 @@
 				BF34DE9C19A60F21D5D403BC /* HotKeyBinding.swift */,
 				8F1644996CA8B7491C5F3B09 /* HotKeyCenter.swift */,
 				0FD20F68EEC018BED28E95EA /* HyperKey.swift */,
+				E74D79BF417EB34B5EE12E36 /* HyperKeyHoldMachine.swift */,
 				A79BCC858A42FEC5901581AC /* HyperKeyTap.swift */,
 				EC070C6D096650E27CADC336 /* KeyShortcut.swift */,
 			);
@@ -1951,6 +1954,7 @@
 				DCBE3EDCAA17691CE7A6621D /* HotKeyCenter.swift in Sources */,
 				757150EB01D931470DFA4A62 /* HotKeyManager.swift in Sources */,
 				372DD46A0300116AF78632CA /* HyperKey.swift in Sources */,
+				7B6CCADA18D51B8B5D3EFDFC /* HyperKeyHoldMachine.swift in Sources */,
 				1D1591C34AD5BED636B06898 /* HyperKeyTap.swift in Sources */,
 				EBE65BC33FCDC1737D14B6D1 /* ImageThumbnail.swift in Sources */,
 				A14BCA6DE687C5F3A0E2596F /* InputSourceLock.swift in Sources */,
@@ -2246,7 +2250,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.40;
+				MARKETING_VERSION = 1.7.41;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
@@ -2317,7 +2321,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.7.40;
+				MARKETING_VERSION = 1.7.41;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
