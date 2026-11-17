@@ -119,8 +119,7 @@ struct RaycastSupportSettings: View {
         Section("Raycast Extension") {
             Toggle("Enable Raycast Extensions", isOn: Binding(get: { coordinator.enabled }, set: { coordinator.setEnabled($0) }))
             Toggle("Show Commands in Launcher", isOn: Binding(get: { core.extensions.showsInLauncher }, set: {
-                core.extensions.setShowsInLauncher($0)
-                UserDefaults.standard.set($0, forKey: "raycast-extensions.show-in-launcher")
+                coordinator.setShowsInLauncher($0)
             }))
             Picker("Package Manager", selection: $coordinator.packageManager) {
                 ForEach(ExtensionPackageManager.allCases) { Text($0.title).tag($0) }

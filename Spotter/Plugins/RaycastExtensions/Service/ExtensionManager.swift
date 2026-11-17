@@ -190,6 +190,11 @@ final class ExtensionManager: ExtensionRuntimeDelegate, ExtensionHostContext {
         publishLauncherEntries()
     }
 
+    func replaceAppearances(_ overrides: [String: ExtensionAppearance]) {
+        appearances.replace(with: overrides)
+        publishLauncherEntries()
+    }
+
     private func commandIconPath(_ command: ExtensionCommand, in owner: InstalledExtension) -> String? {
         guard let icon = command.icon else { return nil }
         return owner.artworkPath(icon)

@@ -26,6 +26,7 @@ struct SettingsBackupData: Codable, Sendable {
 
     var clipboardRetentionDays: Int?
     var clipboardDisabledApps: [String]?
+    var clipboardTextSearch: Bool?
     var launchAtLogin: Bool?
     var hyperKey: String?
     var hyperKeyIncludesShift: Bool?
@@ -112,11 +113,23 @@ struct SettingsBackupPluginPrefs: Codable, Sendable {
         // Retained only so older v3 files decode; Note windows are now always user-sized.
         var autoWindowSizing: Bool?
     }
+    struct RaycastExtensions: Codable, Sendable {
+        // Plain strings, so a tint from a newer palette is dropped on apply rather than failing the whole decode.
+        struct Appearance: Codable, Sendable {
+            var symbol: String?
+            var tint: String?
+        }
+        var showInLauncher: Bool?
+        var packageManager: String?
+        /// Keyed by manifest name, like the store they mirror.
+        var appearances: [String: Appearance]?
+    }
     var killProcess: KillProcess?
     var screenshot: Screenshot?
     var selectionTools: SelectionTools?
     var windowManagement: WindowManagement?
     var note: Note?
+    var raycastExtensions: RaycastExtensions?
     // Decode-only migration from development builds that briefly classified Dashboard as a plugin.
     var dashboardWidgets: SettingsBackupData.DashboardWidgets?
 }

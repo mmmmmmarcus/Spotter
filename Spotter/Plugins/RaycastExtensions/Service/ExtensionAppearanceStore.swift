@@ -33,6 +33,12 @@ final class ExtensionAppearanceStore {
         persist()
     }
 
+    func replace(with overrides: [String: ExtensionAppearance]) {
+        guard overrides != self.overrides else { return }
+        self.overrides = overrides
+        persist()
+    }
+
     private func persist() {
         guard let data = try? JSONEncoder().encode(overrides) else { return }
         defaults.set(data, forKey: key)

@@ -126,6 +126,7 @@ struct SettingsSyncTests {
         SettingsBackupData(
             clipboardRetentionDays: 30,
             clipboardDisabledApps: ["com.apple.Passwords"],
+            clipboardTextSearch: true,
             launchAtLogin: true,
             hyperKey: "capsLock",
             hyperKeyIncludesShift: false,
@@ -180,6 +181,10 @@ struct SettingsSyncTests {
                 gap: 8, cycleOnRepeat: true),
             note: SettingsBackupPluginPrefs.Note(
                 windowTransparency: 0.25, autoWindowSizing: false),
+            raycastExtensions: SettingsBackupPluginPrefs.RaycastExtensions(
+                showInLauncher: false, packageManager: "pnpm",
+                appearances: ["github": SettingsBackupPluginPrefs.RaycastExtensions.Appearance(
+                    symbol: "chevron.left.forwardslash.chevron.right", tint: "indigo")]),
             dashboardWidgets: SettingsBackupData.DashboardWidgets(
                 widgetOrder: ["uptime"],
                 calendarSourceIdentifier: "legacy",
@@ -231,6 +236,12 @@ struct SettingsSyncTests {
             encode(decodedPrefs) == encode(prefs),
             "a plugin preference did not survive encode → decode")
         precondition(decodedPrefs.note?.windowTransparency == 0.25)
+        precondition(decodedSettings.clipboardTextSearch == true)
+        let raycast = decodedPrefs.raycastExtensions
+        precondition(raycast?.showInLauncher == false)
+        precondition(raycast?.packageManager == "pnpm")
+        precondition(raycast?.appearances?["github"]?.tint == "indigo")
+        precondition(raycast?.appearances?["github"]?.symbol == "chevron.left.forwardslash.chevron.right")
     }
 
     /// The owner's explicit ask: both API keys and the translate target list must come back intact.
@@ -244,7 +255,7 @@ struct SettingsSyncTests {
     /// A v3 file written before a field existed must decode, and that field must read as "unset" —
     /// which is what makes the apply path leave this Mac's own value alone rather than resetting it.
     private static func testOlderFileLeavesNewFieldsUnset() {
-        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations", "openRouterChatEffort", "openRouterWebSearch"]
+        let newFields = ["currencyRatesEnabled", "settingsSyncMigrations", "openRouterChatEffort", "openRouterWebSearch", "clipboardTextSearch"]
         var object = jsonObject(encode(populatedSettings()))
         for field in newFields {
             precondition(object[field] != nil, "\(field) is missing from the fixture")
@@ -255,12 +266,30 @@ struct SettingsSyncTests {
         precondition(decoded.currencyRatesEnabled == nil)
         precondition(decoded.settingsSyncMigrations == nil)
         precondition(decoded.openRouterWebSearch == nil, "old snapshots must leave the receiving Mac's search setting intact")
+        precondition(decoded.clipboardTextSearch == nil, "old snapshots must leave the receiving Mac's text indexing alone")
         precondition(decoded.chatChoice == AIModelChoice(model: "vendor/fast"),
             "a Jev-era snapshot's Everyday tier is its chat model")
         // Everything the older file did carry is still there.
         precondition(decoded.openRouterAPIKey == "sk-or-test-key")
         precondition(decoded.googleTranslationTargets == ["ja", "fr", "de"])
         precondition(decoded.updateAutoCheckEnabled == true)
+
+        var prefs = jsonObject(encode(populatedPluginPrefs()))
+        precondition(prefs["raycastExtensions"] != nil, "raycastExtensions is missing from the fixture")
+        prefs.removeValue(forKey: "raycastExtensions")
+        let olderPrefs = try! decode(SettingsBackupPluginPrefs.self,
+            from: try! JSONSerialization.data(withJSONObject: prefs))
+        precondition(olderPrefs.raycastExtensions == nil, "old snapshots must leave Raycast preferences alone")
+        precondition(olderPrefs.note?.windowTransparency == 0.25)
+        let partial = try! decode(SettingsBackupPluginPrefs.self,
+            from: Data(#"{"raycastExtensions":{"packageManager":"bun"}}"#.utf8))
+        precondition(partial.raycastExtensions?.packageManager == "bun")
+        precondition(partial.raycastExtensions?.showInLauncher == nil && partial.raycastExtensions?.appearances == nil,
+            "a missing Raycast field leaves that local value alone")
+        let futureTint = try! decode(SettingsBackupPluginPrefs.self,
+            from: Data(#"{"raycastExtensions":{"appearances":{"x":{"symbol":"star","tint":"ultraviolet"}}}}"#.utf8))
+        precondition(futureTint.raycastExtensions?.appearances?["x"]?.tint == "ultraviolet",
+            "an unknown tint decodes as data instead of failing the snapshot")
     }
 
     /// Synthesized `Codable` — no hand-written `CodingKeys`, no custom `init(from:)` — so a file from

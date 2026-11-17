@@ -35,13 +35,20 @@ final class ExtensionCoordinator: ObservableObject {
 
     func start() {
         core.extensions.start(coordinator: self)
-        core.extensions.setShowsInLauncher(UserDefaults.standard.object(forKey: "raycast-extensions.show-in-launcher") as? Bool ?? true)
+        core.extensions.setShowsInLauncher(UserDefaults.standard.object(forKey: Self.showInLauncherKey) as? Bool ?? true)
         core.extensions.onCommandsChanged = { [weak self] in
             guard let self else { return }
             core.plugins.reloadDynamicCommands(for: .raycastExtensions)
             core.hotKeys.refreshPluginActions(core.plugins.shortcutActions)
         }
         Task { await core.extensions.setEnabled(enabled) }
+    }
+
+    private static let showInLauncherKey = "raycast-extensions.show-in-launcher"
+
+    func setShowsInLauncher(_ shows: Bool) {
+        core.extensions.setShowsInLauncher(shows)
+        UserDefaults.standard.set(shows, forKey: Self.showInLauncherKey)
     }
 
     func setEnabled(_ value: Bool) {

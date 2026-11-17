@@ -109,6 +109,7 @@ extension SettingsBackup {
         backup.settings = SettingsBackupData(
             clipboardRetentionDays: s.clipboardRetention.rawValue,
             clipboardDisabledApps: s.clipboardDisabledApps,
+            clipboardTextSearch: s.clipboardTextSearch,
             launchAtLogin: s.launchAtLogin,
             hyperKey: s.hyperKey.rawValue,
             hyperKeyIncludesShift: s.hyperKeyIncludesShift,
@@ -251,6 +252,13 @@ extension SettingsBackup {
         prefs.note = SettingsBackupPluginPrefs.Note(
             windowTransparency: core.notes.windowTransparency,
             autoWindowSizing: nil)
+        prefs.raycastExtensions = SettingsBackupPluginPrefs.RaycastExtensions(
+            showInLauncher: core.extensions.showsInLauncher,
+            packageManager: core.extensionCoordinator.packageManager.rawValue,
+            appearances: core.extensions.appearances.overrides.mapValues {
+                SettingsBackupPluginPrefs.RaycastExtensions.Appearance(
+                    symbol: $0.symbol, tint: $0.tint.rawValue)
+            })
         return prefs
     }
 
@@ -401,6 +409,31 @@ extension SettingsBackup {
             core.notes.setWindowTransparency(transparency)
             count += 1
         }
+        if let raycast = prefs.raycastExtensions {
+            if let shows = raycast.showInLauncher {
+                core.extensionCoordinator.setShowsInLauncher(shows)
+                count += 1
+            }
+            if let manager = raycast.packageManager.flatMap(ExtensionPackageManager.init(rawValue:)) {
+                core.extensionCoordinator.packageManager = manager
+                count += 1
+            }
+            if let incoming = raycast.appearances {
+                let local = core.extensions.appearances.overrides
+                // An entry this build can't render keeps the local choice for that extension instead of clearing it.
+                let overrides = incoming.reduce(into: [String: ExtensionAppearance]()) { result, entry in
+                    if let symbol = entry.value.symbol,
+                        let tint = entry.value.tint.flatMap(ExtensionTint.init(rawValue:))
+                    {
+                        result[entry.key] = ExtensionAppearance(symbol: symbol, tint: tint)
+                    } else if let kept = local[entry.key] {
+                        result[entry.key] = kept
+                    }
+                }
+                core.extensions.replaceAppearances(overrides)
+                count += 1
+            }
+        }
         if let dashboard = prefs.dashboardWidgets {
             count += core.dashboardWidgets.applyPreferences(
                 widgetOrderRawValues: dashboard.widgetOrder,
@@ -423,6 +456,14 @@ extension SettingsBackup {
         }
         if let apps = s.clipboardDisabledApps {
             settings.clipboardDisabledApps = apps
+            count += 1
+        }
+        if let flag = s.clipboardTextSearch {
+            // Toggling the indexer rescans history, so only a real change reaches it.
+            if flag != settings.clipboardTextSearch {
+                settings.clipboardTextSearch = flag
+                core.clipboardTextIndexer.setEnabled(flag)
+            }
             count += 1
         }
         if let launch = s.launchAtLogin {
@@ -549,7 +590,6 @@ extension SettingsBackup {
             count += core.dashboardWeather.applyPreferences(
                 enabled: dashboard.weatherEnabled, unitRawValue: dashboard.weatherUnit)
         }
-        // is a no-op either way.
         return count
     }
 

@@ -64,6 +64,7 @@ Format v3 carries everything below. "Field" is the path inside the JSON.
 | --- | --- |
 | Clipboard retention | `settings.clipboardRetentionDays` |
 | Apps excluded from clipboard history | `settings.clipboardDisabledApps` |
+| Search text in images & PDFs (the preference; the recognized text stays local) | `settings.clipboardTextSearch` |
 | Launch at login | `settings.launchAtLogin` |
 | Hyper Key: physical key, ⇧ inclusion, quick press, glyph collapse | `settings.hyperKey`, `.hyperKeyIncludesShift`, `.hyperKeyQuickPress`, `.hyperKeyReplacesGlyph` |
 | Emoji skin tone | `settings.emojiSkinTone` |
@@ -147,10 +148,12 @@ derive "answered" from the restored grant.
 | Snippets prefix and rules | `textReplacement.prefix`, `.rules` |
 | Custom commands | `customCommands` |
 | AI commands (names, prompts, per-command models) | `aiCommands` |
-| AI commands use Quick AI Chat (default on) | `settings.aiCommandsUseQuickChat` |
+| Raycast Extensions: commands in launcher, package manager | `pluginPrefs.raycastExtensions.showInLauncher`, `.packageManager` |
+| Raycast Extensions: per-extension icon overrides (keyed by manifest name) | `pluginPrefs.raycastExtensions.appearances` |
 
-An older snapshot without `aiCommandsUseQuickChat` leaves the local choice unchanged. Command message
-metadata stores the original selection separately from the rendered model prompt within chat sessions.
+Command message metadata stores the original selection separately from the rendered model prompt
+within chat sessions. A Raycast icon override whose tint this build does not know keeps the local
+override for that extension rather than clearing it.
 
 A file written before AI commands existed carries the two built-ins' prompts and models in
 `pluginPrefs.selectionTools` and `settings.openRouterDefinitionModel` / `.openRouterGrammarModel`
@@ -188,6 +191,13 @@ None of this travels, and each has its own reason.
 | `shortcuts.collapsedGroups` | which groups are folded in the Shortcuts pane. Window state, not a setting. |
 | Caches: `currency-rates.json`, `weather.json`, app-icon and thumbnail caches, `Spotter.log` | provider responses and derived data, refetched or rebuilt locally. Clipboard image *bytes* are the exception and do travel, inside `clipboardHistory`. |
 | `NSInitialToolTipDelay` | registration-domain default, never a user value. |
+| `raycast-extensions.enabled` | consent to run third-party JavaScript on this Mac; a file must never turn it on. |
+| `raycast-extensions.search-paths` | executable search paths describe this Mac's filesystem. |
+| Raycast installed extensions and their stored data (preferences, LocalStorage, caches), and OAuth Keychain tokens | installing runs third-party code, which needs this Mac's own consent; their data and secrets belong to that install. |
+| MCP / Cua tool configuration | device-local by design: servers are local executables and endpoints. |
+| Semantic clipboard search consent, models and vectors | a large model download is consented per Mac; vectors are derived and rebuilt. |
+| `local-ai.executable-paths` | paths to local CLI executables differ per Mac. |
+| The recognized text from images & PDFs | derived and rebuilt by each Mac's indexer; only the preference syncs. |
 | The retired CloudKit Notes engine's local state | the pipeline has no entry point; a v3 file carrying `note.iCloudSyncEnabled` is ignored on decode and can never start it. |
 
 Runtime executors, in-flight requests and temporary files are not backup state either.
