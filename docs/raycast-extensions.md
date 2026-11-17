@@ -40,8 +40,11 @@ change the system's default URL handler.
 
 ## Ownership and persistence
 
-AppCore solely owns ExtensionManager/ExtensionCoordinator. Enablement defaults off and is not part
-of backup/sync. Preferences, installs and data use the app bundle's Application Support directory;
+AppCore solely owns ExtensionManager/ExtensionCoordinator. Enablement defaults on (owner decision,
+Nov 2026): a Mac that never touched the switch runs installed extensions, and only an explicit
+switch-off is persisted. Nothing third-party runs until the user installs an extension, and Store
+searches and source installs still happen only when the user asks. Enablement is not part of
+backup/sync. Preferences, installs and data use the app bundle's Application Support directory;
 OAuth secrets use the bundle-scoped keychain service. Dev and stable share Spotter's bundle identity.
 The native built-in registry remains compile-time; the Raycast adapter supplies dynamic commands
 and shortcuts. Closing a view releases its runtime unless a host-requested hide or OAuth flow is in
@@ -100,7 +103,7 @@ the process ID, kernel start time, extension identity and duration. On relaunch,
 only if the same user-owned `/usr/bin/caffeinate` process is still alive; stale or reused PIDs are
 dropped. Disabling extensions or uninstalling the owning extension stops its tracked work. A timer
 checks only recorded processes and runs only while work is active; there is no system-wide scan.
-These records do not enter settings backup/sync. Pre-existing sessions started before this tracking
+These records, and the Background Tasks row itself, do not enter settings backup/sync. Pre-existing sessions started before this tracking
 was installed and indirect shell-launched children are not adopted. Future recurring Coffee schedules
 remain managed by the extension.
 

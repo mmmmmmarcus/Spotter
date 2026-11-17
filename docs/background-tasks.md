@@ -10,8 +10,11 @@ snapshot that remains visible to the user.
 detail and symbol, then updates it by UUID and finishes it as Done or Failed. New tasks appear first.
 A row is **live** while it is Queued or Running: neither can be dismissed. Successful notifications
 stay until shown in the visible empty launcher, then clear when the palette closes; unseen successes
-and failures stay available for manual Dismiss during this process. Only live rows enter trusted v3
-backups and automatic sync. Imported Done and Failed snapshots are ignored, so old completion
+and failures stay available for manual Dismiss during this process. Only this Mac's own live rows
+enter trusted v3 backups and automatic sync: a row mirrored from another Mac is shown but never
+re-exported, so only its owner keeps it in the file and the next snapshot without it drops it. A
+mirrored row whose owner has gone quiet therefore leaves the file on this Mac's next write instead of
+circulating forever. Rows begun with `deviceLocal: true` never sync at all. Imported Done and Failed snapshots are ignored, so old completion
 notifications cannot reappear on every launch. Local terminal notifications survive unrelated sync,
 and retired task IDs cannot be revived by stale live snapshots during the same process. A
 device identifier distinguishes remote progress from this Mac's executor: a local task that was still
@@ -79,4 +82,7 @@ updates are not user-started work and do not enter the launcher.
 Raycast Coffee keep-awake sessions also appear here. Their row shows remaining time and progress
 when a duration is known, otherwise an indeterminate keep-awake state. **Actions → Cancel** stops
 only that session's process; the row becomes Done after exit. ExtensionKeepAwake owns execution
-tracking and device-local recovery independently of these display snapshots.
+tracking and device-local recovery independently of these display snapshots. The row is
+device-local: it describes a child process on this Mac that no other Mac can cancel, and its
+once-a-second countdown must never rewrite the Settings Sync file. `syncTasks` is published apart
+from `tasks`, so those ticks do not even wake the sync manager.

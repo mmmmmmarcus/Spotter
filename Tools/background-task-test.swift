@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 @main
@@ -177,6 +178,35 @@ struct BackgroundTaskTests {
         afterQuit.dismiss(id: orphanedQueue)
         afterQuit.replace(tasks: orphanedSnapshot)
         check("dismissed interruption cannot return in this process", afterQuit.tasks.isEmpty)
+
+        // Only the owning Mac publishes its rows; mirrored and device-local rows stay off the file.
+        let exporter = BackgroundTaskStore(defaults: defaults)
+        let ownLive = exporter.begin(title: "Own live")
+        let keepAwake = exporter.begin(title: "Keeping Mac awake", deviceLocal: true)
+        let foreignLive = BackgroundTaskItem(
+            id: UUID(), title: "Foreign live", systemImage: "gear", detail: "Working",
+            progress: 0.4, state: .running, ownerID: UUID())
+        exporter.replace(tasks: [foreignLive])
+        check("a foreign live row is shown", exporter.tasks.contains { $0.id == foreignLive.id })
+        check("a foreign live row is never re-exported", !exporter.syncTasks.contains { $0.id == foreignLive.id })
+        check("this Mac's own live row is exported", exporter.syncTasks.map(\.id) == [ownLive])
+        check("a device-local row is shown", exporter.tasks.contains { $0.id == keepAwake })
+        check("a device-local row is never exported", !exporter.syncTasks.contains { $0.id == keepAwake })
+        let exportedBeforeTick = exporter.syncTasks
+        var syncWakes = 0
+        let wakeToken = exporter.$syncTasks.dropFirst().sink { _ in syncWakes += 1 }
+        exporter.update(id: keepAwake, detail: "21m remaining", progress: 0.6)
+        check("a device-local tick changes the row", exporter.tasks.first { $0.id == keepAwake }?.progress == 0.6)
+        check("a device-local tick leaves the export untouched", exporter.syncTasks == exportedBeforeTick && syncWakes == 0)
+        exporter.update(id: ownLive, detail: "Halfway", progress: 0.5)
+        check("an own row's progress does reach the export", syncWakes > 0 && exporter.syncTasks.first?.progress == 0.5)
+        wakeToken.cancel()
+        exporter.replace(tasks: [])
+        check("a snapshot without the foreign row drops it", !exporter.tasks.contains { $0.id == foreignLive.id })
+        check("local rows survive that snapshot", Set(exporter.tasks.map(\.id)) == [ownLive, keepAwake])
+        exporter.discard(id: keepAwake)
+        exporter.begin(title: "Reused id now syncs", id: keepAwake)
+        check("device-local is per row, not sticky on an id", exporter.syncTasks.contains { $0.id == keepAwake })
 
         print(failures == 0 ? "\nBackground tasks: ALL PASSED" : "\n\(failures) FAILED")
         if failures > 0 { exit(1) }

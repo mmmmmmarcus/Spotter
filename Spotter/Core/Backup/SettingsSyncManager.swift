@@ -230,7 +230,7 @@ final class SettingsSyncManager: ObservableObject {
             core.calcHistory.objectWillChange.eraseToAnyPublisher(),
             core.aiChat.$sessions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             core.aiChat.$currentID.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            core.backgroundTasks.objectWillChange.eraseToAnyPublisher(),
+            core.backgroundTasks.$syncTasks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             core.frequentEmoji.objectWillChange.eraseToAnyPublisher(),
             core.launcherRanking.objectWillChange.eraseToAnyPublisher(),
         ]

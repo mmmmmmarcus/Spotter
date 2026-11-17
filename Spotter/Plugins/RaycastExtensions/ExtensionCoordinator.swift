@@ -5,7 +5,8 @@ import SwiftUI
 @MainActor
 final class ExtensionCoordinator: ObservableObject {
     unowned let core: AppCore
-    @Published private(set) var enabled = UserDefaults.standard.bool(forKey: "raycast-extensions.enabled")
+    // On by default (owner decision, Nov 2026); only an explicit switch-off is persisted as false.
+    @Published private(set) var enabled = UserDefaults.standard.object(forKey: "raycast-extensions.enabled") as? Bool ?? true
     @Published var packageManager = ExtensionPackageManager(rawValue: UserDefaults.standard.string(forKey: "raycast-extensions.package-manager") ?? "automatic") ?? .automatic {
         didSet { UserDefaults.standard.set(packageManager.rawValue, forKey: "raycast-extensions.package-manager") }
     }

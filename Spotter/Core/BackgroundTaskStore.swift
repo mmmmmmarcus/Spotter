@@ -60,13 +60,15 @@ struct BackgroundTaskItem: Identifiable, Equatable, Codable, Sendable {
 /// Owns the launcher-visible lifetime and progress snapshot while each feature manager keeps owning its work.
 @MainActor
 final class BackgroundTaskStore: ObservableObject {
-    @Published private(set) var tasks: [BackgroundTaskItem] = []
+    @Published private(set) var tasks: [BackgroundTaskItem] = [] { didSet { refreshSyncTasks() } }
+    /// This Mac's own live syncable rows, published apart so ticks on unsynced rows never wake Settings Sync.
+    @Published private(set) var syncTasks: [BackgroundTaskItem] = []
     private let ownerID: UUID
     private var executingIDs: Set<UUID> = []
+    /// Rows describing work only this Mac can see or stop, such as a keep-awake child process.
+    private var deviceLocalIDs: Set<UUID> = []
     private var retiredIDs: Set<UUID> = []
     private var seenCompletionIDs: Set<UUID> = []
-
-    var syncTasks: [BackgroundTaskItem] { tasks.filter { $0.state.isLive } }
     /// Where Return sends the user while a row is still running. Process-local by necessity: a
     /// closure cannot be synced, and a row mirrored from another Mac has no local work to open.
     private var activations: [UUID: () -> Void] = [:]
@@ -88,12 +90,13 @@ final class BackgroundTaskStore: ObservableObject {
     @discardableResult
     func begin(
         title: String, detail: String = "Starting…", systemImage: String = "gearshape.2",
-        id: UUID = UUID(), queued: Bool = false, onOpen: (() -> Void)? = nil,
-        onCancel: (() -> Void)? = nil
+        id: UUID = UUID(), queued: Bool = false, deviceLocal: Bool = false,
+        onOpen: (() -> Void)? = nil, onCancel: (() -> Void)? = nil
     ) -> UUID {
         retiredIDs.remove(id)
         seenCompletionIDs.remove(id)
         executingIDs.insert(id)
+        if deviceLocal { deviceLocalIDs.insert(id) } else { deviceLocalIDs.remove(id) }
         activations[id] = onOpen
         cancellations[id] = onCancel
         tasks.insert(
@@ -143,6 +146,7 @@ final class BackgroundTaskStore: ObservableObject {
         guard let task = tasks.first(where: { $0.id == id }), task.isDismissible else { return }
         retiredIDs.insert(id)
         seenCompletionIDs.remove(id)
+        deviceLocalIDs.remove(id)
         activations[id] = nil
         cancellations[id] = nil
         tasks.removeAll { $0.id == id }
@@ -152,6 +156,7 @@ final class BackgroundTaskStore: ObservableObject {
         retiredIDs.insert(id)
         seenCompletionIDs.remove(id)
         executingIDs.remove(id)
+        deviceLocalIDs.remove(id)
         activations[id] = nil
         cancellations[id] = nil
         tasks.removeAll { $0.id == id }
@@ -200,7 +205,7 @@ final class BackgroundTaskStore: ObservableObject {
 
     func canOpen(id: UUID) -> Bool { activations[id] != nil }
 
-    /// A remote snapshot mirrors rows without detaching live work or reviving this Mac's dead executor.
+    /// Mirrors remote rows for display only — never re-exported — without detaching live work or reviving this Mac's dead executor.
     func replace(tasks newTasks: [BackgroundTaskItem]) {
         let local = tasks.filter { executingIDs.contains($0.id) || ($0.ownerID == ownerID && $0.isDismissible) }
         let localIDs = Set(local.map(\.id))
@@ -218,8 +223,16 @@ final class BackgroundTaskStore: ObservableObject {
         }
         tasks = local + imported
         seenCompletionIDs.formIntersection(tasks.map(\.id))
+        deviceLocalIDs.formIntersection(tasks.map(\.id))
         activations = activations.filter { executingIDs.contains($0.key) }
         cancellations = cancellations.filter { executingIDs.contains($0.key) }
+    }
+
+    private func refreshSyncTasks() {
+        let exported = tasks.filter {
+            $0.state.isLive && $0.ownerID == ownerID && !deviceLocalIDs.contains($0.id)
+        }
+        if exported != syncTasks { syncTasks = exported }
     }
 
     private func finish(id: UUID, detail: String, state: BackgroundTaskItem.State) {

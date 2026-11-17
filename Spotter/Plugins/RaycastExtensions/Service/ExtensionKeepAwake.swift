@@ -134,7 +134,7 @@ final class ExtensionKeepAwake {
         tasks.discard(id: process.id)
         tasks.begin(title: "\(process.extensionTitle) · Keeping Mac awake",
                     detail: process.detail(now: Date()), systemImage: "cup.and.saucer.fill", id: process.id,
-                    onCancel: { [weak self] in self?.stop(id: process.id) })
+                    deviceLocal: true, onCancel: { [weak self] in self?.stop(id: process.id) })
         if !acceptsNewWork || removedExtensions.contains(process.extensionName) { stop(id: process.id) }
         refresh()
         persist()

@@ -163,7 +163,7 @@ an older build reading a new file keeps them.
 ### Content
 
 `clipboardHistory` (text and image rows, pinned state and image bytes), `calculatorHistory`,
-`aiChat` (sessions and the current one), `backgroundTasks` (Queued and Running snapshots only),
+`aiChat` (sessions and the current one), `backgroundTasks` (this Mac's own Queued and Running snapshots only; rows mirrored from another Mac are never re-exported),
 `frequentEmoji`, `launcherRanking`. Done and Failed notifications stay process-local and are ignored
 on import, including legacy snapshots. Local terminal notifications survive unrelated sync until
 dismissed; successful notifications clear after being shown in the empty launcher and closing it.
@@ -185,13 +185,14 @@ None of this travels, and each has its own reason.
 | The located weather place, and `dashboard-widgets.clock-time-zone` derived from it | a coordinate describes the Mac it was measured on. With manual city entry gone there would be nothing to correct an imported one with, so each Mac locates itself and an unlocatable one keeps its *own* saved zone. Consent and unit do sync. |
 | `update.last-check` | when this Mac last asked. Merging it would either suppress a due check or force a redundant one. |
 | `background-tasks.owner-id` | identifies rows this process owns, so a synced row is never mistaken for work running here. |
+| Raycast keep-awake (Coffee) Background Tasks rows | they describe a caffeinate child on this Mac that no other Mac can cancel, and their per-second countdown would rewrite this file every second. |
 | macOS privacy grants — Accessibility, Input Monitoring, Screen Recording, Automation, Full Disk Access | owned by `tccd` and keyed to this Mac and this signed bundle. Spotter cannot write them, and a "granted" flag that travelled would be a lie. |
 | Onboarding marker (`Application Support/<bundle-id>/onboarded`) | per-install first-run state, deliberately a file so an uninstall clears it. |
 | `app-identity-migration.*`, `plugin.command.visibility-initialized.*`, `plugin.command.visibility-migrated.*`, `hotkey.default-seeded.*` | one-shot migration and seed markers. Each Mac must run its own once; what they produce — hidden items, bindings — is what syncs. |
 | `shortcuts.collapsedGroups` | which groups are folded in the Shortcuts pane. Window state, not a setting. |
 | Caches: `currency-rates.json`, `weather.json`, app-icon and thumbnail caches, `Spotter.log` | provider responses and derived data, refetched or rebuilt locally. Clipboard image *bytes* are the exception and do travel, inside `clipboardHistory`. |
 | `NSInitialToolTipDelay` | registration-domain default, never a user value. |
-| `raycast-extensions.enabled` | consent to run third-party JavaScript on this Mac; a file must never turn it on. |
+| `raycast-extensions.enabled` | whether this Mac runs third-party JavaScript; on by default, and a file must never change it. |
 | `raycast-extensions.search-paths` | executable search paths describe this Mac's filesystem. |
 | Raycast installed extensions and their stored data (preferences, LocalStorage, caches), and OAuth Keychain tokens | installing runs third-party code, which needs this Mac's own consent; their data and secrets belong to that install. |
 | MCP / Cua tool configuration | device-local by design: servers are local executables and endpoints. |
